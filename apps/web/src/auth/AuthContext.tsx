@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 import type { Permiso } from '@gestion/shared';
 import { api } from '../api/cliente';
@@ -15,19 +16,25 @@ const Ctx = createContext<ValorAuth | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [sesion, setSesion] = useState<Sesion | null>(() => almacen.leer());
+  const consultas = useQueryClient();
 
   useEffect(() => {
-    const alCerrar = () => setSesion(null);
+    // Al cerrar sesión (también por un 401) se descartan los datos en caché del usuario anterior
+    const alCerrar = () => {
+      consultas.clear();
+      setSesion(null);
+    };
     window.addEventListener(EVENTO_SESION_CERRADA, alCerrar);
     return () => window.removeEventListener(EVENTO_SESION_CERRADA, alCerrar);
-  }, []);
+  }, [consultas]);
 
   const ingresar = useCallback(async (email: string, password: string) => {
     const r = await api<Sesion>('/auth/login', { metodo: 'POST', body: { email, password } });
+    consultas.clear();
     almacen.guardar(r);
     setSesion(r);
     return r;
-  }, []);
+  }, [consultas]);
 
   const elegirEmpresa = useCallback(async (empresaId: string) => {
     const r = await api<{ token: string; empresa: Sesion['empresa']; permisos: Permiso[] }>('/auth/empresa', {
@@ -36,9 +43,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     const actual = almacen.leer()!;
     const nueva: Sesion = { ...actual, token: r.token, empresa: r.empresa, permisos: r.permisos };
+    consultas.clear();
     almacen.guardar(nueva);
     setSesion(nueva);
-  }, []);
+  }, [consultas]);
 
   const salir = useCallback(() => almacen.cerrar(), []);
   const puede = useCallback((p: Permiso) => !!sesion?.permisos?.includes(p), [sesion]);

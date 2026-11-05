@@ -20,6 +20,7 @@ export function UsuariosPage() {
         camposEdicion: [
           { nombre: 'rolId', etiqueta: 'Rol', tipo: 'select', requerido: true, opciones: roles },
           { nombre: 'activo', etiqueta: 'Activo en esta empresa', tipo: 'booleano' },
+          { nombre: 'password', etiqueta: 'Blanquear contraseña', tipo: 'password', ayuda: 'Dejar vacío para no cambiarla.' },
         ],
         columnas: [
           { campo: 'nombre', titulo: 'Nombre' },

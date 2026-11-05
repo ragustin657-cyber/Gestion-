@@ -59,3 +59,21 @@ describe('empresas', () => {
     expect(l.body).toHaveLength(1);
   });
 });
+
+describe('empresas: revisión final', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  beforeAll(async () => {
+    app = await crearApp();
+    prisma = app.get(PrismaService);
+  });
+  beforeEach(async () => limpiarBase(prisma));
+  afterAll(async () => app.close());
+
+  it('PATCH con inicioEjercicioMes null no falla', async () => {
+    const { http } = await sesion(app, prisma, { permisos: ['empresa.administrar'] });
+    const r = await http.patch('/api/empresas/actual', { inicioEjercicioMes: null, domicilio: null });
+    expect(r.status).toBe(200);
+    expect(r.body.inicioEjercicioMes).toBe(1);
+  });
+});

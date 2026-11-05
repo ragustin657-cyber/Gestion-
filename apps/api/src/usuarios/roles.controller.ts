@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
-import { RequierePermiso } from '../auth/requiere-permiso.decorator';
+import { RequiereAlguno, RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { zPermisos, zTexto } from '../comun/esquemas';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { RolesService } from './roles.service';
@@ -12,7 +12,10 @@ const esquemaRol = z.object({ nombre: zTexto, permisos: zPermisos });
 export class RolesController {
   constructor(private readonly roles: RolesService) {}
 
+  /** Lectura: también la necesita la pantalla de usuarios para elegir el rol. */
   @Get()
+  @RequierePermiso()
+  @RequiereAlguno('rol.administrar', 'usuario.administrar')
   listar() {
     return this.roles.listar();
   }

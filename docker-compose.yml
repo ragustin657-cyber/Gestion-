@@ -5,8 +5,9 @@ services:
       POSTGRES_USER: gestion
       POSTGRES_PASSWORD: gestion
       POSTGRES_DB: gestion
+    # Puerto expuesto solo para desarrollo local; quitarlo en servidores públicos
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +21,9 @@ services:
       dockerfile: apps/api/Dockerfile
     environment:
       DATABASE_URL: postgresql://gestion:gestion@postgres:5432/gestion
-      JWT_SECRET: ${JWT_SECRET:-cambiar-este-secreto}
+      # Obligatorio: definir JWT_SECRET (mínimo 32 caracteres) en el entorno o en un archivo .env
+      JWT_SECRET: ${JWT_SECRET:?Definí la variable JWT_SECRET (mínimo 32 caracteres)}
+      NODE_ENV: production
     depends_on:
       postgres:
         condition: service_healthy

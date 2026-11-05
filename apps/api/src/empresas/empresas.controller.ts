@@ -13,7 +13,7 @@ const esquemaEmpresa = z.object({
   cuit: zCuit,
   condicionIva: z.nativeEnum(CondicionIva),
   domicilio: zTextoOpcional,
-  inicioEjercicioMes: z.number().int().min(1).max(12).optional(),
+  inicioEjercicioMes: z.number().int().min(1).max(12).nullish().transform((v) => v ?? 1),
   agenteRetencionGanancias: z.boolean().optional(),
   agenteRetencionIva: z.boolean().optional(),
   agenteRetencionSuss: z.boolean().optional(),

@@ -30,11 +30,12 @@ pnpm seed                          # crea la empresa demo
 pnpm dev                           # API en :3000 y web en http://localhost:5173
 ```
 
-Usuario demo: **admin@demo.com** / **admin1234** (empresa "Demo S.A.").
+Usuario demo: **admin@demo.com** / **admin1234** (empresa "Demo S.A."). Cambiá la contraseña desde el botón **Contraseña** del encabezado antes de usarlo en serio.
 
 ## Con Docker
 
 ```bash
+export JWT_SECRET="$(openssl rand -hex 32)"   # obligatorio, mínimo 32 caracteres
 docker compose up --build
 ```
 

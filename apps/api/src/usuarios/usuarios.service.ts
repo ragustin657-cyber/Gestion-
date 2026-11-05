@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { hash } from '@node-rs/argon2';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 
 type UsuarioEmpresaConDatos = {
@@ -25,6 +26,7 @@ export class UsuariosService {
   constructor(
     private readonly tenant: TenantPrisma,
     private readonly auditoria: AuditoriaService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async listar() {
@@ -55,15 +57,25 @@ export class UsuariosService {
     });
   }
 
-  modificar(usuarioId: string, d: { rolId?: string; activo?: boolean }) {
+  /** Cambia rol/estado en la empresa activa y, si se indica, blanquea la contraseña. */
+  modificar(usuarioId: string, d: { rolId?: string; activo?: boolean; password?: string | null }) {
+    const { password, ...cambios } = d;
     return this.tenant.transaccion(async (tx) => {
-      if (d.rolId) await this.verificarRol(tx, d.rolId);
+      if (cambios.rolId) await this.verificarRol(tx, cambios.rolId);
       const ue = await tx.usuarioEmpresa.update({
         where: { usuarioId_empresaId: { usuarioId, empresaId: this.tenant.empresaId } },
-        data: d,
+        data: cambios,
         include: { usuario: true, rol: true },
       });
-      await this.auditoria.registrar(tx, { entidad: 'Usuario', entidadId: usuarioId, accion: 'MODIFICAR', datos: d });
+      if (password) {
+        // Solo se blanquea a usuarios que pertenecen únicamente a esta empresa (consulta sin filtro de empresa).
+        const otras = await this.prisma.usuarioEmpresa.count({ where: { usuarioId, empresaId: { not: this.tenant.empresaId } } });
+        if (otras) throw new ForbiddenException('El usuario pertenece también a otras empresas: debe cambiar su contraseña él mismo');
+      }
+      if (password) await tx.usuario.update({ where: { id: usuarioId }, data: { passwordHash: await hash(password) } });
+      await this.auditoria.registrar(tx, {
+        entidad: 'Usuario', entidadId: usuarioId, accion: 'MODIFICAR', datos: { ...cambios, blanqueoPassword: !!password },
+      });
       return vista(ue);
     });
   }

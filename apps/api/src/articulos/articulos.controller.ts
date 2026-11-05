@@ -9,7 +9,7 @@ import { ArticulosService } from './articulos.service';
 const esquema = z.object({
   codigo: zTexto,
   descripcion: zTexto,
-  unidad: zTexto.optional(),
+  unidad: zTexto.nullish().transform((v) => v ?? undefined),
   alicuotaIva: z.number().refine(esAlicuotaIva, 'Alícuota de IVA inválida'),
   cuentaCompraId: z.string().uuid().optional().nullable(),
   cuentaVentaId: z.string().uuid().optional().nullable(),

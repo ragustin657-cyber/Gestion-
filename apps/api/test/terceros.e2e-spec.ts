@@ -97,3 +97,32 @@ describe('terceros', () => {
     expect((await http.post('/api/terceros', proveedor)).status).toBe(403);
   });
 });
+
+describe('terceros: revisión final', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  beforeAll(async () => {
+    app = await crearApp();
+    prisma = app.get(PrismaService);
+  });
+  beforeEach(async () => limpiarBase(prisma));
+  afterAll(async () => app.close());
+
+  const prov = { razonSocial: 'Ferretería', cuit: '20-12345678-6', condicionIva: 'RESPONSABLE_INSCRIPTO', esProveedor: true };
+
+  it('buscar por CUIT completo sin guiones no da 500', async () => {
+    const { http } = await sesion(app, prisma, { permisos: ['tercero.ver', 'tercero.editar'] });
+    await http.post('/api/terceros', prov);
+    const r = await http.get('/api/terceros?q=20123456786');
+    expect(r.status).toBe(200);
+    expect(r.body.total).toBe(1);
+  });
+
+  it('PATCH con diasPago null no falla', async () => {
+    const { http } = await sesion(app, prisma, { permisos: ['tercero.ver', 'tercero.editar'] });
+    const t = (await http.post('/api/terceros', { ...prov, diasPago: 30 })).body;
+    const r = await http.patch(`/api/terceros/${t.id}`, { diasPago: null, nombreFantasia: null });
+    expect(r.status).toBe(200);
+    expect(r.body.diasPago).toBe(0);
+  });
+});

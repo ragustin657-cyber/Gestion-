@@ -1,6 +1,6 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { verify } from '@node-rs/argon2';
+import { hash, verify } from '@node-rs/argon2';
 import { esPermiso } from '@gestion/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { PayloadJwt } from './jwt.guard';
@@ -41,5 +41,13 @@ export class AuthService {
       empresa: { id: acceso.empresa.id, razonSocial: acceso.empresa.razonSocial },
       permisos: acceso.rol.permisos.filter(esPermiso),
     };
+  }
+
+  async cambiarPassword(usuarioId: string, actual: string, nueva: string) {
+    const u = await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId } });
+    if (!(await verify(u.passwordHash, actual).catch(() => false)))
+      throw new BadRequestException({ statusCode: 400, message: 'La contraseña actual no es correcta', campos: { actual: 'La contraseña actual no es correcta' } });
+    await this.prisma.usuario.update({ where: { id: usuarioId }, data: { passwordHash: await hash(nueva) } });
+    return { ok: true };
   }
 }

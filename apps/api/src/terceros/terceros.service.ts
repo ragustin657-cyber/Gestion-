@@ -38,7 +38,7 @@ export class TercerosService {
             { razonSocial: { contains: q, mode: 'insensitive' } },
             { nombreFantasia: { contains: q, mode: 'insensitive' } },
             ...(digitos ? [{ cuit: { contains: digitos } }] : []),
-            ...(/^\d+$/.test(q) ? [{ codigo: Number(q) }] : []),
+            ...(/^\d{1,9}$/.test(q) ? [{ codigo: Number(q) }] : []),
           ]
         : undefined,
     };
@@ -76,7 +76,7 @@ export class TercerosService {
       this.tenant.transaccion(async (tx) => {
         const t = await tx.tercero.update({
           where: { id },
-          data: { ...d, email: d.email === '' ? null : d.email },
+          data: { ...d, email: d.email === '' ? null : d.email, diasPago: 'diasPago' in d ? (d.diasPago ?? 0) : undefined },
         });
         await this.auditoria.registrar(tx, { entidad: 'Tercero', entidadId: id, accion: 'MODIFICAR', datos: d });
         return t;

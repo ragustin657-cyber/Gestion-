@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
-import { zTexto } from '../comun/esquemas';
+import { zPassword, zTexto } from '../comun/esquemas';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { UsuariosService } from './usuarios.service';
 
@@ -14,6 +14,7 @@ const esquemaAlta = z.object({
 const esquemaModificacion = z.object({
   rolId: z.string().uuid('Rol inválido').optional(),
   activo: z.boolean().optional(),
+  password: zPassword.nullish(),
 });
 
 @Controller('usuarios')

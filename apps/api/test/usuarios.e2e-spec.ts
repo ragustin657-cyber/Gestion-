@@ -53,3 +53,55 @@ describe('usuarios', () => {
     expect(r.body.campos.email).toBe('Email inválido');
   });
 });
+
+describe('usuarios: revisión final', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  beforeAll(async () => {
+    app = await crearApp();
+    prisma = app.get(PrismaService);
+  });
+  beforeEach(async () => limpiarBase(prisma));
+  afterAll(async () => app.close());
+
+  it('con usuario.administrar (sin rol.administrar) puede listar roles para el selector', async () => {
+    const { http } = await sesion(app, prisma, { permisos: ['usuario.administrar'] });
+    expect((await http.get('/api/roles')).status).toBe(200);
+    expect((await http.post('/api/roles', { nombre: 'X', permisos: [] })).status).toBe(403);
+  });
+
+  it('el usuario cambia su propia contraseña con la actual', async () => {
+    const { http, usuario, empresa, password } = await sesion(app, prisma);
+    expect((await http.patch('/api/auth/password', { actual: 'mala-clave-xx', nueva: 'nueva-clave-123' })).status).toBe(400);
+    expect((await http.patch('/api/auth/password', { actual: password, nueva: 'nueva-clave-123' })).status).toBe(200);
+    await expect(loginComo(app, usuario.email, password, empresa.id)).rejects.toThrow();
+    expect(await loginComo(app, usuario.email, 'nueva-clave-123', empresa.id)).toBeTruthy();
+  });
+
+  it('el administrador blanquea la contraseña de un usuario de su empresa', async () => {
+    const { http, rol, empresa } = await sesion(app, prisma, { permisos: ['usuario.administrar'] });
+    const u = (await http.post('/api/usuarios', { email: 'z@test.com', nombre: 'Z', password: 'clave-larga-1', rolId: rol.id })).body;
+    expect((await http.patch(`/api/usuarios/${u.id}`, { password: 'blanqueada-123' })).status).toBe(200);
+    expect(await loginComo(app, 'z@test.com', 'blanqueada-123', empresa.id)).toBeTruthy();
+  });
+});
+
+describe('usuarios: blanqueo entre empresas', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  beforeAll(async () => {
+    app = await crearApp();
+    prisma = app.get(PrismaService);
+  });
+  beforeEach(async () => limpiarBase(prisma));
+  afterAll(async () => app.close());
+
+  it('no puede blanquear la contraseña de un usuario que también pertenece a otra empresa', async () => {
+    const a = await sesion(app, prisma, { permisos: ['usuario.administrar'] });
+    const b = await sesion(app, prisma, { permisos: ['usuario.administrar'] });
+    await b.http.post('/api/usuarios', { email: a.usuario.email, nombre: 'x', password: 'irrelevante-1', rolId: b.rol.id });
+    const r = await b.http.patch(`/api/usuarios/${a.usuario.id}`, { password: 'robada-12345' });
+    expect(r.status).toBe(403);
+    expect(await loginComo(app, a.usuario.email, a.password, a.empresa.id)).toBeTruthy();
+  });
+});

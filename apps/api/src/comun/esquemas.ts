@@ -8,5 +8,7 @@ export const zCuit = z
 
 export const zPermisos = z.array(z.string()).refine((ps) => ps.every(esPermiso), 'Permiso inexistente');
 
+export const zPassword = z.string().min(8, 'La contraseña debe tener al menos 8 caracteres');
+
 export const zTexto = z.string().trim().min(1);
 export const zTextoOpcional = z.string().trim().optional().nullable();

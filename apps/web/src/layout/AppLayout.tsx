@@ -1,7 +1,10 @@
-import { AppShell, Burger, Button, Group, ScrollArea, Text } from '@mantine/core';
+import { AppShell, Burger, Button, Group, Modal, ScrollArea, Text } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { api } from '../api/cliente';
+import { FormAbm } from '../abm/FormAbm';
 import { useDisclosure } from '@mantine/hooks';
-import { IconBuilding, IconLogout } from '@tabler/icons-react';
-import { useMemo } from 'react';
+import { IconBuilding, IconKey, IconLogout } from '@tabler/icons-react';
+import { useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { MenuArbol } from './MenuArbol';
@@ -11,6 +14,7 @@ export function AppLayout() {
   const { sesion, salir } = useAuth();
   const navegar = useNavigate();
   const [abierto, { toggle, close }] = useDisclosure();
+  const [cambiandoClave, setCambiandoClave] = useState(false);
   const menu = useMemo(() => filtrarMenu(MENU, sesion?.permisos ?? []), [sesion?.permisos]);
 
   return (
@@ -24,6 +28,9 @@ export function AppLayout() {
           <Group gap="xs" wrap="nowrap">
             <Button variant="subtle" color="white" size="compact-sm" leftSection={<IconBuilding size={16} />} onClick={() => navegar('/empresa')}>
               <Text size="sm" truncate maw={180}>{sesion?.empresa?.razonSocial}</Text>
+            </Button>
+            <Button variant="subtle" color="white" size="compact-sm" leftSection={<IconKey size={16} />} onClick={() => setCambiandoClave(true)} visibleFrom="sm">
+              Contraseña
             </Button>
             <Button variant="subtle" color="white" size="compact-sm" leftSection={<IconLogout size={16} />} onClick={salir} visibleFrom="xs">
               Salir
@@ -39,6 +46,20 @@ export function AppLayout() {
       <AppShell.Main bg="gray.0">
         <Outlet />
       </AppShell.Main>
+      <Modal opened={cambiandoClave} onClose={() => setCambiandoClave(false)} title="Cambiar contraseña">
+        <FormAbm
+          campos={[
+            { nombre: 'actual', etiqueta: 'Contraseña actual', tipo: 'password', requerido: true, ancho: true },
+            { nombre: 'nueva', etiqueta: 'Contraseña nueva (mínimo 8 caracteres)', tipo: 'password', requerido: true, ancho: true },
+          ]}
+          valoresIniciales={{}}
+          onEnviar={(v) => api('/auth/password', { metodo: 'PATCH', body: v })}
+          onExito={() => {
+            setCambiandoClave(false);
+            notifications.show({ color: 'green', message: 'Contraseña actualizada' });
+          }}
+        />
+      </Modal>
     </AppShell>
   );
 }

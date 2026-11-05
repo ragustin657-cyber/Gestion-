@@ -14,7 +14,7 @@ const base = z.object({
   provincia: zTextoOpcional,
   email: z.string().trim().email('Email inválido').optional().nullable().or(z.literal('')),
   telefono: zTextoOpcional,
-  diasPago: z.number().int().min(0).max(365).optional(),
+  diasPago: z.number().int().min(0).max(365).nullish().transform((v) => v ?? undefined),
   regimenGanancias: zTextoOpcional,
   exentoGanancias: z.boolean().optional(),
   exentoIva: z.boolean().optional(),
