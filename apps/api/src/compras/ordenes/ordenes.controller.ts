@@ -23,6 +23,12 @@ export class OrdenesController {
     return this.ordenes.pendientesRecibir(terceroId);
   }
 
+  @Get('pendientes-facturar')
+  @RequierePermiso('fc.crear')
+  pendientesFacturar(@Query('terceroId') terceroId?: string) {
+    return this.ordenes.pendientesFacturar(terceroId);
+  }
+
   @Get(':id/pdf')
   @RequierePermiso('oc.ver')
   async pdf(@Id() id: string, @Res({ passthrough: true }) res: Response) {

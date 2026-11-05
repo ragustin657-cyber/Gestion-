@@ -239,6 +239,23 @@ export class OrdenesService {
       }));
   }
 
+  /** Renglones de OC aprobadas con cantidad pendiente de facturar (para servicios sin recepción). */
+  async pendientesFacturar(terceroId?: string) {
+    const filas = await this.tenant.db.ordenCompraRenglon.findMany({
+      where: { ordenCompra: { estado: { in: ['APROBADA', 'PARCIALMENTE_RECIBIDA', 'CUMPLIDA'] }, terceroId: terceroId || undefined } },
+      include: { ordenCompra: { select: { id: true, numero: true, terceroId: true, monedaCodigo: true } } },
+      orderBy: [{ ordenCompra: { numero: 'asc' } }, { orden: 'asc' }],
+    });
+    return filas
+      .filter((r) => r.cantidad.gt(r.cantidadFacturada))
+      .map((r) => ({
+        ordenCompraRenglonId: r.id, ordenCompraId: r.ordenCompraId, ocNumero: r.ordenCompra.numero, terceroId: r.ordenCompra.terceroId,
+        monedaCodigo: r.ordenCompra.monedaCodigo, articuloId: r.articuloId, descripcion: r.descripcion, precioUnitario: r.precioUnitario,
+        bonificacionPct: r.bonificacionPct, alicuotaIva: r.alicuotaIva, centroCostoId: r.centroCostoId,
+        cantidad: r.cantidad, facturado: r.cantidadFacturada, pendiente: r.cantidad.minus(r.cantidadFacturada),
+      }));
+  }
+
   /** Recalcula el estado según lo recibido (usado por recepciones y sus anulaciones). */
   async recalcularEstado(tx: TxEmpresa, ordenCompraId: string): Promise<void> {
     const oc = await tx.ordenCompra.findUnique({ where: { id: ordenCompraId }, include: { renglones: true } });

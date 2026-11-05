@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
 import { ConfigComprasPage } from '../compras/ConfigComprasPage';
+import { FacturaProveedorPage } from '../compras/FacturaProveedorPage';
 import { OrdenCompraPage } from '../compras/OrdenCompraPage';
+import { RecepcionPage } from '../compras/RecepcionPage';
 import { AprobacionOcPage, OrdenesCompraPage } from '../compras/OrdenesCompraPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
@@ -30,4 +32,6 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/compras/oc/aprobacion', elemento: <AprobacionOcPage /> },
   { ruta: '/compras/oc/:id', elemento: <OrdenCompraPage /> },
   { ruta: '/compras/oc', elemento: <OrdenesCompraPage /> },
+  { ruta: '/compras/recepcion', elemento: <RecepcionPage /> },
+  { ruta: '/compras/factura', elemento: <FacturaProveedorPage /> },
 ];

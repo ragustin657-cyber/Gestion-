@@ -42,7 +42,7 @@ describe('auth', () => {
       .send({ empresaId: empresa.id });
     expect(r.status).toBe(200);
     expect(r.body.permisos).toEqual(['tercero.ver']);
-    expect(r.body.empresa).toEqual({ id: empresa.id, razonSocial: empresa.razonSocial });
+    expect(r.body.empresa).toEqual({ id: empresa.id, razonSocial: empresa.razonSocial, condicionIva: 'RESPONSABLE_INSCRIPTO' });
   });
 
   it('seleccionar empresa sin acceso → 403', async () => {

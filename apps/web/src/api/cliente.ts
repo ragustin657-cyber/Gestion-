@@ -5,6 +5,8 @@ export class ErrorApi extends Error {
     public status: number,
     public mensaje: string,
     public campos?: Record<string, string>,
+    /** Cuerpo completo de la respuesta de error (por ejemplo, diferencias del control de 3 vías). */
+    public datos?: Record<string, unknown>,
   ) {
     super(mensaje);
   }
@@ -43,7 +45,7 @@ export async function api<T>(ruta: string, opciones: OpcionesApi = {}): Promise<
   if (res.ok) return datos as T;
   if (res.status === 401 && token) sesion.cerrar();
   const mensaje = Array.isArray(datos?.message) ? datos.message.join(', ') : (datos?.message ?? 'Error inesperado');
-  throw new ErrorApi(res.status, mensaje, datos?.campos);
+  throw new ErrorApi(res.status, mensaje, datos?.campos, datos);
 }
 
 /** Descarga un archivo (PDF, Excel) de la API con el token de la sesión. */

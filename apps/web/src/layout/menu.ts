@@ -19,6 +19,8 @@ export const MENU: NodoMenu[] = [
         hijos: [
           { titulo: 'Orden de compra', ruta: '/compras/oc/nueva', permiso: 'oc.crear' },
           { titulo: 'Aprobación de OC', ruta: '/compras/oc/aprobacion', permiso: 'oc.aprobar' },
+          { titulo: 'Informe de recepción', ruta: '/compras/recepcion', permiso: 'ir.crear' },
+          { titulo: 'Factura de proveedor', ruta: '/compras/factura', permiso: 'fc.crear' },
         ],
       },
       proximamente('Ventas y Cuentas a Cobrar'),

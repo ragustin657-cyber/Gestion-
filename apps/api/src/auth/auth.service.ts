@@ -38,7 +38,7 @@ export class AuthService {
     const payload: PayloadJwt = { sub: usuarioId, empresaId: acceso.empresaId };
     return {
       token: await this.jwt.signAsync(payload),
-      empresa: { id: acceso.empresa.id, razonSocial: acceso.empresa.razonSocial },
+      empresa: { id: acceso.empresa.id, razonSocial: acceso.empresa.razonSocial, condicionIva: acceso.empresa.condicionIva },
       permisos: acceso.rol.permisos.filter(esPermiso),
     };
   }

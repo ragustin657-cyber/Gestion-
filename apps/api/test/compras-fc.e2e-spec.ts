@@ -96,6 +96,16 @@ describe('facturas de proveedor', () => {
     expect(r.body.diferencias[0]).toMatchObject({ tipo: 'CANTIDAD', esperado: '0' });
   });
 
+  it('pendientes de facturar de OC: cantidad menos facturado', async () => {
+    const { http, fc, oc, proveedorId } = await preparar();
+    await http.post('/api/compras/comprobantes', fc({
+      totalDeclarado: 3630, renglones: [{ origen: 'ORDEN_COMPRA', ordenCompraRenglonId: oc.renglones[0].id, descripcion: 'x', cantidad: 3, precioUnitario: 1000, alicuotaIva: 21 }],
+    }));
+    const p = (await http.get(`/api/compras/ordenes/pendientes-facturar?terceroId=${proveedorId}`)).body;
+    expect(p).toHaveLength(1);
+    expect(p[0]).toMatchObject({ ordenCompraRenglonId: oc.renglones[0].id, pendiente: '7', precioUnitario: '1000' });
+  });
+
   it('factura desde OC (servicio sin recepción)', async () => {
     const { http, fc, oc } = await preparar();
     const r = await http.post('/api/compras/comprobantes', fc({

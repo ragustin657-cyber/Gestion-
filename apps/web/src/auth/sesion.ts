@@ -4,7 +4,7 @@ export interface Sesion {
   token: string;
   usuario: { id: string; nombre: string };
   empresas?: { id: string; razonSocial: string }[];
-  empresa?: { id: string; razonSocial: string };
+  empresa?: { id: string; razonSocial: string; condicionIva?: string };
   permisos?: Permiso[];
 }
 
