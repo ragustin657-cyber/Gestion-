@@ -23,6 +23,13 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Factura de proveedor', ruta: '/compras/factura', permiso: 'fc.crear' },
         ],
       },
+      {
+        titulo: 'Pagos',
+        hijos: [
+          { titulo: 'Orden de pago', ruta: '/pagos/op/nueva', permiso: 'op.crear' },
+          { titulo: 'Aprobación de OP', ruta: '/pagos/op/aprobacion', permiso: 'op.aprobar' },
+        ],
+      },
       proximamente('Ventas y Cuentas a Cobrar'),
       proximamente('Tesorería'),
       proximamente('Contabilidad General'),
@@ -43,6 +50,10 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Buscador de comprobantes', ruta: '/compras/buscador', permiso: 'oc.ver' },
           { titulo: 'Pendientes', ruta: '/compras/pendientes', permiso: 'oc.ver' },
         ],
+      },
+      {
+        titulo: 'Pagos',
+        hijos: [{ titulo: 'Órdenes de pago', ruta: '/pagos/op', permiso: 'op.ver' }],
       },
       proximamente('Ventas y Cuentas a Cobrar'),
       proximamente('Tesorería'),

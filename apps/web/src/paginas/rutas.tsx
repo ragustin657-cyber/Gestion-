@@ -11,6 +11,8 @@ import { FacturaProveedorPage } from '../compras/FacturaProveedorPage';
 import { OrdenCompraPage } from '../compras/OrdenCompraPage';
 import { RecepcionPage } from '../compras/RecepcionPage';
 import { AprobacionOcPage, OrdenesCompraPage } from '../compras/OrdenesCompraPage';
+import { OrdenPagoPage } from '../pagos/OrdenPagoPage';
+import { AprobacionOpPage, OrdenesPagoPage } from '../pagos/OrdenesPagoPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -48,4 +50,8 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/compras/libro-iva', elemento: <LibroIvaComprasPage /> },
   { ruta: '/compras/buscador', elemento: <BuscadorComprobantesPage /> },
   { ruta: '/compras/pendientes', elemento: <PendientesPage /> },
+  { ruta: '/pagos/op/nueva', elemento: <OrdenPagoPage key="nueva" /> },
+  { ruta: '/pagos/op/aprobacion', elemento: <AprobacionOpPage /> },
+  { ruta: '/pagos/op/:id', elemento: <OrdenPagoPage /> },
+  { ruta: '/pagos/op', elemento: <OrdenesPagoPage /> },
 ];
