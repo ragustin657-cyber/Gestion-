@@ -91,3 +91,13 @@ model Auditoria {
 
   @@index([empresaId, entidad, entidadId])
 }
+
+model Talonario {
+  id              String @id @default(uuid()) @db.Uuid
+  empresaId       String @db.Uuid
+  tipoComprobante String
+  puntoVenta      Int
+  ultimoNumero    Int    @default(0)
+
+  @@unique([empresaId, tipoComprobante, puntoVenta])
+}

@@ -5,7 +5,20 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "declaration": false,
-    "types": ["node", "jest"]
+    "types": [
+      "node",
+      "jest"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@gestion/shared": [
+        "../../packages/shared/src"
+      ]
+    }
   },
-  "include": ["src", "test", "prisma"]
+  "include": [
+    "src",
+    "test",
+    "prisma"
+  ]
 }
