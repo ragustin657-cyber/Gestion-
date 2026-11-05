@@ -33,7 +33,16 @@ export const MENU: NodoMenu[] = [
     hijos: [
       {
         titulo: 'Compras y Cuentas a Pagar',
-        hijos: [{ titulo: 'Órdenes de compra', ruta: '/compras/oc', permiso: 'oc.ver' }],
+        hijos: [
+          { titulo: 'Órdenes de compra', ruta: '/compras/oc', permiso: 'oc.ver' },
+          { titulo: 'Recepciones', ruta: '/compras/recepciones', permiso: 'ir.ver' },
+          { titulo: 'Comprobantes de compra', ruta: '/compras/comprobantes', permiso: 'fc.ver' },
+          { titulo: 'Cuenta corriente de proveedores', ruta: '/compras/cuenta-corriente', permiso: 'fc.ver' },
+          { titulo: 'Antigüedad de deuda', ruta: '/compras/antiguedad-deuda', permiso: 'fc.ver' },
+          { titulo: 'Libro IVA Compras', ruta: '/compras/libro-iva', permiso: 'fc.ver' },
+          { titulo: 'Buscador de comprobantes', ruta: '/compras/buscador', permiso: 'oc.ver' },
+          { titulo: 'Pendientes', ruta: '/compras/pendientes', permiso: 'oc.ver' },
+        ],
       },
       proximamente('Ventas y Cuentas a Cobrar'),
       proximamente('Tesorería'),

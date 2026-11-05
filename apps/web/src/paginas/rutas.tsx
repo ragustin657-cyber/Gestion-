@@ -1,5 +1,12 @@
 import { ReactNode } from 'react';
 import { ConfigComprasPage } from '../compras/ConfigComprasPage';
+import { AntiguedadDeudaPage } from '../compras/consultas/AntiguedadDeudaPage';
+import { BuscadorComprobantesPage } from '../compras/consultas/BuscadorComprobantesPage';
+import { ComprobantesCompraPage } from '../compras/consultas/ComprobantesCompraPage';
+import { CuentaCorrientePage } from '../compras/consultas/CuentaCorrientePage';
+import { LibroIvaComprasPage } from '../compras/consultas/LibroIvaComprasPage';
+import { PendientesPage } from '../compras/consultas/PendientesPage';
+import { RecepcionesPage } from '../compras/consultas/RecepcionesPage';
 import { FacturaProveedorPage } from '../compras/FacturaProveedorPage';
 import { OrdenCompraPage } from '../compras/OrdenCompraPage';
 import { RecepcionPage } from '../compras/RecepcionPage';
@@ -34,4 +41,11 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/compras/oc', elemento: <OrdenesCompraPage /> },
   { ruta: '/compras/recepcion', elemento: <RecepcionPage /> },
   { ruta: '/compras/factura', elemento: <FacturaProveedorPage /> },
+  { ruta: '/compras/recepciones', elemento: <RecepcionesPage /> },
+  { ruta: '/compras/comprobantes', elemento: <ComprobantesCompraPage /> },
+  { ruta: '/compras/cuenta-corriente', elemento: <CuentaCorrientePage /> },
+  { ruta: '/compras/antiguedad-deuda', elemento: <AntiguedadDeudaPage /> },
+  { ruta: '/compras/libro-iva', elemento: <LibroIvaComprasPage /> },
+  { ruta: '/compras/buscador', elemento: <BuscadorComprobantesPage /> },
+  { ruta: '/compras/pendientes', elemento: <PendientesPage /> },
 ];
