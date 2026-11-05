@@ -2,9 +2,11 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './comun/prisma-exception.filter';
 
 export function configurarApp(app: INestApplication) {
   app.setGlobalPrefix('api');
+  app.useGlobalFilters(new PrismaExceptionFilter());
   app.enableShutdownHooks();
 }
 
