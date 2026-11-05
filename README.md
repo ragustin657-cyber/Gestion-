@@ -15,6 +15,27 @@ ERP para medianas empresas argentinas, pensado para crecer a grandes empresas. F
 - Centros de costo, depósitos, puntos de venta y numeración de comprobantes.
 - Interfaz web con menú en árbol: Registraciones, Consultas, Maestros y Administración.
 
+## Circuito de compras (Entrega 2)
+
+- **Orden de compra:** borrador → confirmación → aprobación por monto. Bajo el límite configurado se aprueba sola; arriba la aprueba otro usuario con permiso. Incluye PDF para el proveedor.
+- **Informe de recepción:** desde una o varias OC aprobadas, con recepciones parciales y control de remito duplicado.
+- **Factura de proveedor:** desde recepciones, desde OC (servicios) o directa.
+  - Valida la letra según la condición de IVA.
+  - Exige que el total cargado coincida con el del papel.
+  - Hace el control de 3 vías con tolerancias.
+  - Genera el movimiento en la cuenta corriente (en pesos y dólares) y el asiento automático.
+- **Consultas:** órdenes, recepciones, comprobantes, cuenta corriente, antigüedad de deuda, Libro IVA Compras (con exportación a Excel), buscador y pendientes.
+- **Configuración** (Administración → Configuración de compras): monto límite de aprobación, tolerancias, modo avisar o bloquear y cuentas contables por concepto.
+
+Usuarios demo:
+
+| Usuario | Contraseña | Rol |
+|---|---|---|
+| admin@demo.com | admin1234 | Administrador |
+| aprobador@demo.com | aprobador1234 | Aprobador de OC (Gerente) |
+
+En la empresa demo hay una orden de compra en cada estado, recepciones, una factura en pesos, una en dólares y una nota de crédito. El límite de aprobación es de $ 1.000.000.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
@@ -70,3 +91,6 @@ e2e               pruebas Playwright
 3. **Permisos:** cada endpoint declara `@RequierePermiso('modulo.accion')`, y el permiso se agrega en `packages/shared/src/permisos.ts`.
 4. **Validación:** el body se valida con zod (`ZodValidationPipe`) y los mensajes se escriben en castellano.
 5. **Numeración:** se usa `NumeracionService.siguiente(tx, tipo, puntoVenta)`.
+6. **Asientos:** se generan con `AsientosService.generar(tx, …)` dentro de la misma transacción que el comprobante. Si el asiento no balancea, la operación entera se revierte. Para anular se usa `contraasiento`.
+7. **Importes:** se calculan con las funciones de `packages/shared/src/compras` (decimal.js), las mismas en el servidor y en la web. Nunca se usa `number` para hacer cuentas con dinero.
+8. **Concurrencia:** los comprobantes con estados llevan `version` (bloqueo optimista, 409 si cambió). Los renglones que se consumen (recibido o facturado) se bloquean con `FOR UPDATE`.

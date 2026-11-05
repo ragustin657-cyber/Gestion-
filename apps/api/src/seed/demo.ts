@@ -4,11 +4,12 @@ import { Permiso, TODOS_LOS_PERMISOS } from '@gestion/shared';
 import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarPlanModelo } from './plan-cuentas-modelo';
 
-export const DEMO = { email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.' };
+export const DEMO = { email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.', aprobador: 'aprobador@demo.com', passwordAprobador: 'aprobador1234' };
 
 const ROLES: Record<string, Permiso[]> = {
   Administrador: TODOS_LOS_PERMISOS,
-  Comprador: ['tercero.ver', 'articulo.ver', 'oc.crear', 'ir.crear', 'fc.crear'],
+  Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear'],
+  Aprobador: ['oc.ver', 'oc.aprobar'],
   Tesorero: ['tercero.ver', 'op.crear', 'pago.ejecutar', 'tesoreria.maestros.editar'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver'],
 };
@@ -51,18 +52,19 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     const empresa = await tx.empresa.create({
       data: {
         razonSocial: DEMO.empresa, cuit: '30712345671', condicionIva: 'RESPONSABLE_INSCRIPTO',
-        domicilio: 'Av. Corrientes 1234, CABA', agenteRetencionGanancias: true, jurisdiccionesIibb: ['901', '902'],
+        domicilio: 'Av. Corrientes 1234, CABA', agenteRetencionGanancias: true, jurisdiccionesIibb: ['901', '902'], montoAprobacionOc: 1000000,
       },
     });
     const e = empresa.id;
     await tx.puntoVenta.create({ data: { empresaId: e, numero: 1, descripcion: 'Casa central' } });
 
-    let rolAdmin = '';
-    for (const [nombre, permisos] of Object.entries(ROLES)) {
-      const r = await tx.rol.create({ data: { empresaId: e, nombre, permisos } });
-      if (nombre === 'Administrador') rolAdmin = r.id;
-    }
-    await tx.usuarioEmpresa.create({ data: { usuarioId: admin.id, empresaId: e, rolId: rolAdmin } });
+    const roles: Record<string, string> = {};
+    for (const [nombre, permisos] of Object.entries(ROLES)) roles[nombre] = (await tx.rol.create({ data: { empresaId: e, nombre, permisos } })).id;
+    await tx.usuarioEmpresa.create({ data: { usuarioId: admin.id, empresaId: e, rolId: roles.Administrador } });
+    const aprobador =
+      (await tx.usuario.findUnique({ where: { email: DEMO.aprobador } })) ??
+      (await tx.usuario.create({ data: { email: DEMO.aprobador, nombre: 'Gerente (aprobador)', passwordHash: await hash(DEMO.passwordAprobador) } }));
+    await tx.usuarioEmpresa.create({ data: { usuarioId: aprobador.id, empresaId: e, rolId: roles.Aprobador } });
 
     await cargarPlanModelo(tx, e);
     await cargarConfigCuentas(tx, e);
