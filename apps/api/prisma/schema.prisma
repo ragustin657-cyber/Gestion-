@@ -101,3 +101,44 @@ model Talonario {
 
   @@unique([empresaId, tipoComprobante, puntoVenta])
 }
+
+model Tercero {
+  id               String       @id @default(uuid()) @db.Uuid
+  empresaId        String       @db.Uuid
+  codigo           Int
+  razonSocial      String
+  nombreFantasia   String?
+  cuit             String
+  condicionIva     CondicionIva
+  esProveedor      Boolean      @default(false)
+  esCliente        Boolean      @default(false)
+  domicilio        String?
+  localidad        String?
+  provincia        String?
+  email            String?
+  telefono         String?
+  diasPago         Int          @default(0)
+  regimenGanancias String?
+  exentoGanancias  Boolean      @default(false)
+  exentoIva        Boolean      @default(false)
+  exencionHasta    DateTime?    @db.Date
+  activo           Boolean      @default(true)
+  creadoEn         DateTime     @default(now())
+  iibb             TerceroIibb[]
+
+  @@unique([empresaId, cuit])
+  @@unique([empresaId, codigo])
+}
+
+model TerceroIibb {
+  id                 String  @id @default(uuid()) @db.Uuid
+  empresaId          String  @db.Uuid
+  terceroId          String  @db.Uuid
+  jurisdiccion       String
+  alicuotaPercepcion Decimal @db.Decimal(18, 6)
+  alicuotaRetencion  Decimal @db.Decimal(18, 6)
+  exento             Boolean @default(false)
+  tercero            Tercero @relation(fields: [terceroId], references: [id], onDelete: Cascade)
+
+  @@unique([terceroId, jurisdiccion])
+}
