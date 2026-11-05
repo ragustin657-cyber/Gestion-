@@ -108,7 +108,7 @@ export async function sesionConPlan(app: INestApplication, prisma: PrismaService
   const http = conToken(app, token);
   const cuenta = async (codigo: string) =>
     (await prisma.cuentaContable.findFirstOrThrow({ where: { empresaId: e.body.id, codigo } })).id;
-  return { empresaId: e.body.id as string, http, cuenta };
+  return { empresaId: e.body.id as string, http, cuenta, token };
 }
 
 /** Proveedor RI, artículo al 21 % y cotización USD 1000 al 2026-11-01 en la empresa indicada. */
