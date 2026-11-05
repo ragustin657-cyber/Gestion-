@@ -1,3 +1,5 @@
+import { hoyEn } from '@gestion/shared';
+
 /** "$ 1.234,56" o "US$ 1.234,56" a partir de un importe en texto o número. */
 export function formatoMoneda(importe: string | number | null | undefined, moneda = 'ARS'): string {
   const n = Number(importe ?? 0);
@@ -17,7 +19,8 @@ export const formatoNumero = (pv: number, n: number) => `${String(pv).padStart(5
 /** Número de OC/IR (punto de venta 1, 4 dígitos) o '—' si no tiene. */
 export const numeroInterno = (n: number | null | undefined) => (n ? `0001-${String(n).padStart(8, '0')}` : '—');
 
-export const hoy = () => new Date().toISOString().slice(0, 10);
+/** Fecha de hoy en la zona horaria del navegador (no en UTC). */
+export const hoy = () => hoyEn(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 export const ESTADOS_OC: Record<string, { etiqueta: string; color: string }> = {
   BORRADOR: { etiqueta: 'Borrador', color: 'gray' },

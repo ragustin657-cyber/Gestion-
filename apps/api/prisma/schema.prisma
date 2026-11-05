@@ -352,6 +352,8 @@ model OrdenCompra {
   aprobadoEn      DateTime?
   motivoRechazo   String?
   motivoAnulacion String?
+  cerradaEn       DateTime?
+  cerradaPor      String?
   version         Int                  @default(0)
   tercero         Tercero              @relation(fields: [terceroId], references: [id])
   renglones       OrdenCompraRenglon[]

@@ -1,8 +1,9 @@
+import { hoyEn } from '@gestion/shared';
 import { Maestro } from '../abm/Maestro';
 
 interface Cotizacion { id: string; monedaCodigo: string; fecha: string; valor: string }
 const fecha = (s: string) => s.slice(0, 10).split('-').reverse().join('/');
-const hoy = () => new Date().toISOString().slice(0, 10);
+const hoy = () => hoyEn(Intl.DateTimeFormat().resolvedOptions().timeZone);
 
 export function MonedasPage() {
   return (

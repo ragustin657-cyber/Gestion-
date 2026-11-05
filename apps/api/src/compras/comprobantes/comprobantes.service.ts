@@ -4,7 +4,7 @@ import {
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 import {
-  calcularTotales, CondicionIva, discriminaIva, importeRenglon, Letra, letrasValidas, lineasEnPesos, LineaMoneda,
+  calcularTotales, CondicionIva, discriminaIva, hoyEn, ZONA_ARGENTINA, importeRenglon, Letra, letrasValidas, lineasEnPesos, LineaMoneda,
 } from '@gestion/shared';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { conUnicidad } from '../../comun/errores';
@@ -151,6 +151,14 @@ export class ComprobantesService {
     const cuentaArticulo = (articuloId: string | null | undefined) => articulos.find((a) => a.id === articuloId)?.cuentaCompraId ?? gastoDefecto;
 
     const lineas3v: LineaTresVias[] = [];
+    // Cantidades pedidas en esta factura, sumadas por renglón de origen (recepción y OC),
+    // para que repetir un renglón o facturar por la OC y por la recepción no supere lo pendiente.
+    const acumulados = new Map<string, { indice: number; cantidad: Dec; pendiente: Dec }>();
+    const acumular = (clave: string, indice: number, cantidad: number, pendiente: Dec) => {
+      const a = acumulados.get(clave) ?? { indice, cantidad: new D(0), pendiente };
+      a.cantidad = a.cantidad.plus(cantidad);
+      acumulados.set(clave, a);
+    };
     const renglones: (Omit<Prisma.ComprobanteCompraRenglonCreateManyInput, 'empresaId' | 'comprobanteId'>)[] = [];
     for (const [i, r] of d.renglones.entries()) {
       let importe: string;
@@ -171,7 +179,9 @@ export class ComprobantesService {
         articuloId = oc.articuloId;
         ordenCompraRenglonId = oc.id;
         cuentaContableId = cuentaArticulo(articuloId);
-        lineas3v.push({ indice: i, precioFacturado: String(r.precioUnitario), precioOc: oc.precioUnitario.toString(), cantidadFacturada: String(r.cantidad), pendienteFacturar: ir.cantidad.minus(ir.cantidadFacturada).toString() });
+        lineas3v.push({ indice: i, precioFacturado: String(r.precioUnitario), precioOc: oc.precioUnitario.toString(), cantidadFacturada: '0', pendienteFacturar: '0' });
+        acumular(`IR:${ir.id}`, i, r.cantidad, ir.cantidad.minus(ir.cantidadFacturada));
+        acumular(`OC:${oc.id}`, i, r.cantidad, oc.cantidad.minus(oc.cantidadFacturada));
       } else if (r.origen === 'ORDEN_COMPRA') {
         const oc = ocRenglones.find((x) => x.id === r.ordenCompraRenglonId);
         if (!oc) throw new NotFoundException('Renglón de orden de compra no encontrado');
@@ -180,7 +190,8 @@ export class ComprobantesService {
         articuloId = oc.articuloId;
         ordenCompraRenglonId = oc.id;
         cuentaContableId = cuentaArticulo(articuloId);
-        lineas3v.push({ indice: i, precioFacturado: String(r.precioUnitario), precioOc: oc.precioUnitario.toString(), cantidadFacturada: String(r.cantidad), pendienteFacturar: oc.cantidad.minus(oc.cantidadFacturada).toString() });
+        lineas3v.push({ indice: i, precioFacturado: String(r.precioUnitario), precioOc: oc.precioUnitario.toString(), cantidadFacturada: '0', pendienteFacturar: '0' });
+        acumular(`OC:${oc.id}`, i, r.cantidad, oc.cantidad.minus(oc.cantidadFacturada));
       } else {
         cuentaContableId = r.cuentaContableId ?? cuentaArticulo(articuloId);
         if (r.cuentaContableId) await this.plan.verificarImputable(tx, r.cuentaContableId, `renglones.${i}.cuentaContableId`);
@@ -207,7 +218,11 @@ export class ComprobantesService {
 
     // 5. Control de 3 vías
     const p = await this.config.parametros(tx);
-    const diferencias = detectarDiferencias(lineas3v, { precioPct: p.toleranciaPrecioPct.toString(), cantidadPct: p.toleranciaCantidadPct.toString() });
+    for (const a of acumulados.values())
+      lineas3v.push({ indice: a.indice, precioFacturado: '0', precioOc: '0', cantidadFacturada: a.cantidad.toString(), pendienteFacturar: a.pendiente.toString() });
+    const vistas = new Set<string>();
+    const diferencias = detectarDiferencias(lineas3v, { precioPct: p.toleranciaPrecioPct.toString(), cantidadPct: p.toleranciaCantidadPct.toString() })
+      .filter((x) => !vistas.has(`${x.renglon}:${x.tipo}`) && vistas.add(`${x.renglon}:${x.tipo}`));
     if (diferencias.length) {
       if (p.modoTresVias === 'BLOQUEAR') throw new BadRequestException({ statusCode: 400, message: DIFERENCIAS, diferencias });
       if (!d.aceptoDiferencias) throw new UnprocessableEntityException({ statusCode: 422, message: DIFERENCIAS, diferencias });
@@ -279,7 +294,7 @@ export class ComprobantesService {
       const marcado = await tx.comprobanteCompra.updateMany({ where: { id, estado: 'CONFIRMADO' }, data: { estado: 'ANULADO', motivoAnulacion: motivo } });
       if (!marcado.count) throw new ConflictException('El comprobante ya está anulado');
 
-      const hoy = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+      const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
       const contra = c.asientoId ? await this.asientos.contraasiento(tx, c.asientoId, hoy, `Anulación: ${motivo}`) : null;
       await tx.comprobanteCompra.update({ where: { id }, data: { asientoAnulacionId: contra?.id ?? null } });
       if (mov) await tx.movimientoCuentaCorriente.update({ where: { id: mov.id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });

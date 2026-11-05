@@ -1,6 +1,6 @@
 import { hash } from '@node-rs/argon2';
 import { PrismaClient } from '@prisma/client';
-import { Permiso, TODOS_LOS_PERMISOS } from '@gestion/shared';
+import { hoyEn, Permiso, TODOS_LOS_PERMISOS, ZONA_ARGENTINA } from '@gestion/shared';
 import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarPlanModelo } from './plan-cuentas-modelo';
 
@@ -83,7 +83,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     for (const [cod, descripcion, unidad, alicuotaIva, esServicio] of ARTICULOS)
       await tx.articulo.create({ data: { empresaId: e, codigo: cod, descripcion, unidad, alicuotaIva, esServicio, cuentaCompraId: gastos, cuentaVentaId: ventas } });
 
-    const hoy = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+    const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
     await tx.cotizacion.create({ data: { empresaId: e, monedaCodigo: 'USD', fecha: hoy, valor: 1450 } });
 
     const banco = await tx.banco.create({ data: { empresaId: e, nombre: 'Banco de la Nación Argentina', codigoBcra: '011' } });

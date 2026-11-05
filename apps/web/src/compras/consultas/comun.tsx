@@ -1,11 +1,12 @@
 import { Group, Select, TextInput } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/cliente';
+import { hoy } from '../formato';
 
-export const primeroDelMes = () => `${new Date().toISOString().slice(0, 7)}-01`;
+export const primeroDelMes = () => `${hoy().slice(0, 7)}-01`;
 export const finDelMes = () => {
-  const d = new Date();
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+  const [a, m] = hoy().split('-').map(Number);
+  return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
 };
 
 export function useProveedores() {

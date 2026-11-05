@@ -1,6 +1,6 @@
 import { INestApplicationContext } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
-import { AlicuotaIva, TODOS_LOS_PERMISOS } from '@gestion/shared';
+import { AlicuotaIva, hoyEn, TODOS_LOS_PERMISOS, ZONA_ARGENTINA } from '@gestion/shared';
 import { ComprobantesService } from '../compras/comprobantes/comprobantes.service';
 import { OrdenesService } from '../compras/ordenes/ordenes.service';
 import { RecepcionesService } from '../compras/recepciones/recepciones.service';
@@ -8,7 +8,7 @@ import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { PrismaService } from '../prisma/prisma.service';
 import { DEMO, sembrarDemo } from './demo';
 
-const hoy = () => new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+const hoy = () => new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
 
 /** Empresa demo completa: maestros (sembrarDemo) + circuito de compras cargado con los servicios reales. */
 export async function sembrarCompleto(app: INestApplicationContext): Promise<'creada' | 'existente'> {

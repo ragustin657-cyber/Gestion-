@@ -104,12 +104,13 @@ export class OrdenesService {
 
   modificar(id: string, d: DatosOC) {
     return this.tenant.transaccion(async (tx) => {
-      const actual = await this.obtener(id, tx);
-      if (actual.estado !== 'BORRADOR') throw new BadRequestException('Solo se pueden modificar órdenes en borrador');
+      await this.obtener(id, tx);
       const { cabecera, renglones } = await this.preparar(tx, d);
+      // Primero la cabecera, condicionada a BORRADOR: bloquea la fila y serializa contra confirmar
+      const r = await tx.ordenCompra.updateMany({ where: { id, estado: 'BORRADOR' }, data: { ...cabecera, version: { increment: 1 } } });
+      if (!r.count) throw new BadRequestException('Solo se pueden modificar órdenes en borrador');
       await tx.ordenCompraRenglon.deleteMany({ where: { ordenCompraId: id } });
-      await tx.ordenCompraRenglon.createMany({ data: renglones.map((r) => ({ ...r, empresaId: this.tenant.empresaId, ordenCompraId: id })) });
-      await tx.ordenCompra.update({ where: { id }, data: { ...cabecera, version: { increment: 1 } } });
+      await tx.ordenCompraRenglon.createMany({ data: renglones.map((x) => ({ ...x, empresaId: this.tenant.empresaId, ordenCompraId: id })) });
       await this.auditoria.registrar(tx, { entidad: 'OrdenCompra', entidadId: id, accion: 'MODIFICAR' });
       return this.obtener(id, tx);
     });
@@ -117,10 +118,9 @@ export class OrdenesService {
 
   eliminar(id: string) {
     return this.tenant.transaccion(async (tx) => {
-      const actual = await this.obtener(id, tx);
-      if (actual.estado !== 'BORRADOR') throw new BadRequestException('Solo se pueden eliminar órdenes en borrador');
-      await tx.ordenCompraRenglon.deleteMany({ where: { ordenCompraId: id } });
-      await tx.ordenCompra.delete({ where: { id } });
+      await this.obtener(id, tx);
+      const r = await tx.ordenCompra.deleteMany({ where: { id, estado: 'BORRADOR' } });
+      if (!r.count) throw new BadRequestException('Solo se pueden eliminar órdenes en borrador');
       await this.auditoria.registrar(tx, { entidad: 'OrdenCompra', entidadId: id, accion: 'ELIMINAR' });
       return { ok: true };
     });
@@ -196,7 +196,7 @@ export class OrdenesService {
 
   cerrar(id: string, version: number, motivo?: string | null) {
     return this.tenant.transaccion(async (tx) => {
-      await this.transicion(tx, id, version, ['APROBADA', 'PARCIALMENTE_RECIBIDA'], { estado: 'CUMPLIDA' }, 'Solo se pueden cerrar órdenes aprobadas o parcialmente recibidas');
+      await this.transicion(tx, id, version, ['APROBADA', 'PARCIALMENTE_RECIBIDA'], { estado: 'CUMPLIDA', cerradaEn: new Date(), cerradaPor: this.ctx.usuarioId }, 'Solo se pueden cerrar órdenes aprobadas o parcialmente recibidas');
       await this.auditoria.registrar(tx, { entidad: 'OrdenCompra', entidadId: id, accion: 'MODIFICAR', datos: { cierre: true, motivo } });
       return this.obtener(id, tx);
     });
@@ -259,7 +259,8 @@ export class OrdenesService {
   /** Recalcula el estado según lo recibido (usado por recepciones y sus anulaciones). */
   async recalcularEstado(tx: TxEmpresa, ordenCompraId: string): Promise<void> {
     const oc = await tx.ordenCompra.findUnique({ where: { id: ordenCompraId }, include: { renglones: true } });
-    if (!oc || !['APROBADA', 'PARCIALMENTE_RECIBIDA', 'CUMPLIDA'].includes(oc.estado)) return;
+    // Una OC cerrada a mano queda cumplida aunque luego se anulen recepciones
+    if (!oc || oc.cerradaEn || !['APROBADA', 'PARCIALMENTE_RECIBIDA', 'CUMPLIDA'].includes(oc.estado)) return;
     const todo = oc.renglones.every((r) => r.cantidadRecibida.gte(r.cantidad));
     const algo = oc.renglones.some((r) => r.cantidadRecibida.gt(0));
     const estado: EstadoOC = todo ? 'CUMPLIDA' : algo ? 'PARCIALMENTE_RECIBIDA' : 'APROBADA';

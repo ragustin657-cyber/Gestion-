@@ -5,3 +5,4 @@ export * from './numeracion';
 export * from './iva';
 export * from './cbu';
 export * from './compras';
+export * from './fechas';

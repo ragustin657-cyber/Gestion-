@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
-import { normalizarCuit, normalizarNumeroComprobante } from '@gestion/shared';
+import { hoyEn, normalizarCuit, normalizarNumeroComprobante, ZONA_ARGENTINA } from '@gestion/shared';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
 
@@ -75,7 +75,7 @@ export class ConsultasComprasService {
   }
 
   async antiguedadDeuda(fecha?: string) {
-    const corte = fechaQuery(fecha) ?? new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+    const corte = fechaQuery(fecha) ?? new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
     const movs = await this.tenant.db.movimientoCuentaCorriente.findMany({ where: { anulado: false, NOT: { saldoPesos: 0 } } });
     const terceros = await this.tenant.db.tercero.findMany({ where: { id: { in: [...new Set(movs.map((m) => m.terceroId))] } }, select: { id: true, razonSocial: true } });
     const filas = new Map<string, { porVencer: Dec; d0a30: Dec; d31a60: Dec; d61a90: Dec; mas90: Dec }>();

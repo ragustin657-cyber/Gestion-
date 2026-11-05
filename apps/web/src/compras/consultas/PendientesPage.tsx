@@ -2,7 +2,7 @@ import { Paper, Table, Tabs, Text, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api/cliente';
 import { useAuth } from '../../auth/AuthContext';
-import { formatoFecha, formatoMoneda, numeroInterno } from '../formato';
+import { formatoFecha, formatoMoneda, hoy as hoyLocal, numeroInterno } from '../formato';
 
 interface PendRecibir { ordenCompraRenglonId: string; ocNumero: number; fechaEntrega: string | null; descripcion: string; cantidad: string; recibido: string; pendiente: string }
 interface PendFacturar { informeRecepcionRenglonId: string; irNumero: number; remitoNumero: string; ocNumero: number; descripcion: string; precioUnitario: string; pendiente: string }
@@ -21,7 +21,7 @@ function Tabla({ titulos, filas }: { titulos: string[]; filas: React.ReactNode[]
 
 export function PendientesPage() {
   const { puede } = useAuth();
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyLocal();
   const recibir = useQuery({ queryKey: ['/compras/ordenes/pendientes-recibir', 'todos'], queryFn: () => api<PendRecibir[]>('/compras/ordenes/pendientes-recibir'), enabled: puede('ir.crear') });
   const facturar = useQuery({ queryKey: ['/compras/recepciones/pendientes-facturar', 'todos'], queryFn: () => api<PendFacturar[]>('/compras/recepciones/pendientes-facturar'), enabled: puede('fc.crear') });
   return (
