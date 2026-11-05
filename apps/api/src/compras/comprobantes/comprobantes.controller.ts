@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { ComprobantesService, FiltroComprobantes } from './comprobantes.service';
-import { DatosComprobante, esquemaComprobante } from './dto';
+import { DatosComprobante, esquemaAnular, esquemaComprobante } from './dto';
 
 @Controller('compras/comprobantes')
 export class ComprobantesController {
@@ -24,5 +24,12 @@ export class ComprobantesController {
   @RequierePermiso('fc.crear')
   crear(@Body(new ZodValidationPipe(esquemaComprobante)) d: DatosComprobante) {
     return this.comprobantes.crear(d);
+  }
+
+  @Post(':id/anular')
+  @HttpCode(200)
+  @RequierePermiso('fc.anular')
+  anular(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaAnular)) b: { motivo: string }) {
+    return this.comprobantes.anular(id, b.motivo);
   }
 }

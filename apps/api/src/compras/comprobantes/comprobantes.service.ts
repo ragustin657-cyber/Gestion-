@@ -267,6 +267,36 @@ export class ComprobantesService {
     return this.obtener(comp.id, tx);
   }
 
+  /** Anula: contraasiento, cuenta corriente en 0 y libera cantidades facturadas. */
+  anular(id: string, motivo: string) {
+    return this.tenant.transaccion(async (tx) => {
+      const c = await tx.comprobanteCompra.findUnique({ where: { id }, include: { renglones: true } });
+      if (!c) throw new NotFoundException('Comprobante no encontrado');
+      if (c.estado === 'ANULADO') throw new ConflictException('El comprobante ya está anulado');
+      const mov = await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'COMPRA', origenId: id } });
+      if (mov && !mov.saldo.eq(mov.importe)) throw new BadRequestException('El comprobante tiene pagos aplicados');
+
+      const marcado = await tx.comprobanteCompra.updateMany({ where: { id, estado: 'CONFIRMADO' }, data: { estado: 'ANULADO', motivoAnulacion: motivo } });
+      if (!marcado.count) throw new ConflictException('El comprobante ya está anulado');
+
+      const hoy = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z');
+      const contra = c.asientoId ? await this.asientos.contraasiento(tx, c.asientoId, hoy, `Anulación: ${motivo}`) : null;
+      await tx.comprobanteCompra.update({ where: { id }, data: { asientoAnulacionId: contra?.id ?? null } });
+      if (mov) await tx.movimientoCuentaCorriente.update({ where: { id: mov.id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });
+
+      await bloquear(tx, 'InformeRecepcionRenglon', this.tenant.empresaId, c.renglones.map((r) => r.informeRecepcionRenglonId).filter((x): x is string => !!x));
+      await bloquear(tx, 'OrdenCompraRenglon', this.tenant.empresaId, c.renglones.map((r) => r.ordenCompraRenglonId).filter((x): x is string => !!x));
+      for (const r of c.renglones) {
+        if (r.informeRecepcionRenglonId)
+          await tx.informeRecepcionRenglon.update({ where: { id: r.informeRecepcionRenglonId }, data: { cantidadFacturada: { decrement: r.cantidad } } });
+        if (r.ordenCompraRenglonId)
+          await tx.ordenCompraRenglon.update({ where: { id: r.ordenCompraRenglonId }, data: { cantidadFacturada: { decrement: r.cantidad } } });
+      }
+      await this.auditoria.registrar(tx, { entidad: 'ComprobanteCompra', entidadId: id, accion: 'ANULAR', datos: { motivo } });
+      return this.obtener(id, tx);
+    });
+  }
+
   private async generarAsiento(
     tx: TxEmpresa,
     c: {
