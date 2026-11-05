@@ -156,3 +156,21 @@ export async function ocAprobada(
   if (c.body.estado !== 'APROBADA') throw new Error(`confirmar OC: ${JSON.stringify(c.body)}`);
   return c.body as { id: string; numero: number; version: number; renglones: { id: string }[] };
 }
+
+let numeroFactura = 70000;
+/** Factura directa A (neto × 1,21) del proveedor; devuelve el id del movimiento de cuenta corriente. */
+export async function facturaPendiente(
+  http: ReturnType<typeof conToken>, prisma: PrismaService,
+  d: { proveedorId: string; neto: number; moneda?: 'ARS' | 'USD'; cotizacion?: number; fecha?: string },
+) {
+  const total = Math.round(d.neto * 121) / 100;
+  const r = await http.post('/api/compras/comprobantes', {
+    terceroId: d.proveedorId, tipo: 'FACTURA', letra: 'A', puntoVenta: 1, numero: ++numeroFactura,
+    fechaEmision: d.fecha ?? '2026-11-02', fechaContable: d.fecha ?? '2026-11-02', monedaCodigo: d.moneda ?? 'ARS',
+    cotizacion: d.cotizacion ?? null, totalDeclarado: total,
+    renglones: [{ origen: 'DIRECTO', descripcion: 'Servicio', cantidad: 1, precioUnitario: d.neto, alicuotaIva: 21 }],
+  });
+  if (r.status !== 201) throw new Error(`factura: ${JSON.stringify(r.body)}`);
+  const mov = await prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenId: r.body.id } });
+  return { comprobanteId: r.body.id as string, movimientoId: mov.id, total };
+}

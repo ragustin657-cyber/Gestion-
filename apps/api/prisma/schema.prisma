@@ -136,6 +136,7 @@ model Tercero {
   ordenesCompra      OrdenCompra[]
   recepciones        InformeRecepcion[]
   comprobantesCompra ComprobanteCompra[]
+  ordenesPago        OrdenPago[]
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
@@ -608,4 +609,81 @@ model PadronCarga {
   error        String?
   creadoPor    String
   creadoEn     DateTime    @default(now())
+}
+
+enum EstadoOP {
+  BORRADOR
+  PENDIENTE_APROBACION
+  APROBADA
+  PAGADA
+  ANULADA
+}
+
+model OrdenPago {
+  id                 String                @id @default(uuid()) @db.Uuid
+  empresaId          String                @db.Uuid
+  numero             Int?
+  terceroId          String                @db.Uuid
+  fecha              DateTime              @db.Date
+  cotizacion         Decimal               @default(1) @db.Decimal(18, 6)
+  observaciones      String?
+  estado             EstadoOP              @default(BORRADOR)
+  totalCancelarPesos Decimal               @default(0) @db.Decimal(18, 2)
+  totalRetenciones   Decimal               @default(0) @db.Decimal(18, 2)
+  netoPagar          Decimal               @default(0) @db.Decimal(18, 2)
+  fechaPago          DateTime?             @db.Date
+  creadoPor          String
+  creadoEn           DateTime              @default(now())
+  aprobadoPor        String?
+  aprobadoEn         DateTime?
+  pagadoPor          String?
+  motivoRechazo      String?
+  motivoAnulacion    String?
+  asientoId          String?               @db.Uuid
+  asientoAnulacionId String?               @db.Uuid
+  version            Int                   @default(0)
+  tercero            Tercero               @relation(fields: [terceroId], references: [id])
+  imputaciones       OrdenPagoImputacion[]
+  anticipo           OrdenPagoAnticipo?
+  retenciones        OrdenPagoRetencion[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, estado])
+}
+
+model OrdenPagoImputacion {
+  id           String    @id @default(uuid()) @db.Uuid
+  empresaId    String    @db.Uuid
+  ordenPagoId  String    @db.Uuid
+  movimientoId String    @db.Uuid
+  importe      Decimal   @db.Decimal(18, 2)
+  importePesos Decimal   @db.Decimal(18, 2)
+  ordenPago    OrdenPago @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, movimientoId])
+}
+
+model OrdenPagoAnticipo {
+  id           String    @id @default(uuid()) @db.Uuid
+  empresaId    String    @db.Uuid
+  ordenPagoId  String    @unique @db.Uuid
+  monedaCodigo String
+  importe      Decimal   @db.Decimal(18, 2)
+  ordenPago    OrdenPago @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
+}
+
+model OrdenPagoRetencion {
+  id                String    @id @default(uuid()) @db.Uuid
+  empresaId         String    @db.Uuid
+  ordenPagoId       String    @db.Uuid
+  impuesto          String
+  jurisdiccion      String?
+  regimen           String?
+  base              Decimal   @db.Decimal(18, 2)
+  alicuota          String
+  importe           Decimal   @db.Decimal(18, 2)
+  detalle           Json
+  certificadoNumero Int?
+  anulada           Boolean   @default(false)
+  ordenPago         OrdenPago @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
 }

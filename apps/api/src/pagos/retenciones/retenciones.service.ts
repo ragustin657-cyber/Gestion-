@@ -32,8 +32,19 @@ export class RetencionesService {
    * Base y retenciones de Ganancias ya practicadas en el mes por el mismo proveedor y régimen (OP pagadas).
    * Se completa con los modelos de órdenes de pago.
    */
-  async acumuladoGanancias(_tx: TxEmpresa, _terceroId: string, _regimen: string, _desde: Date, _hasta: Date, _excluirOrdenPagoId?: string): Promise<AcumuladoMes> {
-    return { base: '0', retenido: '0' };
+  async acumuladoGanancias(tx: TxEmpresa, terceroId: string, regimen: string, desde: Date, hasta: Date, excluirOrdenPagoId?: string): Promise<AcumuladoMes> {
+    const filas = await tx.ordenPagoRetencion.findMany({
+      where: {
+        impuesto: 'GANANCIAS', regimen, anulada: false,
+        ordenPago: { terceroId, estado: 'PAGADA', fechaPago: { gte: desde, lte: hasta }, id: excluirOrdenPagoId ? { not: excluirOrdenPagoId } : undefined },
+      },
+    });
+    let base = new D(0), retenido = new D(0);
+    for (const f of filas) {
+      base = base.plus((f.detalle as Record<string, string>).basePago ?? f.base);
+      retenido = retenido.plus(f.importe);
+    }
+    return { base: base.toString(), retenido: retenido.toString() };
   }
 
   async calcular(tx: TxEmpresa, e: { terceroId: string; fechaPago: Date; bases: string[]; excluirOrdenPagoId?: string }): Promise<RetencionCalculada[]> {
