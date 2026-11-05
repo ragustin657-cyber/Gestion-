@@ -131,6 +131,7 @@ model Tercero {
   activo           Boolean      @default(true)
   creadoEn         DateTime     @default(now())
   iibb             TerceroIibb[]
+  ordenesCompra    OrdenCompra[]
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
@@ -314,4 +315,63 @@ model AsientoRenglon {
   haber            Decimal @default(0) @db.Decimal(18, 2)
   detalle          String?
   asiento          Asiento @relation(fields: [asientoId], references: [id])
+}
+
+enum EstadoOC {
+  BORRADOR
+  PENDIENTE_APROBACION
+  APROBADA
+  PARCIALMENTE_RECIBIDA
+  CUMPLIDA
+  ANULADA
+}
+
+model OrdenCompra {
+  id               String               @id @default(uuid()) @db.Uuid
+  empresaId        String               @db.Uuid
+  numero           Int?
+  puntoVenta       Int                  @default(1)
+  terceroId        String               @db.Uuid
+  fecha            DateTime             @db.Date
+  fechaEntrega     DateTime?            @db.Date
+  depositoId       String?              @db.Uuid
+  monedaCodigo     String
+  cotizacion       Decimal              @default(1) @db.Decimal(18, 6)
+  diasPago         Int                  @default(0)
+  observaciones    String?
+  estado           EstadoOC             @default(BORRADOR)
+  neto             Decimal              @default(0) @db.Decimal(18, 2)
+  iva              Decimal              @default(0) @db.Decimal(18, 2)
+  total            Decimal              @default(0) @db.Decimal(18, 2)
+  totalPesos       Decimal              @default(0) @db.Decimal(18, 2)
+  creadoPor        String
+  creadoEn         DateTime             @default(now())
+  aprobadoPor      String?
+  aprobadoEn       DateTime?
+  motivoRechazo    String?
+  motivoAnulacion  String?
+  version          Int                  @default(0)
+  tercero          Tercero              @relation(fields: [terceroId], references: [id])
+  renglones        OrdenCompraRenglon[]
+
+  @@unique([empresaId, puntoVenta, numero])
+  @@index([empresaId, estado])
+}
+
+model OrdenCompraRenglon {
+  id                String      @id @default(uuid()) @db.Uuid
+  empresaId         String      @db.Uuid
+  ordenCompraId     String      @db.Uuid
+  orden             Int
+  articuloId        String?     @db.Uuid
+  descripcion       String
+  cantidad          Decimal     @db.Decimal(18, 4)
+  precioUnitario    Decimal     @db.Decimal(18, 4)
+  bonificacionPct   Decimal     @default(0) @db.Decimal(18, 6)
+  alicuotaIva       Decimal     @db.Decimal(18, 6)
+  centroCostoId     String?     @db.Uuid
+  importe           Decimal     @db.Decimal(18, 2)
+  cantidadRecibida  Decimal     @default(0) @db.Decimal(18, 4)
+  cantidadFacturada Decimal     @default(0) @db.Decimal(18, 4)
+  ordenCompra       OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
 }

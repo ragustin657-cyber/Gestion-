@@ -110,3 +110,33 @@ export async function sesionConPlan(app: INestApplication, prisma: PrismaService
     (await prisma.cuentaContable.findFirstOrThrow({ where: { empresaId: e.body.id, codigo } })).id;
   return { empresaId: e.body.id as string, http, cuenta };
 }
+
+/** Proveedor RI, artículo al 21 % y cotización USD 1000 al 2026-11-01 en la empresa indicada. */
+export async function datosCompras(prisma: PrismaService, empresaId: string) {
+  const n = await prisma.tercero.count({ where: { empresaId } });
+  const proveedor = await prisma.tercero.create({
+    data: { empresaId, codigo: n + 1, razonSocial: `Proveedor ${n + 1}`, cuit: n ? '30711223343' : '30700123452', condicionIva: 'RESPONSABLE_INSCRIPTO', esProveedor: true, diasPago: 30 },
+  });
+  const articulo = await prisma.articulo.create({
+    data: { empresaId, codigo: `ART-${n + 1}`, descripcion: 'Artículo de prueba', unidad: 'UN', alicuotaIva: 21 },
+  });
+  await prisma.cotizacion.upsert({
+    where: { empresaId_monedaCodigo_fecha: { empresaId, monedaCodigo: 'USD', fecha: new Date('2026-11-01T00:00:00Z') } },
+    create: { empresaId, monedaCodigo: 'USD', fecha: new Date('2026-11-01T00:00:00Z'), valor: 1000 },
+    update: {},
+  });
+  return { proveedorId: proveedor.id, articuloId: articulo.id };
+}
+
+/** Agrega a la empresa otro usuario con los permisos indicados y devuelve su cliente HTTP. */
+export async function otroUsuario(app: INestApplication, prisma: PrismaService, empresaId: string, permisos: Permiso[]) {
+  contador++;
+  const password = 'clave-segura-123';
+  const rol = await prisma.rol.create({ data: { empresaId, nombre: `Rol ${contador}`, permisos } });
+  const usuario = await prisma.usuario.create({
+    data: { email: `otro${contador}-${Date.now()}@test.com`, nombre: `Otro ${contador}`, passwordHash: await hash(password) },
+  });
+  await prisma.usuarioEmpresa.create({ data: { usuarioId: usuario.id, empresaId, rolId: rol.id } });
+  const token = await loginComo(app, usuario.email, password, empresaId);
+  return { usuario, http: conToken(app, token) };
+}
