@@ -908,3 +908,50 @@ model TransferenciaRecibida {
   asientoAcreditacionId String?                     @db.Uuid
   ingreso               IngresoValores              @relation(fields: [ingresoId], references: [id])
 }
+
+enum EstadoTraslado {
+  ENVIADO
+  RECIBIDO
+  RECIBIDO_PARCIAL
+  ANULADO
+}
+
+enum TipoValor {
+  CHEQUE
+  EFECTIVO
+}
+
+model Traslado {
+  id                 String         @id @default(uuid()) @db.Uuid
+  empresaId          String         @db.Uuid
+  numero             Int
+  fecha              DateTime       @db.Date
+  cajaOrigenId       String         @db.Uuid
+  cajaDestinoId      String         @db.Uuid
+  estado             EstadoTraslado @default(ENVIADO)
+  observaciones      String?
+  fechaRecepcion     DateTime?      @db.Date
+  asientoId          String?        @db.Uuid
+  asientoRecepcionId String?        @db.Uuid
+  asientoAnulacionId String?        @db.Uuid
+  motivoAnulacion    String?
+  creadoPor          String
+  recibidoPor        String?
+  creadoEn           DateTime       @default(now())
+  items              TrasladoItem[]
+
+  @@unique([empresaId, numero])
+}
+
+model TrasladoItem {
+  id            String    @id @default(uuid()) @db.Uuid
+  empresaId     String    @db.Uuid
+  trasladoId    String    @db.Uuid
+  tipo          TipoValor
+  chequeId      String?   @db.Uuid
+  monedaCodigo  String
+  importe       Decimal   @db.Decimal(18, 2)
+  aceptado      Boolean?
+  motivoRechazo String?
+  traslado      Traslado  @relation(fields: [trasladoId], references: [id])
+}
