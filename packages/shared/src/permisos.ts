@@ -23,9 +23,13 @@ export const PERMISOS = {
   'oc.aprobar': 'Aprobar órdenes de compra',
   'ir.crear': 'Crear informes de recepción',
   'fc.crear': 'Cargar facturas de proveedores',
+  'op.ver': 'Ver órdenes de pago',
   'op.crear': 'Crear órdenes de pago',
+  'op.anular': 'Anular órdenes de pago',
   'op.aprobar': 'Aprobar órdenes de pago',
   'pago.ejecutar': 'Ejecutar pagos',
+  'retenciones.config': 'Configurar retenciones',
+  'padron.cargar': 'Cargar padrones de IIBB',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

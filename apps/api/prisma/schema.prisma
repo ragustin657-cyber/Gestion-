@@ -34,6 +34,7 @@ model Empresa {
   toleranciaPrecioPct   Decimal      @default(2) @db.Decimal(18, 6)
   toleranciaCantidadPct Decimal      @default(0) @db.Decimal(18, 6)
   modoTresVias          ModoTresVias @default(AVISAR)
+  montoAprobacionOp     Decimal      @default(0) @db.Decimal(18, 2)
 
   puntosVenta PuntoVenta[]
   roles       Rol[]
@@ -128,6 +129,7 @@ model Tercero {
   exentoGanancias    Boolean             @default(false)
   exentoIva          Boolean             @default(false)
   exencionHasta      DateTime?           @db.Date
+  inscriptoGanancias Boolean             @default(true)
   activo             Boolean             @default(true)
   creadoEn           DateTime            @default(now())
   iibb               TerceroIibb[]
@@ -532,4 +534,46 @@ model MovimientoCuentaCorriente {
 
   @@index([empresaId, terceroId])
   @@index([empresaId, origenTipo, origenId])
+}
+
+enum SinPadron {
+  NO_RETENER
+  ALICUOTA_DEFECTO
+}
+
+model RegimenGanancias {
+  id                  String    @id @default(uuid()) @db.Uuid
+  empresaId           String    @db.Uuid
+  codigo              String
+  descripcion         String
+  minimoNoSujeto      Decimal   @db.Decimal(18, 2)
+  alicuotaInscripto   Decimal   @db.Decimal(18, 6)
+  alicuotaNoInscripto Decimal   @db.Decimal(18, 6)
+  usaEscala           Boolean   @default(false)
+  minimoRetencion     Decimal   @db.Decimal(18, 2)
+  activo              Boolean   @default(true)
+  editadoEn           DateTime?
+
+  @@unique([empresaId, codigo])
+}
+
+model EscalaGanancias {
+  id         String   @id @default(uuid()) @db.Uuid
+  empresaId  String   @db.Uuid
+  desde      Decimal  @db.Decimal(18, 2)
+  hasta      Decimal? @db.Decimal(18, 2)
+  fijo       Decimal  @db.Decimal(18, 2)
+  porcentaje Decimal  @db.Decimal(18, 6)
+}
+
+model JurisdiccionIibb {
+  id              String    @id @default(uuid()) @db.Uuid
+  empresaId       String    @db.Uuid
+  jurisdiccion    String
+  alicuotaDefecto Decimal   @default(0) @db.Decimal(18, 6)
+  minimoRetencion Decimal   @default(0) @db.Decimal(18, 2)
+  usaPadron       Boolean   @default(false)
+  sinPadron       SinPadron @default(ALICUOTA_DEFECTO)
+
+  @@unique([empresaId, jurisdiccion])
 }

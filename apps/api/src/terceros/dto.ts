@@ -19,6 +19,7 @@ const base = z.object({
   exentoGanancias: z.boolean().optional(),
   exentoIva: z.boolean().optional(),
   exencionHasta: z.coerce.date().optional().nullable(),
+  inscriptoGanancias: z.boolean().optional(),
   activo: z.boolean().optional(),
 });
 

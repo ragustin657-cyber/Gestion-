@@ -2,6 +2,7 @@ import { hash } from '@node-rs/argon2';
 import { PrismaClient } from '@prisma/client';
 import { hoyEn, Permiso, TODOS_LOS_PERMISOS, ZONA_ARGENTINA } from '@gestion/shared';
 import { cargarConfigCuentas } from '../compras/config/conceptos';
+import { cargarConfigPagos } from '../pagos/config/valores-iniciales';
 import { cargarPlanModelo } from './plan-cuentas-modelo';
 
 export const DEMO = { email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.', aprobador: 'aprobador@demo.com', passwordAprobador: 'aprobador1234' };
@@ -68,6 +69,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
 
     await cargarPlanModelo(tx, e);
     await cargarConfigCuentas(tx, e);
+    await cargarConfigPagos(tx, e);
     const cuenta = async (codigo: string) =>
       (await tx.cuentaContable.findFirstOrThrow({ where: { empresaId: e, codigo } })).id;
 

@@ -12,14 +12,15 @@ describe('configuración de compras', () => {
   beforeEach(async () => limpiarBase(prisma));
   afterAll(async () => app.close());
 
-  it('una empresa nueva tiene los 6 conceptos y modo AVISAR', async () => {
+  it('una empresa nueva tiene los 12 conceptos y modo AVISAR', async () => {
     const { http } = await sesionConPlan(app, prisma);
     const r = await http.get('/api/compras/config');
     expect(r.status).toBe(200);
     expect(r.body.modoTresVias).toBe('AVISAR');
     expect(r.body.montoAprobacionOc).toBe('0');
     expect(r.body.cuentas.map((c: { concepto: string }) => c.concepto).sort()).toEqual(
-      ['GASTO_POR_DEFECTO', 'IMPUESTOS_INTERNOS', 'IVA_CREDITO_FISCAL', 'PERCEPCION_IIBB', 'PERCEPCION_IVA', 'PROVEEDORES'],
+      ['ANTICIPOS_PROVEEDORES', 'CHEQUES_DIFERIDOS', 'DIFERENCIA_CAMBIO_NEGATIVA', 'DIFERENCIA_CAMBIO_POSITIVA', 'GASTO_POR_DEFECTO', 'IMPUESTOS_INTERNOS',
+        'IVA_CREDITO_FISCAL', 'PERCEPCION_IIBB', 'PERCEPCION_IVA', 'PROVEEDORES', 'RETENCION_GANANCIAS', 'RETENCION_IIBB'],
     );
   });
 

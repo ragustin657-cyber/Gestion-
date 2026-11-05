@@ -7,6 +7,7 @@ import { TesoreriaMaestrosModule } from './tesoreria/maestros/tesoreria-maestros
 import { ConfigComprasModule } from './compras/config/config-compras.module';
 import { AsientosModule } from './contabilidad/asientos/asientos.module';
 import { ComprasModule } from './compras/compras.module';
+import { PagosModule } from './pagos/pagos.module';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { AuthModule } from './auth/auth.module';
 import { PlanCuentasModule } from './contabilidad/plan-cuentas/plan-cuentas.module';
@@ -35,6 +36,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     TesoreriaMaestrosModule,
     ConfigComprasModule,
     ComprasModule,
+    PagosModule,
   ],
   controllers: [SaludController],
 })
