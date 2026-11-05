@@ -7,11 +7,12 @@ import { RetencionesService } from './retenciones/retenciones.service';
 import { OrdenesPagoController } from './ordenes/ordenes-pago.controller';
 import { OrdenesPagoService } from './ordenes/ordenes-pago.service';
 import { PagoService } from './ordenes/pago.service';
+import { AnulacionPagoService } from './ordenes/anulacion.service';
 
 @Global()
 @Module({
   controllers: [ConfigPagosController, PadronController, OrdenesPagoController],
-  providers: [ConfigPagosService, PadronService, RetencionesService, OrdenesPagoService, PagoService],
+  providers: [ConfigPagosService, PadronService, RetencionesService, OrdenesPagoService, PagoService, AnulacionPagoService],
   exports: [ConfigPagosService, PadronService, RetencionesService, OrdenesPagoService],
 })
 export class PagosModule {}

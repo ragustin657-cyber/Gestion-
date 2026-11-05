@@ -3,6 +3,7 @@ import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { DatosOP, DatosPagar, esquemaMotivo, esquemaOP, esquemaPagar, esquemaVersion } from './dto';
 import { PagoService } from './pago.service';
+import { AnulacionPagoService } from './anulacion.service';
 import { OrdenesPagoService } from './ordenes-pago.service';
 
 const Id = () => Param('id', ParseUUIDPipe);
@@ -12,6 +13,7 @@ export class OrdenesPagoController {
   constructor(
     private readonly ordenes: OrdenesPagoService,
     private readonly pago: PagoService,
+    private readonly anulacion: AnulacionPagoService,
   ) {}
 
   @Get('pendientes')
@@ -75,7 +77,7 @@ export class OrdenesPagoController {
   @HttpCode(200)
   @RequierePermiso('op.anular')
   anular(@Id() id: string, @Body(new ZodValidationPipe(esquemaMotivo)) b: { version: number; motivo: string }) {
-    return this.ordenes.anularNoPagada(id, b.version, b.motivo);
+    return this.anulacion.anular(id, b.version, b.motivo);
   }
 
   @Post('ordenes/:id/pagar')
