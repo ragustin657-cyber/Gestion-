@@ -43,6 +43,7 @@ export class JwtGuard implements CanActivate {
     if (!usuario || !usuario.activo) throw new UnauthorizedException('Sesión vencida o inválida');
 
     let permisos: Permiso[] = [];
+    let sucursalId: string | null = null;
     if (payload.empresaId) {
       const acceso = await this.prisma.usuarioEmpresa.findUnique({
         where: { usuarioId_empresaId: { usuarioId: usuario.id, empresaId: payload.empresaId } },
@@ -51,6 +52,7 @@ export class JwtGuard implements CanActivate {
       if (!acceso || !acceso.activo || !acceso.empresa.activa)
         throw new UnauthorizedException('Sesión vencida o inválida');
       permisos = acceso.rol.permisos.filter(esPermiso);
+      sucursalId = acceso.sucursalId;
     }
 
     const contexto: ContextoRequest = {
@@ -58,6 +60,7 @@ export class JwtGuard implements CanActivate {
       empresaId: payload.empresaId ?? null,
       permisos,
       superadmin: usuario.superadmin,
+      sucursalId,
     };
     this.cls.set(CLAVE_CONTEXTO, contexto);
     return true;

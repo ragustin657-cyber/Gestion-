@@ -29,6 +29,10 @@ export const PERMISOS = {
   'op.aprobar': 'Aprobar órdenes de pago',
   'pago.ejecutar': 'Ejecutar pagos',
   'retenciones.config': 'Configurar retenciones',
+  'tesoreria.ver': 'Ver consultas de tesorería',
+  'tesoreria.operar': 'Registrar ingresos, traslados, depósitos y movimientos de caja',
+  'tesoreria.aceptar': 'Recibir traslados, acreditar, rechazar y debitar cheques, movimientos bancarios',
+  'tesoreria.anular': 'Anular operaciones de tesorería',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

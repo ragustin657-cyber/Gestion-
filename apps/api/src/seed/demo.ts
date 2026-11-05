@@ -64,6 +64,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     });
     const e = empresa.id;
     await tx.puntoVenta.create({ data: { empresaId: e, numero: 1, descripcion: 'Casa central' } });
+    const central = await tx.sucursal.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Casa central', esCentral: true } });
 
     const roles: Record<string, string> = {};
     for (const [nombre, permisos] of Object.entries(ROLES)) roles[nombre] = (await tx.rol.create({ data: { empresaId: e, nombre, permisos } })).id;
@@ -103,7 +104,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       data: { empresaId: e, bancoId: banco.id, numero: '1234567/8', cbu: '0110599500000001234565', alias: 'DEMO.SA.NACION', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.002') },
     });
     await tx.chequera.create({ data: { empresaId: e, cuentaBancariaId: cb.id, tipo: 'ECHEQ' } });
-    await tx.caja.create({ data: { empresaId: e, nombre: 'Caja principal', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
+    await tx.caja.create({ data: { empresaId: e, sucursalId: central.id, nombre: 'Caja principal', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
 
     await tx.centroCosto.createMany({ data: [{ empresaId: e, codigo: 'ADM', nombre: 'Administración' }, { empresaId: e, codigo: 'COM', nombre: 'Comercial' }] });
     await tx.deposito.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Depósito central', direccion: 'Av. Corrientes 1234, CABA' } });

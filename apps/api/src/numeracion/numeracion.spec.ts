@@ -38,7 +38,7 @@ describe('NumeracionService', () => {
 
   const siguiente = (empresaId: string, tipo: string, pv: number) =>
     cls.run(() => {
-      cls.set(CLAVE_CONTEXTO, { usuarioId: 'u', empresaId, permisos: [], superadmin: false });
+      cls.set(CLAVE_CONTEXTO, { usuarioId: 'u', empresaId, permisos: [], superadmin: false, sucursalId: null });
       return tenant.transaccion((tx) => numeracion.siguiente(tx, tipo, pv));
     });
 

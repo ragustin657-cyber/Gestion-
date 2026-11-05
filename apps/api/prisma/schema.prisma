@@ -75,13 +75,14 @@ model Rol {
 }
 
 model UsuarioEmpresa {
-  usuarioId String  @db.Uuid
-  empresaId String  @db.Uuid
-  rolId     String  @db.Uuid
-  activo    Boolean @default(true)
-  usuario   Usuario @relation(fields: [usuarioId], references: [id])
-  empresa   Empresa @relation(fields: [empresaId], references: [id])
-  rol       Rol     @relation(fields: [rolId], references: [id])
+  usuarioId  String  @db.Uuid
+  empresaId  String  @db.Uuid
+  rolId      String  @db.Uuid
+  sucursalId String? @db.Uuid
+  activo     Boolean @default(true)
+  usuario    Usuario @relation(fields: [usuarioId], references: [id])
+  empresa    Empresa @relation(fields: [empresaId], references: [id])
+  rol        Rol     @relation(fields: [rolId], references: [id])
 
   @@id([usuarioId, empresaId])
 }
@@ -270,13 +271,28 @@ model Chequera {
   cuentaBancaria   CuentaBancaria @relation(fields: [cuentaBancariaId], references: [id])
 }
 
+model Sucursal {
+  id        String  @id @default(uuid()) @db.Uuid
+  empresaId String  @db.Uuid
+  codigo    String
+  nombre    String
+  domicilio String?
+  esCentral Boolean @default(false)
+  activa    Boolean @default(true)
+  cajas     Caja[]
+
+  @@unique([empresaId, codigo])
+}
+
 model Caja {
-  id               String  @id @default(uuid()) @db.Uuid
-  empresaId        String  @db.Uuid
+  id               String   @id @default(uuid()) @db.Uuid
+  empresaId        String   @db.Uuid
+  sucursalId       String   @db.Uuid
   nombre           String
   monedaCodigo     String
-  cuentaContableId String  @db.Uuid
-  activa           Boolean @default(true)
+  cuentaContableId String   @db.Uuid
+  activa           Boolean  @default(true)
+  sucursal         Sucursal @relation(fields: [sucursalId], references: [id])
 }
 
 enum ModoTresVias {

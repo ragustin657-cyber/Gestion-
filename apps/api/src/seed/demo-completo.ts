@@ -21,7 +21,7 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
   const empresa = await prisma.empresa.findFirstOrThrow({ where: { razonSocial: DEMO.empresa } });
   const admin = await prisma.usuario.findUniqueOrThrow({ where: { email: DEMO.email } });
   const cls = app.get(ClsService);
-  const ctx: ContextoRequest = { usuarioId: admin.id, empresaId: empresa.id, permisos: TODOS_LOS_PERMISOS, superadmin: true };
+  const ctx: ContextoRequest = { usuarioId: admin.id, empresaId: empresa.id, permisos: TODOS_LOS_PERMISOS, superadmin: true, sucursalId: null };
 
   await cls.run(async () => {
     cls.set(CLAVE_CONTEXTO, ctx);

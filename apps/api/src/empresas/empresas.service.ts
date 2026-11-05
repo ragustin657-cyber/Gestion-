@@ -37,6 +37,7 @@ export class EmpresasService {
         data: { empresaId: empresa.id, nombre: 'Administrador', permisos: TODOS_LOS_PERMISOS },
       });
       await tx.usuarioEmpresa.create({ data: { usuarioId: creadorId, empresaId: empresa.id, rolId: rol.id } });
+      await tx.sucursal.create({ data: { empresaId: empresa.id, codigo: 'CEN', nombre: 'Casa central', esCentral: true } });
       await this.planCuentas.cargarModelo(tx, empresa.id);
       await cargarConfigCuentas(tx, empresa.id);
       await cargarConfigPagos(tx, empresa.id);

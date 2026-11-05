@@ -41,6 +41,7 @@ export async function crearEmpresaYUsuario(
       condicionIva: 'RESPONSABLE_INSCRIPTO',
     },
   });
+  await prisma.sucursal.create({ data: { empresaId: empresa.id, codigo: 'CEN', nombre: 'Casa central', esCentral: true } });
   const rol = await prisma.rol.create({
     data: { empresaId: empresa.id, nombre: 'Rol test', permisos: opciones.permisos ?? [] },
   });
