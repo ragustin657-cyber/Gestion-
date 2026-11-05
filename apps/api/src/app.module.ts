@@ -5,6 +5,7 @@ import { MonedasModule } from './monedas/monedas.module';
 import { OrganizacionModule } from './organizacion/organizacion.module';
 import { TesoreriaMaestrosModule } from './tesoreria/maestros/tesoreria-maestros.module';
 import { ConfigComprasModule } from './compras/config/config-compras.module';
+import { AsientosModule } from './contabilidad/asientos/asientos.module';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { AuthModule } from './auth/auth.module';
 import { PlanCuentasModule } from './contabilidad/plan-cuentas/plan-cuentas.module';
@@ -22,6 +23,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     AuditoriaModule,
     NumeracionModule,
     PlanCuentasModule,
+    AsientosModule,
     AuthModule,
     EmpresasModule,
     UsuariosModule,
