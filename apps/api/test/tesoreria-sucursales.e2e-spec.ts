@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { hash } from '@node-rs/argon2';
+import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { conToken, crearApp, limpiarBase, loginComo, sesionConPlan } from './helpers';
 
@@ -43,6 +44,9 @@ describe('sucursales y usuarios por sucursal', () => {
     const caja = await s.http.post('/api/tesoreria/cajas', { nombre: 'Caja', monedaCodigo: 'ARS', cuentaContableId: await s.cuenta('1.1.01.001') });
     expect(caja.status).toBe(201);
     expect(caja.body.sucursalId).toBe(central.id);
+    const nula = await s.http.post('/api/tesoreria/cajas', { nombre: 'Caja 3', monedaCodigo: 'ARS', cuentaContableId: await s.cuenta('1.1.01.001'), sucursalId: null });
+    expect(nula.body.sucursalId).toBe(central.id);
+    expect((await s.http.patch(`/api/tesoreria/cajas/${nula.body.id}`, { nombre: 'Caja 3b', sucursalId: null })).body.sucursalId).toBe(central.id);
     const mala = await s.http.post('/api/tesoreria/cajas', { nombre: 'Caja 2', monedaCodigo: 'ARS', cuentaContableId: await s.cuenta('1.1.01.001'), sucursalId: ajena.id });
     expect(mala.status).toBe(404);
   });
@@ -63,6 +67,14 @@ describe('sucursales y usuarios por sucursal', () => {
     const cajas = (await cajero.get('/api/tesoreria/cajas')).body;
     expect(cajas.map((c: { nombre: string }) => c.nombre)).toEqual(['Caja Rosario']);
     expect((await s.http.get('/api/tesoreria/cajas')).body).toHaveLength(2);
+    // Destinos de traslado: todas las cajas activas, sin datos contables
+    const destinos = (await cajero.get('/api/tesoreria/cajas/destinos')).body;
+    expect(destinos.map((c: { nombre: string; sucursal: string }) => `${c.nombre} (${c.sucursal})`).sort()).toEqual(['Caja Rosario (Sucursal Rosario)', 'Caja central (Casa central)']);
+    expect(destinos[0].cuentaContableId).toBeUndefined();
+    // La selección de empresa informa la sucursal del usuario
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: 'cajero@test.com', password: 'clave-segura-123' });
+    const sel = await request(app.getHttpServer()).post('/api/auth/empresa').set('Authorization', `Bearer ${login.body.token}`).send({ empresaId: s.empresaId });
+    expect(sel.body.sucursal).toEqual({ id: ros.id, codigo: 'ROS', nombre: 'Sucursal Rosario' });
     // Quitar la sucursal (null = todas)
     const mod = await s.http.patch(`/api/usuarios/${alta.body.id}`, { sucursalId: null });
     expect(mod.body.sucursalId).toBeNull();

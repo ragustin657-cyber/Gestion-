@@ -18,6 +18,12 @@ import { PadronesPage } from '../pagos/PadronesPage';
 import { PagosARealizarPage } from '../pagos/PagosARealizarPage';
 import { RetencionesPage } from '../pagos/RetencionesPage';
 import { AprobacionOpPage, OrdenesPagoPage } from '../pagos/OrdenesPagoPage';
+import { ArqueoPage, MovimientosBancariosPage, MovimientosCajaPage, TransferenciasInternasPage } from '../tesoreria/BancosCajasPages';
+import { CarteraPage, ChequesPropiosPage, DebitoChequesPropiosPage, RechazoChequesPage } from '../tesoreria/ChequesPages';
+import { FlujoFondosPage, MovimientosCuentaPage, SaldosPage } from '../tesoreria/ConsultasPages';
+import { AcreditacionesPage, DepositoPage, PendientesAcreditarPage } from '../tesoreria/DepositosPages';
+import { IngresoValoresPage } from '../tesoreria/IngresoValoresPage';
+import { RecepcionTrasladosPage, TrasladoPage, ValoresEnTransitoPage } from '../tesoreria/TrasladosPages';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -64,4 +70,22 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/pagos/retenciones', elemento: <RetencionesPage /> },
   { ruta: '/admin/retenciones', elemento: <ConfigRetencionesPage /> },
   { ruta: '/admin/padrones', elemento: <PadronesPage /> },
+  { ruta: '/tesoreria/ingreso', elemento: <IngresoValoresPage /> },
+  { ruta: '/tesoreria/traslado', elemento: <TrasladoPage /> },
+  { ruta: '/tesoreria/recepcion', elemento: <RecepcionTrasladosPage /> },
+  { ruta: '/tesoreria/deposito', elemento: <DepositoPage /> },
+  { ruta: '/tesoreria/acreditaciones', elemento: <AcreditacionesPage /> },
+  { ruta: '/tesoreria/rechazo', elemento: <RechazoChequesPage /> },
+  { ruta: '/tesoreria/debito', elemento: <DebitoChequesPropiosPage /> },
+  { ruta: '/tesoreria/movimientos-bancarios', elemento: <MovimientosBancariosPage /> },
+  { ruta: '/tesoreria/transferencias', elemento: <TransferenciasInternasPage /> },
+  { ruta: '/tesoreria/movimientos-caja', elemento: <MovimientosCajaPage /> },
+  { ruta: '/tesoreria/arqueo', elemento: <ArqueoPage /> },
+  { ruta: '/tesoreria/saldos', elemento: <SaldosPage /> },
+  { ruta: '/tesoreria/cartera', elemento: <CarteraPage /> },
+  { ruta: '/tesoreria/en-transito', elemento: <ValoresEnTransitoPage /> },
+  { ruta: '/tesoreria/pendientes', elemento: <PendientesAcreditarPage /> },
+  { ruta: '/tesoreria/cheques-propios', elemento: <ChequesPropiosPage /> },
+  { ruta: '/tesoreria/movimientos', elemento: <MovimientosCuentaPage /> },
+  { ruta: '/tesoreria/flujo', elemento: <FlujoFondosPage /> },
 ];

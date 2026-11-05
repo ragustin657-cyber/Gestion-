@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, descargar, ErrorApi } from '../api/cliente';
 import { formatoMoneda, hoy } from '../compras/formato';
-import { MedioEditable, MediosPago, pesosMedio } from './MediosPago';
+import { MedioEditable, MediosPago, OpcionCheque, pesosMedio } from './MediosPago';
 import { OrdenesPagoPage } from './OrdenesPagoPage';
 import { TablaRetenciones } from './TablaRetenciones';
 import { numeroCertificado, numeroOP, OrdenPago, RetencionOP } from './tipos';
@@ -28,6 +28,12 @@ function FormularioPago({ id, alTerminar }: { id: string; alTerminar: () => void
   const cuentas = useQuery({ queryKey: ['/tesoreria/cuentas-bancarias', 'pago'], queryFn: () => api<CuentaB[]>('/tesoreria/cuentas-bancarias') });
   const chequeras = useQuery({ queryKey: ['/tesoreria/chequeras', 'pago'], queryFn: () => api<Chequera[]>('/tesoreria/chequeras') });
   const cajas = useQuery({ queryKey: ['/tesoreria/cajas', 'pago'], queryFn: () => api<Caja[]>('/tesoreria/cajas') });
+  // Cheques de terceros en cartera para endosar (si el usuario no puede consultarlos, la lista queda vacía)
+  const cartera = useQuery({
+    queryKey: ['/tesoreria/cheques', 'endoso'], retry: false,
+    queryFn: () => api<{ items: { id: string; banco: string; numero: string; libradorNombre: string; monedaCodigo: string; importe: string }[] }>('/tesoreria/cheques', { query: { estado: 'EN_CARTERA', porPagina: 200 } }),
+  });
+  const chequesCartera: OpcionCheque[] = (cartera.data?.items ?? []).map((c) => ({ id: c.id, etiqueta: `${c.banco} ${c.numero} (${c.libradorNombre})`, monedaCodigo: c.monedaCodigo, importe: c.importe }));
   if (!op.data) return <Loader size="sm" />;
   const o = op.data;
 
@@ -45,7 +51,7 @@ function FormularioPago({ id, alTerminar }: { id: string; alTerminar: () => void
     );
 
   const neto = prev.data?.netoPagar ?? o.netoPagar;
-  const cubierto = medios.reduce((s, m) => s + pesosMedio(m, o.cotizacion), 0);
+  const cubierto = medios.reduce((s, m) => s + pesosMedio(m, o.cotizacion, chequesCartera), 0);
   async function pagar() {
     setError('');
     try {
@@ -53,7 +59,7 @@ function FormularioPago({ id, alTerminar }: { id: string; alTerminar: () => void
         metodo: 'POST',
         body: {
           version: o.version, fechaPago,
-          medios: medios.map((m) => ({
+          medios: medios.map((m) => (m.tipo === 'CHEQUE_TERCERO' ? { tipo: m.tipo, chequeId: m.chequeId } : {
             tipo: m.tipo, monedaCodigo: m.monedaCodigo, importe: Number(m.importe), cuentaBancariaId: m.cuentaBancariaId || null, cajaId: m.cajaId || null,
             chequeraId: m.chequeraId || null, chequeNumero: m.chequeNumero || null, chequeFechaPago: m.chequeFechaPago || null, referencia: m.referencia || null,
           })),
@@ -81,7 +87,7 @@ function FormularioPago({ id, alTerminar }: { id: string; alTerminar: () => void
         <Text size="sm">Retenciones {formatoMoneda(prev.data?.totalRetenciones ?? o.totalRetenciones)}</Text>
         <Text fw={700}>Neto a pagar {formatoMoneda(neto)}</Text>
       </Group>
-      <MediosPago medios={medios} onChange={setMedios} cotizacion={o.cotizacion} totalACubrir={neto}
+      <MediosPago medios={medios} onChange={setMedios} cotizacion={o.cotizacion} totalACubrir={neto} chequesCartera={chequesCartera}
         cuentas={(cuentas.data ?? []).map((c) => ({ id: c.id, etiqueta: `${c.banco.nombre} - ${c.numero}`, monedaCodigo: c.monedaCodigo }))}
         cajas={(cajas.data ?? []).filter((c) => c.activa).map((c) => ({ id: c.id, etiqueta: c.nombre, monedaCodigo: c.monedaCodigo }))}
         chequeras={(chequeras.data ?? []).filter((c) => c.activa).map((c) => ({ id: c.id, etiqueta: `${c.tipo === 'ECHEQ' ? 'E-cheq' : 'Física'} ${c.cuentaBancaria.banco.nombre} - ${c.cuentaBancaria.numero}`, monedaCodigo: c.cuentaBancaria.monedaCodigo }))} />

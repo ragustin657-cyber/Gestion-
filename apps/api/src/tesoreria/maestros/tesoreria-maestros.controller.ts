@@ -108,6 +108,13 @@ export class TesoreriaMaestrosController {
     return this.tenant.db.caja.findMany({ where: this.alcance.filtroCajas(), include: { sucursal: true }, orderBy: { nombre: 'asc' } });
   }
 
+  /** Cajas activas de todas las sucursales, sin datos contables: destinos posibles de un traslado. */
+  @Get('cajas/destinos') @RequierePermiso()
+  async destinos() {
+    const cajas = await this.tenant.db.caja.findMany({ where: { activa: true }, include: { sucursal: true }, orderBy: { nombre: 'asc' } });
+    return cajas.map((c) => ({ id: c.id, nombre: c.nombre, monedaCodigo: c.monedaCodigo, sucursalId: c.sucursalId, sucursal: c.sucursal.nombre }));
+  }
+
   @Post('cajas')
   crearCaja(@Body(new ZodValidationPipe(esquemaCaja)) d: Caja) {
     return this.escribir('Caja', 'CREAR', d, async (tx) => {
@@ -122,7 +129,8 @@ export class TesoreriaMaestrosController {
     return this.escribir('Caja', 'MODIFICAR', d, async (tx) => {
       if (d.cuentaContableId) await this.plan.verificarImputable(tx, d.cuentaContableId, 'cuentaContableId');
       if (d.sucursalId) await this.sucursales.verificar(tx, d.sucursalId);
-      return tx.caja.update({ where: { id }, data: d });
+      const { sucursalId, ...resto } = d;
+      return tx.caja.update({ where: { id }, data: { ...resto, ...(sucursalId ? { sucursalId } : {}) } });
     });
   }
 }

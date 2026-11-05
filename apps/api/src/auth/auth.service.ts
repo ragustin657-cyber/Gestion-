@@ -41,6 +41,9 @@ export class AuthService {
       empresa: { id: acceso.empresa.id, razonSocial: acceso.empresa.razonSocial, condicionIva: acceso.empresa.condicionIva },
       permisos: acceso.rol.permisos.filter(esPermiso),
       superadmin: (await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId } })).superadmin,
+      sucursal: acceso.sucursalId
+        ? await this.prisma.sucursal.findUnique({ where: { id: acceso.sucursalId }, select: { id: true, codigo: true, nombre: true } })
+        : null,
     };
   }
 

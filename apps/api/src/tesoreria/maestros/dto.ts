@@ -38,7 +38,7 @@ export const esquemaChequera = chequeraBase
 export const esquemaChequeraMod = z.object({ activa: z.boolean() });
 
 export const esquemaCaja = z.object({
-  sucursalId: z.string().uuid('Sucursal inválida').optional(),
+  sucursalId: z.string().uuid('Sucursal inválida').nullish(),
   nombre: zTexto,
   monedaCodigo: zMoneda,
   cuentaContableId: z.string().uuid(),
