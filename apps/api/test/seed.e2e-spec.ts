@@ -22,7 +22,7 @@ describe('seed demo', () => {
     expect(await sembrarCompleto(app)).toBe('existente');
 
     const terceros = await prisma.tercero.findMany();
-    expect(terceros).toHaveLength(8);
+    expect(terceros).toHaveLength(9);
     for (const t of terceros) expect(validarCuit(t.cuit)).toBe(true);
     expect(await prisma.articulo.count()).toBe(10);
     expect(await prisma.rol.count()).toBe(5);
@@ -32,6 +32,12 @@ describe('seed demo', () => {
     expect(ocs).toHaveLength(5);
     expect(new Set(ocs.map((o) => o.estado))).toEqual(new Set(['BORRADOR', 'PENDIENTE_APROBACION', 'APROBADA', 'PARCIALMENTE_RECIBIDA', 'CUMPLIDA']));
     expect(await prisma.comprobanteCompra.count()).toBe(3);
+
+    expect(await prisma.usuario.findUnique({ where: { email: 'tesorero@demo.com' } })).not.toBeNull();
+    const ops = await prisma.ordenPago.findMany();
+    expect(new Set(ops.map((o) => o.estado))).toEqual(new Set(['PAGADA', 'APROBADA', 'PENDIENTE_APROBACION']));
+    expect(await prisma.ordenPagoRetencion.count({ where: { certificadoNumero: { not: null } } })).toBeGreaterThanOrEqual(1);
+    expect(await prisma.padronIibb.count({ where: { jurisdiccion: '902' } })).toBe(3);
 
     for (const a of await prisma.asiento.findMany({ include: { renglones: true } })) {
       const debe = a.renglones.reduce((s, r) => s + Math.round(Number(r.debe) * 100), 0);

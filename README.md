@@ -32,9 +32,31 @@ Usuarios demo:
 | Usuario | Contraseña | Rol |
 |---|---|---|
 | admin@demo.com | admin1234 | Administrador |
-| aprobador@demo.com | aprobador1234 | Aprobador de OC (Gerente) |
+| aprobador@demo.com | aprobador1234 | Aprobador de OC y OP (Gerente) |
+| tesorero@demo.com | tesorero1234 | Tesorero (paga las OP aprobadas) |
 
 En la empresa demo hay una orden de compra en cada estado, recepciones, una factura en pesos, una en dólares y una nota de crédito. El límite de aprobación es de $ 1.000.000.
+
+## Órdenes de pago y retenciones (Entrega 3)
+
+- **Orden de pago:**
+  - Se eligen los comprobantes con saldo del proveedor (facturas, notas de débito y crédito, anticipos), en pesos o dólares, con pagos parciales. También se puede hacer un pago a cuenta (anticipo).
+  - Lo que ya está en otra OP abierta no se puede volver a tomar.
+  - La aprobación es por monto, con un límite propio, y quien carga no aprueba.
+- **Pago** (lo hace quien tiene permiso de tesorería):
+  - Medios: transferencia, cheque propio (e-cheq o físico, al día o diferido) y efectivo, en pesos o dólares.
+  - Las retenciones se recalculan con la fecha de pago.
+  - Medios + retenciones tienen que igualar el total al centavo.
+  - Genera los certificados numerados, baja la cuenta corriente y registra el asiento con la diferencia de cambio.
+- **Retenciones:**
+  - Ganancias (RG 830) por régimen, con acumulado mensual, mínimo no sujeto, escala para honorarios y mínimo de retención.
+  - IIBB por jurisdicción, con la alícuota tomada del padrón, de la ficha del proveedor o de un valor por defecto.
+  - Se configuran en Administración → Retenciones.
+- **Padrones de IIBB:** se cargan en Administración → Padrones de IIBB los archivos mensuales de ARBA (902) y AGIP (901). Se procesan en segundo plano y son comunes a todas las empresas.
+- **Anulación:** una OP pagada se anula con reversión completa: saldos, cheques, certificados, tesorería y contra-asiento.
+- **Consultas:** órdenes de pago, pagos a realizar y retenciones practicadas, con exportación a Excel y PDF de la OP y de cada certificado.
+
+> ⚠️ **Valores de Ganancias a verificar.** Los mínimos, alícuotas y escala precargados son de referencia. El contador tiene que verificarlos contra la normativa vigente antes de operar. La pantalla los marca hasta que se editan.
 
 ## Requisitos
 
@@ -92,5 +114,6 @@ e2e               pruebas Playwright
 4. **Validación:** el body se valida con zod (`ZodValidationPipe`) y los mensajes se escriben en castellano.
 5. **Numeración:** se usa `NumeracionService.siguiente(tx, tipo, puntoVenta)`.
 6. **Asientos:** se generan con `AsientosService.generar(tx, …)` dentro de la misma transacción que el comprobante. Si el asiento no balancea, la operación entera se revierte. Para anular se usa `contraasiento`.
+   - **Cuenta corriente:** los saldos se cancelan con `AplicacionCuentaCorriente`, que guarda el importe en moneda original y en pesos históricos. Nunca se modifica el importe original del comprobante.
 7. **Importes:** se calculan con las funciones de `packages/shared/src/compras` (decimal.js), las mismas en el servidor y en la web. Nunca se usa `number` para hacer cuentas con dinero.
 8. **Concurrencia:** los comprobantes con estados llevan `version` (bloqueo optimista, 409 si cambió). Los renglones que se consumen (recibido o facturado) se bloquean con `FOR UPDATE`.

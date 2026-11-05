@@ -5,22 +5,28 @@ import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarConfigPagos } from '../pagos/config/valores-iniciales';
 import { cargarPlanModelo } from './plan-cuentas-modelo';
 
-export const DEMO = { email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.', aprobador: 'aprobador@demo.com', passwordAprobador: 'aprobador1234' };
+export const DEMO = {
+  email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.',
+  aprobador: 'aprobador@demo.com', passwordAprobador: 'aprobador1234',
+  tesorero: 'tesorero@demo.com', passwordTesorero: 'tesorero1234',
+};
 
 const ROLES: Record<string, Permiso[]> = {
   Administrador: TODOS_LOS_PERMISOS,
-  Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear'],
-  Aprobador: ['oc.ver', 'oc.aprobar'],
-  Tesorero: ['tercero.ver', 'op.crear', 'pago.ejecutar', 'tesoreria.maestros.editar'],
+  Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear'],
+  Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
+  Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver'],
 };
 
-const PROVEEDORES = [
-  ['Distribuidora Andina S.A.', '30700123452'],
-  ['Papelera del Plata S.R.L.', '30711223343'],
-  ['Transportes Ruta 9 S.A.', '30698765433'],
-  ['Servicios Informáticos Pampa S.A.', '30705556667'],
-  ['Juan Pérez (Electricista)', '20234567897'],
+/** Proveedores demo: razón social, CUIT y régimen de Ganancias (null: sin retención). */
+export const PROVEEDORES = [
+  ['Distribuidora Andina S.A.', '30700123452', '78'],
+  ['Papelera del Plata S.R.L.', '30711223343', '78'],
+  ['Transportes Ruta 9 S.A.', '30698765433', '94'],
+  ['Servicios Informáticos Pampa S.A.', '30705556667', '94'],
+  ['Juan Pérez (Electricista)', '20234567897', null],
+  ['Consultora Delta S.R.L.', '30715554441', '94'],
 ] as const;
 const CLIENTES = [
   ['Supermercados Litoral S.A.', '30719998883'],
@@ -53,7 +59,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     const empresa = await tx.empresa.create({
       data: {
         razonSocial: DEMO.empresa, cuit: '30712345671', condicionIva: 'RESPONSABLE_INSCRIPTO',
-        domicilio: 'Av. Corrientes 1234, CABA', agenteRetencionGanancias: true, jurisdiccionesIibb: ['901', '902'], montoAprobacionOc: 1000000,
+        domicilio: 'Av. Corrientes 1234, CABA', agenteRetencionGanancias: true, jurisdiccionesIibb: ['901', '902'], montoAprobacionOc: 1000000, montoAprobacionOp: 1000000,
       },
     });
     const e = empresa.id;
@@ -66,6 +72,10 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       (await tx.usuario.findUnique({ where: { email: DEMO.aprobador } })) ??
       (await tx.usuario.create({ data: { email: DEMO.aprobador, nombre: 'Gerente (aprobador)', passwordHash: await hash(DEMO.passwordAprobador) } }));
     await tx.usuarioEmpresa.create({ data: { usuarioId: aprobador.id, empresaId: e, rolId: roles.Aprobador } });
+    const tesorero =
+      (await tx.usuario.findUnique({ where: { email: DEMO.tesorero } })) ??
+      (await tx.usuario.create({ data: { email: DEMO.tesorero, nombre: 'Tesorero', passwordHash: await hash(DEMO.passwordTesorero) } }));
+    await tx.usuarioEmpresa.create({ data: { usuarioId: tesorero.id, empresaId: e, rolId: roles.Tesorero } });
 
     await cargarPlanModelo(tx, e);
     await cargarConfigCuentas(tx, e);
@@ -74,8 +84,8 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       (await tx.cuentaContable.findFirstOrThrow({ where: { empresaId: e, codigo } })).id;
 
     let codigo = 0;
-    for (const [razonSocial, cuit] of PROVEEDORES)
-      await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('20') ? 'MONOTRIBUTO' : 'RESPONSABLE_INSCRIPTO', esProveedor: true, diasPago: 30, regimenGanancias: '78' } });
+    for (const [razonSocial, cuit, regimenGanancias] of PROVEEDORES)
+      await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('20') ? 'MONOTRIBUTO' : 'RESPONSABLE_INSCRIPTO', esProveedor: true, diasPago: 30, regimenGanancias } });
     for (const [razonSocial, cuit] of CLIENTES)
       await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('27') ? 'CONSUMIDOR_FINAL' : 'RESPONSABLE_INSCRIPTO', esCliente: true, diasPago: 15 } });
     await tx.talonario.create({ data: { empresaId: e, tipoComprobante: 'TERCERO', puntoVenta: 0, ultimoNumero: codigo } });
