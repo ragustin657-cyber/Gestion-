@@ -167,3 +167,55 @@ model CuentaContable {
 
   @@unique([empresaId, codigo])
 }
+
+model Articulo {
+  id            String  @id @default(uuid()) @db.Uuid
+  empresaId     String  @db.Uuid
+  codigo        String
+  descripcion   String
+  unidad        String  @default("UN")
+  alicuotaIva   Decimal @db.Decimal(18, 6)
+  cuentaCompraId String? @db.Uuid
+  cuentaVentaId String? @db.Uuid
+  esServicio    Boolean @default(false)
+  activo        Boolean @default(true)
+
+  @@unique([empresaId, codigo])
+}
+
+model Moneda {
+  codigo  String @id
+  nombre  String
+  simbolo String
+}
+
+model Cotizacion {
+  id           String   @id @default(uuid()) @db.Uuid
+  empresaId    String   @db.Uuid
+  monedaCodigo String
+  fecha        DateTime @db.Date
+  valor        Decimal  @db.Decimal(18, 6)
+
+  @@unique([empresaId, monedaCodigo, fecha])
+}
+
+model CentroCosto {
+  id        String  @id @default(uuid()) @db.Uuid
+  empresaId String  @db.Uuid
+  codigo    String
+  nombre    String
+  activo    Boolean @default(true)
+
+  @@unique([empresaId, codigo])
+}
+
+model Deposito {
+  id        String  @id @default(uuid()) @db.Uuid
+  empresaId String  @db.Uuid
+  codigo    String
+  nombre    String
+  direccion String?
+  activo    Boolean @default(true)
+
+  @@unique([empresaId, codigo])
+}

@@ -97,3 +97,16 @@ export async function sesion(
   const token = await loginComo(app, datos.usuario.email, datos.password, datos.empresa.id);
   return { ...datos, token, http: conToken(app, token) };
 }
+
+/** Empresa creada por API (con plan de cuentas modelo) y cliente HTTP de su administrador. */
+export async function sesionConPlan(app: INestApplication, prisma: PrismaService) {
+  const s = await sesion(app, prisma, { superadmin: true });
+  const e = await s.http.post('/api/empresas', {
+    razonSocial: `Con Plan ${Date.now()}`, cuit: '30-71234567-1', condicionIva: 'RESPONSABLE_INSCRIPTO',
+  });
+  const token = await loginComo(app, s.usuario.email, s.password, e.body.id);
+  const http = conToken(app, token);
+  const cuenta = async (codigo: string) =>
+    (await prisma.cuentaContable.findFirstOrThrow({ where: { empresaId: e.body.id, codigo } })).id;
+  return { empresaId: e.body.id as string, http, cuenta };
+}
