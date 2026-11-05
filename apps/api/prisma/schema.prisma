@@ -780,3 +780,131 @@ model AplicacionCuentaCorriente {
   @@index([empresaId, movimientoId])
   @@index([empresaId, origenTipo, origenId])
 }
+
+enum EstadoDocTesoreria {
+  CONFIRMADO
+  ANULADO
+}
+
+enum OrigenIngreso {
+  CLIENTE
+  OTRO
+}
+
+enum TipoChequeTercero {
+  FISICO
+  ECHEQ
+}
+
+enum EstadoCheque {
+  EN_CARTERA
+  EN_TRANSITO
+  DEPOSITADO
+  ACREDITADO
+  ENDOSADO
+  RECHAZADO
+  DEVUELTO
+  ANULADO
+}
+
+enum EstadoTransferenciaRecibida {
+  PENDIENTE
+  ACREDITADA
+  ANULADA
+}
+
+model IngresoValores {
+  id                 String                   @id @default(uuid()) @db.Uuid
+  empresaId          String                   @db.Uuid
+  sucursalId         String                   @db.Uuid
+  numero             Int
+  fecha              DateTime                 @db.Date
+  cajaId             String                   @db.Uuid
+  origen             OrigenIngreso
+  terceroId          String?                  @db.Uuid
+  cuentaContableId   String?                  @db.Uuid
+  concepto           String
+  estado             EstadoDocTesoreria       @default(CONFIRMADO)
+  asientoId          String?                  @db.Uuid
+  asientoAnulacionId String?                  @db.Uuid
+  motivoAnulacion    String?
+  creadoPor          String
+  creadoEn           DateTime                 @default(now())
+  efectivo           IngresoValoresEfectivo[]
+  cheques            ChequeTercero[]
+  transferencias     TransferenciaRecibida[]
+
+  @@unique([empresaId, sucursalId, numero])
+}
+
+model IngresoValoresEfectivo {
+  id           String         @id @default(uuid()) @db.Uuid
+  empresaId    String         @db.Uuid
+  ingresoId    String         @db.Uuid
+  monedaCodigo String
+  importe      Decimal        @db.Decimal(18, 2)
+  ingreso      IngresoValores @relation(fields: [ingresoId], references: [id])
+}
+
+model ChequeTercero {
+  id                String             @id @default(uuid()) @db.Uuid
+  empresaId         String             @db.Uuid
+  ingresoId         String             @db.Uuid
+  tipo              TipoChequeTercero
+  banco             String
+  numero            String
+  libradorNombre    String
+  libradorCuit      String             @default("")
+  fechaEmision      DateTime           @db.Date
+  fechaPago         DateTime           @db.Date
+  monedaCodigo      String
+  importe           Decimal            @db.Decimal(18, 2)
+  estado            EstadoCheque       @default(EN_CARTERA)
+  cajaId            String?            @db.Uuid
+  cuentaBancariaId  String?            @db.Uuid
+  terceroOrigenId   String?            @db.Uuid
+  terceroDestinoId  String?            @db.Uuid
+  fechaDeposito     DateTime?          @db.Date
+  fechaAcreditacion DateTime?          @db.Date
+  fechaRechazo      DateTime?          @db.Date
+  motivoRechazo     String?
+  creadoEn          DateTime           @default(now())
+  ingreso           IngresoValores     @relation(fields: [ingresoId], references: [id])
+  historial         MovimientoCheque[]
+
+  @@unique([empresaId, banco, numero, libradorCuit])
+  @@index([empresaId, estado])
+}
+
+model MovimientoCheque {
+  id               String        @id @default(uuid()) @db.Uuid
+  empresaId        String        @db.Uuid
+  chequeId         String        @db.Uuid
+  fecha            DateTime      @db.Date
+  estadoAnterior   EstadoCheque?
+  estadoNuevo      EstadoCheque
+  cajaId           String?       @db.Uuid
+  cuentaBancariaId String?       @db.Uuid
+  origenTipo       String
+  origenId         String        @db.Uuid
+  usuarioId        String        @db.Uuid
+  creadoEn         DateTime      @default(now())
+  cheque           ChequeTercero @relation(fields: [chequeId], references: [id])
+
+  @@index([empresaId, chequeId])
+}
+
+model TransferenciaRecibida {
+  id                    String                      @id @default(uuid()) @db.Uuid
+  empresaId             String                      @db.Uuid
+  ingresoId             String                      @db.Uuid
+  cuentaBancariaId      String                      @db.Uuid
+  fecha                 DateTime                    @db.Date
+  referencia            String?
+  monedaCodigo          String
+  importe               Decimal                     @db.Decimal(18, 2)
+  estado                EstadoTransferenciaRecibida @default(PENDIENTE)
+  fechaAcreditacion     DateTime?                   @db.Date
+  asientoAcreditacionId String?                     @db.Uuid
+  ingreso               IngresoValores              @relation(fields: [ingresoId], references: [id])
+}
