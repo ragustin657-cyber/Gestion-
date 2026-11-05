@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { zFecha } from '../../compras/comun';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { DatosOP, DatosPagar, esquemaMotivo, esquemaOP, esquemaPagar, esquemaVersion } from './dto';
@@ -32,6 +33,14 @@ export class OrdenesPagoController {
   @RequierePermiso('op.ver')
   obtener(@Id() id: string) {
     return this.ordenes.obtener(id);
+  }
+
+  @Get('ordenes/:id/retenciones')
+  @RequierePermiso('pago.ejecutar')
+  retenciones(@Id() id: string, @Query('fechaPago') fechaPago: string) {
+    const f = zFecha.safeParse(fechaPago ?? '');
+    if (!f.success) throw new BadRequestException('Fecha inválida');
+    return this.ordenes.previsualizarRetenciones(id, f.data);
   }
 
   @Post('ordenes')

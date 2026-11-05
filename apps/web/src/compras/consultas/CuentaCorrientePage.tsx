@@ -5,15 +5,16 @@ import { api, ErrorApi } from '../../api/cliente';
 import { formatoFecha, formatoMoneda } from '../formato';
 import { FiltroFechas, SelectProveedor } from './comun';
 import { DetalleComprobante } from './DetalleComprobante';
+import { DetalleOrdenPago } from '../../pagos/DetalleOrdenPago';
 
-interface Movimiento { id: string; origenId: string; fecha: string; fechaVencimiento: string; comprobante: string; monedaCodigo: string; importe: string; importePesos: string; saldo: string; acumuladoPesos: string }
+interface Movimiento { id: string; origenId: string; fecha: string; fechaVencimiento: string | null; comprobante: string; monedaCodigo: string; importe: string; importePesos: string; saldo: string | null; acumuladoPesos: string }
 interface CuentaCorriente { tercero: { razonSocial: string }; movimientos: Movimiento[]; saldos: { ARS: string; USD: string; pesos: string } }
 
 export function CuentaCorrientePage({ terceroIdInicial }: { terceroIdInicial?: string }) {
   const [terceroId, setTerceroId] = useState<string | null>(terceroIdInicial ?? null);
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
-  const [abierto, setAbierto] = useState<string | null>(null);
+  const [abierto, setAbierto] = useState<{ id: string; tipo: 'FC' | 'OP' } | null>(null);
   const q = useQuery({
     queryKey: ['/compras/cuenta-corriente', terceroId, desde, hasta],
     queryFn: () => api<CuentaCorriente>(`/compras/cuenta-corriente/${terceroId}`, { query: { desde, hasta } }),
@@ -42,7 +43,7 @@ export function CuentaCorrientePage({ terceroIdInicial }: { terceroIdInicial?: s
                 {q.data.movimientos.map((m) => (
                   <Table.Tr key={m.id}>
                     <Table.Td>{formatoFecha(m.fecha)}</Table.Td>
-                    <Table.Td><UnstyledButton c="indigo" onClick={() => setAbierto(m.origenId)}>{m.comprobante}</UnstyledButton></Table.Td>
+                    <Table.Td><UnstyledButton c="indigo" onClick={() => setAbierto({ id: m.origenId, tipo: m.comprobante.startsWith('OP ') || m.comprobante.startsWith('Anticipo') ? 'OP' : 'FC' })}>{m.comprobante}</UnstyledButton></Table.Td>
                     <Table.Td>{formatoFecha(m.fechaVencimiento)}</Table.Td>
                     <Table.Td ta="right">{formatoMoneda(m.importe, m.monedaCodigo)}</Table.Td>
                     <Table.Td ta="right">{formatoMoneda(m.importePesos)}</Table.Td>
@@ -56,7 +57,10 @@ export function CuentaCorrientePage({ terceroIdInicial }: { terceroIdInicial?: s
         </>
       )}
       <Group />
-      <Modal opened={!!abierto} onClose={() => setAbierto(null)} title="Comprobante" size="xl">{abierto && <DetalleComprobante id={abierto} />}</Modal>
+      <Modal opened={!!abierto} onClose={() => setAbierto(null)} title={abierto?.tipo === 'OP' ? 'Orden de pago' : 'Comprobante'} size="xl">
+        {abierto?.tipo === 'FC' && <DetalleComprobante id={abierto.id} />}
+        {abierto?.tipo === 'OP' && <DetalleOrdenPago id={abierto.id} alCerrar={() => setAbierto(null)} />}
+      </Modal>
     </Paper>
   );
 }

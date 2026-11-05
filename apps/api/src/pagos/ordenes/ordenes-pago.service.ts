@@ -191,6 +191,14 @@ export class OrdenesPagoService {
     return this.retenciones.calcular(tx, { terceroId: op.terceroId, fechaPago, bases: await this.bases(tx, op), excluirOrdenPagoId: op.id });
   }
 
+  /** Vista previa de retenciones a otra fecha de pago, sin guardar. */
+  async previsualizarRetenciones(id: string, fechaPago: Date) {
+    const op = await this.obtener(id);
+    const retenciones = await this.calcularRetenciones(this.tenant.db, id, fechaPago);
+    const total = retenciones.reduce((s, r) => s.plus(r.importe), new D(0));
+    return { retenciones, totalRetenciones: total.toFixed(2), netoPagar: op.totalCancelarPesos.minus(total).toFixed(2) };
+  }
+
   /** Reemplaza las retenciones guardadas de la OP y actualiza totales. */
   async guardarRetenciones(tx: TxEmpresa, opId: string, rets: RetencionCalculada[], total: Dec) {
     await tx.ordenPagoRetencion.deleteMany({ where: { ordenPagoId: opId } });

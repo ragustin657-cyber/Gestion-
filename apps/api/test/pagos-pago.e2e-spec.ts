@@ -36,6 +36,17 @@ describe('pago de órdenes de pago', () => {
     expect(await prisma.chequePropio.count({ where: { estado: 'EMITIDO' } })).toBe(1);
   });
 
+  it('recalcular retenciones con otra fecha de pago sin guardar', async () => {
+    const p = await preparar({ regimen: '94', iibb: 2 });
+    const f = await facturaPendiente(p.http, prisma, { proveedorId: p.proveedorId, neto: 100000 });
+    const op = await p.opAprobada([{ movimientoId: f.movimientoId, importe: 121000 }]);
+    const r = await p.http.get(`/api/pagos/ordenes/${op.id}/retenciones?fechaPago=2026-11-15`);
+    expect(r.status).toBe(200);
+    expect(r.body.retenciones.filter((x: { importe: string }) => Number(x.importe) > 0).map((x: { importe: string }) => x.importe).sort()).toEqual(['2000.00', '656.60']);
+    expect(r.body).toMatchObject({ totalRetenciones: '2656.60', netoPagar: '118343.40' });
+    expect((await p.http.get(`/api/pagos/ordenes/${op.id}/retenciones?fechaPago=abc`)).status).toBe(400);
+  });
+
   it('factura en USD pagada en efectivo USD con diferencia de cambio', async () => {
     const p = await preparar();
     const f = await facturaPendiente(p.http, prisma, { proveedorId: p.proveedorId, neto: 100, moneda: 'USD', cotizacion: 1000 });

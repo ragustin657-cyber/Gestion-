@@ -28,6 +28,7 @@ export const MENU: NodoMenu[] = [
         hijos: [
           { titulo: 'Orden de pago', ruta: '/pagos/op/nueva', permiso: 'op.crear' },
           { titulo: 'Aprobación de OP', ruta: '/pagos/op/aprobacion', permiso: 'op.aprobar' },
+          { titulo: 'Pago de OP', ruta: '/pagos/pago', permiso: 'pago.ejecutar' },
         ],
       },
       proximamente('Ventas y Cuentas a Cobrar'),
@@ -53,7 +54,11 @@ export const MENU: NodoMenu[] = [
       },
       {
         titulo: 'Pagos',
-        hijos: [{ titulo: 'Órdenes de pago', ruta: '/pagos/op', permiso: 'op.ver' }],
+        hijos: [
+          { titulo: 'Órdenes de pago', ruta: '/pagos/op', permiso: 'op.ver' },
+          { titulo: 'Pagos a realizar', ruta: '/pagos/a-realizar', permiso: 'op.ver' },
+          { titulo: 'Retenciones practicadas', ruta: '/pagos/retenciones', permiso: 'op.ver' },
+        ],
       },
       proximamente('Ventas y Cuentas a Cobrar'),
       proximamente('Tesorería'),
