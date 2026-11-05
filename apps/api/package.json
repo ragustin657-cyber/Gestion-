@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "build": "pnpm --filter @gestion/shared build && prisma generate && tsc -p tsconfig.build.json",
+    "dev": "pnpm --filter @gestion/shared build && ts-node-dev --respawn --transpile-only src/main.ts",
     "start": "node dist/src/main.js",
     "test": "jest --runInBand",
     "test:e2e": "jest --runInBand",
-    "seed": "ts-node --transpile-only prisma/seed.ts",
+    "seed": "pnpm --filter @gestion/shared build && ts-node --transpile-only prisma/seed.ts",
     "prisma": "prisma"
   },
   "dependencies": {

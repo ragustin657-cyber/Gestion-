@@ -3,7 +3,7 @@ import { CuentaContable, Prisma, TipoCuenta } from '@prisma/client';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { conUnicidad } from '../../comun/errores';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
-import { codigoPadre, PLAN_CUENTAS_MODELO } from '../../seed/plan-cuentas-modelo';
+import { cargarPlanModelo } from '../../seed/plan-cuentas-modelo';
 
 export interface NodoCuenta {
   id: string;
@@ -35,16 +35,8 @@ export class PlanCuentasService {
   ) {}
 
   /** Carga el plan modelo en una empresa nueva. Recibe un cliente de transacción sin filtro de empresa. */
-  async cargarModelo(tx: Prisma.TransactionClient, empresaId: string): Promise<number> {
-    const ids = new Map<string, string>();
-    for (const c of PLAN_CUENTAS_MODELO) {
-      const padre = codigoPadre(c.codigo);
-      const creada = await tx.cuentaContable.create({
-        data: { ...c, empresaId, padreId: padre ? ids.get(padre) : null },
-      });
-      ids.set(c.codigo, creada.id);
-    }
-    return PLAN_CUENTAS_MODELO.length;
+  cargarModelo(tx: Prisma.TransactionClient, empresaId: string): Promise<number> {
+    return cargarPlanModelo(tx, empresaId);
   }
 
   async arbol(): Promise<NodoCuenta[]> {

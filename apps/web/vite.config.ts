@@ -7,6 +7,6 @@ export default defineConfig({
   resolve: {
     alias: { '@gestion/shared': fileURLToPath(new URL('../../packages/shared/src/index.ts', import.meta.url)) },
   },
-  server: { port: 5173, proxy: { '/api': 'http://localhost:3000' } },
+  server: { port: 5173, proxy: { '/api': process.env.API_URL ?? 'http://localhost:3000' } },
   test: { globals: true, environment: 'jsdom', setupFiles: ['./src/test-setup.ts'], css: false },
 });

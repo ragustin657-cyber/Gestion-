@@ -11,6 +11,11 @@ export function configurarApp(app: INestApplication) {
 }
 
 async function bootstrap() {
+  try {
+    process.loadEnvFile();
+  } catch {
+    /* sin archivo .env: se usan las variables del entorno */
+  }
   const app = await NestFactory.create(AppModule);
   configurarApp(app);
   await app.listen(Number(process.env.PORT ?? 3000));

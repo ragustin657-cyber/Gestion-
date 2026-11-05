@@ -7,7 +7,7 @@
     "test": "pnpm -r test",
     "dev": "pnpm -r --parallel dev",
     "seed": "pnpm --filter @gestion/api seed",
-    "e2e": "pnpm --filter @gestion/e2e test"
+    "e2e": "pnpm --filter @gestion/e2e e2e"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

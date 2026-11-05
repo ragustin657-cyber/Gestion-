@@ -1,4 +1,4 @@
-import type { TipoCuenta } from '@prisma/client';
+import type { Prisma, TipoCuenta } from '@prisma/client';
 
 export interface CuentaModelo {
   codigo: string;
@@ -68,4 +68,17 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
 export function codigoPadre(codigo: string): string | null {
   const i = codigo.lastIndexOf('.');
   return i < 0 ? null : codigo.slice(0, i);
+}
+
+/** Carga el plan modelo en una empresa (sin filtro de empresa: recibe el empresaId). */
+export async function cargarPlanModelo(tx: Prisma.TransactionClient, empresaId: string): Promise<number> {
+  const ids = new Map<string, string>();
+  for (const c of PLAN_CUENTAS_MODELO) {
+    const padre = codigoPadre(c.codigo);
+    const creada = await tx.cuentaContable.create({
+      data: { ...c, empresaId, padreId: padre ? ids.get(padre) : null },
+    });
+    ids.set(c.codigo, creada.id);
+  }
+  return PLAN_CUENTAS_MODELO.length;
 }
