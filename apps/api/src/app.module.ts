@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ClsModule } from 'nestjs-cls';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { AuthModule } from './auth/auth.module';
+import { PlanCuentasModule } from './contabilidad/plan-cuentas/plan-cuentas.module';
 import { EmpresasModule } from './empresas/empresas.module';
 import { NumeracionModule } from './numeracion/numeracion.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -15,6 +16,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     PrismaModule,
     AuditoriaModule,
     NumeracionModule,
+    PlanCuentasModule,
     AuthModule,
     EmpresasModule,
     UsuariosModule,

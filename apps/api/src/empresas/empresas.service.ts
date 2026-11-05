@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CondicionIva } from '@prisma/client';
 import { TODOS_LOS_PERMISOS } from '@gestion/shared';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { PlanCuentasService } from '../contabilidad/plan-cuentas/plan-cuentas.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 
@@ -23,6 +24,7 @@ export class EmpresasService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantPrisma,
     private readonly auditoria: AuditoriaService,
+    private readonly planCuentas: PlanCuentasService,
   ) {}
 
   /** Alta de empresa (superadmin): crea rol Administrador y asigna al creador. */
@@ -33,6 +35,7 @@ export class EmpresasService {
         data: { empresaId: empresa.id, nombre: 'Administrador', permisos: TODOS_LOS_PERMISOS },
       });
       await tx.usuarioEmpresa.create({ data: { usuarioId: creadorId, empresaId: empresa.id, rolId: rol.id } });
+      await this.planCuentas.cargarModelo(tx, empresa.id);
       await tx.auditoria.create({
         data: { empresaId: empresa.id, usuarioId: creadorId, entidad: 'Empresa', entidadId: empresa.id, accion: 'CREAR' },
       });

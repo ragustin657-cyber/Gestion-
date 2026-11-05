@@ -33,6 +33,7 @@ model Empresa {
   puntosVenta PuntoVenta[]
   roles       Rol[]
   usuarios    UsuarioEmpresa[]
+  cuentas     CuentaContable[]
 }
 
 model PuntoVenta {
@@ -141,4 +142,28 @@ model TerceroIibb {
   tercero            Tercero @relation(fields: [terceroId], references: [id], onDelete: Cascade)
 
   @@unique([terceroId, jurisdiccion])
+}
+
+enum TipoCuenta {
+  ACTIVO
+  PASIVO
+  PATRIMONIO_NETO
+  RESULTADO_POSITIVO
+  RESULTADO_NEGATIVO
+}
+
+model CuentaContable {
+  id        String           @id @default(uuid()) @db.Uuid
+  empresaId String           @db.Uuid
+  codigo    String
+  nombre    String
+  padreId   String?          @db.Uuid
+  imputable Boolean
+  tipo      TipoCuenta
+  activa    Boolean          @default(true)
+  empresa   Empresa          @relation(fields: [empresaId], references: [id])
+  padre     CuentaContable?  @relation("Jerarquia", fields: [padreId], references: [id])
+  hijos     CuentaContable[] @relation("Jerarquia")
+
+  @@unique([empresaId, codigo])
 }
