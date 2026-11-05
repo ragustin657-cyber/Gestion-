@@ -12,6 +12,21 @@ export class ConsultasTesoreriaController {
     return this.consultas.cheques(q);
   }
 
+  @Get('saldos')
+  saldos(@Query('fecha') fecha?: string) {
+    return this.consultas.saldos(fecha);
+  }
+
+  @Get('movimientos')
+  movimientos(@Query() q: { cuentaBancariaId?: string; cajaId?: string; desde?: string; hasta?: string }) {
+    return this.consultas.movimientos(q);
+  }
+
+  @Get('flujo')
+  flujo(@Query('dias') dias?: string) {
+    return this.consultas.flujo(dias);
+  }
+
   @Get('cheques/:id')
   cheque(@Param('id', ParseUUIDPipe) id: string) {
     return this.consultas.cheque(id);

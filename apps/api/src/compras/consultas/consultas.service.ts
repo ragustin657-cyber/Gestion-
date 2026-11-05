@@ -19,7 +19,7 @@ export function fechaQuery(s: string | undefined, obligatoria = false): Date | u
     return undefined;
   }
   const d = new Date(`${s}T00:00:00Z`);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(d.getTime())) throw new BadRequestException('Fecha inválida');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s) || Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== s) throw new BadRequestException('Fecha inválida');
   return d;
 }
 

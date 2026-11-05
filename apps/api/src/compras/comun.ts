@@ -6,8 +6,11 @@ import { esAlicuotaIva } from '@gestion/shared';
 export const zFecha = z
   .string({ required_error: 'Campo obligatorio' })
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida')
-  .transform((s) => new Date(`${s}T00:00:00Z`))
-  .refine((d) => !Number.isNaN(d.getTime()), 'Fecha inválida');
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, 'Fecha inválida')
+  .transform((s) => new Date(`${s}T00:00:00Z`));
 
 export const zRenglonBase = z.object({
   articuloId: z.string().uuid().nullish(),

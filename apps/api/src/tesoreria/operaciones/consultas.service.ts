@@ -4,9 +4,23 @@ import { fechaQuery } from '../../compras/consultas/consultas.service';
 import { paginacion } from '../../comun/paginado';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { AlcanceSucursalService } from '../sucursales/alcance.service';
-import { D, Dec } from './tesoreria-comun';
+import { D, Dec, hoy, saldoBanco, saldoCaja } from './tesoreria-comun';
 
 const ESTADOS = Object.values(EstadoCheque) as string[];
+
+const DESCRIPCIONES: Record<string, string> = {
+  INGRESO: 'Ingreso de valores',
+  TRASLADO: 'Traslado enviado',
+  RECEPCION_TRASLADO: 'Recepción de traslado',
+  DEPOSITO: 'Depósito',
+  ACREDITACION_TRANSFERENCIA: 'Acreditación de transferencia',
+  RECHAZO_CHEQUE: 'Cheque rechazado',
+  OP: 'Orden de pago',
+  DEBITO_CHEQUE: 'Débito de cheque propio',
+  MOVIMIENTO_BANCARIO: 'Movimiento bancario',
+  TRANSFERENCIA_INTERNA: 'Transferencia interna',
+  MOVIMIENTO_CAJA: 'Movimiento de caja',
+};
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Lunes de la semana de la fecha. */
@@ -123,5 +137,99 @@ export class ConsultasTesoreriaService {
         };
       }),
     };
+  }
+
+  /** Saldos de bancos y cajas a una fecha (hoy por defecto). Los usuarios de sucursal no ven bancos. */
+  async saldos(fecha?: string) {
+    const db = this.tenant.db;
+    const corte = fechaQuery(fecha) ?? hoy();
+    const conBancos = !this.alcance.sucursalUsuario();
+    const cuentas = conBancos ? await db.cuentaBancaria.findMany({ where: { activa: true }, include: { banco: true }, orderBy: { numero: 'asc' } }) : [];
+    const cajas = await db.caja.findMany({ where: { activa: true, ...this.alcance.filtroCajas() }, include: { sucursal: true }, orderBy: { nombre: 'asc' } });
+    const cheques = await db.chequeTercero.groupBy({ by: ['cajaId'], where: { estado: 'EN_CARTERA', cajaId: { in: cajas.map((c) => c.id) } }, _sum: { importe: true } });
+    return {
+      fecha: iso(corte),
+      bancos: await Promise.all(cuentas.map(async (c) => ({
+        id: c.id, nombre: `${c.banco.nombre} - ${c.numero}`, monedaCodigo: c.monedaCodigo, saldo: (await saldoBanco(db, c.id, corte)).toString(),
+      }))),
+      cajas: await Promise.all(cajas.map(async (c) => ({
+        id: c.id, nombre: c.nombre, sucursal: c.sucursal.nombre, monedaCodigo: c.monedaCodigo,
+        efectivo: (await saldoCaja(db, c.id, corte)).toString(),
+        cheques: (cheques.find((x) => x.cajaId === c.id)?._sum.importe ?? new D(0)).toString(),
+      }))),
+    };
+  }
+
+  /** Movimientos de una cuenta bancaria o una caja entre fechas, con saldo inicial y acumulado. */
+  async movimientos(q: { cuentaBancariaId?: string; cajaId?: string; desde?: string; hasta?: string }) {
+    const db = this.tenant.db;
+    const desde = fechaQuery(q.desde);
+    const hasta = fechaQuery(q.hasta);
+    if (!!q.cuentaBancariaId === !!q.cajaId) throw new BadRequestException('Indique una cuenta bancaria o una caja');
+    let where: Prisma.MovimientoTesoreriaWhereInput;
+    if (q.cuentaBancariaId) {
+      const c = this.alcance.sucursalUsuario() ? null : await db.cuentaBancaria.findFirst({ where: { id: q.cuentaBancariaId } });
+      if (!c) throw new NotFoundException('Cuenta bancaria no encontrada');
+      where = { cuentaBancariaId: c.id };
+    } else {
+      const c = await db.caja.findFirst({ where: { id: q.cajaId, ...this.alcance.filtroCajas() } });
+      if (!c) throw new NotFoundException('Caja no encontrada');
+      where = { cajaId: c.id };
+    }
+    const signo = (tipo: string, importe: Dec) => (tipo === 'INGRESO' ? importe : importe.neg());
+    const previos = desde ? await db.movimientoTesoreria.findMany({ where: { ...where, anulado: false, fecha: { lt: desde } }, select: { tipo: true, importe: true } }) : [];
+    const saldoInicial = previos.reduce((s, m) => s.plus(signo(m.tipo, m.importe)), new D(0));
+    const filas = await db.movimientoTesoreria.findMany({
+      where: { ...where, anulado: false, fecha: { gte: desde, lte: hasta } }, orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }],
+    });
+    let saldo = saldoInicial;
+    const movimientos = filas.map((m) => {
+      saldo = saldo.plus(signo(m.tipo, m.importe));
+      return {
+        id: m.id, fecha: iso(m.fecha), tipo: m.tipo, origenTipo: m.origenTipo, origenId: m.origenId,
+        descripcion: DESCRIPCIONES[m.origenTipo] ?? m.origenTipo, monedaCodigo: m.monedaCodigo, importe: m.importe.toString(), saldo: saldo.toString(),
+      };
+    });
+    return { saldoInicial: saldoInicial.toString(), movimientos, saldoFinal: saldo.toString() };
+  }
+
+  /**
+   * Flujo de fondos proyectado en pesos, por día, durante N días desde hoy:
+   * saldo bancario actual + cheques en cartera y depositados + transferencias pendientes
+   * − cheques propios diferidos no debitados − OP aprobadas. Lo vencido se proyecta a hoy.
+   */
+  async flujo(diasTexto?: string) {
+    const dias = Number(diasTexto ?? 30);
+    if (!Number.isInteger(dias) || dias < 1 || dias > 365) throw new BadRequestException('La cantidad de días debe estar entre 1 y 365');
+    const db = this.tenant.db;
+    const inicio = hoy();
+    const conBancos = !this.alcance.sucursalUsuario();
+    const dia = (f: Date) => Math.max(0, Math.round((f.getTime() - inicio.getTime()) / 86400000));
+    const ingresos = Array.from({ length: dias }, () => new D(0));
+    const egresos = Array.from({ length: dias }, () => new D(0));
+    const sumar = (v: Dec[], f: Date, importe: Dec) => {
+      const i = dia(f);
+      if (i < dias) v[i] = v[i].plus(importe);
+    };
+
+    let saldo = new D(0);
+    if (conBancos)
+      for (const c of await db.cuentaBancaria.findMany({ where: { activa: true, monedaCodigo: 'ARS' } })) saldo = saldo.plus(await saldoBanco(db, c.id, inicio));
+    const cheques = await db.chequeTercero.findMany({
+      where: { AND: [{ estado: { in: ['EN_CARTERA', 'EN_TRANSITO', 'DEPOSITADO'] }, monedaCodigo: 'ARS' }, await this.visibilidadCheques(db)] },
+    });
+    for (const c of cheques) sumar(ingresos, c.fechaPago, c.importe);
+    if (conBancos) {
+      for (const t of await db.transferenciaRecibida.findMany({ where: { estado: 'PENDIENTE', monedaCodigo: 'ARS' } })) sumar(ingresos, inicio, t.importe);
+      for (const c of await db.chequePropio.findMany({ where: { estado: 'EMITIDO', monedaCodigo: 'ARS' } }))
+        if (c.fechaPago > c.fechaEmision) sumar(egresos, c.fechaPago, c.importe);
+      for (const op of await db.ordenPago.findMany({ where: { estado: 'APROBADA' } })) sumar(egresos, inicio, op.netoPagar);
+    }
+    return ingresos.map((ing, i) => {
+      saldo = saldo.plus(ing).minus(egresos[i]);
+      const f = new Date(inicio);
+      f.setUTCDate(f.getUTCDate() + i);
+      return { fecha: iso(f), ingresos: ing.toString(), egresos: egresos[i].toString(), saldo: saldo.toString() };
+    });
   }
 }
