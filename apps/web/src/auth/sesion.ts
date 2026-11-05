@@ -6,6 +6,7 @@ export interface Sesion {
   empresas?: { id: string; razonSocial: string }[];
   empresa?: { id: string; razonSocial: string; condicionIva?: string };
   permisos?: Permiso[];
+  superadmin?: boolean;
 }
 
 const CLAVE = 'gestion.sesion';

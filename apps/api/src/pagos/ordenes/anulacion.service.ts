@@ -29,14 +29,17 @@ export class AnulacionPagoService {
       if (actual.estado === 'ANULADA') throw new ConflictException('La orden de pago ya está anulada');
       if (actual.version !== version) throw new ConflictException(MODIFICADO);
 
-      // El anticipo generado por esta OP no puede estar aplicado
-      const anticipo = await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'ANTICIPO', origenId: id, anulado: false } });
+      // Bloqueo en un solo paso (ordenado) del anticipo generado y de los movimientos aplicados
+      const anticipoId = (await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'ANTICIPO', origenId: id, anulado: false }, select: { id: true } }))?.id;
+      const aplicaciones = await tx.aplicacionCuentaCorriente.findMany({ where: { origenTipo: 'OP', origenId: id, anulada: false } });
+      await bloquear(tx, 'MovimientoCuentaCorriente', empresaId, [...aplicaciones.map((a) => a.movimientoId), ...(anticipoId ? [anticipoId] : [])]);
+
+      // El anticipo generado por esta OP no puede estar aplicado (se relee con la fila bloqueada)
+      const anticipo = anticipoId ? await tx.movimientoCuentaCorriente.findUniqueOrThrow({ where: { id: anticipoId } }) : null;
       if (anticipo && !anticipo.saldo.eq(anticipo.importe)) throw new BadRequestException('El anticipo de esta orden ya fue aplicado');
       if (anticipo) await tx.movimientoCuentaCorriente.update({ where: { id: anticipo.id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });
 
       // Restaurar saldos de lo cancelado
-      const aplicaciones = await tx.aplicacionCuentaCorriente.findMany({ where: { origenTipo: 'OP', origenId: id, anulada: false } });
-      await bloquear(tx, 'MovimientoCuentaCorriente', empresaId, aplicaciones.map((a) => a.movimientoId));
       for (const a of aplicaciones) {
         await tx.movimientoCuentaCorriente.update({ where: { id: a.movimientoId }, data: { saldo: { increment: a.importe }, saldoPesos: { increment: a.importePesosHistorico } } });
         await tx.aplicacionCuentaCorriente.update({ where: { id: a.id }, data: { anulada: true } });

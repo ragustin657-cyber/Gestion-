@@ -5,6 +5,8 @@ export interface NodoMenu {
   ruta?: string;
   permiso?: Permiso;
   proximamente?: boolean;
+  /** Solo para el administrador general del sistema. */
+  soloSuperadmin?: boolean;
   hijos?: NodoMenu[];
 }
 
@@ -85,18 +87,20 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Auditoría', ruta: '/admin/auditoria', permiso: 'auditoria.ver' },
       { titulo: 'Configuración de compras', ruta: '/admin/compras', permiso: 'compras.config' },
       { titulo: 'Retenciones', ruta: '/admin/retenciones', permiso: 'retenciones.config' },
-      { titulo: 'Padrones de IIBB', ruta: '/admin/padrones', permiso: 'padron.cargar' },
+      { titulo: 'Padrones de IIBB', ruta: '/admin/padrones', soloSuperadmin: true },
     ],
   },
 ];
 
 /** Quita hojas sin permiso y ramas que quedan vacías (las "Próximamente" se conservan). */
-export function filtrarMenu(menu: NodoMenu[], permisos: Permiso[]): NodoMenu[] {
+export function filtrarMenu(menu: NodoMenu[], permisos: Permiso[], superadmin = false): NodoMenu[] {
   const r: NodoMenu[] = [];
   for (const n of menu) {
     if (n.hijos) {
-      const hijos = filtrarMenu(n.hijos, permisos);
+      const hijos = filtrarMenu(n.hijos, permisos, superadmin);
       if (hijos.length) r.push({ ...n, hijos });
+    } else if (n.soloSuperadmin) {
+      if (superadmin) r.push(n);
     } else if (n.proximamente || !n.permiso || permisos.includes(n.permiso)) {
       r.push(n);
     }

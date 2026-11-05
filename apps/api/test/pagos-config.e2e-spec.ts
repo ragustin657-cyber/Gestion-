@@ -67,7 +67,7 @@ describe('configuración de pagos y retenciones', () => {
     expect((await http.patch('/api/pagos/config', { montoAprobacionOp: 1 })).status).toBe(403);
     const { empresaId } = await sesionConPlan(app, prisma);
     const rol = await prisma.rol.findFirstOrThrow({ where: { empresaId, nombre: 'Administrador' } });
-    expect(rol.permisos).toEqual(expect.arrayContaining(['op.anular', 'retenciones.config', 'padron.cargar', 'op.ver']));
+    expect(rol.permisos).toEqual(expect.arrayContaining(['op.anular', 'retenciones.config', 'op.ver']));
   });
 
   it('el proveedor guarda inscriptoGanancias', async () => {

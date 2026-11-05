@@ -47,7 +47,7 @@ export class RetencionesService {
     return { base: base.toString(), retenido: retenido.toString() };
   }
 
-  async calcular(tx: TxEmpresa, e: { terceroId: string; fechaPago: Date; bases: string[]; excluirOrdenPagoId?: string }): Promise<RetencionCalculada[]> {
+  async calcular(tx: TxEmpresa, e: { terceroId: string; fechaPago: Date; bases: string[]; excluirOrdenPagoId?: string; tope?: string }): Promise<RetencionCalculada[]> {
     const tercero = await tx.tercero.findUnique({ where: { id: e.terceroId }, include: { iibb: true } });
     if (!tercero) throw new BadRequestException('Proveedor no encontrado');
     const basePago = e.bases.reduce((s, b) => s.plus(b), new D(0));
@@ -103,7 +103,8 @@ export class RetencionesService {
     }
 
     const total = r.reduce((s, x) => s.plus(x.importe), new D(0));
-    if (total.gt(basePago)) throw new BadRequestException('Las retenciones superan el importe a pagar');
+    // Lo retenido nunca puede igualar ni superar lo que se paga (el neto debe ser positivo)
+    if (total.gt(0) && total.gte(e.tope ?? basePago)) throw new BadRequestException('Las retenciones superan el importe a pagar');
     return r;
   }
 }

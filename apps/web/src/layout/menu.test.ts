@@ -40,3 +40,11 @@ describe('rutas', () => {
     for (const h of hojas(MENU)) expect(rutas).toContain(h);
   });
 });
+
+describe('menú del administrador general', () => {
+  const hojas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => (n.hijos ? hojas(n.hijos) : [n.titulo]));
+  it('Padrones de IIBB solo aparece para el superadmin', () => {
+    expect(hojas(filtrarMenu(MENU, ['retenciones.config']))).not.toContain('Padrones de IIBB');
+    expect(hojas(filtrarMenu(MENU, ['retenciones.config'], true))).toContain('Padrones de IIBB');
+  });
+});

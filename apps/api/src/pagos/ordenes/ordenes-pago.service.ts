@@ -103,9 +103,12 @@ export class OrdenesPagoService {
   private async preparar(tx: TxEmpresa, d: DatosOP, opId?: string) {
     const t = await tx.tercero.findUnique({ where: { id: d.terceroId } });
     if (!t || !t.esProveedor) throw new BadRequestException('El tercero no es un proveedor activo');
+    if (new Set(d.imputaciones.map((i) => i.movimientoId)).size !== d.imputaciones.length)
+      throw new BadRequestException('El comprobante figura más de una vez en la orden de pago');
     const movs = await tx.movimientoCuentaCorriente.findMany({ where: { id: { in: d.imputaciones.map((i) => i.movimientoId) } } });
     const usaUsd = movs.some((m) => m.monedaCodigo === 'USD') || d.anticipo?.monedaCodigo === 'USD';
     const cotizacion = d.cotizacion ? new D(d.cotizacion) : usaUsd ? await this.monedas.cotizacion('USD', d.fecha) : new D(1);
+    if (usaUsd && cotizacion.lte(1)) throw new BadRequestException('La cotización del dólar no es válida');
     const aPesos = (importe: Dec, moneda: string) => (moneda === 'USD' ? importe.mul(cotizacion) : importe).toDecimalPlaces(2);
     const imputaciones = [];
     for (const [i, imp] of d.imputaciones.entries()) {
@@ -188,7 +191,7 @@ export class OrdenesPagoService {
   async calcularRetenciones(tx: TxEmpresa, opId: string, fechaPago: Date): Promise<RetencionCalculada[]> {
     const op = await tx.ordenPago.findUnique({ where: { id: opId }, include: { imputaciones: true, anticipo: true } });
     if (!op) throw new NotFoundException('Orden de pago no encontrada');
-    return this.retenciones.calcular(tx, { terceroId: op.terceroId, fechaPago, bases: await this.bases(tx, op), excluirOrdenPagoId: op.id });
+    return this.retenciones.calcular(tx, { terceroId: op.terceroId, fechaPago, bases: await this.bases(tx, op), excluirOrdenPagoId: op.id, tope: op.totalCancelarPesos.toString() });
   }
 
   /** Vista previa de retenciones a otra fecha de pago, sin guardar. */

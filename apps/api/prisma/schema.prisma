@@ -595,7 +595,7 @@ model PadronIibb {
   alicuotaPercepcion Decimal? @db.Decimal(18, 6)
   alicuotaRetencion  Decimal? @db.Decimal(18, 6)
 
-  @@index([jurisdiccion, cuit, vigenciaDesde])
+  @@unique([jurisdiccion, cuit, vigenciaDesde])
   @@index([jurisdiccion, vigenciaDesde])
 }
 

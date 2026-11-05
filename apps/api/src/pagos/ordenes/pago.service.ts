@@ -49,6 +49,10 @@ export class PagoService {
       if (!op) throw new NotFoundException('Orden de pago no encontrada');
       if (op.version !== version) throw new ConflictException(MODIFICADO);
       if (op.estado !== 'APROBADA') throw new BadRequestException('Solo se pueden pagar órdenes aprobadas');
+      if (medios.some((m) => m.monedaCodigo === 'USD') && op.cotizacion.lte(1))
+        throw new BadRequestException('Para pagar en dólares, indique la cotización del dólar en la orden de pago');
+      // Orden de bloqueo: OP → proveedor → movimientos → chequeras. El proveedor serializa los pagos del mes (acumulado de Ganancias).
+      await bloquear(tx, 'Tercero', empresaId, [op.terceroId]);
 
       // 1. Retenciones a la fecha de pago
       const rets = await this.ordenes.calcularRetenciones(tx, id, fechaPago);

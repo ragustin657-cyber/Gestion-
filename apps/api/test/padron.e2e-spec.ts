@@ -29,7 +29,7 @@ describe('padrones de IIBB', () => {
   }
 
   it('carga ARBA, consulta alícuota vigente y recarga sin duplicar', async () => {
-    const { token, http } = await sesion(app, prisma, { permisos: ['padron.cargar'] });
+    const { token, http } = await sesion(app, prisma, { superadmin: true });
     const r = await subir(token, 'padron-arba.txt');
     expect(r.status).toBe(202);
     expect(await esperar(http, r.body.id)).toMatchObject({ estado: 'COMPLETA', filas: 5, periodo: '2026-11' });
@@ -44,14 +44,14 @@ describe('padrones de IIBB', () => {
   });
 
   it('carga AGIP', async () => {
-    const { token, http } = await sesion(app, prisma, { permisos: ['padron.cargar'] });
+    const { token, http } = await sesion(app, prisma, { superadmin: true });
     const r = await subir(token, 'padron-agip.txt', '901');
     expect(await esperar(http, r.body.id)).toMatchObject({ estado: 'COMPLETA', filas: 5 });
     expect(await app.get(PadronService).alicuotaRetencion('901', '30711223343', new Date('2026-11-10T00:00:00Z'))).toBe('1.5');
   });
 
   it('archivo con línea inválida queda en ERROR y conserva el padrón anterior', async () => {
-    const { token, http } = await sesion(app, prisma, { permisos: ['padron.cargar'] });
+    const { token, http } = await sesion(app, prisma, { superadmin: true });
     await esperar(http, (await subir(token, 'padron-arba.txt')).body.id);
     const r = await subir(token, 'padron-arba-malo.txt');
     const c = await esperar(http, r.body.id);
@@ -64,7 +64,7 @@ describe('padrones de IIBB', () => {
   it('sin permiso → 403; jurisdicción no soportada → 400', async () => {
     const s = await sesion(app, prisma, { permisos: ['op.ver'] });
     expect((await subir(s.token, 'padron-arba.txt')).status).toBe(403);
-    const ok = await sesion(app, prisma, { permisos: ['padron.cargar'] });
+    const ok = await sesion(app, prisma, { superadmin: true });
     expect((await subir(ok.token, 'padron-arba.txt', '904')).status).toBe(400);
   });
 });

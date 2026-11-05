@@ -29,7 +29,6 @@ export const PERMISOS = {
   'op.aprobar': 'Aprobar órdenes de pago',
   'pago.ejecutar': 'Ejecutar pagos',
   'retenciones.config': 'Configurar retenciones',
-  'padron.cargar': 'Cargar padrones de IIBB',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

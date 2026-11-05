@@ -40,7 +40,7 @@ export function OrdenPagoPage() {
   const cargar = async (opId: string) => {
     const o = await api<OrdenPago>(`/pagos/ordenes/${opId}`);
     setOp(o);
-    setCab({ terceroId: o.terceroId, fecha: o.fecha.slice(0, 10), cotizacion: String(Number(o.cotizacion)), observaciones: o.observaciones ?? '' });
+    setCab({ terceroId: o.terceroId, fecha: o.fecha.slice(0, 10), cotizacion: Number(o.cotizacion) > 1 ? String(Number(o.cotizacion)) : '', observaciones: o.observaciones ?? '' });
     setSeleccion(Object.fromEntries(o.imputaciones.map((i) => [i.movimientoId, String(Number(i.importe))])));
     setConAnticipo(!!o.anticipo);
     if (o.anticipo) setAnticipo({ monedaCodigo: o.anticipo.monedaCodigo, importe: String(Number(o.anticipo.importe)) });
@@ -51,7 +51,7 @@ export function OrdenPagoPage() {
 
   const editable = !op || op.estado === 'BORRADOR';
   const cuerpo = () => ({
-    terceroId: cab.terceroId, fecha: cab.fecha, cotizacion: cab.cotizacion ? Number(cab.cotizacion) : null, observaciones: cab.observaciones || null,
+    terceroId: cab.terceroId, fecha: cab.fecha, cotizacion: Number(cab.cotizacion) > 1 ? Number(cab.cotizacion) : null, observaciones: cab.observaciones || null,
     imputaciones: Object.entries(seleccion).map(([movimientoId, importe]) => ({ movimientoId, importe: Number(importe) })),
     anticipo: conAnticipo && anticipo.importe ? { monedaCodigo: anticipo.monedaCodigo, importe: Number(anticipo.importe) } : null,
   });

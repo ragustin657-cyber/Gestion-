@@ -15,7 +15,7 @@ export function AppLayout() {
   const navegar = useNavigate();
   const [abierto, { toggle, close }] = useDisclosure();
   const [cambiandoClave, setCambiandoClave] = useState(false);
-  const menu = useMemo(() => filtrarMenu(MENU, sesion?.permisos ?? []), [sesion?.permisos]);
+  const menu = useMemo(() => filtrarMenu(MENU, sesion?.permisos ?? [], !!sesion?.superadmin), [sesion?.permisos, sesion?.superadmin]);
 
   return (
     <AppShell header={{ height: 52 }} navbar={{ width: 290, breakpoint: 'sm', collapsed: { mobile: !abierto } }} padding="md">

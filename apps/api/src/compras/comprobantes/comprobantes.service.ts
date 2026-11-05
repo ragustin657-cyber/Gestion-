@@ -288,7 +288,9 @@ export class ComprobantesService {
       const c = await tx.comprobanteCompra.findUnique({ where: { id }, include: { renglones: true } });
       if (!c) throw new NotFoundException('Comprobante no encontrado');
       if (c.estado === 'ANULADO') throw new ConflictException('El comprobante ya está anulado');
-      const mov = await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'COMPRA', origenId: id } });
+      const movId = (await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'COMPRA', origenId: id }, select: { id: true } }))?.id;
+      if (movId) await bloquear(tx, 'MovimientoCuentaCorriente', this.tenant.empresaId, [movId]);
+      const mov = movId ? await tx.movimientoCuentaCorriente.findUniqueOrThrow({ where: { id: movId } }) : null;
       if (mov && !mov.saldo.eq(mov.importe)) throw new BadRequestException('El comprobante tiene pagos aplicados');
 
       const marcado = await tx.comprobanteCompra.updateMany({ where: { id, estado: 'CONFIRMADO' }, data: { estado: 'ANULADO', motivoAnulacion: motivo } });

@@ -40,6 +40,7 @@ export class AuthService {
       token: await this.jwt.signAsync(payload),
       empresa: { id: acceso.empresa.id, razonSocial: acceso.empresa.razonSocial, condicionIva: acceso.empresa.condicionIva },
       permisos: acceso.rol.permisos.filter(esPermiso),
+      superadmin: (await this.prisma.usuario.findUniqueOrThrow({ where: { id: usuarioId } })).superadmin,
     };
   }
 

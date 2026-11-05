@@ -37,12 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [consultas]);
 
   const elegirEmpresa = useCallback(async (empresaId: string) => {
-    const r = await api<{ token: string; empresa: Sesion['empresa']; permisos: Permiso[] }>('/auth/empresa', {
+    const r = await api<{ token: string; empresa: Sesion['empresa']; permisos: Permiso[]; superadmin?: boolean }>('/auth/empresa', {
       metodo: 'POST',
       body: { empresaId },
     });
     const actual = almacen.leer()!;
-    const nueva: Sesion = { ...actual, token: r.token, empresa: r.empresa, permisos: r.permisos };
+    const nueva: Sesion = { ...actual, token: r.token, empresa: r.empresa, permisos: r.permisos, superadmin: !!r.superadmin };
     consultas.clear();
     almacen.guardar(nueva);
     setSesion(nueva);
