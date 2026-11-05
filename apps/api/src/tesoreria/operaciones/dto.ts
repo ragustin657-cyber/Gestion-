@@ -81,3 +81,44 @@ export type DatosDevolucion = z.infer<typeof esquemaDevolucion>;
 
 export const esquemaDebito = z.object({ fecha: zFecha, cheques: zIds.min(1, 'Indique los cheques a debitar') });
 export type DatosDebito = z.infer<typeof esquemaDebito>;
+
+export const esquemaMovimientoBancario = z.object({
+  fecha: zFecha,
+  cuentaBancariaId: zId,
+  tipo: z.enum(['GASTO', 'INGRESO']),
+  cuentaContableId: zId,
+  concepto: zTexto,
+  importe: zImporte,
+});
+export type DatosMovimientoBancario = z.infer<typeof esquemaMovimientoBancario>;
+
+const zExtremo = z
+  .object({ cuentaBancariaId: zId.nullish(), cajaId: zId.nullish() })
+  .refine((e) => !!e.cuentaBancariaId !== !!e.cajaId, 'Indique una cuenta bancaria o una caja');
+export const esquemaTransferenciaInterna = z.object({
+  fecha: zFecha,
+  origen: zExtremo,
+  destino: zExtremo,
+  importeOrigen: zImporte,
+  importeDestino: zImporte,
+  concepto: zTextoOpcional,
+});
+export type DatosTransferenciaInterna = z.infer<typeof esquemaTransferenciaInterna>;
+
+export const esquemaMovimientoCaja = z.object({
+  fecha: zFecha,
+  cajaId: zId,
+  tipo: z.enum(['INGRESO', 'EGRESO']),
+  cuentaContableId: zId,
+  concepto: zTexto,
+  importe: zImporte,
+});
+export type DatosMovimientoCaja = z.infer<typeof esquemaMovimientoCaja>;
+
+export const esquemaArqueo = z.object({
+  fecha: zFecha,
+  cajaId: zId,
+  contado: z.number({ required_error: 'Campo obligatorio' }).min(0, 'No puede ser negativo').finite(),
+  motivo: zTextoOpcional,
+});
+export type DatosArqueo = z.infer<typeof esquemaArqueo>;

@@ -8,6 +8,9 @@ import { AcreditacionesService } from './operaciones/acreditaciones.service';
 import { DepositosController } from './operaciones/depositos.controller';
 import { DepositosService } from './operaciones/depositos.service';
 import { ChequesPropiosService } from './operaciones/cheques-propios.service';
+import { BancosCajasController } from './operaciones/bancos-cajas.controller';
+import { BancosService } from './operaciones/bancos.service';
+import { CajasService } from './operaciones/cajas.service';
 import { ChequesController } from './operaciones/cheques.controller';
 import { RechazosService } from './operaciones/rechazos.service';
 import { IngresosController } from './operaciones/ingresos.controller';
@@ -15,8 +18,8 @@ import { IngresosService } from './operaciones/ingresos.service';
 
 @Global()
 @Module({
-  controllers: [IngresosController, ChequesController, DepositosController, TrasladosController, ConsultasTesoreriaController],
-  providers: [CarteraService, IngresosService, ChequesPropiosService, RechazosService, DepositosService, AcreditacionesService, TrasladosService, ConsultasTesoreriaService],
+  controllers: [IngresosController, BancosCajasController, ChequesController, DepositosController, TrasladosController, ConsultasTesoreriaController],
+  providers: [CarteraService, IngresosService, BancosService, CajasService, ChequesPropiosService, RechazosService, DepositosService, AcreditacionesService, TrasladosService, ConsultasTesoreriaService],
   exports: [CarteraService, ConsultasTesoreriaService],
 })
 export class TesoreriaOperacionesModule {}

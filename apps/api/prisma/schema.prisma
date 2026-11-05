@@ -989,3 +989,90 @@ model DepositoBancarioItem {
   importe      Decimal          @db.Decimal(18, 2)
   deposito     DepositoBancario @relation(fields: [depositoId], references: [id])
 }
+
+enum TipoMovimientoBancario {
+  GASTO
+  INGRESO
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
+}
+
+model MovimientoBancario {
+  id               String                 @id @default(uuid()) @db.Uuid
+  empresaId        String                 @db.Uuid
+  numero           Int
+  fecha            DateTime               @db.Date
+  cuentaBancariaId String                 @db.Uuid
+  tipo             TipoMovimientoBancario
+  cuentaContableId String                 @db.Uuid
+  concepto         String
+  importe          Decimal                @db.Decimal(18, 2)
+  estado           EstadoDocTesoreria     @default(CONFIRMADO)
+  asientoId        String?                @db.Uuid
+  creadoPor        String
+  creadoEn         DateTime               @default(now())
+
+  @@unique([empresaId, numero])
+}
+
+model TransferenciaInterna {
+  id                      String             @id @default(uuid()) @db.Uuid
+  empresaId               String             @db.Uuid
+  numero                  Int
+  fecha                   DateTime           @db.Date
+  origenCuentaBancariaId  String?            @db.Uuid
+  origenCajaId            String?            @db.Uuid
+  destinoCuentaBancariaId String?            @db.Uuid
+  destinoCajaId           String?            @db.Uuid
+  monedaOrigen            String
+  monedaDestino           String
+  importeOrigen           Decimal            @db.Decimal(18, 2)
+  importeDestino          Decimal            @db.Decimal(18, 2)
+  cotizacion              Decimal?           @db.Decimal(18, 6)
+  concepto                String?
+  estado                  EstadoDocTesoreria @default(CONFIRMADO)
+  asientoId               String?            @db.Uuid
+  creadoPor               String
+  creadoEn                DateTime           @default(now())
+
+  @@unique([empresaId, numero])
+}
+
+model MovimientoCaja {
+  id               String             @id @default(uuid()) @db.Uuid
+  empresaId        String             @db.Uuid
+  numero           Int
+  fecha            DateTime           @db.Date
+  cajaId           String             @db.Uuid
+  tipo             TipoMovimientoCaja
+  cuentaContableId String             @db.Uuid
+  concepto         String
+  importe          Decimal            @db.Decimal(18, 2)
+  arqueoId         String?            @db.Uuid
+  estado           EstadoDocTesoreria @default(CONFIRMADO)
+  asientoId        String?            @db.Uuid
+  creadoPor        String
+  creadoEn         DateTime           @default(now())
+
+  @@unique([empresaId, numero])
+}
+
+model Arqueo {
+  id           String   @id @default(uuid()) @db.Uuid
+  empresaId    String   @db.Uuid
+  numero       Int
+  cajaId       String   @db.Uuid
+  fecha        DateTime @db.Date
+  saldoSistema Decimal  @db.Decimal(18, 2)
+  contado      Decimal  @db.Decimal(18, 2)
+  diferencia   Decimal  @db.Decimal(18, 2)
+  motivo       String?
+  asientoId    String?  @db.Uuid
+  creadoPor    String
+  creadoEn     DateTime @default(now())
+
+  @@unique([empresaId, numero])
+}
