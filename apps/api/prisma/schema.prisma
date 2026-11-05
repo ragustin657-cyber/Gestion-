@@ -219,3 +219,51 @@ model Deposito {
 
   @@unique([empresaId, codigo])
 }
+
+enum TipoChequera {
+  FISICA
+  ECHEQ
+}
+
+model Banco {
+  id         String           @id @default(uuid()) @db.Uuid
+  empresaId  String           @db.Uuid
+  nombre     String
+  codigoBcra String?
+  cuentas    CuentaBancaria[]
+}
+
+model CuentaBancaria {
+  id               String     @id @default(uuid()) @db.Uuid
+  empresaId        String     @db.Uuid
+  bancoId          String     @db.Uuid
+  numero           String
+  cbu              String?
+  alias            String?
+  monedaCodigo     String
+  cuentaContableId String     @db.Uuid
+  activa           Boolean    @default(true)
+  banco            Banco      @relation(fields: [bancoId], references: [id])
+  chequeras        Chequera[]
+}
+
+model Chequera {
+  id               String         @id @default(uuid()) @db.Uuid
+  empresaId        String         @db.Uuid
+  cuentaBancariaId String         @db.Uuid
+  tipo             TipoChequera
+  desde            Int?
+  hasta            Int?
+  proximoNumero    Int?
+  activa           Boolean        @default(true)
+  cuentaBancaria   CuentaBancaria @relation(fields: [cuentaBancariaId], references: [id])
+}
+
+model Caja {
+  id               String  @id @default(uuid()) @db.Uuid
+  empresaId        String  @db.Uuid
+  nombre           String
+  monedaCodigo     String
+  cuentaContableId String  @db.Uuid
+  activa           Boolean @default(true)
+}
