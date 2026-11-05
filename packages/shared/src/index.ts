@@ -6,3 +6,4 @@ export * from './iva';
 export * from './cbu';
 export * from './compras';
 export * from './fechas';
+export * from './pagos';
