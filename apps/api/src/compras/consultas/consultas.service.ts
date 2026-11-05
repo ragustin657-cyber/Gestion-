@@ -56,18 +56,39 @@ export class ConsultasComprasService {
       orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }],
     });
     const comps = await this.tenant.db.comprobanteCompra.findMany({ where: { id: { in: movs.map((m) => m.origenId) } } });
+    const ops = await this.tenant.db.ordenPago.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'ANTICIPO').map((m) => m.origenId) } } });
+    // Pagos (aplicaciones de órdenes de pago) agrupados por OP, en pesos históricos
+    const aplicaciones = await this.tenant.db.aplicacionCuentaCorriente.findMany({
+      where: { anulada: false, origenTipo: 'OP', movimientoId: { in: movs.map((m) => m.id) }, fecha: { gte: fechaQuery(desde), lte: fechaQuery(hasta) } },
+    });
+    const opsPago = await this.tenant.db.ordenPago.findMany({ where: { id: { in: [...new Set(aplicaciones.map((a) => a.origenId))] } } });
+    type Fila = { id: string; origenId: string; fecha: Date; fechaVencimiento: Date | null; comprobante: string; monedaCodigo: string; importe: Dec; importePesos: Dec; saldo: Dec | null; saldoPesos: Dec | null; orden: number };
+    const filas: Fila[] = movs.map((m, i) => {
+      const c = comps.find((x) => x.id === m.origenId);
+      const o = ops.find((x) => x.id === m.origenId);
+      const comprobante = c
+        ? `${ABREV[c.tipo]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ')
+        : o ? `Anticipo OP 0001-${String(o.numero).padStart(8, '0')}` : m.origenTipo;
+      return { id: m.id, origenId: m.origenId, fecha: m.fecha, fechaVencimiento: m.fechaVencimiento, comprobante, monedaCodigo: m.monedaCodigo, importe: m.importe, importePesos: m.importePesos, saldo: m.saldo, saldoPesos: m.saldoPesos, orden: i };
+    });
+    for (const op of opsPago) {
+      const propias = aplicaciones.filter((a) => a.origenId === op.id);
+      const pesos = propias.reduce((s, a) => s.plus(a.importePesosHistorico), new D(0)).neg();
+      filas.push({ id: op.id, origenId: op.id, fecha: propias[0].fecha, fechaVencimiento: null, comprobante: `OP 0001-${String(op.numero).padStart(8, '0')}`, monedaCodigo: 'ARS', importe: pesos, importePesos: pesos, saldo: null, saldoPesos: null, orden: 1e9 });
+    }
+    filas.sort((a, b) => a.fecha.getTime() - b.fecha.getTime() || a.orden - b.orden);
     let acumulado = new D(0);
     const saldos = { ARS: new D(0), USD: new D(0), pesos: new D(0) };
-    const movimientos = movs.map((m) => {
-      const c = comps.find((x) => x.id === m.origenId);
-      acumulado = acumulado.plus(m.importePesos);
+    for (const m of movs) {
       if (m.monedaCodigo === 'USD') saldos.USD = saldos.USD.plus(m.saldo);
       else saldos.ARS = saldos.ARS.plus(m.saldo);
       saldos.pesos = saldos.pesos.plus(m.saldoPesos);
+    }
+    const movimientos = filas.map((m) => {
+      acumulado = acumulado.plus(m.importePesos);
       return {
-        id: m.id, origenId: m.origenId, fecha: m.fecha, fechaVencimiento: m.fechaVencimiento,
-        comprobante: c ? `${ABREV[c.tipo]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ') : m.origenTipo,
-        monedaCodigo: m.monedaCodigo, importe: f2(m.importe), importePesos: f2(m.importePesos), saldo: f2(m.saldo), saldoPesos: f2(m.saldoPesos),
+        id: m.id, origenId: m.origenId, fecha: m.fecha, fechaVencimiento: m.fechaVencimiento, comprobante: m.comprobante,
+        monedaCodigo: m.monedaCodigo, importe: f2(m.importe), importePesos: f2(m.importePesos), saldo: m.saldo ? f2(m.saldo) : null, saldoPesos: m.saldoPesos ? f2(m.saldoPesos) : null,
         acumuladoPesos: f2(acumulado),
       };
     });
