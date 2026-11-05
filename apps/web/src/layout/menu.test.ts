@@ -24,3 +24,13 @@ describe('filtrarMenu', () => {
     expect(m.find((n) => n.titulo === 'Maestros')!.hijos).toHaveLength(6);
   });
 });
+
+import { RUTAS_PAGINAS } from '../paginas/rutas';
+
+describe('rutas', () => {
+  it('cada hoja del menú con ruta tiene su página', () => {
+    const hojas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => (n.hijos ? hojas(n.hijos) : n.ruta ? [n.ruta] : []));
+    const rutas = RUTAS_PAGINAS.map((r) => r.ruta);
+    for (const h of hojas(MENU)) expect(rutas).toContain(h);
+  });
+});
