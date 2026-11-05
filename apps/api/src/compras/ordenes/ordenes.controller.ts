@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { DatosOC, esquemaCerrar, esquemaMotivo, esquemaOC, esquemaVersion } from './dto';
@@ -20,6 +21,14 @@ export class OrdenesController {
   @RequierePermiso('ir.crear')
   pendientesRecibir(@Query('terceroId') terceroId?: string) {
     return this.ordenes.pendientesRecibir(terceroId);
+  }
+
+  @Get(':id/pdf')
+  @RequierePermiso('oc.ver')
+  async pdf(@Id() id: string, @Res({ passthrough: true }) res: Response) {
+    const { nombre, contenido } = await this.ordenes.pdf(id);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${nombre}"` });
+    return new StreamableFile(contenido);
   }
 
   @Get(':id')

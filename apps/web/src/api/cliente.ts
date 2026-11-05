@@ -45,3 +45,21 @@ export async function api<T>(ruta: string, opciones: OpcionesApi = {}): Promise<
   const mensaje = Array.isArray(datos?.message) ? datos.message.join(', ') : (datos?.message ?? 'Error inesperado');
   throw new ErrorApi(res.status, mensaje, datos?.campos);
 }
+
+/** Descarga un archivo (PDF, Excel) de la API con el token de la sesión. */
+export async function descargar(ruta: string, query: OpcionesApi['query'], nombreArchivo: string): Promise<void> {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
+  const token = sesion.leer()?.token;
+  const res = await fetch(`/api${ruta}${params.size ? `?${params}` : ''}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const datos = await res.json().catch(() => ({}));
+    throw new ErrorApi(res.status, datos.message ?? 'No se pudo descargar el archivo');
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombreArchivo;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

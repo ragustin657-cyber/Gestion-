@@ -11,6 +11,7 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { errorTransicion } from '../comun';
 import { ConfigComprasService } from '../config/config-compras.service';
 import { DatosOC } from './dto';
+import { pdfOrdenCompra } from './oc-pdf';
 
 const D = Prisma.Decimal;
 const INCLUIR = {
@@ -199,6 +200,26 @@ export class OrdenesService {
       await this.auditoria.registrar(tx, { entidad: 'OrdenCompra', entidadId: id, accion: 'MODIFICAR', datos: { cierre: true, motivo } });
       return this.obtener(id, tx);
     });
+  }
+
+  /** PDF de una OC confirmada. */
+  async pdf(id: string): Promise<{ nombre: string; contenido: Buffer }> {
+    const oc = await this.obtener(id);
+    if (oc.numero === null) throw new BadRequestException('La orden no está confirmada');
+    const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    const f = (d: Date | null) => (d ? d.toISOString().slice(0, 10).split('-').reverse().join('/') : null);
+    const numero = `${String(oc.puntoVenta).padStart(4, '0')}-${String(oc.numero).padStart(8, '0')}`;
+    const contenido = await pdfOrdenCompra({
+      empresa: { razonSocial: empresa.razonSocial, cuit: empresa.cuit, domicilio: empresa.domicilio },
+      proveedor: { razonSocial: oc.tercero.razonSocial, cuit: oc.tercero.cuit }, numero, fecha: f(oc.fecha)!, fechaEntrega: f(oc.fechaEntrega),
+      moneda: oc.monedaCodigo, observaciones: oc.observaciones,
+      renglones: oc.renglones.map((r) => ({
+        descripcion: r.descripcion, cantidad: r.cantidad.toString(), precioUnitario: r.precioUnitario.toString(),
+        bonificacionPct: r.bonificacionPct.toString(), alicuotaIva: r.alicuotaIva.toString(), importe: r.importe.toString(),
+      })),
+      neto: oc.neto.toString(), iva: oc.iva.toString(), total: oc.total.toString(),
+    });
+    return { nombre: `orden-compra-${numero}.pdf`, contenido };
   }
 
   /** Renglones de OC aprobadas con saldo por recibir. */

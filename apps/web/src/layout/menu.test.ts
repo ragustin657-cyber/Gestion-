@@ -19,6 +19,12 @@ describe('filtrarMenu', () => {
     expect(titulos(m)).toEqual(expect.arrayContaining(['Registraciones', 'Consultas']));
   });
 
+  it('con oc.crear, Registraciones › Compras incluye Orden de compra', () => {
+    const m = filtrarMenu(MENU, ['oc.crear']);
+    const compras = m.find((n) => n.titulo === 'Registraciones')!.hijos!.find((n) => n.titulo === 'Compras y Cuentas a Pagar')!;
+    expect(titulos(compras.hijos!)).toContain('Orden de compra');
+  });
+
   it('con todos los permisos muestra Maestros completo', () => {
     const m = filtrarMenu(MENU, ['tercero.ver', 'articulo.ver', 'plancuentas.ver', 'moneda.editar', 'tesoreria.maestros.editar', 'organizacion.editar']);
     expect(m.find((n) => n.titulo === 'Maestros')!.hijos).toHaveLength(6);

@@ -7,7 +7,7 @@ const GRUPOS: Record<string, string> = {
   empresa: 'Administración', usuario: 'Administración', rol: 'Administración', auditoria: 'Administración',
   tercero: 'Maestros', articulo: 'Maestros', moneda: 'Maestros', organizacion: 'Maestros',
   plancuentas: 'Contabilidad', tesoreria: 'Tesorería', pago: 'Tesorería',
-  oc: 'Compras', ir: 'Compras', fc: 'Compras', op: 'Pagos',
+  oc: 'Compras', ir: 'Compras', fc: 'Compras', compras: 'Compras', op: 'Pagos',
 };
 const OPCIONES = TODOS_LOS_PERMISOS.map((p) => ({ value: p, label: PERMISOS[p], grupo: GRUPOS[p.split('.')[0]] ?? 'Otros' }));
 

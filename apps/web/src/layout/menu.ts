@@ -14,7 +14,13 @@ export const MENU: NodoMenu[] = [
   {
     titulo: 'Registraciones',
     hijos: [
-      proximamente('Compras y Cuentas a Pagar'),
+      {
+        titulo: 'Compras y Cuentas a Pagar',
+        hijos: [
+          { titulo: 'Orden de compra', ruta: '/compras/oc/nueva', permiso: 'oc.crear' },
+          { titulo: 'Aprobación de OC', ruta: '/compras/oc/aprobacion', permiso: 'oc.aprobar' },
+        ],
+      },
       proximamente('Ventas y Cuentas a Cobrar'),
       proximamente('Tesorería'),
       proximamente('Contabilidad General'),
@@ -23,7 +29,10 @@ export const MENU: NodoMenu[] = [
   {
     titulo: 'Consultas',
     hijos: [
-      proximamente('Compras y Cuentas a Pagar'),
+      {
+        titulo: 'Compras y Cuentas a Pagar',
+        hijos: [{ titulo: 'Órdenes de compra', ruta: '/compras/oc', permiso: 'oc.ver' }],
+      },
       proximamente('Ventas y Cuentas a Cobrar'),
       proximamente('Tesorería'),
       proximamente('Contabilidad General'),
@@ -47,6 +56,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Usuarios', ruta: '/admin/usuarios', permiso: 'usuario.administrar' },
       { titulo: 'Roles', ruta: '/admin/roles', permiso: 'rol.administrar' },
       { titulo: 'Auditoría', ruta: '/admin/auditoria', permiso: 'auditoria.ver' },
+      { titulo: 'Configuración de compras', ruta: '/admin/compras', permiso: 'compras.config' },
     ],
   },
 ];

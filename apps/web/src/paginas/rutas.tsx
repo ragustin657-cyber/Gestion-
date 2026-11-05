@@ -1,4 +1,7 @@
 import { ReactNode } from 'react';
+import { ConfigComprasPage } from '../compras/ConfigComprasPage';
+import { OrdenCompraPage } from '../compras/OrdenCompraPage';
+import { AprobacionOcPage, OrdenesCompraPage } from '../compras/OrdenesCompraPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -22,4 +25,9 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/admin/usuarios', elemento: <UsuariosPage /> },
   { ruta: '/admin/roles', elemento: <RolesPage /> },
   { ruta: '/admin/auditoria', elemento: <AuditoriaPage /> },
+  { ruta: '/admin/compras', elemento: <ConfigComprasPage /> },
+  { ruta: '/compras/oc/nueva', elemento: <OrdenCompraPage key="nueva" /> },
+  { ruta: '/compras/oc/aprobacion', elemento: <AprobacionOcPage /> },
+  { ruta: '/compras/oc/:id', elemento: <OrdenCompraPage /> },
+  { ruta: '/compras/oc', elemento: <OrdenesCompraPage /> },
 ];
