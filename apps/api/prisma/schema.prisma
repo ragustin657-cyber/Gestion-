@@ -577,3 +577,35 @@ model JurisdiccionIibb {
 
   @@unique([empresaId, jurisdiccion])
 }
+
+enum EstadoCarga {
+  PROCESANDO
+  COMPLETA
+  ERROR
+}
+
+/// Padrón de IIBB: dato público, global (sin empresa).
+model PadronIibb {
+  id                 String   @id @default(uuid()) @db.Uuid
+  jurisdiccion       String
+  cuit               String
+  vigenciaDesde      DateTime @db.Date
+  vigenciaHasta      DateTime @db.Date
+  alicuotaPercepcion Decimal? @db.Decimal(18, 6)
+  alicuotaRetencion  Decimal? @db.Decimal(18, 6)
+
+  @@index([jurisdiccion, cuit, vigenciaDesde])
+  @@index([jurisdiccion, vigenciaDesde])
+}
+
+model PadronCarga {
+  id           String      @id @default(uuid()) @db.Uuid
+  jurisdiccion String
+  periodo      String?
+  archivo      String
+  estado       EstadoCarga @default(PROCESANDO)
+  filas        Int         @default(0)
+  error        String?
+  creadoPor    String
+  creadoEn     DateTime    @default(now())
+}
