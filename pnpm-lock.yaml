@@ -165,6 +165,10 @@ importers:
         version: 1.63.0
 
   packages/shared:
+    dependencies:
+      decimal.js:
+        specifier: ^10.6.0
+        version: 10.6.0
     devDependencies:
       typescript:
         specifier: ^5.9.3
