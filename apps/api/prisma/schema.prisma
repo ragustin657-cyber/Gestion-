@@ -715,6 +715,7 @@ enum TipoMedioPago {
 enum EstadoChequePropio {
   EMITIDO
   ANULADO
+  DEBITADO
 }
 
 model OrdenPagoMedio {
@@ -747,6 +748,7 @@ model ChequePropio {
   beneficiarioId String             @db.Uuid
   ordenPagoId    String             @db.Uuid
   estado         EstadoChequePropio @default(EMITIDO)
+  fechaDebito    DateTime?          @db.Date
 
   @@unique([empresaId, chequeraId, numero])
 }

@@ -39,7 +39,7 @@ import type { TxEmpresa } from '../prisma/tenant-prisma.service';
 
 /** Bloquea filas (SELECT … FOR UPDATE) de la empresa hasta el fin de la transacción. */
 export async function bloquear(
-  tx: TxEmpresa, tabla: 'OrdenCompraRenglon' | 'InformeRecepcionRenglon' | 'OrdenPago' | 'Tercero' | 'MovimientoCuentaCorriente' | 'Chequera' | 'Caja' | 'ChequeTercero' | 'TransferenciaRecibida', empresaId: string, ids: string[],
+  tx: TxEmpresa, tabla: 'OrdenCompraRenglon' | 'InformeRecepcionRenglon' | 'OrdenPago' | 'Tercero' | 'MovimientoCuentaCorriente' | 'Chequera' | 'Caja' | 'ChequeTercero' | 'TransferenciaRecibida' | 'ChequePropio', empresaId: string, ids: string[],
 ): Promise<void> {
   if (!ids.length) return;
   await tx.$queryRawUnsafe(

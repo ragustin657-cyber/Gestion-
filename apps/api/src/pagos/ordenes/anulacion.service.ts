@@ -30,6 +30,7 @@ export class AnulacionPagoService {
       const actual = await tx.ordenPago.findUniqueOrThrow({ where: { id } });
       if (actual.estado === 'ANULADA') throw new ConflictException('La orden de pago ya está anulada');
       if (actual.version !== version) throw new ConflictException(MODIFICADO);
+      if (await tx.chequePropio.count({ where: { ordenPagoId: id, estado: 'DEBITADO' } })) throw new BadRequestException('La orden tiene cheques ya debitados');
 
       // Bloqueo en un solo paso (ordenado) del anticipo generado y de los movimientos aplicados
       const anticipoId = (await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'ANTICIPO', origenId: id, anulado: false }, select: { id: true } }))?.id;
