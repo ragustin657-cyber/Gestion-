@@ -9,9 +9,17 @@ import { OrdenesPagoService } from '../pagos/ordenes/ordenes-pago.service';
 import { PagoService } from '../pagos/ordenes/pago.service';
 import { PadronService } from '../pagos/padron/padron.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { DepositosService } from '../tesoreria/operaciones/depositos.service';
+import { IngresosService } from '../tesoreria/operaciones/ingresos.service';
+import { TrasladosService } from '../tesoreria/operaciones/traslados.service';
 import { DEMO, sembrarDemo } from './demo';
 
 const hoy = () => new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
+const enDias = (n: number) => {
+  const d = hoy();
+  d.setUTCDate(d.getUTCDate() + n);
+  return d;
+};
 
 /** Empresa demo completa: maestros (sembrarDemo) + circuito de compras cargado con los servicios reales. */
 export async function sembrarCompleto(app: INestApplicationContext): Promise<'creada' | 'existente'> {
@@ -96,8 +104,11 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
     const opPapeleraOk = await ops.confirmar(opPapelera.id, opPapelera.version);
     const { netoPagar } = await ops.previsualizarRetenciones(opPapelera.id, fecha);
     const cuentaNacion = await prisma.cuentaBancaria.findFirstOrThrow({ where: { empresaId: empresa.id, monedaCodigo: 'ARS' } });
+    // Transferencia más un e-cheq diferido a 30 días (queda pendiente de débito)
+    const echeq = await prisma.chequera.findFirstOrThrow({ where: { empresaId: empresa.id, tipo: 'ECHEQ' } });
     await pago.pagar(opPapelera.id, opPapeleraOk.version, fecha, [
-      { tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(netoPagar), cuentaBancariaId: cuentaNacion.id, referencia: 'Transferencia demo' },
+      { tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(netoPagar) - 200000, cuentaBancariaId: cuentaNacion.id, referencia: 'Transferencia demo' },
+      { tipo: 'CHEQUE', monedaCodigo: 'ARS', importe: 200000, chequeraId: echeq.id, chequeNumero: 'E-00001', chequeFechaPago: enDias(30) },
     ]);
     // Aprobada (bajo el límite): factura en dólares de servicios informáticos
     const opUsd = await ops.crear({ terceroId: servOk.terceroId, fecha, cotizacion: 1450, imputaciones: [{ movimientoId: await movimiento(facturaUsd.id), importe: 605 }] });
@@ -105,6 +116,33 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
     // Pendiente de aprobación: anticipo que supera el límite
     const opAnticipo = await ops.crear({ terceroId: await prov('Distribuidora Andina S.A.'), fecha, imputaciones: [], anticipo: { monedaCodigo: 'ARS', importe: 1500000 } });
     await ops.confirmar(opAnticipo.id, opAnticipo.version);
+
+    // --- Tesorería ---
+    const ingresos = app.get(IngresosService);
+    const traslados = app.get(TrasladosService);
+    const depositos = app.get(DepositosService);
+    const caja = async (nombre: string) => prisma.caja.findFirstOrThrow({ where: { empresaId: empresa.id, nombre } });
+    const cajaRos = await caja('Caja Rosario');
+    const cajaCen = await caja('Caja principal');
+    const cheque = (banco: string, numero: string, librador: string, cuit: string, importe: number, dias: number) => ({
+      tipo: 'FISICO' as const, banco, numero, libradorNombre: librador, libradorCuit: cuit, fechaEmision: fecha, fechaPago: enDias(dias), importe,
+    });
+    // Cobro en Rosario (efectivo y cheque) enviado a casa central: queda en tránsito
+    const cobroRos = await ingresos.crear({
+      fecha, cajaId: cajaRos.id, origen: 'CLIENTE', terceroId: await prov('Supermercados Litoral S.A.'), concepto: 'Cobranza sucursal Rosario',
+      efectivo: { importe: 25000 }, cheques: [cheque('Banco Macro', '00451122', 'Supermercados Litoral S.A.', '30719998883', 120000, 20)], transferencias: [],
+    });
+    await traslados.enviar({ fecha, cajaOrigenId: cajaRos.id, cajaDestinoId: cajaCen.id, cheques: [cobroRos.cheques[0].id], efectivo: { importe: 10000 }, observaciones: 'Rendición semanal' });
+    // Cobro en casa central: dos cheques (uno depositado, pendiente de acreditar) y una transferencia pendiente
+    const cobroCen = await ingresos.crear({
+      fecha, cajaId: cajaCen.id, origen: 'CLIENTE', terceroId: await prov('Constructora Norte S.R.L.'), concepto: 'Cobranza facturas octubre',
+      efectivo: null, transferencias: [{ cuentaBancariaId: cuentaNacion.id, fecha, referencia: 'TRF 778812', importe: 60000 }],
+      cheques: [
+        cheque('Banco Galicia', '10023456', 'Constructora Norte S.R.L.', '30704445551', 80000, 5),
+        cheque('Banco Santander', '77001234', 'Hormigones del Sur S.A.', '30500010912', 45000, 40),
+      ],
+    });
+    await depositos.crear({ fecha, cajaId: cajaCen.id, cuentaBancariaId: cuentaNacion.id, boleta: '0045-112233', cheques: [cobroCen.cheques[0].id], efectivo: null });
   });
   return 'creada';
 }

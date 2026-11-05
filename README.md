@@ -34,6 +34,7 @@ Usuarios demo:
 | admin@demo.com | admin1234 | Administrador |
 | aprobador@demo.com | aprobador1234 | Aprobador de OC y OP (Gerente) |
 | tesorero@demo.com | tesorero1234 | Tesorero (paga las OP aprobadas) |
+| cajero.rosario@demo.com | cajero1234 | Cajero de la Sucursal Rosario (solo opera su sucursal) |
 
 En la empresa demo hay una orden de compra en cada estado, recepciones, una factura en pesos, una en dólares y una nota de crédito. El límite de aprobación es de $ 1.000.000.
 
@@ -57,6 +58,19 @@ En la empresa demo hay una orden de compra en cada estado, recepciones, una fact
 - **Consultas:** órdenes de pago, pagos a realizar y retenciones practicadas, con exportación a Excel y PDF de la OP y de cada certificado.
 
 > ⚠️ **Valores de Ganancias a verificar.** Los mínimos, alícuotas y escala precargados son de referencia. El contador tiene que verificarlos contra la normativa vigente antes de operar. La pantalla los marca hasta que se editan.
+
+## Tesorería (Entrega 4A)
+
+- **Sucursales:** casa central y sucursales (Maestros → Bancos y cajas → Sucursales). Cada caja pertenece a una sucursal. A un usuario se le puede asignar una sucursal en Administración → Usuarios: solo ve y opera las cajas y valores de esa sucursal, y no ve los bancos.
+- **Ingreso de valores:** cobros a clientes u otros ingresos con efectivo, cheques de terceros (físicos o e-cheq) y transferencias recibidas. Cada sucursal numera sus ingresos. Avisa si un cheque está vencido para depositar (más de 30 días) y rechaza cheques duplicados.
+- **Traslados:** la sucursal envía cheques y efectivo a otra caja; quedan en tránsito hasta que el destino los recibe, total o parcialmente (lo no recibido vuelve al origen).
+- **Depósitos y acreditaciones:** el depósito registra el banco y el asiento; la acreditación confirma la fecha. Las transferencias recibidas entran al banco al acreditarse.
+- **Cheques:** rechazo (con gastos bancarios y la deuda vuelve al cliente, o al proveedor si estaba endosado), devolución, endoso como medio de pago en la orden de pago ("Cheque de terceros") y débito de cheques propios diferidos.
+- **Bancos y cajas:** gastos e ingresos bancarios, transferencias entre cuentas propias (con diferencia de cambio entre monedas), movimientos de caja y arqueos con registro de faltantes y sobrantes.
+- **Consultas:** saldos a una fecha, cartera de cheques con historial, valores en tránsito, pendientes de acreditar, cheques propios, movimientos de una cuenta o caja y flujo de fondos proyectado.
+- Todas las operaciones generan su asiento y se pueden anular mientras los valores no se hayan movido.
+
+En la empresa demo hay un cobro de Rosario en tránsito hacia casa central, cheques en cartera, un cheque depositado pendiente de acreditar, una transferencia pendiente y un e-cheq propio diferido a debitar.
 
 ## Requisitos
 

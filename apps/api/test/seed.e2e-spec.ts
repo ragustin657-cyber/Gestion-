@@ -25,7 +25,7 @@ describe('seed demo', () => {
     expect(terceros).toHaveLength(9);
     for (const t of terceros) expect(validarCuit(t.cuit)).toBe(true);
     expect(await prisma.articulo.count()).toBe(10);
-    expect(await prisma.rol.count()).toBe(5);
+    expect(await prisma.rol.count()).toBe(6);
     expect(await prisma.usuario.findUnique({ where: { email: 'aprobador@demo.com' } })).not.toBeNull();
 
     const ocs = await prisma.ordenCompra.findMany();
@@ -38,6 +38,18 @@ describe('seed demo', () => {
     expect(new Set(ops.map((o) => o.estado))).toEqual(new Set(['PAGADA', 'APROBADA', 'PENDIENTE_APROBACION']));
     expect(await prisma.ordenPagoRetencion.count({ where: { certificadoNumero: { not: null } } })).toBeGreaterThanOrEqual(1);
     expect(await prisma.padronIibb.count({ where: { jurisdiccion: '902' } })).toBe(3);
+
+    // Tesorería
+    const sucursales = await prisma.sucursal.findMany({ orderBy: { codigo: 'asc' } });
+    expect(sucursales.map((s) => s.nombre)).toEqual(['Casa central', 'Sucursal Rosario']);
+    const cajero = await prisma.usuario.findUniqueOrThrow({ where: { email: 'cajero.rosario@demo.com' }, include: { empresas: true } });
+    expect(cajero.empresas[0].sucursalId).toBe(sucursales.find((s) => s.codigo === 'ROS')!.id);
+    const estados = new Set((await prisma.chequeTercero.findMany()).map((c) => c.estado));
+    for (const e of ['EN_CARTERA', 'EN_TRANSITO', 'DEPOSITADO']) expect(estados).toContain(e);
+    expect(await prisma.traslado.count({ where: { estado: 'ENVIADO' } })).toBe(1);
+    expect(await prisma.transferenciaRecibida.count({ where: { estado: 'PENDIENTE' } })).toBe(1);
+    const diferidos = (await prisma.chequePropio.findMany({ where: { estado: 'EMITIDO' } })).filter((c) => c.fechaPago > c.fechaEmision);
+    expect(diferidos).toHaveLength(1);
 
     for (const a of await prisma.asiento.findMany({ include: { renglones: true } })) {
       const debe = a.renglones.reduce((s, r) => s + Math.round(Number(r.debe) * 100), 0);
