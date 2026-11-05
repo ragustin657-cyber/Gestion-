@@ -1,0 +1,88 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum CondicionIva {
+  RESPONSABLE_INSCRIPTO
+  MONOTRIBUTO
+  EXENTO
+  CONSUMIDOR_FINAL
+  NO_RESPONSABLE
+}
+
+model Empresa {
+  id                 String       @id @default(uuid()) @db.Uuid
+  razonSocial        String
+  cuit               String
+  condicionIva       CondicionIva
+  domicilio          String?
+  inicioEjercicioMes Int          @default(1)
+  activa             Boolean      @default(true)
+  creadoEn           DateTime     @default(now())
+
+  puntosVenta PuntoVenta[]
+  roles       Rol[]
+  usuarios    UsuarioEmpresa[]
+}
+
+model PuntoVenta {
+  id          String  @id @default(uuid()) @db.Uuid
+  empresaId   String  @db.Uuid
+  numero      Int
+  descripcion String?
+  empresa     Empresa @relation(fields: [empresaId], references: [id])
+
+  @@unique([empresaId, numero])
+}
+
+model Usuario {
+  id           String           @id @default(uuid()) @db.Uuid
+  email        String           @unique
+  nombre       String
+  passwordHash String
+  superadmin   Boolean          @default(false)
+  activo       Boolean          @default(true)
+  creadoEn     DateTime         @default(now())
+  empresas     UsuarioEmpresa[]
+}
+
+model Rol {
+  id        String           @id @default(uuid()) @db.Uuid
+  empresaId String           @db.Uuid
+  nombre    String
+  permisos  String[]
+  empresa   Empresa          @relation(fields: [empresaId], references: [id])
+  usuarios  UsuarioEmpresa[]
+
+  @@unique([empresaId, nombre])
+}
+
+model UsuarioEmpresa {
+  usuarioId String  @db.Uuid
+  empresaId String  @db.Uuid
+  rolId     String  @db.Uuid
+  activo    Boolean @default(true)
+  usuario   Usuario @relation(fields: [usuarioId], references: [id])
+  empresa   Empresa @relation(fields: [empresaId], references: [id])
+  rol       Rol     @relation(fields: [rolId], references: [id])
+
+  @@id([usuarioId, empresaId])
+}
+
+model Auditoria {
+  id        String   @id @default(uuid()) @db.Uuid
+  empresaId String   @db.Uuid
+  usuarioId String   @db.Uuid
+  entidad   String
+  entidadId String
+  accion    String
+  datos     Json?
+  fecha     DateTime @default(now())
+
+  @@index([empresaId, entidad, entidadId])
+}
