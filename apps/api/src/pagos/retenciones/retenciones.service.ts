@@ -73,8 +73,8 @@ export class RetencionesService {
         escala: escala.map((t) => ({ desde: t.desde.toString(), hasta: t.hasta?.toString() ?? null, fijo: t.fijo.toString(), porcentaje: t.porcentaje.toString() })),
         baseAcumuladaPrevia: previo.base, basePago: base, retenidoPrevio: previo.retenido,
       });
-      if (new D(g.importe).gt(0))
-        r.push({
+      // Se informa aunque sea 0: la base queda registrada para el acumulado mensual
+      r.push({
           impuesto: 'GANANCIAS', jurisdiccion: null, regimen: regimen.codigo, base,
           alicuota: regimen.usaEscala && tercero.inscriptoGanancias ? 'escala' : (tercero.inscriptoGanancias ? regimen.alicuotaInscripto : regimen.alicuotaNoInscripto).toString(),
           importe: g.importe,

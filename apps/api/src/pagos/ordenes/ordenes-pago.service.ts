@@ -84,7 +84,7 @@ export class OrdenesPagoService {
       where: { id },
       include: {
         tercero: { select: { id: true, razonSocial: true, cuit: true } }, imputaciones: true, anticipo: true,
-        retenciones: { orderBy: [{ impuesto: 'asc' }, { jurisdiccion: 'asc' }] },
+        retenciones: { orderBy: [{ impuesto: 'asc' }, { jurisdiccion: 'asc' }] }, medios: true,
       },
     });
     if (!op) throw new NotFoundException('Orden de pago no encontrada');

@@ -646,6 +646,7 @@ model OrdenPago {
   imputaciones       OrdenPagoImputacion[]
   anticipo           OrdenPagoAnticipo?
   retenciones        OrdenPagoRetencion[]
+  medios             OrdenPagoMedio[]
 
   @@unique([empresaId, numero])
   @@index([empresaId, estado])
@@ -686,4 +687,80 @@ model OrdenPagoRetencion {
   certificadoNumero Int?
   anulada           Boolean   @default(false)
   ordenPago         OrdenPago @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
+}
+
+enum TipoMedioPago {
+  TRANSFERENCIA
+  CHEQUE
+  EFECTIVO
+}
+
+enum EstadoChequePropio {
+  EMITIDO
+  ANULADO
+}
+
+model OrdenPagoMedio {
+  id               String        @id @default(uuid()) @db.Uuid
+  empresaId        String        @db.Uuid
+  ordenPagoId      String        @db.Uuid
+  tipo             TipoMedioPago
+  monedaCodigo     String
+  importe          Decimal       @db.Decimal(18, 2)
+  importePesos     Decimal       @db.Decimal(18, 2)
+  cuentaBancariaId String?       @db.Uuid
+  cajaId           String?       @db.Uuid
+  chequeraId       String?       @db.Uuid
+  chequeNumero     String?
+  chequeFechaPago  DateTime?     @db.Date
+  referencia       String?
+  ordenPago        OrdenPago     @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
+}
+
+model ChequePropio {
+  id             String             @id @default(uuid()) @db.Uuid
+  empresaId      String             @db.Uuid
+  chequeraId     String             @db.Uuid
+  numero         String
+  fechaEmision   DateTime           @db.Date
+  fechaPago      DateTime           @db.Date
+  monedaCodigo   String
+  importe        Decimal            @db.Decimal(18, 2)
+  beneficiarioId String             @db.Uuid
+  ordenPagoId    String             @db.Uuid
+  estado         EstadoChequePropio @default(EMITIDO)
+
+  @@unique([empresaId, chequeraId, numero])
+}
+
+model MovimientoTesoreria {
+  id               String   @id @default(uuid()) @db.Uuid
+  empresaId        String   @db.Uuid
+  fecha            DateTime @db.Date
+  tipo             String
+  cuentaBancariaId String?  @db.Uuid
+  cajaId           String?  @db.Uuid
+  monedaCodigo     String
+  importe          Decimal  @db.Decimal(18, 2)
+  origenTipo       String
+  origenId         String   @db.Uuid
+  anulado          Boolean  @default(false)
+  creadoEn         DateTime @default(now())
+
+  @@index([empresaId, origenTipo, origenId])
+}
+
+model AplicacionCuentaCorriente {
+  id                    String   @id @default(uuid()) @db.Uuid
+  empresaId             String   @db.Uuid
+  origenTipo            String
+  origenId              String   @db.Uuid
+  movimientoId          String   @db.Uuid
+  importe               Decimal  @db.Decimal(18, 2)
+  importePesosHistorico Decimal  @db.Decimal(18, 2)
+  fecha                 DateTime @db.Date
+  anulada               Boolean  @default(false)
+
+  @@index([empresaId, movimientoId])
+  @@index([empresaId, origenTipo, origenId])
 }

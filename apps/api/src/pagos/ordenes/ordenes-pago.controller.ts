@@ -1,14 +1,18 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
-import { DatosOP, esquemaMotivo, esquemaOP, esquemaVersion } from './dto';
+import { DatosOP, DatosPagar, esquemaMotivo, esquemaOP, esquemaPagar, esquemaVersion } from './dto';
+import { PagoService } from './pago.service';
 import { OrdenesPagoService } from './ordenes-pago.service';
 
 const Id = () => Param('id', ParseUUIDPipe);
 
 @Controller('pagos')
 export class OrdenesPagoController {
-  constructor(private readonly ordenes: OrdenesPagoService) {}
+  constructor(
+    private readonly ordenes: OrdenesPagoService,
+    private readonly pago: PagoService,
+  ) {}
 
   @Get('pendientes')
   @RequierePermiso('op.crear')
@@ -72,5 +76,12 @@ export class OrdenesPagoController {
   @RequierePermiso('op.anular')
   anular(@Id() id: string, @Body(new ZodValidationPipe(esquemaMotivo)) b: { version: number; motivo: string }) {
     return this.ordenes.anularNoPagada(id, b.version, b.motivo);
+  }
+
+  @Post('ordenes/:id/pagar')
+  @HttpCode(200)
+  @RequierePermiso('pago.ejecutar')
+  pagar(@Id() id: string, @Body(new ZodValidationPipe(esquemaPagar)) b: DatosPagar) {
+    return this.pago.pagar(id, b.version, b.fechaPago, b.medios);
   }
 }
