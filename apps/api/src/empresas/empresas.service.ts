@@ -3,6 +3,7 @@ import { CondicionIva } from '@prisma/client';
 import { TODOS_LOS_PERMISOS } from '@gestion/shared';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { PlanCuentasService } from '../contabilidad/plan-cuentas/plan-cuentas.service';
+import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 
@@ -36,6 +37,7 @@ export class EmpresasService {
       });
       await tx.usuarioEmpresa.create({ data: { usuarioId: creadorId, empresaId: empresa.id, rolId: rol.id } });
       await this.planCuentas.cargarModelo(tx, empresa.id);
+      await cargarConfigCuentas(tx, empresa.id);
       await tx.auditoria.create({
         data: { empresaId: empresa.id, usuarioId: creadorId, entidad: 'Empresa', entidadId: empresa.id, accion: 'CREAR' },
       });

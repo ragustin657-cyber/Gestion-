@@ -1,6 +1,7 @@
 import { hash } from '@node-rs/argon2';
 import { PrismaClient } from '@prisma/client';
 import { Permiso, TODOS_LOS_PERMISOS } from '@gestion/shared';
+import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarPlanModelo } from './plan-cuentas-modelo';
 
 export const DEMO = { email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.' };
@@ -64,6 +65,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     await tx.usuarioEmpresa.create({ data: { usuarioId: admin.id, empresaId: e, rolId: rolAdmin } });
 
     await cargarPlanModelo(tx, e);
+    await cargarConfigCuentas(tx, e);
     const cuenta = async (codigo: string) =>
       (await tx.cuentaContable.findFirstOrThrow({ where: { empresaId: e, codigo } })).id;
 

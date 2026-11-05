@@ -30,6 +30,11 @@ model Empresa {
   agenteRetencionSuss      Boolean  @default(false)
   jurisdiccionesIibb       String[]
 
+  montoAprobacionOc     Decimal      @default(0) @db.Decimal(18, 2)
+  toleranciaPrecioPct   Decimal      @default(2) @db.Decimal(18, 6)
+  toleranciaCantidadPct Decimal      @default(0) @db.Decimal(18, 6)
+  modoTresVias          ModoTresVias @default(AVISAR)
+
   puntosVenta PuntoVenta[]
   roles       Rol[]
   usuarios    UsuarioEmpresa[]
@@ -266,4 +271,18 @@ model Caja {
   monedaCodigo     String
   cuentaContableId String  @db.Uuid
   activa           Boolean @default(true)
+}
+
+enum ModoTresVias {
+  AVISAR
+  BLOQUEAR
+}
+
+model ConfigCuenta {
+  id               String @id @default(uuid()) @db.Uuid
+  empresaId        String @db.Uuid
+  concepto         String
+  cuentaContableId String @db.Uuid
+
+  @@unique([empresaId, concepto])
 }
