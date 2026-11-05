@@ -35,8 +35,9 @@ const CAMPOS_GENERALES: CampoAbm[] = [
   { nombre: 'activo', etiqueta: 'Activo', tipo: 'booleano' },
 ];
 
-const CAMPOS_IMPUESTOS: CampoAbm[] = [
-  { nombre: 'regimenGanancias', etiqueta: 'Régimen de Ganancias (RG 830)', tipo: 'texto', ayuda: 'Ej.: 78 - Enajenación de bienes de cambio' },
+const camposImpuestos = (regimenes: { codigo: string; descripcion: string }[]): CampoAbm[] => [
+  { nombre: 'regimenGanancias', etiqueta: 'Régimen de Ganancias (RG 830)', tipo: 'select', opciones: regimenes.map((r) => ({ value: r.codigo, label: `${r.codigo} - ${r.descripcion}` })), ayuda: 'Vacío: no se retiene Ganancias' },
+  { nombre: 'inscriptoGanancias', etiqueta: 'Inscripto en Ganancias', tipo: 'booleano' },
   { nombre: 'exencionHasta', etiqueta: 'Exención vigente hasta', tipo: 'fecha' },
   { nombre: 'exentoGanancias', etiqueta: 'Exento de retención de Ganancias', tipo: 'booleano' },
   { nombre: 'exentoIva', etiqueta: 'Exento de retención de IVA', tipo: 'booleano' },
@@ -94,6 +95,8 @@ function EditorIibb({ tercero, alGuardar }: { tercero: Tercero; alGuardar: () =>
 function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => void }) {
   const qc = useQueryClient();
   const detalle = useQuery({ queryKey: ['/terceros', id], queryFn: () => api<Tercero>(`/terceros/${id}`), enabled: !!id });
+  const regimenes = useQuery({ queryKey: ['/pagos/config/regimenes', 'ficha'], queryFn: () => api<{ codigo: string; descripcion: string }[]>('/pagos/config/regimenes').catch(() => []) });
+  const CAMPOS_IMPUESTOS = camposImpuestos(regimenes.data ?? []);
   const refrescar = () => qc.invalidateQueries({ queryKey: ['/terceros'] });
   const t = detalle.data ?? null;
   if (id && !t) return null;

@@ -13,6 +13,8 @@ interface Config {
 const CONCEPTOS: Record<string, string> = {
   PROVEEDORES: 'Proveedores', IVA_CREDITO_FISCAL: 'IVA crédito fiscal', PERCEPCION_IVA: 'Percepciones de IVA',
   PERCEPCION_IIBB: 'Percepciones de IIBB', IMPUESTOS_INTERNOS: 'Impuestos internos', GASTO_POR_DEFECTO: 'Gasto por defecto (y no gravado / exento)',
+  RETENCION_GANANCIAS: 'Retenciones de Ganancias a depositar', RETENCION_IIBB: 'Retenciones de IIBB a depositar', ANTICIPOS_PROVEEDORES: 'Anticipos a proveedores',
+  CHEQUES_DIFERIDOS: 'Cheques diferidos a pagar', DIFERENCIA_CAMBIO_POSITIVA: 'Diferencias de cambio positivas', DIFERENCIA_CAMBIO_NEGATIVA: 'Diferencias de cambio negativas',
 };
 
 export function ConfigComprasPage() {

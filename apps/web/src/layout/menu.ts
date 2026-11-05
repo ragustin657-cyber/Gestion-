@@ -84,6 +84,8 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Roles', ruta: '/admin/roles', permiso: 'rol.administrar' },
       { titulo: 'Auditoría', ruta: '/admin/auditoria', permiso: 'auditoria.ver' },
       { titulo: 'Configuración de compras', ruta: '/admin/compras', permiso: 'compras.config' },
+      { titulo: 'Retenciones', ruta: '/admin/retenciones', permiso: 'retenciones.config' },
+      { titulo: 'Padrones de IIBB', ruta: '/admin/padrones', permiso: 'padron.cargar' },
     ],
   },
 ];

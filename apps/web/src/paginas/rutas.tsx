@@ -13,6 +13,8 @@ import { RecepcionPage } from '../compras/RecepcionPage';
 import { AprobacionOcPage, OrdenesCompraPage } from '../compras/OrdenesCompraPage';
 import { OrdenPagoPage } from '../pagos/OrdenPagoPage';
 import { PagoOpPage } from '../pagos/PagoOpPage';
+import { ConfigRetencionesPage } from '../pagos/ConfigRetencionesPage';
+import { PadronesPage } from '../pagos/PadronesPage';
 import { PagosARealizarPage } from '../pagos/PagosARealizarPage';
 import { RetencionesPage } from '../pagos/RetencionesPage';
 import { AprobacionOpPage, OrdenesPagoPage } from '../pagos/OrdenesPagoPage';
@@ -60,4 +62,6 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/pagos/pago', elemento: <PagoOpPage /> },
   { ruta: '/pagos/a-realizar', elemento: <PagosARealizarPage /> },
   { ruta: '/pagos/retenciones', elemento: <RetencionesPage /> },
+  { ruta: '/admin/retenciones', elemento: <ConfigRetencionesPage /> },
+  { ruta: '/admin/padrones', elemento: <PadronesPage /> },
 ];

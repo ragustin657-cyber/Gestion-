@@ -65,3 +65,15 @@ export async function descargar(ruta: string, query: OpcionesApi['query'], nombr
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** Sube un archivo (multipart) con campos adicionales. */
+export async function subirArchivo<T>(ruta: string, campos: Record<string, string>, archivo: File, nombreCampo = 'archivo'): Promise<T> {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(campos)) fd.append(k, v);
+  fd.append(nombreCampo, archivo);
+  const token = sesion.leer()?.token;
+  const res = await fetch(`/api${ruta}`, { method: 'POST', body: fd, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const datos = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ErrorApi(res.status, datos.message ?? 'No se pudo subir el archivo', datos.campos, datos);
+  return datos as T;
+}
