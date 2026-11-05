@@ -74,3 +74,26 @@ export async function loginComo(
   if (sel.status !== 200) throw new Error(`selección de empresa falló: ${sel.status}`);
   return sel.body.token;
 }
+
+export function conToken(app: INestApplication, token: string) {
+  const s = () => request(app.getHttpServer());
+  const h = { Authorization: `Bearer ${token}` };
+  return {
+    get: (url: string) => s().get(url).set(h),
+    post: (url: string, body?: object) => s().post(url).set(h).send(body),
+    patch: (url: string, body?: object) => s().patch(url).set(h).send(body),
+    put: (url: string, body?: object) => s().put(url).set(h).send(body),
+    delete: (url: string) => s().delete(url).set(h),
+  };
+}
+
+/** Crea empresa + usuario con permisos y devuelve un cliente HTTP autenticado en esa empresa. */
+export async function sesion(
+  app: INestApplication,
+  prisma: PrismaService,
+  opciones: { permisos?: Permiso[]; superadmin?: boolean } = {},
+) {
+  const datos = await crearEmpresaYUsuario(prisma, opciones);
+  const token = await loginComo(app, datos.usuario.email, datos.password, datos.empresa.id);
+  return { ...datos, token, http: conToken(app, token) };
+}

@@ -25,6 +25,11 @@ model Empresa {
   activa             Boolean      @default(true)
   creadoEn           DateTime     @default(now())
 
+  agenteRetencionGanancias Boolean  @default(false)
+  agenteRetencionIva       Boolean  @default(false)
+  agenteRetencionSuss      Boolean  @default(false)
+  jurisdiccionesIibb       String[]
+
   puntosVenta PuntoVenta[]
   roles       Rol[]
   usuarios    UsuarioEmpresa[]
