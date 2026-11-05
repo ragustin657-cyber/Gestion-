@@ -34,3 +34,16 @@ export function errorTransicion(actual: { version: number } | null, version: num
 const fechaAR = (d: Date) =>
   `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
 export { fechaAR };
+
+import type { TxEmpresa } from '../prisma/tenant-prisma.service';
+
+/** Bloquea filas (SELECT … FOR UPDATE) de la empresa hasta el fin de la transacción. */
+export async function bloquear(
+  tx: TxEmpresa, tabla: 'OrdenCompraRenglon' | 'InformeRecepcionRenglon', empresaId: string, ids: string[],
+): Promise<void> {
+  if (!ids.length) return;
+  await tx.$queryRawUnsafe(
+    `SELECT id FROM "${tabla}" WHERE id = ANY($1::uuid[]) AND "empresaId" = $2::uuid ORDER BY id FOR UPDATE`,
+    ids, empresaId,
+  );
+}

@@ -140,3 +140,19 @@ export async function otroUsuario(app: INestApplication, prisma: PrismaService, 
   const token = await loginComo(app, usuario.email, password, empresaId);
   return { usuario, http: conToken(app, token) };
 }
+
+/** Crea y confirma una OC aprobada automáticamente (sube el monto límite) y la devuelve. */
+export async function ocAprobada(
+  http: ReturnType<typeof conToken>, prisma: PrismaService, empresaId: string,
+  d: { proveedorId: string; articuloId: string }, cantidad = 10, precio = 1000, monedaCodigo = 'ARS',
+) {
+  await prisma.empresa.update({ where: { id: empresaId }, data: { montoAprobacionOc: 1e12 } });
+  const b = await http.post('/api/compras/ordenes', {
+    terceroId: d.proveedorId, fecha: '2026-11-05', monedaCodigo,
+    renglones: [{ articuloId: d.articuloId, descripcion: 'Artículo', cantidad, precioUnitario: precio, alicuotaIva: 21 }],
+  });
+  if (b.status !== 201) throw new Error(`alta OC: ${JSON.stringify(b.body)}`);
+  const c = await http.post(`/api/compras/ordenes/${b.body.id}/confirmar`, { version: b.body.version });
+  if (c.body.estado !== 'APROBADA') throw new Error(`confirmar OC: ${JSON.stringify(c.body)}`);
+  return c.body as { id: string; numero: number; version: number; renglones: { id: string }[] };
+}

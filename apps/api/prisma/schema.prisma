@@ -132,6 +132,7 @@ model Tercero {
   creadoEn         DateTime     @default(now())
   iibb             TerceroIibb[]
   ordenesCompra    OrdenCompra[]
+  recepciones      InformeRecepcion[]
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
@@ -374,4 +375,41 @@ model OrdenCompraRenglon {
   cantidadRecibida  Decimal     @default(0) @db.Decimal(18, 4)
   cantidadFacturada Decimal     @default(0) @db.Decimal(18, 4)
   ordenCompra       OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  recepciones       InformeRecepcionRenglon[]
+}
+
+enum EstadoIR {
+  CONFIRMADO
+  ANULADO
+}
+
+model InformeRecepcion {
+  id              String                    @id @default(uuid()) @db.Uuid
+  empresaId       String                    @db.Uuid
+  numero          Int
+  terceroId       String                    @db.Uuid
+  fecha           DateTime                  @db.Date
+  depositoId      String?                   @db.Uuid
+  remitoNumero    String
+  observaciones   String?
+  estado          EstadoIR                  @default(CONFIRMADO)
+  motivoAnulacion String?
+  creadoPor       String
+  creadoEn        DateTime                  @default(now())
+  tercero         Tercero                   @relation(fields: [terceroId], references: [id])
+  renglones       InformeRecepcionRenglon[]
+
+  @@unique([empresaId, numero])
+  @@unique([empresaId, terceroId, remitoNumero])
+}
+
+model InformeRecepcionRenglon {
+  id                   String             @id @default(uuid()) @db.Uuid
+  empresaId            String             @db.Uuid
+  informeRecepcionId   String             @db.Uuid
+  ordenCompraRenglonId String             @db.Uuid
+  cantidad             Decimal            @db.Decimal(18, 4)
+  cantidadFacturada    Decimal            @default(0) @db.Decimal(18, 4)
+  informeRecepcion     InformeRecepcion   @relation(fields: [informeRecepcionId], references: [id])
+  ordenCompraRenglon   OrdenCompraRenglon @relation(fields: [ordenCompraRenglonId], references: [id])
 }

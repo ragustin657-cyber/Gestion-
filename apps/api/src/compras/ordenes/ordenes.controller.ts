@@ -16,6 +16,12 @@ export class OrdenesController {
     return this.ordenes.listar(f);
   }
 
+  @Get('pendientes-recibir')
+  @RequierePermiso('ir.crear')
+  pendientesRecibir(@Query('terceroId') terceroId?: string) {
+    return this.ordenes.pendientesRecibir(terceroId);
+  }
+
   @Get(':id')
   @RequierePermiso('oc.ver')
   obtener(@Id() id: string) {
