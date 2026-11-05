@@ -955,3 +955,33 @@ model TrasladoItem {
   motivoRechazo String?
   traslado      Traslado  @relation(fields: [trasladoId], references: [id])
 }
+
+model DepositoBancario {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  empresaId          String                 @db.Uuid
+  numero             Int
+  fecha              DateTime               @db.Date
+  cajaId             String                 @db.Uuid
+  cuentaBancariaId   String                 @db.Uuid
+  boleta             String?
+  estado             EstadoDocTesoreria     @default(CONFIRMADO)
+  asientoId          String?                @db.Uuid
+  asientoAnulacionId String?                @db.Uuid
+  motivoAnulacion    String?
+  creadoPor          String
+  creadoEn           DateTime               @default(now())
+  items              DepositoBancarioItem[]
+
+  @@unique([empresaId, numero])
+}
+
+model DepositoBancarioItem {
+  id           String           @id @default(uuid()) @db.Uuid
+  empresaId    String           @db.Uuid
+  depositoId   String           @db.Uuid
+  tipo         TipoValor
+  chequeId     String?          @db.Uuid
+  monedaCodigo String
+  importe      Decimal          @db.Decimal(18, 2)
+  deposito     DepositoBancario @relation(fields: [depositoId], references: [id])
+}

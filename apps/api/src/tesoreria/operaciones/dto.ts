@@ -55,3 +55,16 @@ export const esquemaRecepcion = z.object({
   items: z.array(z.object({ itemId: zId, aceptado: z.boolean(), motivo: zTextoOpcional })).min(1, 'Indique la decisión de cada ítem'),
 });
 export type DatosRecepcion = z.infer<typeof esquemaRecepcion>;
+
+export const esquemaDeposito = z.object({
+  fecha: zFecha,
+  cajaId: zId,
+  cuentaBancariaId: zId,
+  boleta: zTextoOpcional,
+  cheques: zIds.default([]),
+  efectivo: z.object({ importe: zImporte }).nullish(),
+});
+export type DatosDeposito = z.infer<typeof esquemaDeposito>;
+
+export const esquemaAcreditacion = z.object({ fecha: zFecha, cheques: zIds.default([]), transferencias: zIds.default([]) });
+export type DatosAcreditacion = z.infer<typeof esquemaAcreditacion>;
