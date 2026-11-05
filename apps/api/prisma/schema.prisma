@@ -109,30 +109,31 @@ model Talonario {
 }
 
 model Tercero {
-  id               String       @id @default(uuid()) @db.Uuid
-  empresaId        String       @db.Uuid
-  codigo           Int
-  razonSocial      String
-  nombreFantasia   String?
-  cuit             String
-  condicionIva     CondicionIva
-  esProveedor      Boolean      @default(false)
-  esCliente        Boolean      @default(false)
-  domicilio        String?
-  localidad        String?
-  provincia        String?
-  email            String?
-  telefono         String?
-  diasPago         Int          @default(0)
-  regimenGanancias String?
-  exentoGanancias  Boolean      @default(false)
-  exentoIva        Boolean      @default(false)
-  exencionHasta    DateTime?    @db.Date
-  activo           Boolean      @default(true)
-  creadoEn         DateTime     @default(now())
-  iibb             TerceroIibb[]
-  ordenesCompra    OrdenCompra[]
-  recepciones      InformeRecepcion[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  empresaId          String              @db.Uuid
+  codigo             Int
+  razonSocial        String
+  nombreFantasia     String?
+  cuit               String
+  condicionIva       CondicionIva
+  esProveedor        Boolean             @default(false)
+  esCliente          Boolean             @default(false)
+  domicilio          String?
+  localidad          String?
+  provincia          String?
+  email              String?
+  telefono           String?
+  diasPago           Int                 @default(0)
+  regimenGanancias   String?
+  exentoGanancias    Boolean             @default(false)
+  exentoIva          Boolean             @default(false)
+  exencionHasta      DateTime?           @db.Date
+  activo             Boolean             @default(true)
+  creadoEn           DateTime            @default(now())
+  iibb               TerceroIibb[]
+  ordenesCompra      OrdenCompra[]
+  recepciones        InformeRecepcion[]
+  comprobantesCompra ComprobanteCompra[]
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
@@ -176,16 +177,16 @@ model CuentaContable {
 }
 
 model Articulo {
-  id            String  @id @default(uuid()) @db.Uuid
-  empresaId     String  @db.Uuid
-  codigo        String
-  descripcion   String
-  unidad        String  @default("UN")
-  alicuotaIva   Decimal @db.Decimal(18, 6)
+  id             String  @id @default(uuid()) @db.Uuid
+  empresaId      String  @db.Uuid
+  codigo         String
+  descripcion    String
+  unidad         String  @default("UN")
+  alicuotaIva    Decimal @db.Decimal(18, 6)
   cuentaCompraId String? @db.Uuid
-  cuentaVentaId String? @db.Uuid
-  esServicio    Boolean @default(false)
-  activo        Boolean @default(true)
+  cuentaVentaId  String? @db.Uuid
+  esServicio     Boolean @default(false)
+  activo         Boolean @default(true)
 
   @@unique([empresaId, codigo])
 }
@@ -328,53 +329,53 @@ enum EstadoOC {
 }
 
 model OrdenCompra {
-  id               String               @id @default(uuid()) @db.Uuid
-  empresaId        String               @db.Uuid
-  numero           Int?
-  puntoVenta       Int                  @default(1)
-  terceroId        String               @db.Uuid
-  fecha            DateTime             @db.Date
-  fechaEntrega     DateTime?            @db.Date
-  depositoId       String?              @db.Uuid
-  monedaCodigo     String
-  cotizacion       Decimal              @default(1) @db.Decimal(18, 6)
-  diasPago         Int                  @default(0)
-  observaciones    String?
-  estado           EstadoOC             @default(BORRADOR)
-  neto             Decimal              @default(0) @db.Decimal(18, 2)
-  iva              Decimal              @default(0) @db.Decimal(18, 2)
-  total            Decimal              @default(0) @db.Decimal(18, 2)
-  totalPesos       Decimal              @default(0) @db.Decimal(18, 2)
-  creadoPor        String
-  creadoEn         DateTime             @default(now())
-  aprobadoPor      String?
-  aprobadoEn       DateTime?
-  motivoRechazo    String?
-  motivoAnulacion  String?
-  version          Int                  @default(0)
-  tercero          Tercero              @relation(fields: [terceroId], references: [id])
-  renglones        OrdenCompraRenglon[]
+  id              String               @id @default(uuid()) @db.Uuid
+  empresaId       String               @db.Uuid
+  numero          Int?
+  puntoVenta      Int                  @default(1)
+  terceroId       String               @db.Uuid
+  fecha           DateTime             @db.Date
+  fechaEntrega    DateTime?            @db.Date
+  depositoId      String?              @db.Uuid
+  monedaCodigo    String
+  cotizacion      Decimal              @default(1) @db.Decimal(18, 6)
+  diasPago        Int                  @default(0)
+  observaciones   String?
+  estado          EstadoOC             @default(BORRADOR)
+  neto            Decimal              @default(0) @db.Decimal(18, 2)
+  iva             Decimal              @default(0) @db.Decimal(18, 2)
+  total           Decimal              @default(0) @db.Decimal(18, 2)
+  totalPesos      Decimal              @default(0) @db.Decimal(18, 2)
+  creadoPor       String
+  creadoEn        DateTime             @default(now())
+  aprobadoPor     String?
+  aprobadoEn      DateTime?
+  motivoRechazo   String?
+  motivoAnulacion String?
+  version         Int                  @default(0)
+  tercero         Tercero              @relation(fields: [terceroId], references: [id])
+  renglones       OrdenCompraRenglon[]
 
   @@unique([empresaId, puntoVenta, numero])
   @@index([empresaId, estado])
 }
 
 model OrdenCompraRenglon {
-  id                String      @id @default(uuid()) @db.Uuid
-  empresaId         String      @db.Uuid
-  ordenCompraId     String      @db.Uuid
+  id                String                    @id @default(uuid()) @db.Uuid
+  empresaId         String                    @db.Uuid
+  ordenCompraId     String                    @db.Uuid
   orden             Int
-  articuloId        String?     @db.Uuid
+  articuloId        String?                   @db.Uuid
   descripcion       String
-  cantidad          Decimal     @db.Decimal(18, 4)
-  precioUnitario    Decimal     @db.Decimal(18, 4)
-  bonificacionPct   Decimal     @default(0) @db.Decimal(18, 6)
-  alicuotaIva       Decimal     @db.Decimal(18, 6)
-  centroCostoId     String?     @db.Uuid
-  importe           Decimal     @db.Decimal(18, 2)
-  cantidadRecibida  Decimal     @default(0) @db.Decimal(18, 4)
-  cantidadFacturada Decimal     @default(0) @db.Decimal(18, 4)
-  ordenCompra       OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+  cantidad          Decimal                   @db.Decimal(18, 4)
+  precioUnitario    Decimal                   @db.Decimal(18, 4)
+  bonificacionPct   Decimal                   @default(0) @db.Decimal(18, 6)
+  alicuotaIva       Decimal                   @db.Decimal(18, 6)
+  centroCostoId     String?                   @db.Uuid
+  importe           Decimal                   @db.Decimal(18, 2)
+  cantidadRecibida  Decimal                   @default(0) @db.Decimal(18, 4)
+  cantidadFacturada Decimal                   @default(0) @db.Decimal(18, 4)
+  ordenCompra       OrdenCompra               @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
   recepciones       InformeRecepcionRenglon[]
 }
 
@@ -412,4 +413,121 @@ model InformeRecepcionRenglon {
   cantidadFacturada    Decimal            @default(0) @db.Decimal(18, 4)
   informeRecepcion     InformeRecepcion   @relation(fields: [informeRecepcionId], references: [id])
   ordenCompraRenglon   OrdenCompraRenglon @relation(fields: [ordenCompraRenglonId], references: [id])
+}
+
+enum TipoComprobanteCompra {
+  FACTURA
+  NOTA_DEBITO
+  NOTA_CREDITO
+  TICKET
+}
+
+enum EstadoComprobante {
+  CONFIRMADO
+  ANULADO
+}
+
+enum OrigenRenglonCompra {
+  RECEPCION
+  ORDEN_COMPRA
+  DIRECTO
+}
+
+model ComprobanteCompra {
+  id                    String                            @id @default(uuid()) @db.Uuid
+  empresaId             String                            @db.Uuid
+  numeroInterno         Int
+  terceroId             String                            @db.Uuid
+  tipo                  TipoComprobanteCompra
+  letra                 String                            @default("")
+  puntoVenta            Int
+  numero                Int
+  fechaEmision          DateTime                          @db.Date
+  fechaContable         DateTime                          @db.Date
+  fechaVencimiento      DateTime                          @db.Date
+  monedaCodigo          String
+  cotizacion            Decimal                           @db.Decimal(18, 6)
+  netoGravado           Decimal                           @db.Decimal(18, 2)
+  iva                   Decimal                           @db.Decimal(18, 2)
+  percepcionIva         Decimal                           @default(0) @db.Decimal(18, 2)
+  impuestosInternos     Decimal                           @default(0) @db.Decimal(18, 2)
+  noGravado             Decimal                           @default(0) @db.Decimal(18, 2)
+  exento                Decimal                           @default(0) @db.Decimal(18, 2)
+  total                 Decimal                           @db.Decimal(18, 2)
+  totalPesos            Decimal                           @db.Decimal(18, 2)
+  estado                EstadoComprobante                 @default(CONFIRMADO)
+  comprobanteAsociadoId String?                           @db.Uuid
+  asientoId             String?                           @db.Uuid
+  asientoAnulacionId    String?                           @db.Uuid
+  aceptoDiferencias     Boolean                           @default(false)
+  motivoAnulacion       String?
+  creadoPor             String
+  creadoEn              DateTime                          @default(now())
+  tercero               Tercero                           @relation(fields: [terceroId], references: [id])
+  renglones             ComprobanteCompraRenglon[]
+  ivas                  ComprobanteCompraIva[]
+  percepcionesIibb      ComprobanteCompraPercepcionIibb[]
+
+  @@unique([empresaId, numeroInterno])
+  @@unique([empresaId, terceroId, tipo, letra, puntoVenta, numero])
+  @@index([empresaId, fechaContable])
+}
+
+model ComprobanteCompraRenglon {
+  id                        String              @id @default(uuid()) @db.Uuid
+  empresaId                 String              @db.Uuid
+  comprobanteId             String              @db.Uuid
+  orden                     Int
+  origen                    OrigenRenglonCompra
+  informeRecepcionRenglonId String?             @db.Uuid
+  ordenCompraRenglonId      String?             @db.Uuid
+  articuloId                String?             @db.Uuid
+  descripcion               String
+  cantidad                  Decimal             @db.Decimal(18, 4)
+  precioUnitario            Decimal             @db.Decimal(18, 4)
+  bonificacionPct           Decimal             @default(0) @db.Decimal(18, 6)
+  alicuotaIva               Decimal             @db.Decimal(18, 6)
+  cuentaContableId          String              @db.Uuid
+  centroCostoId             String?             @db.Uuid
+  importe                   Decimal             @db.Decimal(18, 2)
+  comprobante               ComprobanteCompra   @relation(fields: [comprobanteId], references: [id])
+}
+
+model ComprobanteCompraIva {
+  id            String            @id @default(uuid()) @db.Uuid
+  empresaId     String            @db.Uuid
+  comprobanteId String            @db.Uuid
+  alicuota      Decimal           @db.Decimal(18, 6)
+  base          Decimal           @db.Decimal(18, 2)
+  importe       Decimal           @db.Decimal(18, 2)
+  comprobante   ComprobanteCompra @relation(fields: [comprobanteId], references: [id])
+}
+
+model ComprobanteCompraPercepcionIibb {
+  id            String            @id @default(uuid()) @db.Uuid
+  empresaId     String            @db.Uuid
+  comprobanteId String            @db.Uuid
+  jurisdiccion  String
+  importe       Decimal           @db.Decimal(18, 2)
+  comprobante   ComprobanteCompra @relation(fields: [comprobanteId], references: [id])
+}
+
+model MovimientoCuentaCorriente {
+  id               String   @id @default(uuid()) @db.Uuid
+  empresaId        String   @db.Uuid
+  terceroId        String   @db.Uuid
+  origenTipo       String
+  origenId         String   @db.Uuid
+  fecha            DateTime @db.Date
+  fechaVencimiento DateTime @db.Date
+  monedaCodigo     String
+  importe          Decimal  @db.Decimal(18, 2)
+  importePesos     Decimal  @db.Decimal(18, 2)
+  saldo            Decimal  @db.Decimal(18, 2)
+  saldoPesos       Decimal  @db.Decimal(18, 2)
+  anulado          Boolean  @default(false)
+  creadoEn         DateTime @default(now())
+
+  @@index([empresaId, terceroId])
+  @@index([empresaId, origenTipo, origenId])
 }
