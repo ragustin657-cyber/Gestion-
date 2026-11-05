@@ -9,15 +9,19 @@ import { ConfigComprasService } from '../../compras/config/config-compras.servic
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
 import { NumeracionService } from '../../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
+import { AlcanceSucursalService } from '../../tesoreria/sucursales/alcance.service';
+import { CarteraService, noDisponible } from '../../tesoreria/operaciones/cartera.service';
 import { formatoImporte, OrdenesPagoService } from './ordenes-pago.service';
 
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
 
 export interface MedioPago {
-  tipo: 'TRANSFERENCIA' | 'CHEQUE' | 'EFECTIVO';
-  monedaCodigo: 'ARS' | 'USD';
-  importe: number;
+  tipo: 'TRANSFERENCIA' | 'CHEQUE' | 'EFECTIVO' | 'CHEQUE_TERCERO';
+  /** Para CHEQUE_TERCERO se toman del cheque. */
+  monedaCodigo?: 'ARS' | 'USD';
+  importe?: number;
+  chequeId?: string | null;
   cuentaBancariaId?: string | null;
   cajaId?: string | null;
   chequeraId?: string | null;
@@ -39,11 +43,30 @@ export class PagoService {
     private readonly cuentas: ConfigComprasService,
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
+    private readonly alcance: AlcanceSucursalService,
+    private readonly cartera: CarteraService,
   ) {}
 
-  pagar(id: string, version: number, fechaPago: Date, medios: MedioPago[]) {
+  pagar(id: string, version: number, fechaPago: Date, mediosPedidos: MedioPago[]) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
+      // Cheques de terceros: importe y moneda salen del cheque, que debe estar en cartera en una caja del usuario
+      const chequeIds = mediosPedidos.filter((m) => m.tipo === 'CHEQUE_TERCERO').map((m) => m.chequeId!);
+      if (new Set(chequeIds).size !== chequeIds.length) throw new BadRequestException('Hay cheques de terceros repetidos');
+      const medios: (MedioPago & { monedaCodigo: 'ARS' | 'USD'; importe: number })[] = [];
+      for (const m of mediosPedidos) {
+        if (m.tipo !== 'CHEQUE_TERCERO') {
+          medios.push(m as MedioPago & { monedaCodigo: 'ARS' | 'USD'; importe: number });
+          continue;
+        }
+        const ch = await tx.chequeTercero.findUnique({ where: { id: m.chequeId! } });
+        if (!ch) throw new NotFoundException('Cheque no encontrado');
+        if (ch.estado !== 'EN_CARTERA' || !ch.cajaId) throw noDisponible(ch.numero);
+        await this.alcance.verificarCaja(tx, ch.cajaId).catch(() => {
+          throw new NotFoundException('Cheque no encontrado');
+        });
+        medios.push({ ...m, monedaCodigo: ch.monedaCodigo as 'ARS' | 'USD', importe: Number(ch.importe), cajaId: ch.cajaId });
+      }
       await bloquear(tx, 'OrdenPago', empresaId, [id]);
       const op = await tx.ordenPago.findUnique({ where: { id }, include: { imputaciones: true, anticipo: true } });
       if (!op) throw new NotFoundException('Orden de pago no encontrada');
@@ -72,6 +95,8 @@ export class PagoService {
           if (c.monedaCodigo !== m.monedaCodigo) throw new BadRequestException(MONEDA_DISTINTA);
           cuentaContableId = c.cuentaContableId;
           cuentaBancariaId = c.id;
+        } else if (m.tipo === 'CHEQUE_TERCERO') {
+          cuentaContableId = await this.cuentas.cuenta(tx, 'VALORES_A_DEPOSITAR');
         } else if (m.tipo === 'EFECTIVO') {
           const c = m.cajaId ? await tx.caja.findUnique({ where: { id: m.cajaId } }) : null;
           if (!c) throw new BadRequestException('Indique una caja válida');
@@ -109,8 +134,14 @@ export class PagoService {
       const haber = (cuentaContableId: string, importe: Dec) => renglones.push({ cuentaContableId, haber: importe.toFixed(2) });
       const cuenta = (c: ConceptoCuenta) => this.cuentas.cuenta(tx, c);
 
-      // 4. Medios: cheques y tesorería
+      // 4. Medios: cheques y tesorería (orden de bloqueo: chequeras → cheques de terceros)
       await bloquear(tx, 'Chequera', empresaId, preparados.filter((m) => m.chequera).map((m) => m.chequera!.id));
+      await bloquear(tx, 'ChequeTercero', empresaId, chequeIds);
+      for (const m of preparados.filter((x) => x.tipo === 'CHEQUE_TERCERO')) {
+        const ch = await tx.chequeTercero.findUniqueOrThrow({ where: { id: m.chequeId! } });
+        if (ch.estado !== 'EN_CARTERA' || ch.cajaId !== m.cajaId || !ch.importe.eq(m.importe)) throw noDisponible(ch.numero);
+        await this.cartera.cambiarEstado(tx, ch.id, 'ENDOSADO', { cajaId: null, terceroDestinoId: op.terceroId }, { tipo: 'OP', id, fecha: fechaPago }, ['EN_CARTERA']);
+      }
       for (const m of preparados) {
         let numero: string | null = m.chequeNumero ?? null;
         let diferido = false;
@@ -136,10 +167,10 @@ export class PagoService {
           data: {
             empresaId, ordenPagoId: id, tipo: m.tipo, monedaCodigo: m.monedaCodigo, importe: m.importe, importePesos: m.importePesos,
             cuentaBancariaId: m.cuentaBancariaId, cajaId: m.cajaId ?? null, chequeraId: m.chequera?.id ?? null, chequeNumero: numero,
-            chequeFechaPago: m.chequeFechaPago ?? null, referencia: m.referencia ?? null,
+            chequeFechaPago: m.chequeFechaPago ?? null, referencia: m.referencia ?? null, chequeTerceroId: m.chequeId ?? null,
           },
         });
-        if (!diferido)
+        if (!diferido && m.tipo !== 'CHEQUE_TERCERO')
           await tx.movimientoTesoreria.create({
             data: {
               empresaId, fecha: m.tipo === 'CHEQUE' ? m.chequeFechaPago! : fechaPago, tipo: 'EGRESO', cuentaBancariaId: m.cuentaBancariaId,

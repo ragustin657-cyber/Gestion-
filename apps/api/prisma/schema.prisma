@@ -709,6 +709,7 @@ enum TipoMedioPago {
   TRANSFERENCIA
   CHEQUE
   EFECTIVO
+  CHEQUE_TERCERO
 }
 
 enum EstadoChequePropio {
@@ -729,6 +730,7 @@ model OrdenPagoMedio {
   chequeraId       String?       @db.Uuid
   chequeNumero     String?
   chequeFechaPago  DateTime?     @db.Date
+  chequeTerceroId  String?       @db.Uuid
   referencia       String?
   ordenPago        OrdenPago     @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
 }
