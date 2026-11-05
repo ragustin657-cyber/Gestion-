@@ -68,3 +68,13 @@ export type DatosDeposito = z.infer<typeof esquemaDeposito>;
 
 export const esquemaAcreditacion = z.object({ fecha: zFecha, cheques: zIds.default([]), transferencias: zIds.default([]) });
 export type DatosAcreditacion = z.infer<typeof esquemaAcreditacion>;
+
+export const esquemaRechazo = z.object({
+  fecha: zFecha,
+  motivo: zMotivo,
+  gastos: z.number().min(0, 'No puede ser negativo').finite().nullish(),
+});
+export type DatosRechazo = z.infer<typeof esquemaRechazo>;
+
+export const esquemaDevolucion = z.object({ fecha: zFecha, observaciones: zTextoOpcional });
+export type DatosDevolucion = z.infer<typeof esquemaDevolucion>;
