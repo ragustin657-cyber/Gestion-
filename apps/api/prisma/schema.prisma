@@ -1204,3 +1204,23 @@ model VinculoConciliacion {
 
   @@index([empresaId, conciliacionId])
 }
+
+enum SentidoRegla {
+  DEBITO
+  CREDITO
+  AMBOS
+}
+
+model ReglaConciliacion {
+  id               String       @id @default(uuid()) @db.Uuid
+  empresaId        String       @db.Uuid
+  prioridad        Int
+  texto            String
+  sentido          SentidoRegla @default(AMBOS)
+  cuentaBancariaId String?      @db.Uuid
+  cuentaContableId String       @db.Uuid
+  concepto         String?
+  activa           Boolean      @default(true)
+
+  @@index([empresaId, prioridad])
+}

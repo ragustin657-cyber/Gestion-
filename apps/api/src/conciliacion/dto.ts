@@ -50,3 +50,19 @@ export const esquemaVinculo = z.object({ lineas: z.array(zId), movimientos: z.ar
 export type DatosVinculo = z.infer<typeof esquemaVinculo>;
 export const esquemaLote = z.object({ vinculos: z.array(esquemaVinculo).min(1, 'Indique al menos una coincidencia') });
 export const esquemaMotivo = z.object({ motivo: z.string().trim().min(1, 'Debe indicar el motivo') });
+
+export const esquemaRegla = z.object({
+  prioridad: z.number().int().min(0).max(100000),
+  texto: z.string().trim().min(1, 'Campo obligatorio'),
+  sentido: z.enum(['DEBITO', 'CREDITO', 'AMBOS']),
+  cuentaBancariaId: zId.nullish(),
+  cuentaContableId: zId,
+  concepto: z.string().trim().nullish(),
+  activa: z.boolean().optional(),
+});
+export type DatosRegla = z.infer<typeof esquemaRegla>;
+
+export const esquemaRegistro = z.object({
+  lineas: z.array(z.object({ lineaId: zId, cuentaContableId: zId, concepto: z.string().trim().min(1, 'Campo obligatorio') })).min(1, 'Elija al menos una línea'),
+});
+export type DatosRegistro = z.infer<typeof esquemaRegistro>;

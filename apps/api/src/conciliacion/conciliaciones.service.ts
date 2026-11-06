@@ -8,6 +8,7 @@ import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { DESCRIPCIONES } from '../tesoreria/operaciones/consultas.service';
 import { FormatosService } from './formatos.service';
 import { DatosConciliacion } from './dto';
+import { reglaPara } from './reglas-iniciales';
 import { sugerir } from './sugerencias';
 
 const D = Prisma.Decimal;
@@ -130,10 +131,16 @@ export class ConciliacionesService {
     const lineasV = await db.lineaExtracto.findMany({ where: { vinculoId: { in: ids } }, orderBy: { fecha: 'asc' } });
     const movsV = await db.movimientoTesoreria.findMany({ where: { vinculoId: { in: ids } }, orderBy: { fecha: 'asc' } });
     const vistaV = await this.vistaMovimientos(db, movsV);
+    const reglas = await db.reglaConciliacion.findMany({ where: { activa: true } });
+    const cuentas = await db.cuentaContable.findMany({ where: { id: { in: reglas.map((r) => r.cuentaContableId) } } });
     return {
       ...c,
       resumen: await this.resumen(db, c),
-      lineas,
+      lineas: lineas.map((l) => {
+        const r = l.estado === 'PENDIENTE' ? reglaPara(reglas, l, c.cuentaBancariaId) : null;
+        const cc = r ? cuentas.find((x) => x.id === r.cuentaContableId) : null;
+        return { ...l, reglaSugerida: r && cc ? { id: r.id, cuentaContableId: cc.id, cuenta: `${cc.codigo} ${cc.nombre}`, concepto: r.concepto ?? l.concepto } : null };
+      }),
       movimientos: await this.vistaMovimientos(db, movs),
       vinculos: vinculos.map((v) => ({
         ...v, lineas: lineasV.filter((l) => l.vinculoId === v.id), movimientos: vistaV.filter((m) => movsV.find((x) => x.id === m.id)!.vinculoId === v.id),

@@ -5,6 +5,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { PlanCuentasService } from '../contabilidad/plan-cuentas/plan-cuentas.service';
 import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarConfigPagos } from '../pagos/config/valores-iniciales';
+import { cargarReglasIniciales } from '../conciliacion/reglas-iniciales';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 
@@ -41,6 +42,7 @@ export class EmpresasService {
       await this.planCuentas.cargarModelo(tx, empresa.id);
       await cargarConfigCuentas(tx, empresa.id);
       await cargarConfigPagos(tx, empresa.id);
+      await cargarReglasIniciales(tx, empresa.id);
       await tx.auditoria.create({
         data: { empresaId: empresa.id, usuarioId: creadorId, entidad: 'Empresa', entidadId: empresa.id, accion: 'CREAR' },
       });

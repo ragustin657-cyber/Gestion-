@@ -3,12 +3,21 @@ import { z } from 'zod';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { ConciliacionesService } from './conciliaciones.service';
-import { DatosConciliacion, DatosVinculo, esquemaConciliacion, esquemaLote, esquemaMotivo, esquemaVinculo } from './dto';
+import { RegistroService } from './registro.service';
+import { DatosConciliacion, DatosRegistro, DatosVinculo, esquemaConciliacion, esquemaLote, esquemaMotivo, esquemaRegistro, esquemaVinculo } from './dto';
 
 @Controller('conciliacion/conciliaciones')
 @RequierePermiso('conciliacion.operar')
 export class ConciliacionesController {
-  constructor(private readonly conciliaciones: ConciliacionesService) {}
+  constructor(
+    private readonly conciliaciones: ConciliacionesService,
+    private readonly registro: RegistroService,
+  ) {}
+
+  @Post(':id/registrar')
+  registrar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegistro)) d: DatosRegistro) {
+    return this.registro.registrar(id, d);
+  }
 
   @Get()
   listar(@Query('cuentaBancariaId') cuentaBancariaId?: string) {
