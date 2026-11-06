@@ -12,6 +12,7 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { AlcanceSucursalService } from '../../tesoreria/sucursales/alcance.service';
 import { CarteraService, noDisponible } from '../../tesoreria/operaciones/cartera.service';
 import { SALDO_INSUFICIENTE, saldoCaja } from '../../tesoreria/operaciones/tesoreria-comun';
+import { verificarFechaAbierta } from '../../conciliacion/bloqueo';
 import { formatoImporte, OrdenesPagoService } from './ordenes-pago.service';
 
 const D = Prisma.Decimal;
@@ -178,6 +179,8 @@ export class PagoService {
             chequeFechaPago: m.chequeFechaPago ?? null, referencia: m.referencia ?? null, chequeTerceroId: m.chequeId ?? null,
           },
         });
+        if (!diferido && m.tipo !== 'CHEQUE_TERCERO' && m.cuentaBancariaId)
+          await verificarFechaAbierta(tx, m.cuentaBancariaId, m.tipo === 'CHEQUE' ? m.chequeFechaPago! : fechaPago);
         if (!diferido && m.tipo !== 'CHEQUE_TERCERO')
           await tx.movimientoTesoreria.create({
             data: {

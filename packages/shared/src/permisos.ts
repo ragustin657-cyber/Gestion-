@@ -33,6 +33,7 @@ export const PERMISOS = {
   'tesoreria.operar': 'Registrar ingresos, traslados, depósitos y movimientos de caja',
   'tesoreria.aceptar': 'Recibir traslados, acreditar, rechazar y debitar cheques, movimientos bancarios',
   'tesoreria.anular': 'Anular operaciones de tesorería',
+  'conciliacion.operar': 'Conciliación bancaria: importar extractos, conciliar, registrar y cerrar',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

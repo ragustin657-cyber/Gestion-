@@ -5,6 +5,7 @@ import { AsientosService } from '../../contabilidad/asientos/asientos.service';
 import { bloquear, MODIFICADO } from '../../compras/comun';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
 import { CarteraService } from '../../tesoreria/operaciones/cartera.service';
+import { liberarOVerificar } from '../../conciliacion/bloqueo';
 import { OrdenesPagoService } from './ordenes-pago.service';
 
 /** Anulación de órdenes de pago: las no pagadas cambian de estado; las pagadas se revierten por completo. */
@@ -49,6 +50,7 @@ export class AnulacionPagoService {
       }
 
       await tx.chequePropio.updateMany({ where: { ordenPagoId: id }, data: { estado: 'ANULADO' } });
+      await liberarOVerificar(tx, 'OP', id);
       await tx.movimientoTesoreria.updateMany({ where: { origenTipo: 'OP', origenId: id }, data: { anulado: true } });
       await tx.ordenPagoRetencion.updateMany({ where: { ordenPagoId: id }, data: { anulada: true } });
 

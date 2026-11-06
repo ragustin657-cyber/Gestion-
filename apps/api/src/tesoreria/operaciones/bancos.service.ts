@@ -56,30 +56,33 @@ export class BancosService {
   }
 
   movimiento(d: DatosMovimientoBancario) {
-    return this.tenant.transaccion(async (tx) => {
-      const empresaId = this.tenant.empresaId;
-      const cuenta = await this.cuentaBancaria(tx, d.cuentaBancariaId);
-      await this.plan.verificarImputable(tx, d.cuentaContableId, 'cuentaContableId');
-      const importe = new D(d.importe).toDecimalPlaces(2);
-      const numero = await this.numeracion.siguiente(tx, 'MBA', 0);
-      const mov = await tx.movimientoBancario.create({
-        data: { empresaId, numero, fecha: d.fecha, cuentaBancariaId: cuenta.id, tipo: d.tipo, cuentaContableId: d.cuentaContableId, concepto: d.concepto, importe, creadoPor: this.usuario() },
-      });
-      await registrarMovimiento(tx, empresaId, {
-        fecha: d.fecha, tipo: d.tipo === 'GASTO' ? 'EGRESO' : 'INGRESO', cuentaBancariaId: cuenta.id, monedaCodigo: cuenta.monedaCodigo, importe,
-        origenTipo: 'MOVIMIENTO_BANCARIO', origenId: mov.id,
-      });
-      const pesos = (await aPesos(tx, cuenta.monedaCodigo, importe, d.fecha)).toFixed(2);
-      const banco = cuenta.cuentaContableId;
-      const asiento = await this.asientos.generar(tx, {
-        fecha: d.fecha, descripcion: `${d.tipo === 'GASTO' ? 'Gasto' : 'Ingreso'} bancario ${numero} - ${d.concepto}`, origenTipo: 'MOVIMIENTO_BANCARIO', origenId: mov.id,
-        renglones: d.tipo === 'GASTO'
-          ? [{ cuentaContableId: d.cuentaContableId, debe: pesos }, { cuentaContableId: banco, haber: pesos }]
-          : [{ cuentaContableId: banco, debe: pesos }, { cuentaContableId: d.cuentaContableId, haber: pesos }],
-      });
-      await this.auditoria.registrar(tx, { entidad: 'MovimientoBancario', entidadId: mov.id, accion: 'CREAR', datos: { numero, tipo: d.tipo, importe: importe.toString() } });
-      return tx.movimientoBancario.update({ where: { id: mov.id }, data: { asientoId: asiento.id } });
+    return this.tenant.transaccion((tx) => this.movimientoEnTx(tx, d));
+  }
+
+  /** Movimiento bancario con su asiento dentro de una transacción existente (lo usa también la conciliación). */
+  async movimientoEnTx(tx: TxEmpresa, d: DatosMovimientoBancario) {
+    const empresaId = this.tenant.empresaId;
+    const cuenta = await this.cuentaBancaria(tx, d.cuentaBancariaId);
+    await this.plan.verificarImputable(tx, d.cuentaContableId, 'cuentaContableId');
+    const importe = new D(d.importe).toDecimalPlaces(2);
+    const numero = await this.numeracion.siguiente(tx, 'MBA', 0);
+    const mov = await tx.movimientoBancario.create({
+      data: { empresaId, numero, fecha: d.fecha, cuentaBancariaId: cuenta.id, tipo: d.tipo, cuentaContableId: d.cuentaContableId, concepto: d.concepto, importe, creadoPor: this.usuario() },
     });
+    await registrarMovimiento(tx, empresaId, {
+      fecha: d.fecha, tipo: d.tipo === 'GASTO' ? 'EGRESO' : 'INGRESO', cuentaBancariaId: cuenta.id, monedaCodigo: cuenta.monedaCodigo, importe,
+      origenTipo: 'MOVIMIENTO_BANCARIO', origenId: mov.id,
+    });
+    const pesos = (await aPesos(tx, cuenta.monedaCodigo, importe, d.fecha)).toFixed(2);
+    const banco = cuenta.cuentaContableId;
+    const asiento = await this.asientos.generar(tx, {
+      fecha: d.fecha, descripcion: `${d.tipo === 'GASTO' ? 'Gasto' : 'Ingreso'} bancario ${numero} - ${d.concepto}`, origenTipo: 'MOVIMIENTO_BANCARIO', origenId: mov.id,
+      renglones: d.tipo === 'GASTO'
+        ? [{ cuentaContableId: d.cuentaContableId, debe: pesos }, { cuentaContableId: banco, haber: pesos }]
+        : [{ cuentaContableId: banco, debe: pesos }, { cuentaContableId: d.cuentaContableId, haber: pesos }],
+    });
+    await this.auditoria.registrar(tx, { entidad: 'MovimientoBancario', entidadId: mov.id, accion: 'CREAR', datos: { numero, tipo: d.tipo, importe: importe.toString() } });
+    return tx.movimientoBancario.update({ where: { id: mov.id }, data: { asientoId: asiento.id } });
   }
 
   async listarTransferencias(q: { pagina?: string; porPagina?: string }) {

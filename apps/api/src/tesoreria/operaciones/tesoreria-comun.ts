@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { fechaAR } from '../../compras/comun';
 import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
+import { verificarFechaAbierta } from '../../conciliacion/bloqueo';
 
 export const D = Prisma.Decimal;
 export type Dec = Prisma.Decimal;
@@ -25,6 +26,7 @@ export interface DatosMovimiento {
 
 /** Registra un movimiento de tesorería (banco o caja). */
 export async function registrarMovimiento(tx: TxEmpresa, empresaId: string, m: DatosMovimiento): Promise<void> {
+  if (m.cuentaBancariaId) await verificarFechaAbierta(tx, m.cuentaBancariaId, m.fecha);
   await tx.movimientoTesoreria.create({
     data: {
       empresaId, fecha: m.fecha, tipo: m.tipo, cuentaBancariaId: m.cuentaBancariaId ?? null, cajaId: m.cajaId ?? null,

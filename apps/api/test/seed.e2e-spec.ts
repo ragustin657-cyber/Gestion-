@@ -3,7 +3,9 @@ import { Test } from '@nestjs/testing';
 import { validarCuit } from '@gestion/shared';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { sembrarCompleto } from '../src/seed/demo-completo';
+import { readFileSync } from 'node:fs';
+import { ARCHIVO_EXTRACTO_DEMO, sembrarCompleto } from '../src/seed/demo-completo';
+import { parsearExtracto, FormatoParseo } from '../src/conciliacion/interprete';
 import { limpiarBase } from './helpers';
 
 describe('seed demo', () => {
@@ -50,6 +52,16 @@ describe('seed demo', () => {
     expect(await prisma.transferenciaRecibida.count({ where: { estado: 'PENDIENTE' } })).toBe(1);
     const diferidos = (await prisma.chequePropio.findMany({ where: { estado: 'EMITIDO' } })).filter((c) => c.fechaPago > c.fechaEmision);
     expect(diferidos).toHaveLength(1);
+
+    // Conciliación
+    expect(await prisma.reglaConciliacion.count()).toBe(10);
+    const formato = await prisma.formatoExtracto.findFirstOrThrow();
+    const leido = await parsearExtracto(readFileSync(ARCHIVO_EXTRACTO_DEMO), formato as unknown as FormatoParseo);
+    expect(leido.errores).toEqual([]);
+    expect(leido.advertencias).toEqual([]);
+    expect(leido.lineas.map((l) => l.concepto)).toEqual(expect.arrayContaining(['IMP. LEY 25413 DEB', 'COMISION MANTENIMIENTO CTA', 'IVA COMISION']));
+    const tesorero = await prisma.rol.findFirstOrThrow({ where: { nombre: 'Tesorero' } });
+    expect(tesorero.permisos).toContain('conciliacion.operar');
 
     for (const a of await prisma.asiento.findMany({ include: { renglones: true } })) {
       const debe = a.renglones.reduce((s, r) => s + Math.round(Number(r.debe) * 100), 0);

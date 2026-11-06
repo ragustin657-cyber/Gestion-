@@ -24,6 +24,9 @@ import { FlujoFondosPage, MovimientosCuentaPage, SaldosPage } from '../tesoreria
 import { AcreditacionesPage, DepositoPage, PendientesAcreditarPage } from '../tesoreria/DepositosPages';
 import { IngresoValoresPage } from '../tesoreria/IngresoValoresPage';
 import { RecepcionTrasladosPage, TrasladoPage, ValoresEnTransitoPage } from '../tesoreria/TrasladosPages';
+import { ConciliacionesPage } from '../conciliacion/ConciliacionesPage';
+import { ConciliacionPage } from '../conciliacion/ConciliacionPage';
+import { ReglasPage } from '../conciliacion/ReglasPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -88,4 +91,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/tesoreria/cheques-propios', elemento: <ChequesPropiosPage /> },
   { ruta: '/tesoreria/movimientos', elemento: <MovimientosCuentaPage /> },
   { ruta: '/tesoreria/flujo', elemento: <FlujoFondosPage /> },
+  { ruta: '/conciliacion', elemento: <ConciliacionesPage /> },
+  { ruta: '/conciliacion/:id', elemento: <ConciliacionPage /> },
+  { ruta: '/admin/reglas-conciliacion', elemento: <ReglasPage /> },
 ];

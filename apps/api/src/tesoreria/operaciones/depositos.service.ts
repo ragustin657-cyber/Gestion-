@@ -12,6 +12,7 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { AlcanceSucursalService } from '../sucursales/alcance.service';
 import { CarteraService, noDisponible } from './cartera.service';
 import { DatosDeposito } from './dto';
+import { liberarOVerificar } from '../../conciliacion/bloqueo';
 import { anularMovimientos, aPesos, D, hoy, MONEDA_DISTINTA, registrarMovimiento, SALDO_INSUFICIENTE, saldoCaja } from './tesoreria-comun';
 
 const INCLUIR = { items: { orderBy: { tipo: 'asc' } } } satisfies Prisma.DepositoBancarioInclude;
@@ -126,6 +127,7 @@ export class DepositosService {
       const mov = { tipo: 'ANULACION_DEPOSITO', id, fecha };
       for (const c of cheques)
         await this.cartera.cambiarEstado(tx, c.id, 'EN_CARTERA', { cajaId: dep.cajaId, cuentaBancariaId: null, fechaDeposito: null }, mov, ['DEPOSITADO']);
+      await liberarOVerificar(tx, 'DEPOSITO', id);
       await anularMovimientos(tx, 'DEPOSITO', id);
       const contra = await this.asientos.contraasiento(tx, dep.asientoId!, fecha, `Anulación del depósito ${dep.numero} - ${motivo}`);
       await tx.depositoBancario.update({ where: { id }, data: { estado: 'ANULADO', motivoAnulacion: motivo, asientoAnulacionId: contra.id } });

@@ -1,4 +1,7 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { INestApplicationContext } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 import { AlicuotaIva, hoyEn, TODOS_LOS_PERMISOS, ZONA_ARGENTINA } from '@gestion/shared';
 import { ComprobantesService } from '../compras/comprobantes/comprobantes.service';
@@ -15,6 +18,37 @@ import { TrasladosService } from '../tesoreria/operaciones/traslados.service';
 import { DEMO, sembrarDemo } from './demo';
 
 const hoy = () => new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
+
+/** Extracto de ejemplo del Banco Nación, generado al sembrar (sus fechas dependen del día). */
+export const ARCHIVO_EXTRACTO_DEMO = resolve(__dirname, '../../prisma/demo/extracto-demo-nacion.csv');
+
+const CONCEPTO_BANCO: Record<string, string> = { DEPOSITO: 'DEPOSITO EN EFECTIVO Y VALORES', OP: 'TRANSFERENCIA ENVIADA', ACREDITACION_TRANSFERENCIA: 'TRANSFERENCIA RECIBIDA' };
+
+/** Escribe el extracto demo con los movimientos de la cuenta y tres débitos propios del banco (formato Nación). */
+async function escribirExtractoDemo(prisma: PrismaService, empresaId: string, cuentaBancariaId: string) {
+  const D = Prisma.Decimal;
+  const fmt = (n: Prisma.Decimal) => n.toFixed(2).replace('.', ',');
+  const fecha = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('/');
+  const movs = await prisma.movimientoTesoreria.findMany({ where: { empresaId, cuentaBancariaId, anulado: false }, orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }] });
+  const deps = await prisma.depositoBancario.findMany({ where: { id: { in: movs.map((m) => m.origenId) } } });
+  const filas: { fecha: Date; ref: string; concepto: string; importe: Prisma.Decimal }[] = movs.map((m) => ({
+    fecha: m.fecha, ref: deps.find((d) => d.id === m.origenId)?.boleta ?? '', concepto: CONCEPTO_BANCO[m.origenTipo] ?? 'MOVIMIENTO', importe: m.tipo === 'INGRESO' ? m.importe : m.importe.neg(),
+  }));
+  const debitos = filas.filter((f) => f.importe.isNegative()).reduce((s, f) => s.plus(f.importe.abs()), new D(0));
+  const h = hoy();
+  filas.push(
+    { fecha: h, ref: '', concepto: 'IMP. LEY 25413 DEB', importe: debitos.mul(0.006).toDecimalPlaces(2).neg() },
+    { fecha: h, ref: '', concepto: 'COMISION MANTENIMIENTO CTA', importe: new D(-8500) },
+    { fecha: h, ref: '', concepto: 'IVA COMISION', importe: new D(-1785) },
+  );
+  let saldo = new D(0);
+  const lineas = ['Fecha;Comprobante;Concepto;Importe;Saldo', ...filas.map((f) => {
+    saldo = saldo.plus(f.importe);
+    return `${fecha(f.fecha)};${f.ref};${f.concepto};${fmt(f.importe)};${fmt(saldo)}`;
+  })];
+  mkdirSync(dirname(ARCHIVO_EXTRACTO_DEMO), { recursive: true });
+  writeFileSync(ARCHIVO_EXTRACTO_DEMO, `${lineas.join('\n')}\n`, 'latin1');
+}
 const enDias = (n: number) => {
   const d = hoy();
   d.setUTCDate(d.getUTCDate() + n);
@@ -143,6 +177,7 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
       ],
     });
     await depositos.crear({ fecha, cajaId: cajaCen.id, cuentaBancariaId: cuentaNacion.id, boleta: '0045-112233', cheques: [cobroCen.cheques[0].id], efectivo: null });
+    await escribirExtractoDemo(prisma, empresa.id, cuentaNacion.id);
   });
   return 'creada';
 }

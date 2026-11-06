@@ -72,6 +72,21 @@ En la empresa demo hay una orden de compra en cada estado, recepciones, una fact
 
 En la empresa demo hay un cobro de Rosario en tránsito hacia casa central, cheques en cartera, un cheque depositado pendiente de acreditar, una transferencia pendiente y un e-cheq propio diferido a debitar.
 
+## Conciliación bancaria (Entrega 4B)
+
+- **Formatos de extracto:** cada cuenta bancaria tiene el formato de su homebanking (CSV o Excel, columnas, fecha, decimales, importe con signo o débito/crédito). Se configura en Maestros → Bancos y cajas → Formatos de extracto, partiendo de un modelo (Nación, Galicia, Santander, Macro, BBVA o genérico).
+- **Importación:** vista previa con errores por fila; las líneas ya importadas se saltean, así se pueden subir extractos superpuestos. Una importación se puede deshacer mientras no tenga líneas conciliadas.
+- **Conciliación por período** (Registraciones → Tesorería → Conciliación bancaria): saldo inicial y final del extracto, el extracto y los movimientos del sistema lado a lado y la diferencia en vivo.
+  - "Buscar coincidencias" propone vínculos exactos (por referencia o fecha), probables (fecha cercana) y agrupados (varios movimientos contra una línea); se confirman con un clic.
+  - La conciliación manual admite varios contra varios, siempre que los importes sumen igual.
+  - Las líneas que el sistema no tiene (impuesto 25.413, comisiones, IVA, percepciones, intereses) se registran desde la conciliación como movimiento bancario con su asiento. Las reglas de Administración → Reglas de conciliación proponen la cuenta contable.
+- **Cierre:** con diferencia cero y todas las líneas conciliadas, registradas o ignoradas. Lo conciliado queda bloqueado: no se puede anular ni registrar con fecha del período sin reabrir la conciliación (con permiso de anular). Los movimientos pendientes pasan solos al período siguiente.
+- **Reporte** de conciliación en PDF y Excel, con las partidas pendientes de cada lado.
+
+> ⚠️ **Formatos de extracto a verificar.** Los modelos de cada banco son una estimación. Antes de operar, importe un extracto real de cada cuenta y revise la vista previa.
+
+El seed genera un extracto de ejemplo del Banco Nación en `apps/api/prisma/demo/extracto-demo-nacion.csv`, con los movimientos de la demo más el impuesto 25.413, una comisión y su IVA.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

@@ -4,6 +4,8 @@ import { hoyEn, Permiso, TODOS_LOS_PERMISOS, ZONA_ARGENTINA } from '@gestion/sha
 import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarConfigPagos } from '../pagos/config/valores-iniciales';
 import { cargarPlanModelo } from './plan-cuentas-modelo';
+import { cargarReglasIniciales } from '../conciliacion/reglas-iniciales';
+import { MODELOS_FORMATO } from '../conciliacion/modelos-formato';
 
 export const DEMO = {
   email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.',
@@ -16,7 +18,7 @@ const ROLES: Record<string, Permiso[]> = {
   Administrador: TODOS_LOS_PERMISOS,
   Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear'],
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
-  Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar'],
+  Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver'],
 };
@@ -88,6 +90,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     await cargarPlanModelo(tx, e);
     await cargarConfigCuentas(tx, e);
     await cargarConfigPagos(tx, e);
+    await cargarReglasIniciales(tx, e);
     const cuenta = async (codigo: string) =>
       (await tx.cuentaContable.findFirstOrThrow({ where: { empresaId: e, codigo } })).id;
 
@@ -111,6 +114,8 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       data: { empresaId: e, bancoId: banco.id, numero: '1234567/8', cbu: '0110599500000001234565', alias: 'DEMO.SA.NACION', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.002') },
     });
     await tx.chequera.create({ data: { empresaId: e, cuentaBancariaId: cb.id, tipo: 'ECHEQ' } });
+    const { nombre: _modelo, ...nacion } = MODELOS_FORMATO.NACION;
+    await tx.formatoExtracto.create({ data: { ...nacion, empresaId: e, cuentaBancariaId: cb.id } });
     await tx.caja.create({ data: { empresaId: e, sucursalId: central.id, nombre: 'Caja principal', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
     await tx.caja.create({ data: { empresaId: e, sucursalId: rosario.id, nombre: 'Caja Rosario', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
 

@@ -20,6 +20,6 @@ import { IngresosService } from './operaciones/ingresos.service';
 @Module({
   controllers: [IngresosController, BancosCajasController, ChequesController, DepositosController, TrasladosController, ConsultasTesoreriaController],
   providers: [CarteraService, IngresosService, BancosService, CajasService, ChequesPropiosService, RechazosService, DepositosService, AcreditacionesService, TrasladosService, ConsultasTesoreriaService],
-  exports: [CarteraService, ConsultasTesoreriaService],
+  exports: [CarteraService, ConsultasTesoreriaService, BancosService],
 })
 export class TesoreriaOperacionesModule {}
