@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { CondicionIva } from '@prisma/client';
+import { CondicionIva, Prisma } from '@prisma/client';
 import { TODOS_LOS_PERMISOS } from '@gestion/shared';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { PlanCuentasService } from '../contabilidad/plan-cuentas/plan-cuentas.service';
 import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarConfigPagos } from '../pagos/config/valores-iniciales';
 import { cargarReglasIniciales } from '../conciliacion/reglas-iniciales';
+import { BadRequestException } from '@nestjs/common';
+import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
+import { crearEjercicio, rangoEjercicio } from '../contabilidad/periodos/ejercicios';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 
@@ -43,6 +46,7 @@ export class EmpresasService {
       await cargarConfigCuentas(tx, empresa.id);
       await cargarConfigPagos(tx, empresa.id);
       await cargarReglasIniciales(tx, empresa.id);
+      await crearEjercicio(tx, empresa.id, rangoEjercicio(empresa.inicioEjercicioMes, new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`)).desde, 1);
       await tx.auditoria.create({
         data: { empresaId: empresa.id, usuarioId: creadorId, entidad: 'Empresa', entidadId: empresa.id, accion: 'CREAR' },
       });
@@ -56,6 +60,13 @@ export class EmpresasService {
 
   modificarActual(d: Partial<DatosEmpresa>) {
     return this.tenant.transaccion(async (tx) => {
+      const anterior = await tx.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+      if (d.inicioEjercicioMes && d.inicioEjercicioMes !== anterior.inicioEjercicioMes) {
+        // Sin asientos, los ejercicios (vacíos) se rehacen con el nuevo inicio
+        if (await tx.asiento.count()) throw new BadRequestException('No se puede cambiar el inicio del ejercicio con ejercicios en uso');
+        await tx.ejercicio.deleteMany({});
+        await crearEjercicio(tx as unknown as Prisma.TransactionClient, this.tenant.empresaId, rangoEjercicio(d.inicioEjercicioMes, new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`)).desde, 1);
+      }
       const empresa = await tx.empresa.update({ where: { id: this.tenant.empresaId }, data: d });
       await this.auditoria.registrar(tx, { entidad: 'Empresa', entidadId: empresa.id, accion: 'MODIFICAR', datos: d });
       return empresa;

@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { configurarApp } from '../src/main';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { crearEjercicio, rangoEjercicio } from '../src/contabilidad/periodos/ejercicios';
 
 export async function crearApp(): Promise<INestApplication> {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -42,6 +43,7 @@ export async function crearEmpresaYUsuario(
     },
   });
   await prisma.sucursal.create({ data: { empresaId: empresa.id, codigo: 'CEN', nombre: 'Casa central', esCentral: true } });
+  await crearEjercicio(prisma, empresa.id, rangoEjercicio(1, new Date()).desde, 1);
   const rol = await prisma.rol.create({
     data: { empresaId: empresa.id, nombre: 'Rol test', permisos: opciones.permisos ?? [] },
   });

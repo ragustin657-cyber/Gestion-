@@ -5,6 +5,8 @@ import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
 import { NumeracionService } from '../../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
+import { periodoAbierto } from '../periodos/control';
+import type { TipoAsiento } from '@prisma/client';
 
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
@@ -23,6 +25,10 @@ export interface DatosAsiento {
   origenTipo: string;
   origenId: string;
   renglones: RenglonAsiento[];
+  /** Por defecto AUTOMATICO. */
+  tipo?: TipoAsiento;
+  /** Id a usar (los asientos manuales son su propio origen). */
+  id?: string;
 }
 
 const fmt = (d: Dec) => d.toFixed(2);
@@ -37,10 +43,11 @@ export class AsientosService {
     private readonly cls: ClsService,
   ) {}
 
-  async generar(tx: TxEmpresa, a: DatosAsiento, anulaAId?: string): Promise<{ id: string; numero: number }> {
+  /** Agrupa por cuenta y centro de costo, valida cuentas y balanceo. Devuelve los renglones a grabar. */
+  async validarRenglones(tx: TxEmpresa, renglonesEntrada: RenglonAsiento[]) {
     // Agrupar por cuenta + centro de costo, neteando debe y haber
     const grupos = new Map<string, { cuentaContableId: string; centroCostoId: string | null; neto: Dec; detalle?: string }>();
-    for (const r of a.renglones) {
+    for (const r of renglonesEntrada) {
       const k = `${r.cuentaContableId}|${r.centroCostoId ?? ''}`;
       const g = grupos.get(k) ?? { cuentaContableId: r.cuentaContableId, centroCostoId: r.centroCostoId ?? null, neto: new D(0), detalle: r.detalle };
       g.neto = g.neto.plus(new D(r.debe ?? 0)).minus(new D(r.haber ?? 0));
@@ -67,13 +74,21 @@ export class AsientosService {
     const debe = renglones.reduce((s, r) => s.plus(r.debe), new D(0));
     const haber = renglones.reduce((s, r) => s.plus(r.haber), new D(0));
     if (!debe.eq(haber)) throw new BadRequestException(`El asiento no balancea (debe ${fmt(debe)}, haber ${fmt(haber)})`);
+    return renglones;
+  }
 
+  async generar(tx: TxEmpresa, a: DatosAsiento, anulaAId?: string): Promise<{ id: string; numero: number }> {
+    const renglones = await this.validarRenglones(tx, a.renglones);
+
+    // Control de fechas contables (bloquea el período hasta el fin de la transacción)
+    const { ejercicio } = await periodoAbierto(tx, this.tenant.empresaId, a.fecha);
     const ctx = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO);
     const numero = await this.numeracion.siguiente(tx, 'ASIENTO', 0);
     const asiento = await tx.asiento.create({
       data: {
-        empresaId: this.tenant.empresaId, numero, fecha: a.fecha, descripcion: a.descripcion,
+        id: a.id, empresaId: this.tenant.empresaId, numero, fecha: a.fecha, descripcion: a.descripcion,
         origenTipo: a.origenTipo, origenId: a.origenId, anulaAId: anulaAId ?? null, creadoPor: ctx.usuarioId,
+        tipo: a.tipo ?? 'AUTOMATICO', ejercicioId: ejercicio.id,
       },
     });
     await tx.asientoRenglon.createMany({
@@ -90,7 +105,7 @@ export class AsientosService {
     return this.generar(
       tx,
       {
-        fecha, descripcion, origenTipo: orig.origenTipo, origenId: orig.origenId,
+        fecha, descripcion, origenTipo: orig.origenTipo, origenId: orig.origenId, tipo: orig.tipo === 'MANUAL' ? 'MANUAL' : 'AUTOMATICO',
         renglones: orig.renglones.map((r) => ({
           cuentaContableId: r.cuentaContableId, centroCostoId: r.centroCostoId,
           debe: r.haber.toString(), haber: r.debe.toString(), detalle: r.detalle ?? undefined,

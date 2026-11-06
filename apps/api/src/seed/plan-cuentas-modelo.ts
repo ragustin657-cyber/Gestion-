@@ -53,6 +53,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('3.1.01', 'Capital social', PN, true),
   c('3.2', 'Resultados acumulados', PN),
   c('3.2.01', 'Resultados no asignados', PN, true),
+  c('3.2.02', 'Resultado del ejercicio', PN, true),
   c('4', 'Resultados positivos', RP),
   c('4.1', 'Ingresos por ventas', RP),
   c('4.1.01', 'Ventas', RP, true),

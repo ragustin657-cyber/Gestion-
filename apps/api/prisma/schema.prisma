@@ -311,20 +311,26 @@ model ConfigCuenta {
 }
 
 model Asiento {
-  id          String           @id @default(uuid()) @db.Uuid
-  empresaId   String           @db.Uuid
-  numero      Int
-  fecha       DateTime         @db.Date
-  descripcion String
-  origenTipo  String
-  origenId    String
-  anulaAId    String?          @db.Uuid
-  creadoPor   String
-  creadoEn    DateTime         @default(now())
-  renglones   AsientoRenglon[]
+  id               String           @id @default(uuid()) @db.Uuid
+  empresaId        String           @db.Uuid
+  numero           Int
+  fecha            DateTime         @db.Date
+  descripcion      String
+  origenTipo       String
+  origenId         String
+  anulaAId         String?          @db.Uuid
+  creadoPor        String
+  creadoEn         DateTime         @default(now())
+  tipo             TipoAsiento      @default(AUTOMATICO)
+  ejercicioId      String?          @db.Uuid
+  numeroDefinitivo Int?
+  version          Int              @default(0)
+  renglones        AsientoRenglon[]
 
   @@unique([empresaId, numero])
+  @@unique([empresaId, ejercicioId, numeroDefinitivo])
   @@index([empresaId, origenTipo, origenId])
+  @@index([empresaId, ejercicioId, fecha])
 }
 
 model AsientoRenglon {
@@ -337,6 +343,8 @@ model AsientoRenglon {
   haber            Decimal @default(0) @db.Decimal(18, 2)
   detalle          String?
   asiento          Asiento @relation(fields: [asientoId], references: [id])
+
+  @@index([empresaId, cuentaContableId])
 }
 
 enum EstadoOC {
@@ -1224,4 +1232,77 @@ model ReglaConciliacion {
   activa           Boolean      @default(true)
 
   @@index([empresaId, prioridad])
+}
+
+enum EstadoEjercicio {
+  ABIERTO
+  CERRADO
+}
+
+enum EstadoPeriodo {
+  ABIERTO
+  CERRADO
+}
+
+enum TipoAsiento {
+  AUTOMATICO
+  MANUAL
+  REFUNDICION
+  CIERRE
+  APERTURA
+}
+
+model Ejercicio {
+  id                   String            @id @default(uuid()) @db.Uuid
+  empresaId            String            @db.Uuid
+  numero               Int
+  desde                DateTime          @db.Date
+  hasta                DateTime          @db.Date
+  estado               EstadoEjercicio   @default(ABIERTO)
+  asientoRefundicionId String?           @db.Uuid
+  asientoCierreId      String?           @db.Uuid
+  asientoAperturaId    String?           @db.Uuid
+  cerradoPor           String?           @db.Uuid
+  cerradoEn            DateTime?
+  motivoReapertura     String?
+  periodos             PeriodoContable[]
+
+  @@unique([empresaId, numero])
+}
+
+model PeriodoContable {
+  id               String        @id @default(uuid()) @db.Uuid
+  empresaId        String        @db.Uuid
+  ejercicioId      String        @db.Uuid
+  anio             Int
+  mes              Int
+  desde            DateTime      @db.Date
+  hasta            DateTime      @db.Date
+  estado           EstadoPeriodo @default(ABIERTO)
+  cerradoPor       String?       @db.Uuid
+  cerradoEn        DateTime?
+  motivoReapertura String?
+  ejercicio        Ejercicio     @relation(fields: [ejercicioId], references: [id], onDelete: Cascade)
+
+  @@unique([empresaId, anio, mes])
+}
+
+enum LibroLegal {
+  DIARIO
+  INVENTARIOS
+}
+
+model EmisionLibro {
+  id           String     @id @default(uuid()) @db.Uuid
+  empresaId    String     @db.Uuid
+  libro        LibroLegal
+  ejercicioId  String     @db.Uuid
+  desde        DateTime   @db.Date
+  hasta        DateTime   @db.Date
+  folioInicial Int
+  folioFinal   Int
+  usuarioId    String     @db.Uuid
+  fecha        DateTime   @default(now())
+
+  @@index([empresaId, libro])
 }

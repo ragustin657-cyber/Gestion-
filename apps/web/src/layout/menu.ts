@@ -51,7 +51,13 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Conciliación bancaria', ruta: '/conciliacion', permiso: 'conciliacion.operar' },
         ],
       },
-      proximamente('Contabilidad General'),
+      {
+        titulo: 'Contabilidad General',
+        hijos: [
+          { titulo: 'Asiento manual', ruta: '/contabilidad/asiento', permiso: 'asiento.registrar' },
+          { titulo: 'Períodos y ejercicios', ruta: '/contabilidad/periodos', permiso: 'plancuentas.ver' },
+        ],
+      },
     ],
   },
   {
@@ -91,7 +97,17 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Flujo de fondos', ruta: '/tesoreria/flujo', permiso: 'tesoreria.ver' },
         ],
       },
-      proximamente('Contabilidad General'),
+      {
+        titulo: 'Contabilidad General',
+        hijos: [
+          { titulo: 'Libro Diario', ruta: '/contabilidad/diario', permiso: 'plancuentas.ver' },
+          { titulo: 'Mayor', ruta: '/contabilidad/mayor', permiso: 'plancuentas.ver' },
+          { titulo: 'Balance de sumas y saldos', ruta: '/contabilidad/sumas-saldos', permiso: 'plancuentas.ver' },
+          { titulo: 'Estado de situación patrimonial', ruta: '/contabilidad/situacion', permiso: 'plancuentas.ver' },
+          { titulo: 'Estado de resultados', ruta: '/contabilidad/resultados', permiso: 'plancuentas.ver' },
+          { titulo: 'Libros legales', ruta: '/contabilidad/libros', permiso: 'contabilidad.cerrar' },
+        ],
+      },
     ],
   },
   {

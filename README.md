@@ -35,6 +35,7 @@ Usuarios demo:
 | aprobador@demo.com | aprobador1234 | Aprobador de OC y OP (Gerente) |
 | tesorero@demo.com | tesorero1234 | Tesorero (paga las OP aprobadas) |
 | cajero.rosario@demo.com | cajero1234 | Cajero de la Sucursal Rosario (solo opera su sucursal) |
+| contador@demo.com | contador1234 | Contador (asientos manuales, cierres y libros legales) |
 
 En la empresa demo hay una orden de compra en cada estado, recepciones, una factura en pesos, una en dólares y una nota de crédito. El límite de aprobación es de $ 1.000.000.
 
@@ -86,6 +87,18 @@ En la empresa demo hay un cobro de Rosario en tránsito hacia casa central, cheq
 > ⚠️ **Formatos de extracto a verificar.** Los modelos de cada banco son una estimación. Antes de operar, importe un extracto real de cada cuenta y revise la vista previa.
 
 El seed genera un extracto de ejemplo del Banco Nación en `apps/api/prisma/demo/extracto-demo-nacion.csv`, con los movimientos de la demo más el impuesto 25.413, una comisión y su IVA.
+
+## Contabilidad general (Entrega 5)
+
+- **Ejercicios y meses:** cada empresa tiene sus ejercicios de 12 meses (según el mes de inicio). Ningún asiento, automático o manual, se graba con fecha fuera de un ejercicio o en un mes cerrado: una factura, un pago o un depósito con esa fecha se rechaza entero.
+- **Asientos manuales** (Registraciones → Contabilidad General): se modifican o eliminan mientras su mes está abierto; después se anulan con contraasiento. Los automáticos se anulan desde su comprobante.
+- **Cierre de meses**, en orden: al cerrar, los asientos reciben su **número definitivo** dentro del ejercicio, en orden de fecha, y quedan inalterables. Se puede reabrir el último mes cerrado, con motivo.
+- **Consultas:** Libro Diario (con enlace al comprobante de origen), Mayor (con saldo inicial y por centro de costo) y Balance de sumas y saldos, exportables a Excel y PDF.
+- **Cierre del ejercicio:** genera la refundición de resultados contra "3.2.02 Resultado del ejercicio", el asiento de cierre y la apertura del ejercicio siguiente. Se puede reabrir mientras el ejercicio nuevo no tenga meses cerrados.
+- **Estados contables:** estado de situación patrimonial y estado de resultados, con comparativo del ejercicio anterior.
+- **Libros legales:** Libro Diario y Libro de Inventarios y Balances en PDF, con folios correlativos y transporte entre páginas, para hojas móviles rubricadas.
+
+> ⚠️ **Moneda histórica.** Los estados contables no incluyen el ajuste por inflación (RT 6 / RT 54): ese ajuste se carga como asiento manual hasta que tenga su propia entrega.
 
 ## Requisitos
 

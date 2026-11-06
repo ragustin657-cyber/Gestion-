@@ -1,3 +1,4 @@
+import { crearEjercicio } from '../periodos/ejercicios';
 import { Test } from '@nestjs/testing';
 import { ClsModule, ClsService } from 'nestjs-cls';
 import { AuditoriaModule } from '../../auditoria/auditoria.module';
@@ -38,6 +39,8 @@ describe('AsientosService', () => {
     B = (await prisma.empresa.create({ data: { razonSocial: 'B', ...d } })).id;
     await cargarPlanModelo(prisma, A);
     await cargarPlanModelo(prisma, B);
+    await crearEjercicio(prisma, A, new Date('2026-01-01T00:00:00Z'), 1);
+    await crearEjercicio(prisma, B, new Date('2026-01-01T00:00:00Z'), 1);
   });
 
   const como = <T>(empresaId: string, fn: () => Promise<T>) =>

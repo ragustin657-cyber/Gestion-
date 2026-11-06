@@ -12,6 +12,7 @@ import { OrdenesPagoService } from '../pagos/ordenes/ordenes-pago.service';
 import { PagoService } from '../pagos/ordenes/pago.service';
 import { PadronService } from '../pagos/padron/padron.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AsientosManualesService } from '../contabilidad/manuales/asientos-manuales.service';
 import { DepositosService } from '../tesoreria/operaciones/depositos.service';
 import { IngresosService } from '../tesoreria/operaciones/ingresos.service';
 import { TrasladosService } from '../tesoreria/operaciones/traslados.service';
@@ -67,6 +68,15 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
 
   await cls.run(async () => {
     cls.set(CLAVE_CONTEXTO, ctx);
+    // Aporte de capital inicial: el asiento más antiguo del ejercicio (primer día del mes anterior, o el inicio del ejercicio)
+    const ejercicio = await prisma.ejercicio.findFirstOrThrow({ where: { empresaId: empresa.id } });
+    const mesAnterior = new Date(Date.UTC(hoy().getUTCFullYear(), hoy().getUTCMonth() - 1, 1));
+    const fechaAporte = mesAnterior < ejercicio.desde ? ejercicio.desde : mesAnterior;
+    const cuentaDe = async (codigo: string) => (await prisma.cuentaContable.findFirstOrThrow({ where: { empresaId: empresa.id, codigo } })).id;
+    await app.get(AsientosManualesService).crear({
+      fecha: fechaAporte, descripcion: 'Aporte de capital inicial',
+      renglones: [{ cuentaContableId: await cuentaDe('1.1.01.002'), debe: 5000000 }, { cuentaContableId: await cuentaDe('3.1.01'), haber: 5000000 }],
+    });
     const ordenes = app.get(OrdenesService);
     const recepciones = app.get(RecepcionesService);
     const comprobantes = app.get(ComprobantesService);

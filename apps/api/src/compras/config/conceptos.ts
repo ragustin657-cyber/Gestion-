@@ -21,6 +21,7 @@ export const CONCEPTOS_CUENTA = {
   CHEQUES_RECHAZADOS: '1.1.02.002',
   GASTOS_BANCARIOS: '5.2.02',
   DIFERENCIAS_DE_CAJA: '5.2.04',
+  RESULTADO_DEL_EJERCICIO: '3.2.02',
 } as const;
 
 export type ConceptoCuenta = keyof typeof CONCEPTOS_CUENTA;
