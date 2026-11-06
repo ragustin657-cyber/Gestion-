@@ -13,6 +13,7 @@ export const DEMO = {
   aprobador: 'aprobador@demo.com', passwordAprobador: 'aprobador1234',
   tesorero: 'tesorero@demo.com', passwordTesorero: 'tesorero1234',
   cajero: 'cajero.rosario@demo.com', passwordCajero: 'cajero1234',
+  contador: 'contador@demo.com', passwordContador: 'contador1234',
 };
 
 const ROLES: Record<string, Permiso[]> = {
@@ -21,7 +22,7 @@ const ROLES: Record<string, Permiso[]> = {
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
-  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver'],
+  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar'],
 };
 
 /** Proveedores demo: razón social, CUIT y régimen de Ganancias (null: sin retención). */
@@ -87,6 +88,10 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       (await tx.usuario.findUnique({ where: { email: DEMO.cajero } })) ??
       (await tx.usuario.create({ data: { email: DEMO.cajero, nombre: 'Cajero Rosario', passwordHash: await hash(DEMO.passwordCajero) } }));
     await tx.usuarioEmpresa.create({ data: { usuarioId: cajero.id, empresaId: e, rolId: roles['Cajero sucursal'], sucursalId: rosario.id } });
+    const contador =
+      (await tx.usuario.findUnique({ where: { email: DEMO.contador } })) ??
+      (await tx.usuario.create({ data: { email: DEMO.contador, nombre: 'Contador', passwordHash: await hash(DEMO.passwordContador) } }));
+    await tx.usuarioEmpresa.create({ data: { usuarioId: contador.id, empresaId: e, rolId: roles.Contador } });
 
     await cargarPlanModelo(tx, e);
     await cargarConfigCuentas(tx, e);

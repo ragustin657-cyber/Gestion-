@@ -63,6 +63,15 @@ describe('seed demo', () => {
     const tesorero = await prisma.rol.findFirstOrThrow({ where: { nombre: 'Tesorero' } });
     expect(tesorero.permisos).toContain('conciliacion.operar');
 
+    // Contabilidad
+    const ejercicio = await prisma.ejercicio.findFirstOrThrow({ include: { periodos: true } });
+    expect(ejercicio.periodos).toHaveLength(12);
+    const aporte = await prisma.asiento.findFirstOrThrow({ where: { tipo: 'MANUAL', descripcion: 'Aporte de capital inicial' } });
+    expect(aporte.ejercicioId).toBe(ejercicio.id);
+    const contador = await prisma.usuario.findUniqueOrThrow({ where: { email: 'contador@demo.com' }, include: { empresas: { include: { rol: true } } } });
+    expect(contador.empresas[0].rol.permisos).toEqual(expect.arrayContaining(['asiento.registrar', 'contabilidad.cerrar', 'plancuentas.ver']));
+    expect(await prisma.asiento.count({ where: { ejercicioId: null } })).toBe(0);
+
     for (const a of await prisma.asiento.findMany({ include: { renglones: true } })) {
       const debe = a.renglones.reduce((s, r) => s + Math.round(Number(r.debe) * 100), 0);
       const haber = a.renglones.reduce((s, r) => s + Math.round(Number(r.haber) * 100), 0);
