@@ -1286,3 +1286,23 @@ model PeriodoContable {
 
   @@unique([empresaId, anio, mes])
 }
+
+enum LibroLegal {
+  DIARIO
+  INVENTARIOS
+}
+
+model EmisionLibro {
+  id           String     @id @default(uuid()) @db.Uuid
+  empresaId    String     @db.Uuid
+  libro        LibroLegal
+  ejercicioId  String     @db.Uuid
+  desde        DateTime   @db.Date
+  hasta        DateTime   @db.Date
+  folioInicial Int
+  folioFinal   Int
+  usuarioId    String     @db.Uuid
+  fecha        DateTime   @default(now())
+
+  @@index([empresaId, libro])
+}
