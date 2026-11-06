@@ -31,8 +31,10 @@ export const numeroVenta = (pv: number, n: number | null) => `${String(pv).padSt
 
 export const useClientes = () =>
   useQuery({ queryKey: ['/terceros', 'clientes'], queryFn: () => api<{ items: Cliente[] }>('/terceros', { query: { tipo: 'cliente', porPagina: 200 } }) }).data?.items ?? [];
-export const usePuntosVenta = () => useQuery({ queryKey: ['/empresas/actual/puntos-venta'], queryFn: () => api<PuntoVenta[]>('/empresas/actual/puntos-venta') }).data ?? [];
-export const useEmpresa = () => useQuery({ queryKey: ['/empresas/actual'], queryFn: () => api<{ condicionIva: CondicionIva; razonSocial: string }>('/empresas/actual') }).data;
+const useDatosVentas = () =>
+  useQuery({ queryKey: ['/ventas/datos'], queryFn: () => api<{ condicionIva: CondicionIva; razonSocial: string; puntosVenta: PuntoVenta[] }>('/ventas/datos'), staleTime: 60000 }).data;
+export const usePuntosVenta = () => useDatosVentas()?.puntosVenta ?? [];
+export const useEmpresa = () => useDatosVentas();
 
 /** Envía una operación, muestra el resultado e invalida las consultas. */
 export function useOperacionVentas() {

@@ -14,6 +14,7 @@ export const DEMO = {
   tesorero: 'tesorero@demo.com', passwordTesorero: 'tesorero1234',
   cajero: 'cajero.rosario@demo.com', passwordCajero: 'cajero1234',
   contador: 'contador@demo.com', passwordContador: 'contador1234',
+  facturacion: 'facturacion@demo.com', passwordFacturacion: 'facturacion1234',
 };
 
 const ROLES: Record<string, Permiso[]> = {
@@ -23,6 +24,7 @@ const ROLES: Record<string, Permiso[]> = {
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar'],
+  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver'],
 };
 
 /** Proveedores demo: razón social, CUIT y régimen de Ganancias (null: sin retención). */
@@ -38,6 +40,7 @@ const CLIENTES = [
   ['Supermercados Litoral S.A.', '30719998883'],
   ['Constructora Norte S.R.L.', '30704445551'],
   ['María Gómez', '27312345671'],
+  ['Distribuidora Norte SA', '30718882229'],
 ] as const;
 const ARTICULOS = [
   ['RES-A4', 'Resma papel A4 75g', 'UN', 21, false],
@@ -69,8 +72,10 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       },
     });
     const e = empresa.id;
-    await tx.puntoVenta.create({ data: { empresaId: e, numero: 1, descripcion: 'Casa central' } });
     const central = await tx.sucursal.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Casa central', domicilio: 'Av. Corrientes 1234, CABA', esCentral: true } });
+    await tx.puntoVenta.create({ data: { empresaId: e, numero: 1, descripcion: 'Casa central (manual)', electronico: false } });
+    await tx.puntoVenta.create({ data: { empresaId: e, numero: 2, descripcion: 'Factura electrónica', electronico: true, sucursalId: central.id } });
+    await tx.configArca.create({ data: { empresaId: e, ambiente: 'SIMULADO' } });
     const rosario = await tx.sucursal.create({ data: { empresaId: e, codigo: 'ROS', nombre: 'Sucursal Rosario', domicilio: 'Córdoba 1450, Rosario' } });
 
     const roles: Record<string, string> = {};
@@ -92,6 +97,10 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       (await tx.usuario.findUnique({ where: { email: DEMO.contador } })) ??
       (await tx.usuario.create({ data: { email: DEMO.contador, nombre: 'Contador', passwordHash: await hash(DEMO.passwordContador) } }));
     await tx.usuarioEmpresa.create({ data: { usuarioId: contador.id, empresaId: e, rolId: roles.Contador } });
+    const facturacion =
+      (await tx.usuario.findUnique({ where: { email: DEMO.facturacion } })) ??
+      (await tx.usuario.create({ data: { email: DEMO.facturacion, nombre: 'Facturación', passwordHash: await hash(DEMO.passwordFacturacion) } }));
+    await tx.usuarioEmpresa.create({ data: { usuarioId: facturacion.id, empresaId: e, rolId: roles['Facturación'] } });
 
     await cargarPlanModelo(tx, e);
     await cargarConfigCuentas(tx, e);
@@ -106,6 +115,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('20') ? 'MONOTRIBUTO' : 'RESPONSABLE_INSCRIPTO', esProveedor: true, diasPago: 30, regimenGanancias } });
     for (const [razonSocial, cuit] of CLIENTES)
       await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('27') ? 'CONSUMIDOR_FINAL' : 'RESPONSABLE_INSCRIPTO', esCliente: true, diasPago: 15 } });
+    await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial: 'Consumidor Final', cuit: 'Consumidor final', tipoDocumento: 'OTRO', condicionIva: 'CONSUMIDOR_FINAL', esCliente: true } });
     await tx.talonario.create({ data: { empresaId: e, tipoComprobante: 'TERCERO', puntoVenta: 0, ultimoNumero: codigo } });
 
     const gastos = await cuenta('5.2.01');

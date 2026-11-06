@@ -23,6 +23,7 @@ services:
       DATABASE_URL: postgresql://gestion:gestion@postgres:5432/gestion
       # Obligatorio: definir JWT_SECRET (mínimo 32 caracteres) en el entorno o en un archivo .env
       JWT_SECRET: ${JWT_SECRET:?Definí la variable JWT_SECRET (mínimo 32 caracteres)}
+      ARCA_CLAVE_MAESTRA: ${ARCA_CLAVE_MAESTRA:-}
       NODE_ENV: production
     depends_on:
       postgres:

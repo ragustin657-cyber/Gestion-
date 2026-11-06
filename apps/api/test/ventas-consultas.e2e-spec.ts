@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { crearApp, datosCompras, facturaPendiente, limpiarBase, sesionConPlan } from './helpers';
+import { crearApp, datosCompras, facturaPendiente, limpiarBase, otroUsuario, sesionConPlan } from './helpers';
 import { prepararVentas } from './helpers-ventas';
 
 describe('consultas de ventas y cuenta corriente de clientes', () => {
@@ -74,6 +74,15 @@ describe('consultas de ventas y cuenta corriente de clientes', () => {
     const af = await prisma.asiento.findFirstOrThrow({ where: { origenTipo: 'VENTA', origenId: fc.id } });
     expect((await v.http.get(`/api/contabilidad/asientos/${af.id}`)).body.origen.ruta).toBe(`/ventas/comprobantes?id=${fc.id}`);
     expect((await v.http.get(`/api/contabilidad/asientos/${recibo.asientoId}`)).body.origen.ruta).toBe(`/ventas/recibos?id=${recibo.id}`);
+  });
+
+  it('un usuario de facturación (sin administrar la empresa) obtiene la condición de IVA y los puntos de venta', async () => {
+    const v = await prepararVentas(app, prisma);
+    const fact = await otroUsuario(app, prisma, v.empresaId, ['venta.emitir']);
+    const r = await fact.http.get('/api/ventas/datos');
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ condicionIva: 'RESPONSABLE_INSCRIPTO', puntosVenta: [expect.objectContaining({ numero: 1, electronico: true })] });
+    expect((await (await otroUsuario(app, prisma, v.empresaId, ['tercero.ver'])).http.get('/api/ventas/datos')).status).toBe(403);
   });
 
   it('un cliente de otra empresa no existe', async () => {

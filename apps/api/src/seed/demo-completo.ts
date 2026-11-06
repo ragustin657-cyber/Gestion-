@@ -17,6 +17,9 @@ import { DepositosService } from '../tesoreria/operaciones/depositos.service';
 import { IngresosService } from '../tesoreria/operaciones/ingresos.service';
 import { TrasladosService } from '../tesoreria/operaciones/traslados.service';
 import { DEMO, sembrarDemo } from './demo';
+import { ComprobantesVentaService } from '../ventas/comprobantes/comprobantes.service';
+import { EmisionService } from '../ventas/emision/emision.service';
+import { RecibosService } from '../ventas/recibos/recibos.service';
 
 const hoy = () => new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
 
@@ -188,6 +191,23 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
     });
     await depositos.crear({ fecha, cajaId: cajaCen.id, cuentaBancariaId: cuentaNacion.id, boleta: '0045-112233', cheques: [cobroCen.cheques[0].id], efectivo: null });
     await escribirExtractoDemo(prisma, empresa.id, cuentaNacion.id);
+
+    // --- Ventas: factura A de servicios emitida en ARCA simulado y cobrada en parte ---
+    const pv = await prisma.puntoVenta.findFirstOrThrow({ where: { empresaId: empresa.id, numero: 2 } });
+    const norte = await prov('Distribuidora Norte SA');
+    const inicioMes = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), 1));
+    const finMes = new Date(Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth() + 1, 0));
+    const soporte = await art('SRV-SOPORTE');
+    const fv = await app.get(ComprobantesVentaService).crear({
+      terceroId: norte, puntoVentaId: pv.id, tipo: 'FACTURA', concepto: 'SERVICIOS', fecha, fechaVencimiento: enDias(15), fechaServicioDesde: inicioMes, fechaServicioHasta: finMes,
+      fechaVencimientoPago: enDias(15), monedaCodigo: 'ARS', aplicarAAsociado: true, emitir: false,
+      renglones: [{ articuloId: soporte.id, descripcion: 'Soporte técnico mensual', cantidad: 1, precioUnitario: 250000, alicuota: 21 }],
+    });
+    await app.get(EmisionService).emitir(fv.id);
+    await app.get(RecibosService).crear({
+      terceroId: norte, fecha, puntoVentaId: pv.id, cajaId: cajaCen.id, efectivo: { importe: 100000 }, cheques: [], transferencias: [], retenciones: [],
+      aplicaciones: [{ comprobanteId: fv.id, importe: 100000 }],
+    });
   });
   return 'creada';
 }
