@@ -8,6 +8,11 @@ export default defineConfig({
   testDir: '.',
   timeout: 30000,
   use: { baseURL: WEB, headless: true, launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {} },
+  // La conciliación cierra el mes de la cuenta demo: corre al final, cuando las demás pruebas ya registraron sus movimientos
+  projects: [
+    { name: 'general', testIgnore: /conciliacion\.spec\.ts/ },
+    { name: 'conciliacion', testMatch: /conciliacion\.spec\.ts/, dependencies: ['general'] },
+  ],
   webServer: [
     {
       // Base e2e: se migra, se siembra con datos demo y se levanta la API

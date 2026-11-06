@@ -6,3 +6,6 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 .vite/
+
+# Extracto demo generado por el seed
+apps/api/prisma/demo/
