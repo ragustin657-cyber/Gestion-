@@ -1113,3 +1113,47 @@ model FormatoExtracto {
   columnaDebito     String?
   columnaCredito    String?
 }
+
+enum EstadoImportacion {
+  ACTIVA
+  DESHECHA
+}
+
+enum EstadoLinea {
+  PENDIENTE
+  CONCILIADA
+  IGNORADA
+}
+
+model ImportacionExtracto {
+  id               String            @id @default(uuid()) @db.Uuid
+  empresaId        String            @db.Uuid
+  cuentaBancariaId String            @db.Uuid
+  archivo          String
+  usuarioId        String            @db.Uuid
+  fecha            DateTime          @default(now())
+  lineas           Int
+  duplicadas       Int
+  estado           EstadoImportacion @default(ACTIVA)
+  items            LineaExtracto[]
+
+  @@index([empresaId, cuentaBancariaId])
+}
+
+model LineaExtracto {
+  id               String              @id @default(uuid()) @db.Uuid
+  empresaId        String              @db.Uuid
+  cuentaBancariaId String              @db.Uuid
+  importacionId    String              @db.Uuid
+  fila             Int
+  fecha            DateTime            @db.Date
+  concepto         String
+  referencia       String?
+  importe          Decimal             @db.Decimal(18, 2)
+  saldo            Decimal?            @db.Decimal(18, 2)
+  estado           EstadoLinea         @default(PENDIENTE)
+  motivoIgnorada   String?
+  importacion      ImportacionExtracto @relation(fields: [importacionId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, cuentaBancariaId, fecha])
+}

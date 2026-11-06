@@ -58,7 +58,7 @@ export class TenantPrisma {
     return ctx.empresaId;
   }
 
-  transaccion<T>(fn: (tx: TxEmpresa) => Promise<T>, opciones?: { isolationLevel?: Prisma.TransactionIsolationLevel }): Promise<T> {
+  transaccion<T>(fn: (tx: TxEmpresa) => Promise<T>, opciones?: { isolationLevel?: Prisma.TransactionIsolationLevel; timeout?: number }): Promise<T> {
     return this.db.$transaction((tx) => fn(tx as TxEmpresa), opciones);
   }
 }
