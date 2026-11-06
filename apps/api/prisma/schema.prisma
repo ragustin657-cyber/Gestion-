@@ -1083,3 +1083,33 @@ model Arqueo {
 
   @@unique([empresaId, numero])
 }
+
+enum TipoArchivoExtracto {
+  CSV
+  XLSX
+}
+
+enum ModoImporte {
+  IMPORTE_CON_SIGNO
+  DEBITO_CREDITO
+}
+
+model FormatoExtracto {
+  id                String              @id @default(uuid()) @db.Uuid
+  empresaId         String              @db.Uuid
+  cuentaBancariaId  String              @unique @db.Uuid
+  tipoArchivo       TipoArchivoExtracto
+  separador         String?
+  hoja              String?
+  filaInicio        Int                 @default(2)
+  formatoFecha      String
+  separadorDecimal  String              @default(",")
+  columnaFecha      String
+  columnaConcepto   String
+  columnaReferencia String?
+  columnaSaldo      String?
+  modoImporte       ModoImporte
+  columnaImporte    String?
+  columnaDebito     String?
+  columnaCredito    String?
+}
