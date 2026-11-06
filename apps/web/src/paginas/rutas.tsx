@@ -27,6 +27,12 @@ import { RecepcionTrasladosPage, TrasladoPage, ValoresEnTransitoPage } from '../
 import { ConciliacionesPage } from '../conciliacion/ConciliacionesPage';
 import { ConciliacionPage } from '../conciliacion/ConciliacionPage';
 import { ReglasPage } from '../conciliacion/ReglasPage';
+import { AsientoManualPage } from '../contabilidad/AsientoManualPage';
+import { DiarioPage, MayorPage, SumasSaldosPage } from '../contabilidad/ConsultasContablesPages';
+import { AsientoPage } from '../contabilidad/DetalleAsiento';
+import { ResultadosPage, SituacionPage } from '../contabilidad/EstadosPages';
+import { LibrosPage } from '../contabilidad/LibrosPage';
+import { PeriodosPage } from '../contabilidad/PeriodosPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -94,4 +100,13 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/conciliacion', elemento: <ConciliacionesPage /> },
   { ruta: '/conciliacion/:id', elemento: <ConciliacionPage /> },
   { ruta: '/admin/reglas-conciliacion', elemento: <ReglasPage /> },
+  { ruta: '/contabilidad/asiento', elemento: <AsientoManualPage /> },
+  { ruta: '/contabilidad/periodos', elemento: <PeriodosPage /> },
+  { ruta: '/contabilidad/diario', elemento: <DiarioPage /> },
+  { ruta: '/contabilidad/mayor', elemento: <MayorPage /> },
+  { ruta: '/contabilidad/sumas-saldos', elemento: <SumasSaldosPage /> },
+  { ruta: '/contabilidad/situacion', elemento: <SituacionPage /> },
+  { ruta: '/contabilidad/resultados', elemento: <ResultadosPage /> },
+  { ruta: '/contabilidad/libros', elemento: <LibrosPage /> },
+  { ruta: '/contabilidad/asientos/:id', elemento: <AsientoPage /> },
 ];
