@@ -68,6 +68,11 @@ export class ConciliacionesController {
     return this.conciliaciones.crearVinculo(id, d.lineas, d.movimientos);
   }
 
+  @Post(':id/apertura')
+  apertura(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ movimientos: z.array(z.string().uuid()) }))) d: { movimientos: string[] }) {
+    return this.conciliaciones.apertura(id, d.movimientos);
+  }
+
   @Post(':id/vinculos/lote')
   lote(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaLote)) d: z.infer<typeof esquemaLote>) {
     return this.conciliaciones.crearLote(id, d.vinculos);

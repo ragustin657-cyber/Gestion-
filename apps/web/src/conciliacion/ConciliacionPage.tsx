@@ -41,6 +41,8 @@ export function ConciliacionPage({ idInicial }: { idInicial?: string }) {
   const sumaL = sumaSeleccion(c.lineas, selL);
   const sumaM = sumaSeleccion(c.movimientos, selM);
   const conRegla = c.lineas.filter((l) => l.estado === 'PENDIENTE' && l.reglaSugerida);
+  // Primera conciliación: los movimientos anteriores al período que el banco ya refleja se marcan como conciliados al inicio
+  const puedeApertura = !!c.primera && !selL.length && selM.length > 0 && selM.every((m) => (c.movimientos.find((x) => x.id === m)?.fecha ?? '') < c.desde.slice(0, 10));
   const ejecutar = async <T,>(fn: () => Promise<T>, msj: string) => {
     const r = await op.ejecutar(fn, () => msj);
     if (r !== null) {
@@ -144,6 +146,12 @@ export function ConciliacionPage({ idInicial }: { idInicial?: string }) {
           </SimpleGrid>
           {abierta && (
             <Group justify="flex-end" mt="sm">
+              {c.primera && (
+                <Button variant="light" disabled={!puedeApertura}
+                  onClick={() => void ejecutar(() => api(`${url}/apertura`, { metodo: 'POST', body: { movimientos: selM } }), 'Movimientos marcados como conciliados al inicio')}>
+                  Marcar como conciliados al inicio
+                </Button>
+              )}
               <Button disabled={!puedeConciliar(sumaL, sumaM, selL.length, selM.length)}
                 onClick={() => void ejecutar(() => api(`${url}/vinculos`, { metodo: 'POST', body: { lineas: selL, movimientos: selM } }), 'Conciliado')}>Conciliar seleccionados</Button>
             </Group>

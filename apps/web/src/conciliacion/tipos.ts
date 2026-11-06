@@ -9,7 +9,7 @@ export interface Conciliacion {
   cerradaEn?: string | null; motivoReapertura?: string | null;
 }
 export interface DetalleConciliacion extends Conciliacion {
-  resumen: Resumen; lineas: Linea[]; movimientos: Movimiento[];
+  resumen: Resumen; lineas: Linea[]; movimientos: Movimiento[]; primera?: boolean;
   vinculos: { id: string; tipo: string; lineas: Linea[]; movimientos: Movimiento[] }[];
 }
 export interface Sugerencia { lineas: string[]; movimientos: string[]; nivel: 'EXACTA' | 'PROBABLE' | 'AGRUPADA'; preseleccionada: boolean }

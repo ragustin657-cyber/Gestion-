@@ -22,7 +22,10 @@ export async function cargarReglasIniciales(tx: Prisma.TransactionClient, empres
   }
 }
 
-const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\./g, ' ').replace(/\s+/g, ' ');
+const normalizar = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+
+/** El texto aparece al comienzo de una palabra del concepto ("IVA" no coincide con "PRIVADA"; "INTERES" sí con "INTERESES"). */
+const contiene = (concepto: string, texto: string) => ` ${concepto}`.includes(` ${texto}`);
 
 /** Primera regla activa (por prioridad) que coincide con la línea, o null. */
 export function reglaPara<T extends { prioridad: number; texto: string; sentido: SentidoRegla; cuentaBancariaId: string | null; activa: boolean }>(
@@ -32,5 +35,5 @@ export function reglaPara<T extends { prioridad: number; texto: string; sentido:
   const sentido = linea.importe.isNegative() ? 'DEBITO' : 'CREDITO';
   return [...reglas]
     .sort((a, b) => a.prioridad - b.prioridad)
-    .find((r) => r.activa && (r.sentido === 'AMBOS' || r.sentido === sentido) && (!r.cuentaBancariaId || r.cuentaBancariaId === cuentaBancariaId) && concepto.includes(normalizar(r.texto))) ?? null;
+    .find((r) => r.activa && (r.sentido === 'AMBOS' || r.sentido === sentido) && (!r.cuentaBancariaId || r.cuentaBancariaId === cuentaBancariaId) && contiene(concepto, normalizar(r.texto))) ?? null;
 }

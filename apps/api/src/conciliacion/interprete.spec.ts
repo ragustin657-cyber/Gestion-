@@ -64,4 +64,16 @@ describe('intérprete de extractos', () => {
     expect(parsearImporte('$ 2.000,10', ',')!.toString()).toBe('2000.1');
     expect(parsearImporte('1.2.3', '.')).toBeNull();
   });
+
+  it('omite filas de pie (concepto sin fecha ni importe) y rechaza agrupaciones de miles inválidas', async () => {
+    const r = await parsearExtracto(csv(['05/10/2026;A;;1,00', ';TOTAL DEL PERIODO;;', 'Saldo final;;;']), base);
+    expect(r.errores).toEqual([]);
+    expect(r.lineas).toHaveLength(1);
+    expect(parsearImporte('1234.56', ',')).toBeNull();
+    expect(parsearImporte('1,5', '.')).toBeNull();
+    expect(parsearImporte('1.234.567,89', ',')!.toString()).toBe('1234567.89');
+    expect(parsearImporte('1234,5', ',')!.toString()).toBe('1234.5');
+    expect(parsearImporte('12,345.60', '.')!.toString()).toBe('12345.6');
+  });
 });
+

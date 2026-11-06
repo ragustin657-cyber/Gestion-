@@ -1172,6 +1172,7 @@ enum TipoVinculo {
   AUTOMATICO
   MANUAL
   REGISTRO
+  APERTURA
 }
 
 model Conciliacion {

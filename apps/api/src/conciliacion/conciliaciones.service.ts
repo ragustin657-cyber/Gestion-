@@ -125,9 +125,11 @@ export class ConciliacionesService {
     const lineas = await db.lineaExtracto.findMany({
       where: { cuentaBancariaId: c.cuentaBancariaId, fecha: { gte: c.desde, lte: c.hasta }, estado: { in: ['PENDIENTE', 'IGNORADA'] } }, orderBy: [{ fecha: 'asc' }, { fila: 'asc' }],
     });
-    const movs = await db.movimientoTesoreria.findMany({
+    const foto = this.foto(c);
+    const movs = foto ? [] : await db.movimientoTesoreria.findMany({
       where: { cuentaBancariaId: c.cuentaBancariaId, anulado: false, vinculoId: null, fecha: { lte: c.hasta } }, orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }],
     });
+    const primera = !(await db.conciliacion.count({ where: { cuentaBancariaId: c.cuentaBancariaId, id: { not: c.id }, desde: { lt: c.desde } } }));
     const vinculos = await db.vinculoConciliacion.findMany({ where: { conciliacionId: id }, orderBy: { creadoEn: 'asc' } });
     const ids = vinculos.map((v) => v.id);
     const lineasV = await db.lineaExtracto.findMany({ where: { vinculoId: { in: ids } }, orderBy: { fecha: 'asc' } });
@@ -137,13 +139,14 @@ export class ConciliacionesService {
     const cuentas = await db.cuentaContable.findMany({ where: { id: { in: reglas.map((r) => r.cuentaContableId) } } });
     return {
       ...c,
-      resumen: await this.resumen(db, c),
+      primera,
+      resumen: foto ? foto.resumen : await this.resumen(db, c),
       lineas: lineas.map((l) => {
         const r = l.estado === 'PENDIENTE' ? reglaPara(reglas, l, c.cuentaBancariaId) : null;
         const cc = r ? cuentas.find((x) => x.id === r.cuentaContableId) : null;
         return { ...l, reglaSugerida: r && cc ? { id: r.id, cuentaContableId: cc.id, cuenta: `${cc.codigo} ${cc.nombre}`, concepto: r.concepto ?? l.concepto } : null };
       }),
-      movimientos: await this.vistaMovimientos(db, movs),
+      movimientos: foto ? foto.pendientes : await this.vistaMovimientos(db, movs),
       vinculos: vinculos.map((v) => ({
         ...v, lineas: lineasV.filter((l) => l.vinculoId === v.id), movimientos: vistaV.filter((m) => movsV.find((x) => x.id === m.id)!.vinculoId === v.id),
       })),
@@ -165,7 +168,8 @@ export class ConciliacionesService {
       where: { cuentaBancariaId: c.cuentaBancariaId, anulado: false, fecha: { lte: c.hasta }, OR: [{ vinculoId: null }, { vinculoId: { in: vinculosPost } }] },
       orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }],
     });
-    const vista = await this.vistaMovimientos(db, movs);
+    const foto = this.foto(c);
+    const vista = foto ? foto.pendientes : await this.vistaMovimientos(db, movs);
     const item = (m: MovimientoVista): ItemReporte => ({ fecha: m.fecha, descripcion: m.descripcion, referencia: m.referencia, importe: new D(m.importe).abs().toString() });
     const lineas = await db.lineaExtracto.findMany({ where: { cuentaBancariaId: c.cuentaBancariaId, fecha: { gte: c.desde, lte: c.hasta }, estado: 'PENDIENTE' }, orderBy: { fecha: 'asc' } });
     const r = c.estado === 'CERRADA' && c.resumen ? (c.resumen as { saldoSistema: string; diferencia: string }) : await this.resumen(db, c);
@@ -182,6 +186,36 @@ export class ConciliacionesService {
       saldoLibros: r.saldoSistema,
       diferencia: r.diferencia,
     };
+  }
+
+  /** Resumen y pendientes guardados al cerrar (null si la conciliación está abierta o es anterior a la foto). */
+  private foto(c: Conciliacion): { resumen: Awaited<ReturnType<ConciliacionesService['resumen']>>; pendientes: MovimientoVista[] } | null {
+    if (c.estado !== 'CERRADA' || !c.resumen) return null;
+    const { pendientes, ...resumen } = c.resumen as unknown as Awaited<ReturnType<ConciliacionesService['resumen']>> & { pendientes?: MovimientoVista[] };
+    return pendientes ? { resumen, pendientes } : null;
+  }
+
+  /**
+   * Primera conciliación de la cuenta: marca movimientos anteriores al período como ya reflejados por el banco
+   * (vínculo APERTURA, sin líneas), para empezar a conciliar una cuenta con historia.
+   */
+  apertura(id: string, movimientoIds: string[]) {
+    return this.tenant.transaccion(async (tx) => {
+      const c = await this.abierta(tx, id);
+      if (await tx.conciliacion.count({ where: { cuentaBancariaId: c.cuentaBancariaId, id: { not: id } } }))
+        throw new BadRequestException('Solo la primera conciliación de la cuenta puede marcar movimientos como conciliados al inicio');
+      if (!movimientoIds.length) throw new BadRequestException('Elija los movimientos');
+      await bloquear(tx, 'MovimientoTesoreria', this.tenant.empresaId, movimientoIds);
+      const movs = await tx.movimientoTesoreria.findMany({ where: { id: { in: movimientoIds } } });
+      if (movs.length !== new Set(movimientoIds).size || movs.some((m) => m.cuentaBancariaId !== c.cuentaBancariaId || m.anulado))
+        throw new BadRequestException('El movimiento no pertenece a esta conciliación');
+      if (movs.some((m) => m.fecha >= c.desde)) throw new BadRequestException('Solo se pueden marcar como conciliados al inicio movimientos anteriores al período');
+      if (movs.some((m) => m.vinculoId)) throw new ConflictException('El movimiento ya fue conciliado');
+      const v = await tx.vinculoConciliacion.create({ data: { empresaId: this.tenant.empresaId, conciliacionId: id, tipo: 'APERTURA', creadoPor: this.usuario() } });
+      await tx.movimientoTesoreria.updateMany({ where: { id: { in: movimientoIds } }, data: { vinculoId: v.id } });
+      await this.auditoria.registrar(tx, { entidad: 'Conciliacion', entidadId: id, accion: 'MODIFICAR', datos: { apertura: movimientoIds } });
+      return v;
+    });
   }
 
   async obtenerCabecera(id: string) {
@@ -257,8 +291,13 @@ export class ConciliacionesService {
       if (r.lineasPendientes) throw new BadRequestException(`Hay ${r.lineasPendientes} líneas del extracto sin conciliar`);
       const dif = new D(r.diferencia);
       if (!dif.isZero()) throw new BadRequestException(`La conciliación no cuadra: diferencia ${pesos(dif)}`);
+      // Foto de las partidas pendientes al cierre: el período cerrado se muestra y se informa siempre igual
+      const pendientes = await tx.movimientoTesoreria.findMany({
+        where: { cuentaBancariaId: c.cuentaBancariaId, anulado: false, vinculoId: null, fecha: { lte: c.hasta } }, orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }],
+      });
+      const foto = { ...r, pendientes: await this.vistaMovimientos(tx, pendientes) };
       const cerrada = await tx.conciliacion.update({
-        where: { id }, data: { estado: 'CERRADA', resumen: r, cerradaPor: this.usuario(), cerradaEn: new Date(), motivoReapertura: null, version: { increment: 1 } },
+        where: { id }, data: { estado: 'CERRADA', resumen: foto as unknown as Prisma.InputJsonValue, cerradaPor: this.usuario(), cerradaEn: new Date(), motivoReapertura: null, version: { increment: 1 } },
       });
       await this.auditoria.registrar(tx, { entidad: 'Conciliacion', entidadId: id, accion: 'MODIFICAR', datos: { cierre: true, resumen: r } });
       return cerrada;

@@ -81,8 +81,11 @@ export function parsearImporte(texto: string, separadorDecimal: ',' | '.'): Dec 
     negativo = !negativo;
     s = s.slice(1);
   } else if (s.startsWith('+')) s = s.slice(1);
-  s = separadorDecimal === ',' ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
-  if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  // Separador de miles: o no se usa, o agrupa de a tres dígitos ("1.234.567,89" / "1,234,567.89")
+  const miles = separadorDecimal === ',' ? '.' : ',';
+  const m = new RegExp(`^(\\d+|\\d{1,3}(\\${miles}\\d{3})+)(\\${separadorDecimal}\\d+)?$`);
+  if (!m.test(s)) return null;
+  s = s.split(miles).join('').replace(separadorDecimal, '.');
   const v = new D(s);
   return negativo ? v.neg() : v;
 }
@@ -204,13 +207,14 @@ export async function parsearExtracto(archivo: Buffer, f: FormatoParseo): Promis
       }
       importe = deb === null && cred === null ? null : (cred ?? new D(0)).minus((deb ?? new D(0)).abs());
     }
+    // Sin importe: fila de título o de pie ("Total", "Saldo final"); se omite sin validar la fecha
+    if (importe === null || importe.isZero()) {
+      omitidas++;
+      continue;
+    }
     const fecha = fechaCelda(col(fila, f.columnaFecha), f.formatoFecha);
     if (!fecha) {
       errores.push({ fila: numero, mensaje: 'Fecha inválida' });
-      continue;
-    }
-    if (importe === null || importe.isZero()) {
-      omitidas++;
       continue;
     }
     let saldo: Dec | null = null;

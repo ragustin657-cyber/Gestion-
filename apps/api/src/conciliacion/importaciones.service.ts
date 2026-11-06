@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../auditoria/auditoria.service';
+import { fechaAR } from '../compras/comun';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { AlcanceSucursalService } from '../tesoreria/sucursales/alcance.service';
@@ -31,6 +32,10 @@ export class ImportacionesService {
     if (formato.tipoArchivo === 'CSV' && esZip) throw new BadRequestException('El archivo no es CSV');
     const r = await parsearExtracto(archivo, formato);
     if (r.lineas.length + r.errores.length > MAX_FILAS) throw new BadRequestException('El archivo supera las 20.000 filas');
+    // Las líneas de períodos ya conciliados y cerrados no se importan
+    const cerrada = await tx.conciliacion.findFirst({ where: { cuentaBancariaId, estado: 'CERRADA' }, orderBy: { hasta: 'desc' } });
+    const enCerrados = cerrada ? r.lineas.filter((l) => l.fecha <= cerrada.hasta).length : 0;
+    if (cerrada) r.lineas = r.lineas.filter((l) => l.fecha > cerrada.hasta);
     const fechas = r.lineas.map((l) => l.fecha.getTime());
     const existentes = r.lineas.length
       ? await tx.lineaExtracto.findMany({
@@ -53,6 +58,7 @@ export class ImportacionesService {
     }
     const advertencias = [...r.advertencias];
     if (duplicadas) advertencias.unshift(`${duplicadas} líneas ya estaban importadas`);
+    if (enCerrados) advertencias.unshift(`Se omitieron ${enCerrados} líneas de períodos ya conciliados (hasta ${fechaAR(cerrada!.hasta)})`);
     return { nuevas, duplicadas, errores: r.errores, advertencias };
   }
 
@@ -89,6 +95,9 @@ export class ImportacionesService {
       const imp = this.alcance.sucursalUsuario() ? null : await tx.importacionExtracto.findUnique({ where: { id } });
       if (!imp) throw new NotFoundException('Importación no encontrada');
       if (imp.estado === 'DESHECHA') throw new BadRequestException('La importación ya fue deshecha');
+      const cerrada = await tx.conciliacion.findFirst({ where: { cuentaBancariaId: imp.cuentaBancariaId, estado: 'CERRADA' }, orderBy: { hasta: 'desc' } });
+      if (cerrada && (await tx.lineaExtracto.count({ where: { importacionId: id, fecha: { lte: cerrada.hasta } } })))
+        throw new BadRequestException('La importación tiene líneas de un período ya conciliado y cerrado');
       if (await tx.lineaExtracto.count({ where: { importacionId: id, estado: 'CONCILIADA' } }))
         throw new BadRequestException('La importación tiene líneas conciliadas: deshaga primero esas conciliaciones');
       await tx.lineaExtracto.deleteMany({ where: { importacionId: id } });
