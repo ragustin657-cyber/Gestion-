@@ -4,7 +4,7 @@ import { ClsService } from 'nestjs-cls';
 import { baseSujeta } from '@gestion/shared';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { paginacion } from '../../comun/paginado';
-import { errorTransicion } from '../../compras/comun';
+import { errorTransicion, ORIGENES_CLIENTE } from '../../compras/comun';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
 import { MonedasService } from '../../monedas/monedas.service';
 import { NumeracionService } from '../../numeracion/numeracion.service';
@@ -49,7 +49,7 @@ export class OrdenesPagoService {
 
   async pendientes(terceroId: string) {
     const movs = await this.tenant.db.movimientoCuentaCorriente.findMany({
-      where: { terceroId, anulado: false, NOT: { saldo: 0 } },
+      where: { terceroId, anulado: false, origenTipo: { notIn: ORIGENES_CLIENTE }, NOT: { saldo: 0 } },
       orderBy: [{ fechaVencimiento: 'asc' }, { fecha: 'asc' }],
     });
     const desc = await describirMovimientos(this.tenant.db, movs);
@@ -106,6 +106,7 @@ export class OrdenesPagoService {
     if (new Set(d.imputaciones.map((i) => i.movimientoId)).size !== d.imputaciones.length)
       throw new BadRequestException('El comprobante figura más de una vez en la orden de pago');
     const movs = await tx.movimientoCuentaCorriente.findMany({ where: { id: { in: d.imputaciones.map((i) => i.movimientoId) } } });
+    if (movs.some((m) => ORIGENES_CLIENTE.includes(m.origenTipo))) throw new BadRequestException('Solo se imputan comprobantes de proveedores');
     const usaUsd = movs.some((m) => m.monedaCodigo === 'USD') || d.anticipo?.monedaCodigo === 'USD';
     const cotizacion = d.cotizacion ? new D(d.cotizacion) : usaUsd ? await this.monedas.cotizacion('USD', d.fecha) : new D(1);
     if (usaUsd && cotizacion.lte(1)) throw new BadRequestException('La cotización del dólar no es válida');

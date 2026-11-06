@@ -7,11 +7,13 @@ import { AplicacionesController } from './aplicaciones/aplicaciones.controller';
 import { AplicacionesService } from './aplicaciones/aplicaciones.service';
 import { RecibosController } from './recibos/recibos.controller';
 import { RecibosService } from './recibos/recibos.service';
+import { ConsultasVentasController } from './consultas/consultas-ventas.controller';
+import { ConsultasVentasService } from './consultas/consultas-ventas.service';
 
 @Module({
   imports: [ArcaModule],
-  controllers: [ComprobantesVentaController, AplicacionesController, RecibosController],
-  providers: [ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService],
+  controllers: [ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController],
+  providers: [ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}

@@ -50,3 +50,6 @@ export async function bloquear(
     ids, empresaId,
   );
 }
+
+/** Orígenes de movimientos de cuenta corriente del lado cliente (Ventas y cobros de Tesorería); el resto es del lado proveedor. */
+export const ORIGENES_CLIENTE = ['VENTA', 'RECIBO', 'COBRO'];
