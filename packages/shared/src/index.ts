@@ -7,3 +7,4 @@ export * from './cbu';
 export * from './compras';
 export * from './fechas';
 export * from './pagos';
+export * from './ventas';

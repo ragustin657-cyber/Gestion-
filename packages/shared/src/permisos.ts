@@ -36,6 +36,10 @@ export const PERMISOS = {
   'asiento.registrar': 'Registrar asientos manuales',
   'contabilidad.cerrar': 'Cerrar meses y ejercicios y emitir libros legales',
   'conciliacion.operar': 'Conciliación bancaria: importar extractos, conciliar, registrar y cerrar',
+  'venta.emitir': 'Emitir comprobantes de venta',
+  'cobro.registrar': 'Registrar recibos y aplicaciones',
+  'venta.ver': 'Ver ventas y cuentas corrientes de clientes',
+  'arca.configurar': 'Configurar factura electrónica ARCA',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;
