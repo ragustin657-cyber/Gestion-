@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { EmisionService } from '../emision/emision.service';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
@@ -27,6 +28,13 @@ export class ComprobantesVentaController {
   @Put(':id') @RequierePermiso('venta.emitir')
   modificar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaModificacionVenta)) d: DatosComprobanteVenta & { version: number }) {
     return this.comprobantes.modificar(id, d.version, d);
+  }
+
+  @Get(':id/pdf') @RequierePermiso('venta.ver')
+  async pdf(@Param('id', ParseUUIDPipe) id: string, @Res({ passthrough: true }) res: Response) {
+    const { nombre, contenido } = await this.comprobantes.pdf(id);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${nombre}"` });
+    return new StreamableFile(contenido);
   }
 
   @Delete(':id') @RequierePermiso('venta.emitir')

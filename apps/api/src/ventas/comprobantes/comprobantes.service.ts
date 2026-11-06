@@ -1,7 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ComprobanteVenta } from '@prisma/client';
-import { calcularVenta, letraVenta, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
+import { calcularVenta, cbteTipo, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
+import { fechaAR } from '../../compras/comun';
+import { importeAR, pdfVenta } from '../pdf/pdf-venta';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { bloquear, MODIFICADO } from '../../compras/comun';
@@ -140,6 +142,55 @@ export class ComprobantesVentaService {
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { total: p.datos.total } });
       return this.obtener(id, tx);
     });
+  }
+
+  /** PDF de un comprobante autorizado, con QR de ARCA. En Simulado y Homologación lleva "SIN VALIDEZ FISCAL". */
+  async pdf(id: string): Promise<{ nombre: string; contenido: Buffer }> {
+    const db = this.tenant.db;
+    const c = await this.obtener(id);
+    if (c.estado !== 'AUTORIZADO' || !c.cae || c.numero === null) throw new BadRequestException('El comprobante no tiene CAE');
+    const empresa = await db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    const config = await db.configArca.findFirst();
+    const asoc = c.comprobanteAsociadoId ? await db.comprobanteVenta.findUnique({ where: { id: c.comprobanteAsociadoId } }) : null;
+    const letra = c.letra as LetraVenta;
+    const codigo = cbteTipo(c.tipo, letra);
+    const a = letra === 'A';
+    const t = c.tercero;
+    const documento = t.tipoDocumento === 'CUIT' ? `CUIT ${formatearCuit(t.cuit)}` : t.tipoDocumento === 'DNI' ? `DNI ${t.cuit}` : 'Sin identificar';
+    const titulos = { FACTURA: 'FACTURA', NOTA_DEBITO: 'NOTA DE DÉBITO', NOTA_CREDITO: 'NOTA DE CRÉDITO' } as const;
+    const totales: [string, string][] = [];
+    if (a) {
+      totales.push(['Neto gravado', importeAR(c.netoGravado.toString())]);
+      for (const iva of c.ivas) totales.push([`IVA ${Number(iva.alicuota).toLocaleString('es-AR')}%`, importeAR(iva.importe.toString())]);
+      if (!c.noGravado.isZero()) totales.push(['No gravado', importeAR(c.noGravado.toString())]);
+      if (!c.exento.isZero()) totales.push(['Exento', importeAR(c.exento.toString())]);
+    }
+    const contenido = await pdfVenta({
+      empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), condicionIva: ETIQUETAS_CONDICION_IVA[empresa.condicionIva], domicilio: empresa.domicilio },
+      cliente: { razonSocial: t.razonSocial, documento, condicionIva: ETIQUETAS_CONDICION_IVA[t.condicionIva], domicilio: t.domicilio },
+      titulo: titulos[c.tipo], letra, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
+      servicio: c.concepto === 'PRODUCTOS' ? null : { desde: fechaAR(c.fechaServicioDesde!), hasta: fechaAR(c.fechaServicioHasta!), vencePago: fechaAR(c.fechaVencimientoPago!) },
+      moneda: c.monedaCodigo === 'ARS' ? 'Pesos' : 'Dólares', cotizacion: c.monedaCodigo === 'ARS' ? null : importeAR(c.cotizacion.toString()),
+      asociado: asoc ? `${asoc.letra} ${numeroVenta(asoc.puntoVenta, asoc.numero)}` : null,
+      discriminaIva: a,
+      renglones: c.renglones.map((r) => {
+        const conIva = !a && letra === 'B';
+        const factor = conIva && r.alicuota !== 'NO_GRAVADO' && r.alicuota !== 'EXENTO' ? 1 + Number(r.alicuota) / 100 : 1;
+        return {
+          descripcion: r.descripcion, cantidad: Number(r.cantidad).toLocaleString('es-AR', { maximumFractionDigits: 4 }),
+          precio: Number(r.precioUnitario.mul(factor).toDecimalPlaces(2)).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
+          alicuota: r.alicuota === 'NO_GRAVADO' ? 'No grav.' : r.alicuota === 'EXENTO' ? 'Exento' : `${Number(r.alicuota).toLocaleString('es-AR')}%`,
+          importe: importeAR(a ? r.neto.toString() : r.neto.plus(r.iva).toString()),
+        };
+      }),
+      totales, total: importeAR(c.total.toString()), cae: c.cae, caeVencimiento: fechaAR(c.caeVencimiento!),
+      urlQr: urlQrArca({
+        fecha: c.fecha.toISOString().slice(0, 10), cuit: normalizarCuit(empresa.cuit), ptoVta: c.puntoVenta, tipoCmp: codigo, nroCmp: c.numero, importe: c.total.toFixed(2),
+        moneda: monedaArca(c.monedaCodigo as 'ARS' | 'USD'), ctz: c.cotizacion.toString(), tipoDocRec: docTipoArca(t.tipoDocumento), nroDocRec: t.tipoDocumento === 'OTRO' ? '0' : t.cuit, cae: c.cae,
+      }),
+      sinValidez: (config?.ambiente ?? 'SIMULADO') !== 'PRODUCCION',
+    });
+    return { nombre: `${titulos[c.tipo].toLowerCase().replace(/ /g, '-')}-${letra}-${numeroVenta(c.puntoVenta, c.numero)}.pdf`, contenido };
   }
 
   eliminar(id: string) {
