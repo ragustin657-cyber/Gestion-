@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import { EmisionService } from '../emision/emision.service';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { ComprobantesVentaService } from './comprobantes.service';
@@ -6,11 +7,21 @@ import { DatosComprobanteVenta, esquemaComprobanteVenta, esquemaModificacionVent
 
 @Controller('ventas/comprobantes')
 export class ComprobantesVentaController {
-  constructor(private readonly comprobantes: ComprobantesVentaService) {}
+  constructor(
+    private readonly comprobantes: ComprobantesVentaService,
+    private readonly emision: EmisionService,
+  ) {}
 
+  /** Con `emitir: true` pide el CAE a continuación; si ARCA falla, el comprobante queda guardado y se informa el error. */
   @Post() @RequierePermiso('venta.emitir')
-  crear(@Body(new ZodValidationPipe(esquemaComprobanteVenta)) d: DatosComprobanteVenta) {
-    return this.comprobantes.crear(d);
+  async crear(@Body(new ZodValidationPipe(esquemaComprobanteVenta)) d: DatosComprobanteVenta) {
+    const c = await this.comprobantes.crear(d);
+    return d.emitir ? this.emision.emitir(c.id) : c;
+  }
+
+  @Post(':id/emitir') @RequierePermiso('venta.emitir')
+  emitir(@Param('id', ParseUUIDPipe) id: string) {
+    return this.emision.emitir(id);
   }
 
   @Put(':id') @RequierePermiso('venta.emitir')
