@@ -11,6 +11,7 @@ import { FormatosService } from './formatos.service';
 import { DatosConciliacion } from './dto';
 import { reglaPara } from './reglas-iniciales';
 import { sugerir } from './sugerencias';
+import { DatosReporte, ItemReporte } from './reporte';
 
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
@@ -147,6 +148,46 @@ export class ConciliacionesService {
         ...v, lineas: lineasV.filter((l) => l.vinculoId === v.id), movimientos: vistaV.filter((m) => movsV.find((x) => x.id === m.id)!.vinculoId === v.id),
       })),
     };
+  }
+
+  /**
+   * Datos del reporte. Las partidas pendientes son las que estaban sin conciliar al cierre del período:
+   * sin vínculo, o conciliadas después en una conciliación de un período posterior.
+   */
+  async datosReporte(id: string): Promise<DatosReporte> {
+    const db = this.tenant.db;
+    const c = await this.buscar(db, id);
+    const cuenta = await db.cuentaBancaria.findUniqueOrThrow({ where: { id: c.cuentaBancariaId }, include: { banco: true } });
+    const empresa = await db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    const posteriores = (await db.conciliacion.findMany({ where: { cuentaBancariaId: c.cuentaBancariaId, desde: { gt: c.hasta } }, select: { id: true } })).map((x) => x.id);
+    const vinculosPost = posteriores.length ? (await db.vinculoConciliacion.findMany({ where: { conciliacionId: { in: posteriores } }, select: { id: true } })).map((v) => v.id) : [];
+    const movs = await db.movimientoTesoreria.findMany({
+      where: { cuentaBancariaId: c.cuentaBancariaId, anulado: false, fecha: { lte: c.hasta }, OR: [{ vinculoId: null }, { vinculoId: { in: vinculosPost } }] },
+      orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }],
+    });
+    const vista = await this.vistaMovimientos(db, movs);
+    const item = (m: MovimientoVista): ItemReporte => ({ fecha: m.fecha, descripcion: m.descripcion, referencia: m.referencia, importe: new D(m.importe).abs().toString() });
+    const lineas = await db.lineaExtracto.findMany({ where: { cuentaBancariaId: c.cuentaBancariaId, fecha: { gte: c.desde, lte: c.hasta }, estado: 'PENDIENTE' }, orderBy: { fecha: 'asc' } });
+    const r = c.estado === 'CERRADA' && c.resumen ? (c.resumen as { saldoSistema: string; diferencia: string }) : await this.resumen(db, c);
+    const usuario = c.cerradaPor ? await db.usuario.findUnique({ where: { id: c.cerradaPor }, select: { nombre: true } }) : null;
+    return {
+      encabezado: {
+        empresa: empresa.razonSocial, cuit: empresa.cuit, cuenta: `${cuenta.banco.nombre} - ${cuenta.numero}`, monedaCodigo: cuenta.monedaCodigo,
+        periodo: `${fechaAR(c.desde)} al ${fechaAR(c.hasta)}`, estado: c.estado, cerradaPor: usuario?.nombre ?? null, cerradaEn: c.cerradaEn ? fechaAR(c.cerradaEn) : null,
+      },
+      saldoExtracto: c.saldoFinal.toString(),
+      creditosNoAcreditados: vista.filter((m) => !m.importe.startsWith('-')).map(item),
+      debitosNoDebitados: vista.filter((m) => m.importe.startsWith('-')).map(item),
+      lineasPendientes: lineas.map((l) => ({ fecha: iso(l.fecha), descripcion: l.concepto, referencia: l.referencia, importe: l.importe.toString() })),
+      saldoLibros: r.saldoSistema,
+      diferencia: r.diferencia,
+    };
+  }
+
+  async obtenerCabecera(id: string) {
+    const c = await this.buscar(this.tenant.db, id);
+    const cuenta = await this.tenant.db.cuentaBancaria.findUniqueOrThrow({ where: { id: c.cuentaBancariaId } });
+    return { cuentaNumero: cuenta.numero, desde: iso(c.desde) };
   }
 
   /** Coincidencias propuestas entre lo pendiente de cada lado (no guarda nada). */

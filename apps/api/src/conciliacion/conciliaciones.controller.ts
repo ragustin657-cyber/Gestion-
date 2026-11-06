@@ -1,4 +1,6 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
+import { reportePdf, reporteXlsx } from './reporte';
 import { z } from 'zod';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../comun/zod.pipe';
@@ -13,6 +15,18 @@ export class ConciliacionesController {
     private readonly conciliaciones: ConciliacionesService,
     private readonly registro: RegistroService,
   ) {}
+
+  @Get(':id/reporte')
+  async reporte(@Param('id', ParseUUIDPipe) id: string, @Query('formato') formato: string | undefined, @Res({ passthrough: true }) res: Response) {
+    if (!['pdf', 'xlsx', 'json'].includes(formato ?? '')) throw new BadRequestException('Formato inválido: use pdf, xlsx o json');
+    const d = await this.conciliaciones.datosReporte(id);
+    if (formato === 'json') return d;
+    const c = await this.conciliaciones.obtenerCabecera(id);
+    const nombre = `conciliacion-${c.cuentaNumero}-${c.desde}.${formato}`.replace(/[^\w.-]/g, '_');
+    res.setHeader('Content-Type', formato === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+    return new StreamableFile(formato === 'pdf' ? await reportePdf(d) : await reporteXlsx(d));
+  }
 
   @Post(':id/cerrar') @HttpCode(200)
   cerrar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ version: z.number().int().min(0) }))) d: { version: number }) {

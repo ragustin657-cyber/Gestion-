@@ -106,4 +106,34 @@ describe('cierre, bloqueo y reapertura de conciliaciones', () => {
     expect(r.body).toMatchObject({ estado: 'ABIERTA', motivoReapertura: 'Faltaba un débito' });
     expect(await prisma.auditoria.count({ where: { entidad: 'Conciliacion', entidadId: e.c.id, accion: 'MODIFICAR' } })).toBeGreaterThan(0);
   });
+
+  it('reporte de conciliación en JSON, PDF y Excel', async () => {
+    const e = await escenario();
+    await e.t.http.post(`${e.url}/registrar`, { lineas: [{ lineaId: (await e.linea('IMP LEY 25413')).id, cuentaContableId: await e.t.cuenta('5.2.05'), concepto: 'Impuesto' }] });
+    await e.t.http.post(`${e.url}/lineas/${(await e.linea('SALDO DEL DIA')).id}/ignorar`, { motivo: 'Saldo' });
+    await e.t.http.post(`${e.url}/cerrar`, { version: await e.version() });
+    const j = (await e.t.http.get(`${e.url}/reporte?formato=json`)).body;
+    expect(j).toMatchObject({ saldoExtracto: '52682', saldoLibros: '51482', diferencia: '0', creditosNoAcreditados: [], lineasPendientes: [] });
+    expect(j.debitosNoDebitados.map((d: { importe: string; descripcion: string }) => [d.importe, d.descripcion])).toEqual([['1200', 'Movimiento bancario']]);
+    expect(j.encabezado).toMatchObject({ cuenta: 'Banco Nación - 1', periodo: '01/10/2026 al 31/10/2026', estado: 'CERRADA' });
+    const binario = (url: string) => e.t.http.get(url).buffer(true).parse((res, cb) => {
+      const partes: Buffer[] = [];
+      res.on('data', (c: Buffer) => partes.push(c));
+      res.on('end', () => cb(null, Buffer.concat(partes)));
+    });
+    const pdf = await binario(`${e.url}/reporte?formato=pdf`);
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers['content-type']).toContain('application/pdf');
+    expect(pdf.headers['content-disposition']).toContain('conciliacion-1-2026-10-01.pdf');
+    expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
+    const xlsx = await binario(`${e.url}/reporte?formato=xlsx`);
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(xlsx.body as unknown as ArrayBuffer);
+    const textos: string[] = [];
+    wb.worksheets[0].eachRow((r) => textos.push(String(r.getCell(1).value ?? '')));
+    expect(textos).toContain('Saldo según extracto');
+    expect((await e.t.http.get(`${e.url}/reporte?formato=doc`)).status).toBe(400);
+  });
 });
+
