@@ -20,6 +20,11 @@ export class AplicacionesController {
     return this.aplicaciones.aplicar(d);
   }
 
+  @Get('aplicaciones/:id') @RequierePermiso('venta.ver')
+  detalle(@Param('id', ParseUUIDPipe) id: string) {
+    return this.aplicaciones.detalle(id);
+  }
+
   @Post('aplicaciones/:id/anular') @HttpCode(200) @RequierePermiso('cobro.registrar')
   anular(@Param('id', ParseUUIDPipe) id: string) {
     return this.aplicaciones.anular(id);

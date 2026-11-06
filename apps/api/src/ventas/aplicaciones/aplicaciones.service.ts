@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { AplicacionCobro, ComprobanteVenta, MovimientoCuentaCorriente } from '@prisma/client';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
-import { bloquear, fechaAR } from '../../compras/comun';
+import { bloquear, fechaAR, ORIGENES_CLIENTE } from '../../compras/comun';
 import { ConfigComprasService } from '../../compras/config/config-compras.service';
 import { AsientosService, RenglonAsiento } from '../../contabilidad/asientos/asientos.service';
 import { NumeracionService } from '../../numeracion/numeracion.service';
@@ -148,10 +148,35 @@ export class AplicacionesService implements OnModuleInit {
     });
   }
 
+  /** Detalle de una operación de la pantalla de Aplicación (o de las aplicaciones de un recibo o NC por su id). */
+  async detalle(origenId: string) {
+    const db = this.tenant.db;
+    const aps = await db.aplicacionCobro.findMany({ where: { origenId }, orderBy: { creadoEn: 'asc' } });
+    if (!aps.length) throw new NotFoundException('Aplicación no encontrada');
+    const movs = await db.movimientoCuentaCorriente.findMany({ where: { id: { in: aps.flatMap((a) => [a.creditoMovId, a.debitoMovId]) } } });
+    const { creditos, debitos } = await this.describirMovs(movs);
+    return aps.map((a) => ({
+      id: a.id, numero: a.numero, fecha: a.fecha, importe: a.importe.toFixed(2), diferenciaCambio: a.diferenciaCambio.toFixed(2), anulada: a.anulada,
+      credito: creditos.get(a.creditoMovId) ?? '', debito: debitos.get(a.debitoMovId) ?? '',
+    }));
+  }
+
+  private async describirMovs(movs: MovimientoCuentaCorriente[]) {
+    const vistas = await this.vistas(movs);
+    const mapa = new Map(vistas.map((v) => [v.id, v.descripcion]));
+    return { creditos: mapa, debitos: mapa };
+  }
+
   /** Movimientos del cliente con saldo: créditos (saldo a favor) y débitos (comprobantes pendientes), con su descripción. */
   async pendientes(terceroId: string) {
     const db = this.tenant.db;
-    const movs = await db.movimientoCuentaCorriente.findMany({ where: { terceroId, anulado: false, saldo: { not: 0 } }, orderBy: [{ fechaVencimiento: 'asc' }, { fecha: 'asc' }, { creadoEn: 'asc' }] });
+    const movs = await db.movimientoCuentaCorriente.findMany({ where: { terceroId, anulado: false, saldo: { not: 0 }, origenTipo: { in: ORIGENES_CLIENTE } }, orderBy: [{ fechaVencimiento: 'asc' }, { fecha: 'asc' }, { creadoEn: 'asc' }] });
+    const vistas = await this.vistas(movs);
+    return { creditos: vistas.filter((m) => m.saldo.lt(0)), debitos: vistas.filter((m) => m.saldo.gt(0)) };
+  }
+
+  private async vistas(movs: MovimientoCuentaCorriente[]) {
+    const db = this.tenant.db;
     const ventas = await db.comprobanteVenta.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'VENTA').map((m) => m.origenId) } } });
     const recibos = await db.recibo.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'RECIBO').map((m) => m.origenId) } } });
     const ingresos = await db.ingresoValores.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'COBRO').map((m) => m.origenId) } } });
@@ -169,6 +194,6 @@ export class AplicacionesService implements OnModuleInit {
       id: m.id, origenTipo: m.origenTipo, origenId: m.origenId, descripcion: descripcion(m), fecha: m.fecha, fechaVencimiento: m.fechaVencimiento,
       monedaCodigo: m.monedaCodigo, importe: m.importe, saldo: m.saldo, saldoPesos: m.saldoPesos,
     });
-    return { creditos: movs.filter((m) => m.saldo.lt(0)).map(vista), debitos: movs.filter((m) => m.saldo.gt(0)).map(vista) };
+    return movs.map(vista);
   }
 }

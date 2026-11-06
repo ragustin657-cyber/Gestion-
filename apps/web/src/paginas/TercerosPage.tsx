@@ -3,7 +3,7 @@ import { notifications } from '@mantine/notifications';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { CondicionIva, ETIQUETAS_CONDICION_IVA, formatearCuit, validarCuit } from '@gestion/shared';
+import { CondicionIva, ETIQUETAS_CONDICION_IVA, formatearCuit } from '@gestion/shared';
 import { api, ErrorApi } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { FormAbm } from '../abm/FormAbm';
@@ -22,7 +22,8 @@ const condiciones = Object.values(CondicionIva).map((c) => ({ value: c, label: E
 const CAMPOS_GENERALES: CampoAbm[] = [
   { nombre: 'razonSocial', etiqueta: 'Razón social', tipo: 'texto', requerido: true, ancho: true },
   { nombre: 'nombreFantasia', etiqueta: 'Nombre de fantasía', tipo: 'texto' },
-  { nombre: 'cuit', etiqueta: 'CUIT', tipo: 'texto', requerido: true, validar: (v) => (validarCuit(String(v)) ? null : 'CUIT inválido') },
+  { nombre: 'tipoDocumento', etiqueta: 'Tipo de documento', tipo: 'select', requerido: true, opciones: [{ value: 'CUIT', label: 'CUIT' }, { value: 'DNI', label: 'DNI' }, { value: 'OTRO', label: 'Otro (consumidor final sin identificar)' }] },
+  { nombre: 'cuit', etiqueta: 'CUIT / DNI', tipo: 'texto', requerido: true, ayuda: 'CUIT con dígito verificador, DNI de 7 u 8 dígitos o, en Otro, un texto libre' },
   { nombre: 'condicionIva', etiqueta: 'Condición frente al IVA', tipo: 'select', requerido: true, opciones: condiciones },
   { nombre: 'diasPago', etiqueta: 'Días de pago', tipo: 'numero' },
   { nombre: 'esProveedor', etiqueta: 'Es proveedor', tipo: 'booleano' },
@@ -109,7 +110,7 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
       <Tabs.Panel value="general">
         <FormAbm
           campos={CAMPOS_GENERALES}
-          valoresIniciales={t ? { ...valores(t, CAMPOS_GENERALES), cuit: formatearCuit(t.cuit) } : { esProveedor: true, activo: true, condicionIva: 'RESPONSABLE_INSCRIPTO', diasPago: 30 }}
+          valoresIniciales={t ? { ...valores(t, CAMPOS_GENERALES), cuit: t.tipoDocumento === 'CUIT' ? formatearCuit(t.cuit) : t.cuit } : { esProveedor: true, activo: true, condicionIva: 'RESPONSABLE_INSCRIPTO', tipoDocumento: 'CUIT', diasPago: 30 }}
           onEnviar={(v) => (t ? api(`/terceros/${t.id}`, { metodo: 'PATCH', body: v }) : api('/terceros', { metodo: 'POST', body: v }))}
           onExito={() => {
             notifications.show({ color: 'green', message: 'Guardado correctamente' });
@@ -158,7 +159,7 @@ export function TercerosPage() {
         columnas={[
           { campo: 'codigo', titulo: 'Código' },
           { campo: 'razonSocial', titulo: 'Razón social' },
-          { campo: 'cuit', titulo: 'CUIT', render: (t) => formatearCuit(t.cuit) },
+          { campo: 'cuit', titulo: 'CUIT / DNI', render: (t) => (t.tipoDocumento === 'CUIT' ? formatearCuit(t.cuit) : t.tipoDocumento === 'DNI' ? `DNI ${t.cuit}` : t.cuit) },
           { campo: 'condicionIva', titulo: 'Condición IVA', render: (t) => ETIQUETAS_CONDICION_IVA[t.condicionIva] },
           { campo: 'esProveedor', titulo: 'Tipo', render: (t) => (
             <Group gap={4}>{t.esProveedor && <Badge size="sm" variant="light">Proveedor</Badge>}{t.esCliente && <Badge size="sm" variant="light" color="teal">Cliente</Badge>}</Group>

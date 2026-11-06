@@ -65,6 +65,8 @@ describe('consultas de ventas y cuenta corriente de clientes', () => {
     expect(ccProv.movimientos.every((m: { comprobante: string }) => !m.comprobante.startsWith('Factura A 0001'))).toBe(true);
     const ccCli = (await v.http.get(`/api/ventas/clientes/${proveedorId}/cuenta-corriente`)).body;
     expect(ccCli.movimientos.map((m: { comprobante: string }) => m.comprobante)).toEqual(['Factura A 0001-00000001']);
+    const pendVentas = (await v.http.get(`/api/ventas/clientes/${proveedorId}/pendientes`)).body;
+    expect(pendVentas.debitos.map((d: { origenTipo: string }) => d.origenTipo)).toEqual(['VENTA']);
   });
 
   it('el Diario lleva a la factura y al recibo', async () => {
