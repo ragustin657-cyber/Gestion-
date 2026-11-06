@@ -48,16 +48,10 @@ export class ConsultasTesoreriaService {
     private readonly alcance: AlcanceSucursalService,
   ) {}
 
-  /** Cheques que pertenecen a una sucursal: en una de sus cajas, o ingresados por ella. */
-  private async deSucursal(tx: TxEmpresa, sucursalId: string): Promise<Prisma.ChequeTerceroWhereInput> {
-    const cajas = (await tx.caja.findMany({ where: { sucursalId }, select: { id: true } })).map((c) => c.id);
-    return { OR: [{ cajaId: { in: cajas } }, { ingreso: { sucursalId } }] };
-  }
-
-  /** Filtro de visibilidad de cheques para el usuario. */
-  async visibilidadCheques(tx: TxEmpresa = this.tenant.db): Promise<Prisma.ChequeTerceroWhereInput> {
+  /** Filtro de visibilidad de cheques: la sucursal donde está el cheque ahora. */
+  async visibilidadCheques(_tx: TxEmpresa = this.tenant.db): Promise<Prisma.ChequeTerceroWhereInput> {
     const s = this.alcance.sucursalUsuario();
-    return s ? this.deSucursal(tx, s) : {};
+    return s ? { sucursalId: s } : {};
   }
 
   private async vistaCheques<T extends { cajaId: string | null; cuentaBancariaId: string | null; terceroOrigenId: string | null; terceroDestinoId: string | null }>(filas: T[]) {
@@ -86,7 +80,7 @@ export class ConsultasTesoreriaService {
     if (q.estado && !q.estado.split(',').every((e) => ESTADOS.includes(e))) throw new BadRequestException('Estado inválido');
     const and: Prisma.ChequeTerceroWhereInput[] = [await this.visibilidadCheques()];
     if (q.estado) and.push({ estado: { in: q.estado.split(',') as EstadoCheque[] } });
-    if (q.sucursalId) and.push(await this.deSucursal(db, q.sucursalId));
+    if (q.sucursalId) and.push({ sucursalId: q.sucursalId });
     if (q.cajaId) and.push({ cajaId: q.cajaId });
     const desde = fechaQuery(q.desde);
     const hasta = fechaQuery(q.hasta);
@@ -195,7 +189,7 @@ export class ConsultasTesoreriaService {
 
   /**
    * Flujo de fondos proyectado en pesos, por día, durante N días desde hoy:
-   * saldo bancario actual + cheques en cartera y depositados + transferencias pendientes
+   * saldo bancario actual (incluye lo depositado) + cheques en cartera y en tránsito + transferencias pendientes
    * − cheques propios diferidos no debitados − OP aprobadas. Lo vencido se proyecta a hoy.
    */
   async flujo(diasTexto?: string) {
@@ -216,7 +210,8 @@ export class ConsultasTesoreriaService {
     if (conBancos)
       for (const c of await db.cuentaBancaria.findMany({ where: { activa: true, monedaCodigo: 'ARS' } })) saldo = saldo.plus(await saldoBanco(db, c.id, inicio));
     const cheques = await db.chequeTercero.findMany({
-      where: { AND: [{ estado: { in: ['EN_CARTERA', 'EN_TRANSITO', 'DEPOSITADO'] }, monedaCodigo: 'ARS' }, await this.visibilidadCheques(db)] },
+      // Los depositados ya están en el saldo bancario (el depósito registra el ingreso al banco)
+      where: { AND: [{ estado: { in: ['EN_CARTERA', 'EN_TRANSITO'] }, monedaCodigo: 'ARS' }, await this.visibilidadCheques(db)] },
     });
     for (const c of cheques) sumar(ingresos, c.fechaPago, c.importe);
     if (conBancos) {

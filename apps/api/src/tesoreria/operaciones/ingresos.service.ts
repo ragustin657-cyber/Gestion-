@@ -13,7 +13,7 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { AlcanceSucursalService } from '../sucursales/alcance.service';
 import { CarteraService } from './cartera.service';
 import { DatosIngreso } from './dto';
-import { anularMovimientos, aPesos, D, Dec, hoy, registrarMovimiento } from './tesoreria-comun';
+import { anularMovimientos, aPesos, D, Dec, hoy, registrarMovimiento, saldoCaja } from './tesoreria-comun';
 
 const INCLUIR = { efectivo: true, cheques: { orderBy: { creadoEn: 'asc' } }, transferencias: true } satisfies Prisma.IngresoValoresInclude;
 const YA_MOVIDOS = 'Hay valores de este ingreso que ya se movieron';
@@ -88,7 +88,8 @@ export class IngresosService {
 
       const sucursal = await tx.sucursal.findUniqueOrThrow({ where: { id: caja.sucursalId } });
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
-      const numero = await this.numeracion.siguiente(tx, `ING-${sucursal.codigo}`, 0);
+      // Talonario por id de sucursal: el código se puede cambiar sin romper la numeración
+      const numero = await this.numeracion.siguiente(tx, `ING-${sucursal.id}`, 0);
       const ingreso = await tx.ingresoValores.create({
         data: {
           empresaId, sucursalId: sucursal.id, numero, fecha: d.fecha, cajaId: caja.id, origen: d.origen, terceroId,
@@ -122,7 +123,7 @@ export class IngresosService {
       for (const c of d.cheques) {
         const importe = new D(c.importe).toDecimalPlaces(2);
         const pesos = await aPesos(tx, caja.monedaCodigo, importe, d.fecha);
-        const repetido = await tx.chequeTercero.findFirst({ where: { banco: c.banco, numero: c.numero, libradorCuit: c.libradorCuit } });
+        const repetido = await tx.chequeTercero.findFirst({ where: { banco: c.banco, numero: c.numero, libradorCuit: c.libradorCuit, claveAnulacion: '' } });
         if (repetido) throw new ConflictException(`El cheque ${c.numero} del banco ${c.banco} ya fue registrado`);
         let cheque;
         try {
@@ -130,7 +131,7 @@ export class IngresosService {
             data: {
               empresaId, ingresoId: ingreso.id, tipo: c.tipo, banco: c.banco, numero: c.numero, libradorNombre: c.libradorNombre,
               libradorCuit: c.libradorCuit, fechaEmision: c.fechaEmision, fechaPago: c.fechaPago, monedaCodigo: caja.monedaCodigo, importe,
-              estado: 'EN_CARTERA', cajaId: caja.id, terceroOrigenId: terceroId,
+              estado: 'EN_CARTERA', cajaId: caja.id, terceroOrigenId: terceroId, importePesos: pesos, sucursalId: sucursal.id,
             },
           });
         } catch (e) {
@@ -186,17 +187,21 @@ export class IngresosService {
       if (ing.estado === 'ANULADO') throw new BadRequestException('El ingreso ya está anulado');
       const movsCc = await tx.movimientoCuentaCorriente.findMany({ where: { origenTipo: 'COBRO', origenId: id } });
       await bloquear(tx, 'MovimientoCuentaCorriente', empresaId, movsCc.map((m) => m.id));
+      await bloquear(tx, 'Caja', empresaId, [ing.cajaId]);
       await bloquear(tx, 'ChequeTercero', empresaId, ing.cheques.map((c) => c.id));
+      // El efectivo del ingreso tiene que seguir en la caja
+      const efectivo = ing.efectivo.reduce((s, e) => s.plus(e.importe), new D(0));
+      const sinEfectivo = efectivo.gt(0) && (await saldoCaja(tx, ing.cajaId)).lt(efectivo);
       const cheques = await tx.chequeTercero.findMany({ where: { ingresoId: id } });
       const transf = await tx.transferenciaRecibida.findMany({ where: { ingresoId: id } });
       const aplicaciones = await tx.aplicacionCuentaCorriente.count({ where: { movimientoId: { in: movsCc.map((m) => m.id) }, anulada: false } });
-      if (cheques.some((c) => c.estado !== 'EN_CARTERA' || c.cajaId !== ing.cajaId) || transf.some((t) => t.estado !== 'PENDIENTE') || aplicaciones)
+      if (cheques.some((c) => c.estado !== 'EN_CARTERA' || c.cajaId !== ing.cajaId) || transf.some((t) => t.estado !== 'PENDIENTE') || aplicaciones || sinEfectivo)
         throw new BadRequestException(YA_MOVIDOS);
 
       const fecha = hoy();
       const fechaAnulacion = fecha < ing.fecha ? ing.fecha : fecha;
       const contra = await this.asientos.contraasiento(tx, ing.asientoId!, fechaAnulacion, `Anulación del ingreso de valores ${ing.numero} - ${motivo}`);
-      for (const c of cheques) await this.cartera.cambiarEstado(tx, c.id, 'ANULADO', { cajaId: null }, { tipo: 'ANULACION_INGRESO', id, fecha: fechaAnulacion });
+      for (const c of cheques) await this.cartera.cambiarEstado(tx, c.id, 'ANULADO', { cajaId: null, claveAnulacion: c.id }, { tipo: 'ANULACION_INGRESO', id, fecha: fechaAnulacion });
       await tx.transferenciaRecibida.updateMany({ where: { ingresoId: id }, data: { estado: 'ANULADA' } });
       await anularMovimientos(tx, 'INGRESO', id);
       await tx.movimientoCuentaCorriente.updateMany({ where: { origenTipo: 'COBRO', origenId: id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });

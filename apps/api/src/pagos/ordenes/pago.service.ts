@@ -11,6 +11,7 @@ import { NumeracionService } from '../../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { AlcanceSucursalService } from '../../tesoreria/sucursales/alcance.service';
 import { CarteraService, noDisponible } from '../../tesoreria/operaciones/cartera.service';
+import { SALDO_INSUFICIENTE, saldoCaja } from '../../tesoreria/operaciones/tesoreria-comun';
 import { formatoImporte, OrdenesPagoService } from './ordenes-pago.service';
 
 const D = Prisma.Decimal;
@@ -98,8 +99,8 @@ export class PagoService {
         } else if (m.tipo === 'CHEQUE_TERCERO') {
           cuentaContableId = await this.cuentas.cuenta(tx, 'VALORES_A_DEPOSITAR');
         } else if (m.tipo === 'EFECTIVO') {
-          const c = m.cajaId ? await tx.caja.findUnique({ where: { id: m.cajaId } }) : null;
-          if (!c) throw new BadRequestException('Indique una caja válida');
+          if (!m.cajaId) throw new BadRequestException('Indique una caja válida');
+          const c = await this.alcance.verificarCaja(tx, m.cajaId);
           if (c.monedaCodigo !== m.monedaCodigo) throw new BadRequestException(MONEDA_DISTINTA);
           cuentaContableId = c.cuentaContableId;
         } else {
@@ -134,11 +135,18 @@ export class PagoService {
       const haber = (cuentaContableId: string, importe: Dec) => renglones.push({ cuentaContableId, haber: importe.toFixed(2) });
       const cuenta = (c: ConceptoCuenta) => this.cuentas.cuenta(tx, c);
 
-      // 4. Medios: cheques y tesorería (orden de bloqueo: chequeras → cheques de terceros)
+      // 4. Medios: cheques y tesorería (orden de bloqueo: chequeras → cajas → cheques de terceros)
       await bloquear(tx, 'Chequera', empresaId, preparados.filter((m) => m.chequera).map((m) => m.chequera!.id));
+      const efectivoPorCaja = new Map<string, Dec>();
+      for (const m of preparados.filter((x) => x.tipo === 'EFECTIVO'))
+        efectivoPorCaja.set(m.cajaId!, (efectivoPorCaja.get(m.cajaId!) ?? new D(0)).plus(m.importe));
+      await bloquear(tx, 'Caja', empresaId, [...efectivoPorCaja.keys()]);
+      for (const [cajaId, importe] of efectivoPorCaja) if (importe.gt(await saldoCaja(tx, cajaId))) throw new BadRequestException(SALDO_INSUFICIENTE);
       await bloquear(tx, 'ChequeTercero', empresaId, chequeIds);
+      const pesosIngreso = new Map<string, Dec>();
       for (const m of preparados.filter((x) => x.tipo === 'CHEQUE_TERCERO')) {
         const ch = await tx.chequeTercero.findUniqueOrThrow({ where: { id: m.chequeId! } });
+        pesosIngreso.set(ch.id, ch.importePesos);
         if (ch.estado !== 'EN_CARTERA' || ch.cajaId !== m.cajaId || !ch.importe.eq(m.importe)) throw noDisponible(ch.numero);
         await this.cartera.cambiarEstado(tx, ch.id, 'ENDOSADO', { cajaId: null, terceroDestinoId: op.terceroId }, { tipo: 'OP', id, fecha: fechaPago }, ['EN_CARTERA']);
       }
@@ -177,7 +185,14 @@ export class PagoService {
               cajaId: m.cajaId ?? null, monedaCodigo: m.monedaCodigo, importe: m.importe, origenTipo: 'OP', origenId: id,
             },
           });
-        haber(diferido ? await cuenta('CHEQUES_DIFERIDOS') : m.cuentaContableId, m.importePesos);
+        if (m.tipo === 'CHEQUE_TERCERO') {
+          // Valores a depositar se cancela por lo registrado al ingresar el cheque; la diferencia es de cambio
+          const registrado = pesosIngreso.get(m.chequeId!)!;
+          haber(m.cuentaContableId, registrado);
+          const dif = m.importePesos.minus(registrado);
+          if (dif.gt(0)) haber(await cuenta('DIFERENCIA_CAMBIO_POSITIVA'), dif);
+          if (dif.lt(0)) debe(await cuenta('DIFERENCIA_CAMBIO_NEGATIVA'), dif.neg());
+        } else haber(diferido ? await cuenta('CHEQUES_DIFERIDOS') : m.cuentaContableId, m.importePesos);
       }
 
       // 5. Aplicaciones a la cuenta corriente (saldo en pesos proporcional al histórico)

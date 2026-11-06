@@ -78,12 +78,15 @@ export class DepositosService {
       const renglones: RenglonAsiento[] = [];
       let total = new D(0);
       let totalPesos = new D(0);
+      let diferencia = new D(0);
       const valores = await this.cuentas.cuenta(tx, 'VALORES_A_DEPOSITAR');
       for (const c of cheques) {
         await this.cartera.cambiarEstado(tx, c.id, 'DEPOSITADO', { cajaId: null, cuentaBancariaId: cuenta.id, fechaDeposito: d.fecha }, mov, ['EN_CARTERA']);
         await tx.depositoBancarioItem.create({ data: { empresaId, depositoId: dep.id, tipo: 'CHEQUE', chequeId: c.id, monedaCodigo: c.monedaCodigo, importe: c.importe } });
         const pesos = await aPesos(tx, c.monedaCodigo, c.importe, d.fecha);
-        renglones.push({ cuentaContableId: valores, haber: pesos.toFixed(2), detalle: `Cheque ${c.numero} ${c.banco}` });
+        // Valores a depositar se cancela por lo registrado al ingresar; la diferencia es de cambio
+        renglones.push({ cuentaContableId: valores, haber: c.importePesos.toFixed(2), detalle: `Cheque ${c.numero} ${c.banco}` });
+        diferencia = diferencia.plus(pesos.minus(c.importePesos));
         total = total.plus(c.importe);
         totalPesos = totalPesos.plus(pesos);
       }
@@ -97,6 +100,8 @@ export class DepositosService {
       }
       await registrarMovimiento(tx, empresaId, { fecha: d.fecha, tipo: 'INGRESO', cuentaBancariaId: cuenta.id, monedaCodigo: cuenta.monedaCodigo, importe: total, origenTipo: 'DEPOSITO', origenId: dep.id });
       renglones.unshift({ cuentaContableId: cuenta.cuentaContableId, debe: totalPesos.toFixed(2) });
+      if (diferencia.gt(0)) renglones.push({ cuentaContableId: await this.cuentas.cuenta(tx, 'DIFERENCIA_CAMBIO_POSITIVA'), haber: diferencia.toFixed(2) });
+      if (diferencia.lt(0)) renglones.push({ cuentaContableId: await this.cuentas.cuenta(tx, 'DIFERENCIA_CAMBIO_NEGATIVA'), debe: diferencia.neg().toFixed(2) });
       const asiento = await this.asientos.generar(tx, {
         fecha: d.fecha, descripcion: `Depósito ${numero} en cuenta ${cuenta.numero}${d.boleta ? ` - boleta ${d.boleta}` : ''}`, origenTipo: 'DEPOSITO', origenId: dep.id, renglones,
       });

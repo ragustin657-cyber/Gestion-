@@ -157,7 +157,7 @@ export class TrasladosService {
       for (const item of t.items) {
         const dec = decisiones.get(item.id)!;
         const caja = dec.aceptado ? destino : origen;
-        if (item.tipo === 'CHEQUE') await this.cartera.cambiarEstado(tx, item.chequeId!, 'EN_CARTERA', { cajaId: caja.id }, mov, ['EN_TRANSITO']);
+        if (item.tipo === 'CHEQUE') await this.cartera.cambiarEstado(tx, item.chequeId!, 'EN_CARTERA', { cajaId: caja.id, sucursalId: caja.sucursalId }, mov, ['EN_TRANSITO']);
         else {
           await registrarMovimiento(tx, empresaId, { fecha, tipo: 'INGRESO', cajaId: caja.id, monedaCodigo: item.monedaCodigo, importe: item.importe, origenTipo: 'RECEPCION_TRASLADO', origenId: id });
           const pesos = await aPesos(tx, item.monedaCodigo, item.importe, t.fecha);

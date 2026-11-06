@@ -863,6 +863,12 @@ model ChequeTercero {
   fechaPago         DateTime           @db.Date
   monedaCodigo      String
   importe           Decimal            @db.Decimal(18, 2)
+  /// Importe en pesos con que se registró en Valores a depositar al ingresar.
+  importePesos      Decimal            @db.Decimal(18, 2)
+  /// Sucursal donde está el cheque ahora (su caja, o la caja desde la que se depositó o endosó).
+  sucursalId        String             @db.Uuid
+  /// Vacía mientras el cheque es válido; al anularse toma el id, para poder volver a ingresarlo.
+  claveAnulacion    String             @default("")
   estado            EstadoCheque       @default(EN_CARTERA)
   cajaId            String?            @db.Uuid
   cuentaBancariaId  String?            @db.Uuid
@@ -876,7 +882,8 @@ model ChequeTercero {
   ingreso           IngresoValores     @relation(fields: [ingresoId], references: [id])
   historial         MovimientoCheque[]
 
-  @@unique([empresaId, banco, numero, libradorCuit])
+  @@unique([empresaId, banco, numero, libradorCuit, claveAnulacion])
+  @@index([empresaId, sucursalId])
   @@index([empresaId, estado])
 }
 
