@@ -46,6 +46,7 @@ export class EmpresasService {
       await cargarConfigCuentas(tx, empresa.id);
       await cargarConfigPagos(tx, empresa.id);
       await cargarReglasIniciales(tx, empresa.id);
+      await tx.configArca.create({ data: { empresaId: empresa.id } });
       await crearEjercicio(tx, empresa.id, rangoEjercicio(empresa.inicioEjercicioMes, new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`)).desde, 1);
       await tx.auditoria.create({
         data: { empresaId: empresa.id, usuarioId: creadorId, entidad: 'Empresa', entidadId: empresa.id, accion: 'CREAR' },
@@ -77,7 +78,7 @@ export class EmpresasService {
     return this.tenant.db.puntoVenta.findMany({ orderBy: { numero: 'asc' } });
   }
 
-  crearPuntoVenta(d: { numero: number; descripcion?: string | null }) {
+  crearPuntoVenta(d: { numero: number; descripcion?: string | null; electronico?: boolean; sucursalId?: string | null }) {
     return this.tenant.db.puntoVenta.create({ data: { empresaId: this.tenant.empresaId, ...d } });
   }
 }

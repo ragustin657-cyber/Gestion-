@@ -48,6 +48,8 @@ model PuntoVenta {
   empresaId   String  @db.Uuid
   numero      Int
   descripcion String?
+  electronico Boolean @default(true)
+  sucursalId  String? @db.Uuid
   empresa     Empresa @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, numero])
@@ -118,6 +120,7 @@ model Tercero {
   razonSocial        String
   nombreFantasia     String?
   cuit               String
+  tipoDocumento      TipoDocumento       @default(CUIT)
   condicionIva       CondicionIva
   esProveedor        Boolean             @default(false)
   esCliente          Boolean             @default(false)
@@ -139,6 +142,7 @@ model Tercero {
   recepciones        InformeRecepcion[]
   comprobantesCompra ComprobanteCompra[]
   ordenesPago        OrdenPago[]
+  comprobantesVenta  ComprobanteVenta[]
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
@@ -1305,4 +1309,219 @@ model EmisionLibro {
   fecha        DateTime   @default(now())
 
   @@index([empresaId, libro])
+}
+
+// ─── Entrega 6: ventas y factura electrónica ARCA ───
+
+enum TipoDocumento {
+  CUIT
+  DNI
+  OTRO
+}
+
+enum AmbienteArca {
+  SIMULADO
+  HOMOLOGACION
+  PRODUCCION
+}
+
+enum TipoComprobanteVenta {
+  FACTURA
+  NOTA_DEBITO
+  NOTA_CREDITO
+}
+
+enum ConceptoVenta {
+  PRODUCTOS
+  SERVICIOS
+  PRODUCTOS_Y_SERVICIOS
+}
+
+enum EstadoComprobanteVenta {
+  PENDIENTE_CAE
+  AUTORIZADO
+  RECHAZADO
+}
+
+enum EstadoRecibo {
+  CONFIRMADO
+  ANULADO
+}
+
+enum TipoRetencionSufrida {
+  IVA
+  GANANCIAS
+  IIBB
+  SUSS
+}
+
+model ConfigArca {
+  id                 String       @id @default(uuid()) @db.Uuid
+  empresaId          String       @unique @db.Uuid
+  ambiente           AmbienteArca @default(SIMULADO)
+  certificadoCifrado String?
+  claveCifrada       String?
+  certificadoSujeto  String?
+  certificadoVence   DateTime?
+}
+
+model TokenArca {
+  id        String       @id @default(uuid()) @db.Uuid
+  empresaId String       @db.Uuid
+  ambiente  AmbienteArca
+  servicio  String
+  token     String
+  sign      String
+  vence     DateTime
+
+  @@unique([empresaId, ambiente, servicio])
+}
+
+model ArcaSimuladoComprobante {
+  id             String   @id @default(uuid()) @db.Uuid
+  empresaId      String   @db.Uuid
+  ptoVta         Int
+  cbteTipo       Int
+  numero         Int
+  cae            String
+  caeVencimiento DateTime @db.Date
+  docNro         String
+  fecha          DateTime @db.Date
+  total          Decimal  @db.Decimal(18, 2)
+  moneda         String
+
+  @@unique([empresaId, ptoVta, cbteTipo, numero])
+}
+
+model ComprobanteVenta {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  empresaId             String                    @db.Uuid
+  numeroInterno         Int
+  tipo                  TipoComprobanteVenta
+  letra                 String
+  puntoVentaId          String                    @db.Uuid
+  puntoVenta            Int
+  numero                Int?
+  terceroId             String                    @db.Uuid
+  fecha                 DateTime                  @db.Date
+  fechaVencimiento      DateTime                  @db.Date
+  concepto              ConceptoVenta
+  fechaServicioDesde    DateTime?                 @db.Date
+  fechaServicioHasta    DateTime?                 @db.Date
+  fechaVencimientoPago  DateTime?                 @db.Date
+  monedaCodigo          String
+  cotizacion            Decimal                   @db.Decimal(18, 6)
+  netoGravado           Decimal                   @db.Decimal(18, 2)
+  noGravado             Decimal                   @db.Decimal(18, 2)
+  exento                Decimal                   @db.Decimal(18, 2)
+  iva                   Decimal                   @db.Decimal(18, 2)
+  total                 Decimal                   @db.Decimal(18, 2)
+  totalPesos            Decimal                   @db.Decimal(18, 2)
+  estado                EstadoComprobanteVenta    @default(PENDIENTE_CAE)
+  emisionEnCurso        DateTime?
+  numeroReservado       Int?
+  cae                   String?
+  caeVencimiento        DateTime?                 @db.Date
+  ultimoError           String?
+  intentos              Int                       @default(0)
+  comprobanteAsociadoId String?                   @db.Uuid
+  aplicarAAsociado      Boolean                   @default(true)
+  asientoId             String?                   @db.Uuid
+  creadoPor             String
+  creadoEn              DateTime                  @default(now())
+  version               Int                       @default(0)
+  tercero               Tercero                   @relation(fields: [terceroId], references: [id])
+  renglones             ComprobanteVentaRenglon[]
+  ivas                  ComprobanteVentaIva[]
+
+  @@unique([empresaId, numeroInterno])
+  @@unique([empresaId, puntoVenta, tipo, letra, numero])
+  @@index([empresaId, terceroId])
+  @@index([empresaId, fecha])
+}
+
+model ComprobanteVentaRenglon {
+  id               String           @id @default(uuid()) @db.Uuid
+  empresaId        String           @db.Uuid
+  comprobanteId    String           @db.Uuid
+  orden            Int
+  articuloId       String?          @db.Uuid
+  descripcion      String
+  cantidad         Decimal          @db.Decimal(18, 4)
+  precioUnitario   Decimal          @db.Decimal(18, 4)
+  alicuota         String
+  neto             Decimal          @db.Decimal(18, 2)
+  iva              Decimal          @db.Decimal(18, 2)
+  cuentaContableId String           @db.Uuid
+  comprobante      ComprobanteVenta @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+}
+
+model ComprobanteVentaIva {
+  id            String           @id @default(uuid()) @db.Uuid
+  empresaId     String           @db.Uuid
+  comprobanteId String           @db.Uuid
+  alicuota      Decimal          @db.Decimal(18, 6)
+  base          Decimal          @db.Decimal(18, 2)
+  importe       Decimal          @db.Decimal(18, 2)
+  comprobante   ComprobanteVenta @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+}
+
+model Recibo {
+  id                 String            @id @default(uuid()) @db.Uuid
+  empresaId          String            @db.Uuid
+  puntoVentaId       String            @db.Uuid
+  puntoVenta         Int
+  numero             Int
+  terceroId          String            @db.Uuid
+  fecha              DateTime          @db.Date
+  sucursalId         String            @db.Uuid
+  cajaId             String            @db.Uuid
+  ingresoId          String?           @db.Uuid
+  totalValores       Decimal           @db.Decimal(18, 2)
+  totalRetenciones   Decimal           @db.Decimal(18, 2)
+  total              Decimal           @db.Decimal(18, 2)
+  estado             EstadoRecibo      @default(CONFIRMADO)
+  asientoId          String?           @db.Uuid
+  asientoAnulacionId String?           @db.Uuid
+  motivoAnulacion    String?
+  creadoPor          String
+  creadoEn           DateTime          @default(now())
+  retenciones        ReciboRetencion[]
+
+  @@unique([empresaId, puntoVenta, numero])
+  @@index([empresaId, terceroId])
+}
+
+model ReciboRetencion {
+  id                String               @id @default(uuid()) @db.Uuid
+  empresaId         String               @db.Uuid
+  reciboId          String               @db.Uuid
+  tipo              TipoRetencionSufrida
+  jurisdiccion      String?
+  numeroCertificado String
+  fecha             DateTime             @db.Date
+  importe           Decimal              @db.Decimal(18, 2)
+  recibo            Recibo               @relation(fields: [reciboId], references: [id])
+}
+
+model AplicacionCobro {
+  id                  String   @id @default(uuid()) @db.Uuid
+  empresaId           String   @db.Uuid
+  numero              Int
+  terceroId           String   @db.Uuid
+  fecha               DateTime @db.Date
+  origenTipo          String
+  origenId            String   @db.Uuid
+  creditoMovId        String   @db.Uuid
+  debitoMovId         String   @db.Uuid
+  importe             Decimal  @db.Decimal(18, 2)
+  importePesosCredito Decimal  @db.Decimal(18, 2)
+  importePesosDebito  Decimal  @db.Decimal(18, 2)
+  diferenciaCambio    Decimal  @db.Decimal(18, 2)
+  anulada             Boolean  @default(false)
+  creadoEn            DateTime @default(now())
+
+  @@index([empresaId, origenTipo, origenId])
+  @@index([empresaId, creditoMovId])
+  @@index([empresaId, debitoMovId])
 }

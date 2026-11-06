@@ -22,6 +22,8 @@ const esquemaEmpresa = z.object({
 const esquemaPuntoVenta = z.object({
   numero: z.number().int().min(1).max(99999),
   descripcion: zTextoOpcional,
+  electronico: z.boolean().default(true),
+  sucursalId: z.string().uuid('Valor inválido').nullish(),
 });
 
 @Controller('empresas')
