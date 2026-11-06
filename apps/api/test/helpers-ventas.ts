@@ -23,5 +23,20 @@ export async function prepararVentas(app: INestApplication, prisma: PrismaServic
     if (r.status !== 201) throw new Error(JSON.stringify(r.body));
     return r.body as { id: string; numero: number; total: string; version: number; estado: string; cae: string };
   };
-  return { ...s, puntoVenta, clienteRI, clienteCF, datos, factura };
+  const sucursal = (await s.http.get('/api/tesoreria/sucursales')).body[0] as { id: string };
+  const caja = (await s.http.post('/api/tesoreria/cajas', { nombre: 'Caja central', monedaCodigo: 'ARS', cuentaContableId: await s.cuenta('1.1.01.001'), sucursalId: sucursal.id })).body as { id: string };
+  /** Cobro en efectivo registrado en Tesorería (ingreso de valores de cliente): queda como saldo a favor. */
+  const cobro = async (importe: number, fecha = '2026-11-03', terceroId = clienteRI.id) => {
+    const r = await s.http.post('/api/tesoreria/ingresos', { fecha, cajaId: caja.id, origen: 'CLIENTE', terceroId, concepto: 'Cobro', efectivo: { importe } });
+    if (r.status !== 201) throw new Error(JSON.stringify(r.body));
+    const mov = await prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenTipo: 'COBRO', origenId: r.body.id } });
+    return { ingreso: r.body as { id: string }, mov };
+  };
+  const cotizacionUsd = (fecha: string, valor: number) =>
+    prisma.cotizacion.upsert({
+      where: { empresaId_monedaCodigo_fecha: { empresaId: s.empresaId, monedaCodigo: 'USD', fecha: new Date(`${fecha}T00:00:00Z`) } },
+      create: { empresaId: s.empresaId, monedaCodigo: 'USD', fecha: new Date(`${fecha}T00:00:00Z`), valor }, update: { valor },
+    });
+  const movDe = (origenId: string) => prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenId } });
+  return { ...s, puntoVenta, clienteRI, clienteCF, datos, factura, sucursal, caja, cobro, cotizacionUsd, movDe };
 }

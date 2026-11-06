@@ -194,6 +194,8 @@ export class IngresosService {
       const sinEfectivo = efectivo.gt(0) && (await saldoCaja(tx, ing.cajaId)).lt(efectivo);
       const cheques = await tx.chequeTercero.findMany({ where: { ingresoId: id } });
       const transf = await tx.transferenciaRecibida.findMany({ where: { ingresoId: id } });
+      if (await tx.aplicacionCobro.count({ where: { creditoMovId: { in: movsCc.map((m) => m.id) }, anulada: false } }))
+        throw new BadRequestException('El cobro fue aplicado a comprobantes: deshaga primero la aplicación');
       const aplicaciones = await tx.aplicacionCuentaCorriente.count({ where: { movimientoId: { in: movsCc.map((m) => m.id) }, anulada: false } });
       if (cheques.some((c) => c.estado !== 'EN_CARTERA' || c.cajaId !== ing.cajaId) || transf.some((t) => t.estado !== 'PENDIENTE') || aplicaciones || sinEfectivo)
         throw new BadRequestException(YA_MOVIDOS);
