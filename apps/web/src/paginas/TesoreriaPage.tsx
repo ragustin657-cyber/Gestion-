@@ -1,6 +1,7 @@
 import { Paper, Tabs, Title } from '@mantine/core';
 import { estado, Maestro, siNo } from '../abm/Maestro';
 import { MONEDAS, useCuentasImputables, useOpciones } from '../abm/opciones';
+import { FormatosExtracto } from '../conciliacion/FormatosExtracto';
 
 interface Banco { id: string; nombre: string; codigoBcra: string | null }
 interface CuentaBancaria { id: string; numero: string; cbu: string | null; alias: string | null; monedaCodigo: string; activa: boolean; banco: Banco; bancoId: string; cuentaContableId: string }
@@ -25,6 +26,7 @@ export function TesoreriaPage() {
           <Tabs.Tab value="cajas">Cajas</Tabs.Tab>
           <Tabs.Tab value="bancos">Bancos</Tabs.Tab>
           <Tabs.Tab value="sucursales">Sucursales</Tabs.Tab>
+          <Tabs.Tab value="formatos">Formatos de extracto</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="bancos">
           <Maestro<Banco> sinMarco config={{
@@ -117,6 +119,7 @@ export function TesoreriaPage() {
             ],
           }} />
         </Tabs.Panel>
+        <Tabs.Panel value="formatos"><FormatosExtracto /></Tabs.Panel>
       </Tabs>
     </Paper>
   );
