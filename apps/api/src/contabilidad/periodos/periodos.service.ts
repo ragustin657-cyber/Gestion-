@@ -36,7 +36,10 @@ export class PeriodosService {
   }
 
   private async periodoBloqueado(tx: TxEmpresa, id: string) {
-    if (!(await tx.periodoContable.findUnique({ where: { id } }))) throw new NotFoundException('Período no encontrado');
+    const previo = await tx.periodoContable.findUnique({ where: { id } });
+    if (!previo) throw new NotFoundException('Período no encontrado');
+    // Ejercicio y luego período: serializa cierres y reaperturas del mismo ejercicio
+    await bloquear(tx, 'Ejercicio', this.tenant.empresaId, [previo.ejercicioId]);
     await bloquear(tx, 'PeriodoContable', this.tenant.empresaId, [id]);
     const periodo = await tx.periodoContable.findUniqueOrThrow({ where: { id } });
     const ejercicio = await tx.ejercicio.findUniqueOrThrow({ where: { id: periodo.ejercicioId }, include: { periodos: { orderBy: [{ anio: 'asc' }, { mes: 'asc' }] } } });
@@ -101,6 +104,8 @@ export class PeriodosService {
       const desde = new Date(ultimo.hasta);
       desde.setUTCDate(desde.getUTCDate() + 1);
       const e = await crearEjercicio(tx as unknown as Prisma.TransactionClient, this.tenant.empresaId, desde, ultimo.numero + 1);
+      // Asientos que ya tenían fecha en el nuevo ejercicio (p. ej. posdatados de antes de la contabilidad)
+      await tx.asiento.updateMany({ where: { ejercicioId: null, fecha: { gte: e.desde, lte: e.hasta } }, data: { ejercicioId: e.id } });
       await this.auditoria.registrar(tx, { entidad: 'Ejercicio', entidadId: e.id, accion: 'CREAR', datos: { numero: e.numero } });
       return e;
     });

@@ -39,6 +39,8 @@ export class CierreEjercicioService {
   private async faltantes(tx: TxEmpresa, e: Ejercicio & { periodos: PeriodoContable[] }) {
     const r: string[] = [];
     if (e.estado === 'CERRADO') return ['El ejercicio ya está cerrado'];
+    const anterior = await tx.ejercicio.findFirst({ where: { numero: { lt: e.numero }, estado: 'ABIERTO' }, orderBy: { numero: 'asc' } });
+    if (anterior) return [`Cierre primero el ejercicio ${anterior.numero}`];
     if (e.periodos.slice(0, 11).some((p) => p.estado !== 'CERRADO')) r.push(`Cierre los períodos hasta ${mmaaaa(e.periodos[10])}`);
     const sig = await tx.ejercicio.findFirst({ where: { numero: e.numero + 1 }, include: { periodos: { orderBy: [{ anio: 'asc' }, { mes: 'asc' }] } } });
     if (!sig) r.push('Abra el ejercicio siguiente');
@@ -86,6 +88,11 @@ export class CierreEjercicioService {
     return this.tenant.transaccion(async (tx) => {
       await this.ejercicio(tx, id);
       await bloquear(tx, 'Ejercicio', this.tenant.empresaId, [id]);
+      const previo = await this.ejercicio(tx, id);
+      // Antes de calcular los saldos: el último mes y el primero del siguiente, en ese orden (el mismo que usa generar)
+      await bloquear(tx, 'PeriodoContable', this.tenant.empresaId, [previo.periodos[11].id]);
+      const siguiente = await tx.ejercicio.findFirst({ where: { numero: previo.numero + 1 }, include: { periodos: { orderBy: [{ anio: 'asc' }, { mes: 'asc' }] } } });
+      if (siguiente) await bloquear(tx, 'PeriodoContable', this.tenant.empresaId, [siguiente.periodos[0].id]);
       const e = await this.ejercicio(tx, id);
       const faltan = await this.faltantes(tx, e);
       if (faltan.length) throw new BadRequestException(faltan[0]);
@@ -119,6 +126,9 @@ export class CierreEjercicioService {
       const e = await this.ejercicio(tx, id);
       if (e.estado !== 'CERRADO') throw new BadRequestException('El ejercicio no está cerrado');
       if (await tx.ejercicio.count({ where: { numero: { gt: e.numero }, estado: 'CERRADO' } })) throw new BadRequestException('Solo se puede reabrir el último ejercicio cerrado');
+      const previoSig = await tx.ejercicio.findFirst({ where: { numero: e.numero + 1 } });
+      // El cierre de meses del siguiente bloquea su ejercicio: así no se numera la apertura mientras se borra
+      if (previoSig) await bloquear(tx, 'Ejercicio', this.tenant.empresaId, [previoSig.id]);
       const sig = await tx.ejercicio.findFirst({ where: { numero: e.numero + 1 }, include: { periodos: true } });
       if (sig?.periodos.some((p) => p.estado === 'CERRADO')) throw new BadRequestException('El ejercicio siguiente tiene períodos cerrados: reábralos primero');
       const ids = [e.asientoRefundicionId, e.asientoCierreId, e.asientoAperturaId].filter((x): x is string => !!x);

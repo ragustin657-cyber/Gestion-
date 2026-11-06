@@ -44,6 +44,8 @@ export class AsientosManualesService {
     return this.tenant.transaccion(async (tx) => {
       const a = await this.manual(tx, id);
       if (a.version !== version) throw new ConflictException(MODIFICADO);
+      if (a.anulaAId) throw new BadRequestException('Un contraasiento no se modifica: registre un asiento nuevo');
+      if (await tx.asiento.count({ where: { anulaAId: id } })) throw new BadRequestException('El asiento fue anulado: no se puede modificar');
       await periodoAbierto(tx, this.tenant.empresaId, a.fecha);
       const { ejercicio } = await periodoAbierto(tx, this.tenant.empresaId, d.fecha);
       const nuevos = await this.asientos.validarRenglones(tx, renglones(d));
