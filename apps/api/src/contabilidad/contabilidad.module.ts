@@ -3,12 +3,13 @@ import { AsientosManualesController } from './manuales/asientos-manuales.control
 import { AsientosManualesService } from './manuales/asientos-manuales.service';
 import { ConsultasContablesController } from './consultas/consultas.controller';
 import { ConsultasContablesService } from './consultas/consultas.service';
+import { CierreEjercicioService } from './cierre/cierre-ejercicio.service';
 import { PeriodosController } from './periodos/periodos.controller';
 import { PeriodosService } from './periodos/periodos.service';
 
 @Module({
   controllers: [PeriodosController, ConsultasContablesController, AsientosManualesController],
-  providers: [PeriodosService, ConsultasContablesService, AsientosManualesService],
+  providers: [PeriodosService, CierreEjercicioService, ConsultasContablesService, AsientosManualesService],
   exports: [PeriodosService, ConsultasContablesService],
 })
 export class ContabilidadModule {}
