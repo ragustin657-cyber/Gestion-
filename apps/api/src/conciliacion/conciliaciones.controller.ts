@@ -25,6 +25,11 @@ export class ConciliacionesController {
     return this.conciliaciones.obtener(id);
   }
 
+  @Post(':id/sugerencias') @HttpCode(200)
+  sugerencias(@Param('id', ParseUUIDPipe) id: string) {
+    return this.conciliaciones.sugerencias(id);
+  }
+
   @Post(':id/vinculos')
   vincular(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaVinculo)) d: DatosVinculo) {
     return this.conciliaciones.crearVinculo(id, d.lineas, d.movimientos);

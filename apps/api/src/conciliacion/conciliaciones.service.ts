@@ -8,6 +8,7 @@ import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { DESCRIPCIONES } from '../tesoreria/operaciones/consultas.service';
 import { FormatosService } from './formatos.service';
 import { DatosConciliacion } from './dto';
+import { sugerir } from './sugerencias';
 
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
@@ -138,6 +139,22 @@ export class ConciliacionesService {
         ...v, lineas: lineasV.filter((l) => l.vinculoId === v.id), movimientos: vistaV.filter((m) => movsV.find((x) => x.id === m.id)!.vinculoId === v.id),
       })),
     };
+  }
+
+  /** Coincidencias propuestas entre lo pendiente de cada lado (no guarda nada). */
+  async sugerencias(id: string) {
+    const db = this.tenant.db;
+    const c = await this.buscar(db, id);
+    if (c.estado !== 'ABIERTA') throw new BadRequestException(CERRADA);
+    const empresa = await db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    const lineas = await db.lineaExtracto.findMany({ where: { cuentaBancariaId: c.cuentaBancariaId, fecha: { gte: c.desde, lte: c.hasta }, estado: 'PENDIENTE' } });
+    const movs = await db.movimientoTesoreria.findMany({ where: { cuentaBancariaId: c.cuentaBancariaId, anulado: false, vinculoId: null, fecha: { lte: c.hasta } } });
+    const refs = await this.referencias(db, movs);
+    return sugerir(
+      lineas.map((l) => ({ id: l.id, fecha: l.fecha, importe: l.importe, referencia: [l.referencia, l.concepto].filter(Boolean).join(' ') })),
+      movs.map((m) => ({ id: m.id, fecha: m.fecha, importe: firmado(m), referencia: refs.get(m.origenId) ?? null })),
+      empresa.diasToleranciaConciliacion,
+    );
   }
 
   /** Crea un vínculo validando pertenencia, estado e importes. La conciliación ya está bloqueada y abierta. */

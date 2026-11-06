@@ -127,4 +127,18 @@ describe('conciliaciones y vínculos', () => {
     expect(res.map((x) => x.status).sort()).toEqual([201, 409]);
     expect(res.find((x) => x.status === 409)!.body.message).toBe('El movimiento ya fue conciliado');
   });
+
+  it('sugerencias automáticas y aplicación por lote', async () => {
+    const { t, deposito, lineas, conciliacion } = await escenario();
+    const url = `/api/conciliacion/conciliaciones/${conciliacion.id}`;
+    const sug = await t.http.post(`${url}/sugerencias`, {});
+    expect(sug.status).toBe(200);
+    expect(sug.body).toEqual([{ lineas: [lineas[0].id], movimientos: [deposito.id], nivel: 'EXACTA', preseleccionada: true }]);
+    const lote = await t.http.post(`${url}/vinculos/lote`, { vinculos: sug.body.map((x: { lineas: string[]; movimientos: string[] }) => ({ lineas: x.lineas, movimientos: x.movimientos })) });
+    expect(lote.status).toBe(201);
+    expect(lote.body).toEqual({ creados: 1 });
+    expect((await prisma.lineaExtracto.findUniqueOrThrow({ where: { id: lineas[0].id } })).estado).toBe('CONCILIADA');
+    expect((await prisma.vinculoConciliacion.findFirstOrThrow()).tipo).toBe('AUTOMATICO');
+    expect((await t.http.post(`${url}/sugerencias`, {})).body).toEqual([]);
+  });
 });
