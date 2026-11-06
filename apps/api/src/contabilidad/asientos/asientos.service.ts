@@ -102,6 +102,7 @@ export class AsientosService {
   async contraasiento(tx: TxEmpresa, asientoId: string, fecha: Date, descripcion: string): Promise<{ id: string; numero: number }> {
     const orig = await tx.asiento.findUnique({ where: { id: asientoId }, include: { renglones: true } });
     if (!orig) throw new BadRequestException('Asiento original inexistente');
+    if (await tx.asiento.count({ where: { anulaAId: orig.id } })) throw new BadRequestException('El asiento ya fue anulado');
     return this.generar(
       tx,
       {

@@ -8,7 +8,7 @@ import { Maestro } from '../abm/Maestro';
 import { CampoAbm } from '../abm/tipos';
 
 interface Empresa { [k: string]: unknown; cuit: string }
-interface PuntoVenta { id: string; numero: number; descripcion: string | null }
+interface PuntoVenta { id: string; numero: number; descripcion: string | null; electronico: boolean }
 
 const JURISDICCIONES = [
   ['901', 'CABA'], ['902', 'Buenos Aires'], ['903', 'Catamarca'], ['904', 'Córdoba'], ['905', 'Corrientes'], ['906', 'Chaco'],
@@ -53,10 +53,12 @@ export function EmpresaPage() {
         campos: [
           { nombre: 'numero', etiqueta: 'Número', tipo: 'numero', requerido: true },
           { nombre: 'descripcion', etiqueta: 'Descripción', tipo: 'texto' },
+          { nombre: 'electronico', etiqueta: 'Factura electrónica (web service ARCA)', tipo: 'booleano' },
         ],
         columnas: [
           { campo: 'numero', titulo: 'Número', render: (p) => String(p.numero).padStart(4, '0') },
           { campo: 'descripcion', titulo: 'Descripción' },
+          { campo: 'electronico', titulo: 'Electrónico', render: (p) => (p.electronico ? 'Sí' : 'No') },
         ],
       }} />
     </Paper>

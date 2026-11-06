@@ -88,7 +88,7 @@ describe('endoso de cheques de terceros en órdenes de pago', () => {
     expect(r.body.estado).toBe('RECHAZADO');
     const asiento = await prisma.asiento.findFirstOrThrow({ where: { origenTipo: 'RECHAZO_CHEQUE', origenId: chequeId } });
     expect(await t.asiento(asiento.id)).toEqual({ '1.1.02.002': ['50000', '0'], '2.1.01.001': ['0', '50000'] });
-    const movs = await prisma.movimientoCuentaCorriente.findMany({ where: { origenTipo: 'CHEQUE_RECHAZADO', origenId: chequeId } });
+    const movs = await prisma.movimientoCuentaCorriente.findMany({ where: { origenTipo: { in: ['CHEQUE_RECHAZADO', 'CHEQUE_RECHAZADO_CLIENTE'] }, origenId: chequeId } });
     expect(movs.map((m) => [m.terceroId, m.importe.toString()]).sort()).toEqual([[t.clienteId, '50000'], [t.proveedorId, '50000']].sort());
     expect((await t.http.post(`/api/tesoreria/cheques/${chequeId}/rechazar`, { fecha: '2026-11-20', motivo: 'x', gastos: 0 })).status).toBe(400);
   });

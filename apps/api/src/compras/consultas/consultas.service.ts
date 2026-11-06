@@ -1,3 +1,4 @@
+import { ORIGENES_CLIENTE } from '../comun';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -52,7 +53,7 @@ export class ConsultasComprasService {
     const tercero = await this.tenant.db.tercero.findUnique({ where: { id: terceroId }, select: { id: true, razonSocial: true, cuit: true } });
     if (!tercero) throw new NotFoundException('Proveedor no encontrado');
     const movs = await this.tenant.db.movimientoCuentaCorriente.findMany({
-      where: { terceroId, anulado: false, fecha: { gte: fechaQuery(desde), lte: fechaQuery(hasta) } },
+      where: { terceroId, anulado: false, origenTipo: { notIn: ORIGENES_CLIENTE }, fecha: { gte: fechaQuery(desde), lte: fechaQuery(hasta) } },
       orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }],
     });
     const comps = await this.tenant.db.comprobanteCompra.findMany({ where: { id: { in: movs.map((m) => m.origenId) } } });
@@ -97,7 +98,7 @@ export class ConsultasComprasService {
 
   async antiguedadDeuda(fecha?: string) {
     const corte = fechaQuery(fecha) ?? new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
-    const movs = await this.tenant.db.movimientoCuentaCorriente.findMany({ where: { anulado: false, NOT: { saldoPesos: 0 } } });
+    const movs = await this.tenant.db.movimientoCuentaCorriente.findMany({ where: { anulado: false, origenTipo: { notIn: ORIGENES_CLIENTE }, NOT: { saldoPesos: 0 } } });
     const terceros = await this.tenant.db.tercero.findMany({ where: { id: { in: [...new Set(movs.map((m) => m.terceroId))] } }, select: { id: true, razonSocial: true } });
     const filas = new Map<string, { porVencer: Dec; d0a30: Dec; d31a60: Dec; d61a90: Dec; mas90: Dec }>();
     for (const m of movs) {

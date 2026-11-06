@@ -15,14 +15,20 @@ describe('filtrarMenu', () => {
   });
 
   it('conserva las ramas Próximamente', () => {
-    const m = filtrarMenu(MENU, []);
-    expect(titulos(m)).toEqual(expect.arrayContaining(['Registraciones', 'Consultas']));
+    const m = filtrarMenu([{ titulo: 'Módulo futuro', hijos: [{ titulo: 'Próximamente', proximamente: true }] }], []);
+    expect(titulos(m)).toEqual(['Módulo futuro']);
   });
 
   it('con oc.crear, Registraciones › Compras incluye Orden de compra', () => {
     const m = filtrarMenu(MENU, ['oc.crear']);
     const compras = m.find((n) => n.titulo === 'Registraciones')!.hijos!.find((n) => n.titulo === 'Compras y Cuentas a Pagar')!;
     expect(titulos(compras.hijos!)).toContain('Orden de compra');
+  });
+
+  it('con venta.emitir, Registraciones › Ventas incluye Comprobante de venta', () => {
+    const m = filtrarMenu(MENU, ['venta.emitir']);
+    const ventas = m.find((n) => n.titulo === 'Registraciones')!.hijos!.find((n) => n.titulo === 'Ventas y Cuentas a Cobrar')!;
+    expect(titulos(ventas.hijos!)).toContain('Comprobante de venta');
   });
 
   it('con todos los permisos muestra Maestros completo', () => {

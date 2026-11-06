@@ -24,10 +24,10 @@ describe('seed demo', () => {
     expect(await sembrarCompleto(app)).toBe('existente');
 
     const terceros = await prisma.tercero.findMany();
-    expect(terceros).toHaveLength(9);
-    for (const t of terceros) expect(validarCuit(t.cuit)).toBe(true);
+    expect(terceros).toHaveLength(11);
+    for (const t of terceros.filter((x) => x.tipoDocumento === 'CUIT')) expect(validarCuit(t.cuit)).toBe(true);
     expect(await prisma.articulo.count()).toBe(10);
-    expect(await prisma.rol.count()).toBe(6);
+    expect(await prisma.rol.count()).toBe(7);
     expect(await prisma.usuario.findUnique({ where: { email: 'aprobador@demo.com' } })).not.toBeNull();
 
     const ocs = await prisma.ordenCompra.findMany();
@@ -71,6 +71,19 @@ describe('seed demo', () => {
     const contador = await prisma.usuario.findUniqueOrThrow({ where: { email: 'contador@demo.com' }, include: { empresas: { include: { rol: true } } } });
     expect(contador.empresas[0].rol.permisos).toEqual(expect.arrayContaining(['asiento.registrar', 'contabilidad.cerrar', 'plancuentas.ver']));
     expect(await prisma.asiento.count({ where: { ejercicioId: null } })).toBe(0);
+
+    // Ventas
+    expect((await prisma.configArca.findFirstOrThrow()).ambiente).toBe('SIMULADO');
+    expect(await prisma.puntoVenta.findFirst({ where: { numero: 2, electronico: true } })).not.toBeNull();
+    const fc = await prisma.comprobanteVenta.findFirstOrThrow({ where: { estado: 'AUTORIZADO' }, include: { tercero: true } });
+    expect(fc).toMatchObject({ tipo: 'FACTURA', letra: 'A', concepto: 'SERVICIOS', numero: 1 });
+    expect(fc.cae).toMatch(/^\d{14}$/);
+    expect(fc.tercero.razonSocial).toBe('Distribuidora Norte SA');
+    expect(await prisma.recibo.count({ where: { estado: 'CONFIRMADO' } })).toBe(1);
+    const saldo = await prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenTipo: 'VENTA', origenId: fc.id } });
+    expect(saldo.saldo.gt(0) && saldo.saldo.lt(fc.total)).toBe(true);
+    const facturacion = await prisma.usuario.findUniqueOrThrow({ where: { email: 'facturacion@demo.com' }, include: { empresas: { include: { rol: true } } } });
+    expect(facturacion.empresas[0].rol.permisos).toEqual(expect.arrayContaining(['venta.emitir', 'cobro.registrar', 'venta.ver']));
 
     for (const a of await prisma.asiento.findMany({ include: { renglones: true } })) {
       const debe = a.renglones.reduce((s, r) => s + Math.round(Number(r.debe) * 100), 0);

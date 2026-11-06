@@ -18,6 +18,9 @@ export function rutaOrigen(origenTipo: string, origenId: string, asientoId: stri
     case 'DEPOSITO': return '/tesoreria/deposito';
     case 'MOVIMIENTO_BANCARIO': return '/tesoreria/movimientos-bancarios';
     case 'MANUAL': return `/contabilidad/asientos/${asientoId}`;
+    case 'VENTA': return `/ventas/comprobantes?id=${origenId}`;
+    case 'RECIBO': return `/ventas/recibos?id=${origenId}`;
+    case 'APLICACION_COBRO': return `/ventas/aplicaciones?id=${origenId}`;
     default: return null;
   }
 }

@@ -28,6 +28,11 @@ import { ConciliacionesPage } from '../conciliacion/ConciliacionesPage';
 import { ConciliacionPage } from '../conciliacion/ConciliacionPage';
 import { ReglasPage } from '../conciliacion/ReglasPage';
 import { AsientoManualPage } from '../contabilidad/AsientoManualPage';
+import { AplicacionPage } from '../ventas/AplicacionPage';
+import { ComprobanteVentaPage } from '../ventas/ComprobanteVentaPage';
+import { ConfigArcaPage } from '../ventas/ConfigArcaPage';
+import { ComprobantesVentaPage, CuentaCorrienteClientesPage, RecibosPage, SaldosClientesPage } from '../ventas/ConsultasVentasPages';
+import { ReciboPage } from '../ventas/ReciboPage';
 import { DiarioPage, MayorPage, SumasSaldosPage } from '../contabilidad/ConsultasContablesPages';
 import { AsientoPage } from '../contabilidad/DetalleAsiento';
 import { ResultadosPage, SituacionPage } from '../contabilidad/EstadosPages';
@@ -109,4 +114,13 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/contabilidad/resultados', elemento: <ResultadosPage /> },
   { ruta: '/contabilidad/libros', elemento: <LibrosPage /> },
   { ruta: '/contabilidad/asientos/:id', elemento: <AsientoPage /> },
+  { ruta: '/ventas/comprobante', elemento: <ComprobanteVentaPage /> },
+  { ruta: '/ventas/recibo', elemento: <ReciboPage /> },
+  { ruta: '/ventas/aplicacion', elemento: <AplicacionPage /> },
+  { ruta: '/ventas/aplicaciones', elemento: <AplicacionPage /> },
+  { ruta: '/ventas/comprobantes', elemento: <ComprobantesVentaPage /> },
+  { ruta: '/ventas/recibos', elemento: <RecibosPage /> },
+  { ruta: '/ventas/cuenta-corriente', elemento: <CuentaCorrienteClientesPage /> },
+  { ruta: '/ventas/saldos', elemento: <SaldosClientesPage /> },
+  { ruta: '/admin/arca', elemento: <ConfigArcaPage /> },
 ];

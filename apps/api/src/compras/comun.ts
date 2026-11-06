@@ -42,7 +42,7 @@ import type { TxEmpresa } from '../prisma/tenant-prisma.service';
 
 /** Bloquea filas (SELECT … FOR UPDATE) de la empresa hasta el fin de la transacción. */
 export async function bloquear(
-  tx: TxEmpresa, tabla: 'OrdenCompraRenglon' | 'InformeRecepcionRenglon' | 'OrdenPago' | 'Tercero' | 'MovimientoCuentaCorriente' | 'Chequera' | 'Caja' | 'ChequeTercero' | 'TransferenciaRecibida' | 'ChequePropio' | 'Conciliacion' | 'MovimientoTesoreria' | 'LineaExtracto' | 'PeriodoContable' | 'Ejercicio' | 'Asiento', empresaId: string, ids: string[],
+  tx: TxEmpresa, tabla: 'OrdenCompraRenglon' | 'InformeRecepcionRenglon' | 'OrdenPago' | 'Tercero' | 'MovimientoCuentaCorriente' | 'Chequera' | 'Caja' | 'ChequeTercero' | 'TransferenciaRecibida' | 'ChequePropio' | 'Conciliacion' | 'MovimientoTesoreria' | 'LineaExtracto' | 'PeriodoContable' | 'Ejercicio' | 'Asiento' | 'ComprobanteVenta' | 'Talonario' | 'Recibo', empresaId: string, ids: string[],
 ): Promise<void> {
   if (!ids.length) return;
   await tx.$queryRawUnsafe(
@@ -50,3 +50,6 @@ export async function bloquear(
     ids, empresaId,
   );
 }
+
+/** Orígenes de movimientos de cuenta corriente del lado cliente (Ventas y cobros de Tesorería); el resto es del lado proveedor. */
+export const ORIGENES_CLIENTE = ['VENTA', 'RECIBO', 'COBRO', 'CHEQUE_RECHAZADO_CLIENTE'];

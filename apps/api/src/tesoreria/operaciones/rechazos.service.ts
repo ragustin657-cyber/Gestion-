@@ -44,17 +44,18 @@ export class RechazosService {
 
       const pesos = await aPesos(tx, ch.monedaCodigo, ch.importe, d.fecha);
       const renglones: RenglonAsiento[] = [{ cuentaContableId: await this.cuentas.cuenta(tx, 'CHEQUES_RECHAZADOS'), debe: pesos.toFixed(2) }];
-      const ccMov = async (terceroId: string) => {
+      // El cliente que entregó el cheque vuelve a deberlo (lado Ventas); el proveedor endosatario, lado Compras
+      const ccMov = async (terceroId: string, origenTipo: 'CHEQUE_RECHAZADO' | 'CHEQUE_RECHAZADO_CLIENTE') => {
         await tx.movimientoCuentaCorriente.create({
           data: {
-            empresaId, terceroId, origenTipo: 'CHEQUE_RECHAZADO', origenId: ch.id, fecha: d.fecha, fechaVencimiento: d.fecha, monedaCodigo: ch.monedaCodigo,
+            empresaId, terceroId, origenTipo, origenId: ch.id, fecha: d.fecha, fechaVencimiento: d.fecha, monedaCodigo: ch.monedaCodigo,
             importe: ch.importe, importePesos: pesos, saldo: ch.importe, saldoPesos: pesos,
           },
         });
       };
       if (ch.estado === 'ENDOSADO') {
         renglones.push({ cuentaContableId: await this.cuentas.cuenta(tx, 'PROVEEDORES'), haber: pesos.toFixed(2) });
-        if (ch.terceroDestinoId) await ccMov(ch.terceroDestinoId);
+        if (ch.terceroDestinoId) await ccMov(ch.terceroDestinoId, 'CHEQUE_RECHAZADO');
       } else {
         const cuenta = await tx.cuentaBancaria.findUniqueOrThrow({ where: { id: ch.cuentaBancariaId! } });
         const gastosPesos = await aPesos(tx, cuenta.monedaCodigo, gastos, d.fecha);
@@ -64,7 +65,7 @@ export class RechazosService {
         if (gastos.gt(0)) renglones.push({ cuentaContableId: await this.cuentas.cuenta(tx, 'GASTOS_BANCARIOS'), debe: gastosPesos.toFixed(2) });
         renglones.push({ cuentaContableId: cuenta.cuentaContableId, haber: pesos.plus(gastosPesos).toFixed(2) });
       }
-      if (ch.terceroOrigenId) await ccMov(ch.terceroOrigenId);
+      if (ch.terceroOrigenId) await ccMov(ch.terceroOrigenId, 'CHEQUE_RECHAZADO_CLIENTE');
 
       await this.asientos.generar(tx, {
         fecha: d.fecha, descripcion: `Rechazo del cheque ${ch.numero} ${ch.banco} - ${d.motivo}`, origenTipo: 'RECHAZO_CHEQUE', origenId: ch.id, renglones,

@@ -36,7 +36,7 @@ describe('rechazo y devolución de cheques de terceros', () => {
     expect(egreso.importe.toString()).toBe('50500');
     const asiento = await prisma.asiento.findFirstOrThrow({ where: { origenTipo: 'RECHAZO_CHEQUE', origenId: chequeId } });
     expect(await t.asiento(asiento.id)).toEqual({ '1.1.02.002': ['50000', '0'], '5.2.02': ['500', '0'], '1.1.01.002': ['0', '50500'] });
-    const cc = await prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenTipo: 'CHEQUE_RECHAZADO', origenId: chequeId } });
+    const cc = await prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenTipo: 'CHEQUE_RECHAZADO_CLIENTE', origenId: chequeId } });
     expect(cc).toMatchObject({ terceroId: t.clienteId });
     expect(cc.importe.toString()).toBe('50000');
     expect(await saldoTercero(t.clienteId)).toBe(-30000);

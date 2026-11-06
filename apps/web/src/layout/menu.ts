@@ -10,8 +10,6 @@ export interface NodoMenu {
   hijos?: NodoMenu[];
 }
 
-const proximamente = (titulo: string): NodoMenu => ({ titulo, hijos: [{ titulo: 'Próximamente', proximamente: true }] });
-
 export const MENU: NodoMenu[] = [
   {
     titulo: 'Registraciones',
@@ -33,7 +31,14 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Pago de OP', ruta: '/pagos/pago', permiso: 'pago.ejecutar' },
         ],
       },
-      proximamente('Ventas y Cuentas a Cobrar'),
+      {
+        titulo: 'Ventas y Cuentas a Cobrar',
+        hijos: [
+          { titulo: 'Comprobante de venta', ruta: '/ventas/comprobante', permiso: 'venta.emitir' },
+          { titulo: 'Recibo', ruta: '/ventas/recibo', permiso: 'cobro.registrar' },
+          { titulo: 'Aplicación de cobros', ruta: '/ventas/aplicacion', permiso: 'cobro.registrar' },
+        ],
+      },
       {
         titulo: 'Tesorería',
         hijos: [
@@ -84,7 +89,15 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Retenciones practicadas', ruta: '/pagos/retenciones', permiso: 'op.ver' },
         ],
       },
-      proximamente('Ventas y Cuentas a Cobrar'),
+      {
+        titulo: 'Ventas y Cuentas a Cobrar',
+        hijos: [
+          { titulo: 'Comprobantes de venta', ruta: '/ventas/comprobantes', permiso: 'venta.ver' },
+          { titulo: 'Recibos', ruta: '/ventas/recibos', permiso: 'venta.ver' },
+          { titulo: 'Cuenta corriente de clientes', ruta: '/ventas/cuenta-corriente', permiso: 'venta.ver' },
+          { titulo: 'Saldos de clientes', ruta: '/ventas/saldos', permiso: 'venta.ver' },
+        ],
+      },
       {
         titulo: 'Tesorería',
         hijos: [
@@ -129,6 +142,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Roles', ruta: '/admin/roles', permiso: 'rol.administrar' },
       { titulo: 'Auditoría', ruta: '/admin/auditoria', permiso: 'auditoria.ver' },
       { titulo: 'Configuración de compras', ruta: '/admin/compras', permiso: 'compras.config' },
+      { titulo: 'Factura electrónica ARCA', ruta: '/admin/arca', permiso: 'arca.configurar' },
       { titulo: 'Retenciones', ruta: '/admin/retenciones', permiso: 'retenciones.config' },
       { titulo: 'Reglas de conciliación', ruta: '/admin/reglas-conciliacion', permiso: 'conciliacion.operar' },
       { titulo: 'Padrones de IIBB', ruta: '/admin/padrones', soloSuperadmin: true },

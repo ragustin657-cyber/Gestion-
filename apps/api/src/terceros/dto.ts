@@ -1,11 +1,13 @@
-import { CondicionIva } from '@prisma/client';
+import { CondicionIva, TipoDocumento } from '@prisma/client';
+import { validarCuit, normalizarCuit } from '@gestion/shared';
 import { z } from 'zod';
-import { zCuit, zTexto, zTextoOpcional } from '../comun/esquemas';
+import { zTexto, zTextoOpcional } from '../comun/esquemas';
 
 const base = z.object({
   razonSocial: zTexto,
   nombreFantasia: zTextoOpcional,
-  cuit: zCuit,
+  cuit: z.string({ required_error: 'Campo obligatorio' }).trim().min(1, 'Campo obligatorio'),
+  tipoDocumento: z.nativeEnum(TipoDocumento).optional(),
   condicionIva: z.nativeEnum(CondicionIva),
   esProveedor: z.boolean().default(false),
   esCliente: z.boolean().default(false),
@@ -26,10 +28,26 @@ const base = z.object({
 const tipo = (t: { esProveedor?: boolean; esCliente?: boolean }) => t.esProveedor || t.esCliente;
 const msgTipo = { message: 'Debe ser proveedor, cliente o ambos', path: ['esProveedor'] };
 
-export const esquemaAltaTercero = base.refine(tipo, msgTipo);
+/** El número de documento según su tipo: CUIT con dígito verificador, DNI de 7 u 8 dígitos, OTRO libre. */
+function documento<T extends { cuit?: string; tipoDocumento?: TipoDocumento }>(t: T, ctx: z.RefinementCtx): T {
+  if (t.cuit === undefined) return t;
+  const tipoDoc = t.tipoDocumento ?? 'CUIT';
+  if (tipoDoc === 'CUIT') {
+    if (!validarCuit(t.cuit)) ctx.addIssue({ code: 'custom', message: 'CUIT inválido', path: ['cuit'] });
+    else return { ...t, cuit: normalizarCuit(t.cuit) };
+  } else if (tipoDoc === 'DNI') {
+    const dni = t.cuit.replace(/\./g, '');
+    if (!/^\d{7,8}$/.test(dni)) ctx.addIssue({ code: 'custom', message: 'DNI inválido', path: ['cuit'] });
+    else return { ...t, cuit: dni };
+  }
+  return t;
+}
+
+export const esquemaAltaTercero = base.refine(tipo, msgTipo).transform(documento);
 export const esquemaModTercero = base
   .partial()
-  .refine((t) => t.esProveedor === undefined || t.esCliente === undefined || tipo(t), msgTipo);
+  .refine((t) => t.esProveedor === undefined || t.esCliente === undefined || tipo(t), msgTipo)
+  .transform(documento);
 
 export const esquemaIibb = z.array(
   z.object({

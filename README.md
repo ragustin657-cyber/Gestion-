@@ -100,6 +100,43 @@ El seed genera un extracto de ejemplo del Banco Nación en `apps/api/prisma/demo
 
 > ⚠️ **Moneda histórica.** Los estados contables no incluyen el ajuste por inflación (RT 6 / RT 54): ese ajuste se carga como asiento manual hasta que tenga su propia entrega.
 
+## Ventas y factura electrónica ARCA (Entrega 6)
+
+- **Comprobantes de venta** (Registraciones → Ventas y Cuentas a Cobrar): factura, nota de débito y nota de crédito, con IVA por alícuota. La letra (A, B o C) sale de la condición de IVA de la empresa y del cliente. Los renglones pueden ser artículos o texto libre. En **Servicios** se cargan el período facturado y el vencimiento del pago.
+- **CAE de ARCA:**
+  - Al **Emitir**, el sistema pide el CAE. Recién con la autorización el comprobante recibe su número, entra en la cuenta corriente y genera el asiento.
+  - Si ARCA no responde, queda **pendiente de CAE** con un botón **Reintentar**. Si ARCA autorizó pero la respuesta se perdió, el reintento recupera ese CAE en vez de pedir otro.
+  - Un comprobante autorizado no se anula: se corrige con una nota de crédito.
+- **PDF** con el código QR de ARCA. En Simulado y Homologación lleva la leyenda "SIN VALIDEZ FISCAL".
+- **Recibos:**
+  - valores (efectivo, cheques y transferencias, que entran a la caja como en Tesorería);
+  - retenciones sufridas (IVA, Ganancias, IIBB, SUSS);
+  - comprobantes a cancelar. Lo que sobra queda como pago a cuenta.
+- **Aplicación de cobros:** cancela facturas con saldos a favor (pagos a cuenta, cobros de Tesorería, notas de crédito). Una factura en dólares cobrada en pesos registra la **diferencia de cambio**.
+- **Consultas:** comprobantes, recibos, cuenta corriente y saldos de clientes por antigüedad.
+
+**Modos de ARCA** (Administración del sistema → Factura electrónica ARCA):
+
+| Modo | Uso |
+|---|---|
+| Simulado | Pruebas y demo. No se conecta con ARCA; numera y devuelve CAE de prueba. Es el modo inicial de toda empresa. |
+| Homologación | El ARCA de prueba. Requiere un certificado de homologación del CUIT de la empresa. |
+| Producción | Facturación real. Requiere el certificado de producción. |
+
+**Para usar Homologación:**
+1. Generá una clave privada y un pedido de certificado (CSR):
+   ```bash
+   openssl genrsa -out empresa.key 2048
+   openssl req -new -key empresa.key -subj "/C=AR/O=Mi Empresa/CN=gestion/serialNumber=CUIT 30712345671" -out empresa.csr
+   ```
+2. En el sitio de ARCA, con la clave fiscal, entrá a "WSASS – Autogestión Certificados Homologación". Creá el certificado con el CSR, descargá el `.crt` y autorizalo para el servicio **wsfe**.
+3. Dá de alta en ARCA un punto de venta del tipo "web services". En el sistema, marcalo como electrónico (Administración → Empresa → Puntos de venta).
+4. Cargá el `.crt` y el `.key` en la pantalla de ARCA, elegí Homologación y usá **Probar conexión**.
+
+> ⚠️ El servidor necesita la variable `ARCA_CLAVE_MAESTRA` (32 bytes en base64, por ejemplo `openssl rand -base64 32`) para guardar los certificados cifrados. Si se pierde, hay que volver a cargar los certificados.
+
+Usuario demo de facturación: **facturacion@demo.com** / **facturacion1234**.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
