@@ -21,7 +21,7 @@ describe('configuración de pagos y retenciones', () => {
     const jur = (await http.get('/api/pagos/config/jurisdicciones')).body;
     expect(jur.find((j: { jurisdiccion: string }) => j.jurisdiccion === '902')).toMatchObject({ usaPadron: true, sinPadron: 'NO_RETENER' });
     expect(jur.find((j: { jurisdiccion: string }) => j.jurisdiccion === '904')).toMatchObject({ usaPadron: false, sinPadron: 'ALICUOTA_DEFECTO' });
-    expect((await http.get('/api/compras/config')).body.cuentas).toHaveLength(19);
+    expect((await http.get('/api/compras/config')).body.cuentas).toHaveLength(20);
   });
 
   it('monto límite de OP', async () => {

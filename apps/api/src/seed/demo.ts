@@ -6,6 +6,7 @@ import { cargarConfigPagos } from '../pagos/config/valores-iniciales';
 import { cargarPlanModelo } from './plan-cuentas-modelo';
 import { cargarReglasIniciales } from '../conciliacion/reglas-iniciales';
 import { MODELOS_FORMATO } from '../conciliacion/modelos-formato';
+import { crearEjercicio, rangoEjercicio } from '../contabilidad/periodos/ejercicios';
 
 export const DEMO = {
   email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.',
@@ -91,6 +92,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     await cargarConfigCuentas(tx, e);
     await cargarConfigPagos(tx, e);
     await cargarReglasIniciales(tx, e);
+    await crearEjercicio(tx, e, rangoEjercicio(1, new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`)).desde, 1);
     const cuenta = async (codigo: string) =>
       (await tx.cuentaContable.findFirstOrThrow({ where: { empresaId: e, codigo } })).id;
 

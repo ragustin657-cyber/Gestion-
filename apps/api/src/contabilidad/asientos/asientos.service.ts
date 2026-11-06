@@ -5,6 +5,8 @@ import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
 import { NumeracionService } from '../../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
+import { periodoAbierto } from '../periodos/control';
+import type { TipoAsiento } from '@prisma/client';
 
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
@@ -23,6 +25,8 @@ export interface DatosAsiento {
   origenTipo: string;
   origenId: string;
   renglones: RenglonAsiento[];
+  /** Por defecto AUTOMATICO. */
+  tipo?: TipoAsiento;
 }
 
 const fmt = (d: Dec) => d.toFixed(2);
@@ -68,12 +72,15 @@ export class AsientosService {
     const haber = renglones.reduce((s, r) => s.plus(r.haber), new D(0));
     if (!debe.eq(haber)) throw new BadRequestException(`El asiento no balancea (debe ${fmt(debe)}, haber ${fmt(haber)})`);
 
+    // Control de fechas contables (bloquea el período hasta el fin de la transacción)
+    const { ejercicio } = await periodoAbierto(tx, this.tenant.empresaId, a.fecha);
     const ctx = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO);
     const numero = await this.numeracion.siguiente(tx, 'ASIENTO', 0);
     const asiento = await tx.asiento.create({
       data: {
         empresaId: this.tenant.empresaId, numero, fecha: a.fecha, descripcion: a.descripcion,
         origenTipo: a.origenTipo, origenId: a.origenId, anulaAId: anulaAId ?? null, creadoPor: ctx.usuarioId,
+        tipo: a.tipo ?? 'AUTOMATICO', ejercicioId: ejercicio.id,
       },
     });
     await tx.asientoRenglon.createMany({

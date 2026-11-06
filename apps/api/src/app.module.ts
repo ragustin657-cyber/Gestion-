@@ -5,6 +5,7 @@ import { MonedasModule } from './monedas/monedas.module';
 import { OrganizacionModule } from './organizacion/organizacion.module';
 import { SucursalesModule } from './tesoreria/sucursales/sucursales.module';
 import { TesoreriaOperacionesModule } from './tesoreria/tesoreria-operaciones.module';
+import { ContabilidadModule } from './contabilidad/contabilidad.module';
 import { ConciliacionModule } from './conciliacion/conciliacion.module';
 import { TesoreriaMaestrosModule } from './tesoreria/maestros/tesoreria-maestros.module';
 import { ConfigComprasModule } from './compras/config/config-compras.module';
@@ -43,6 +44,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     PagosModule,
     TesoreriaOperacionesModule,
     ConciliacionModule,
+    ContabilidadModule,
   ],
   controllers: [SaludController],
 })
