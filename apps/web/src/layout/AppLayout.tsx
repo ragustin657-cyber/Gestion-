@@ -3,7 +3,7 @@ import { notifications } from '@mantine/notifications';
 import { api } from '../api/cliente';
 import { FormAbm } from '../abm/FormAbm';
 import { useDisclosure } from '@mantine/hooks';
-import { IconBuilding, IconKey, IconLogout } from '@tabler/icons-react';
+import { IconBuilding, IconBuildingStore, IconKey, IconLogout } from '@tabler/icons-react';
 import { useMemo, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -29,6 +29,12 @@ export function AppLayout() {
             <Button variant="subtle" color="white" size="compact-sm" leftSection={<IconBuilding size={16} />} onClick={() => navegar('/empresa')}>
               <Text size="sm" truncate maw={180}>{sesion?.empresa?.razonSocial}</Text>
             </Button>
+            {sesion?.sucursal && (
+              <Group gap={4} wrap="nowrap" visibleFrom="xs" data-testid="sucursal-usuario">
+                <IconBuildingStore size={16} />
+                <Text size="sm" truncate maw={160}>{sesion.sucursal.nombre}</Text>
+              </Group>
+            )}
             <Button variant="subtle" color="white" size="compact-sm" leftSection={<IconKey size={16} />} onClick={() => setCambiandoClave(true)} visibleFrom="sm">
               Contraseña
             </Button>

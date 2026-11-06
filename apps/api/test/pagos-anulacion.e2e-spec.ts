@@ -34,7 +34,7 @@ describe('anulación de órdenes de pago pagadas', () => {
     expect([m.saldo.toString(), m.saldoPesos.toString()]).toEqual(['121000', '121000']);
     expect((await prisma.ordenPagoRetencion.findMany({ where: { ordenPagoId: pagada.id, importe: { gt: 0 } } })).every((x) => x.anulada)).toBe(true);
     expect(await prisma.chequePropio.count({ where: { estado: 'ANULADO' } })).toBe(1);
-    expect(await prisma.movimientoTesoreria.count({ where: { anulado: false } })).toBe(0);
+    expect(await prisma.movimientoTesoreria.count({ where: { anulado: false, origenTipo: 'OP' } })).toBe(0);
     expect(await prisma.aplicacionCuentaCorriente.count({ where: { anulada: false } })).toBe(0);
     const contra = await prisma.asiento.findFirstOrThrow({ where: { anulaAId: pagada.asientoId }, include: { renglones: true } });
     expect(contra.id).toBe(r.body.asientoAnulacionId);

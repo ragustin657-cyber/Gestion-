@@ -7,6 +7,8 @@ export interface Sesion {
   empresa?: { id: string; razonSocial: string; condicionIva?: string };
   permisos?: Permiso[];
   superadmin?: boolean;
+  /** Sucursal asignada al usuario en la empresa (ausente = todas). */
+  sucursal?: { id: string; codigo: string; nombre: string } | null;
 }
 
 const CLAVE = 'gestion.sesion';

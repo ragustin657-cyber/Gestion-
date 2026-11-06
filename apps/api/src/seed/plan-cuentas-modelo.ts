@@ -20,8 +20,11 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('1.1.01.001', 'Caja', A, true),
   c('1.1.01.002', 'Bancos cuenta corriente', A, true),
   c('1.1.01.003', 'Valores a depositar', A, true),
+  c('1.1.01.004', 'Transferencias a acreditar', A, true),
+  c('1.1.01.005', 'Valores en tránsito', A, true),
   c('1.1.02', 'Créditos por ventas', A),
   c('1.1.02.001', 'Deudores por ventas', A, true),
+  c('1.1.02.002', 'Cheques rechazados', A, true),
   c('1.1.03', 'Créditos fiscales', A),
   c('1.1.03.001', 'IVA Crédito Fiscal', A, true),
   c('1.1.03.002', 'Percepciones IVA sufridas', A, true),
@@ -62,6 +65,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.01', 'Gastos generales', RN, true),
   c('5.2.02', 'Gastos bancarios', RN, true),
   c('5.2.03', 'Diferencias de cambio negativas', RN, true),
+  c('5.2.04', 'Diferencias de caja', RN, true),
 ];
 
 /** Código del padre según la convención de puntos ('1.1.01' → '1.1'). */

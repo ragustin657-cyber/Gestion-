@@ -10,11 +10,13 @@ const esquemaAlta = z.object({
   nombre: zTexto,
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
   rolId: z.string().uuid('Rol inválido'),
+  sucursalId: z.string().uuid('Sucursal inválida').nullish(),
 });
 const esquemaModificacion = z.object({
   rolId: z.string().uuid('Rol inválido').optional(),
   activo: z.boolean().optional(),
   password: zPassword.nullish(),
+  sucursalId: z.string().uuid('Sucursal inválida').nullable().optional(),
 });
 
 @Controller('usuarios')

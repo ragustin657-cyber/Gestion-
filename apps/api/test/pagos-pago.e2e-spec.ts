@@ -32,7 +32,7 @@ describe('pago de órdenes de pago', () => {
     expect(await p.asiento(r.body.asientoId)).toEqual({
       '2.1.01.001': ['121000', '0'], '2.1.02.002': ['0', '656.6'], '2.1.02.004': ['0', '2000'], '1.1.01.002': ['0', '100000'], '2.1.01.002': ['0', '18343.4'],
     });
-    expect(await prisma.movimientoTesoreria.count()).toBe(1);
+    expect(await prisma.movimientoTesoreria.count({ where: { origenTipo: 'OP' } })).toBe(1);
     expect(await prisma.chequePropio.count({ where: { estado: 'EMITIDO' } })).toBe(1);
   });
 

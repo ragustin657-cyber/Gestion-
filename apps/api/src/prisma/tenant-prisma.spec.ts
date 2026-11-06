@@ -34,7 +34,7 @@ describe('TenantPrisma', () => {
 
   function como<T>(empresaId: string | null, fn: () => Promise<T>): Promise<T> {
     return cls.run(async () => {
-      const ctx: ContextoRequest = { usuarioId: 'u', empresaId, permisos: [], superadmin: false };
+      const ctx: ContextoRequest = { usuarioId: 'u', empresaId, permisos: [], superadmin: false, sucursalId: null };
       cls.set(CLAVE_CONTEXTO, ctx);
       return fn();
     });

@@ -15,6 +15,10 @@ export async function prepararPagos(app: INestApplication, prisma: PrismaService
   const echeq = (await s.http.post('/api/tesoreria/chequeras', { cuentaBancariaId: ars.id, tipo: 'ECHEQ' })).body;
   const fisica = (await s.http.post('/api/tesoreria/chequeras', { cuentaBancariaId: ars.id, tipo: 'FISICA', desde: 1, hasta: 50 })).body;
   const cajaUsd = (await s.http.post('/api/tesoreria/cajas', { nombre: 'Caja USD', monedaCodigo: 'USD', cuentaContableId: await s.cuenta('1.1.01.001') })).body;
+  // Saldo inicial de la caja USD para los pagos en efectivo
+  await prisma.movimientoTesoreria.create({
+    data: { empresaId: s.empresaId, fecha: new Date('2026-11-01T00:00:00Z'), tipo: 'INGRESO', cajaId: cajaUsd.id, monedaCodigo: 'USD', importe: 10000, origenTipo: 'SALDO_INICIAL', origenId: cajaUsd.id },
+  });
   const opAprobada = async (imputaciones: object[], extra: Record<string, unknown> = {}) => {
     const b = await s.http.post('/api/pagos/ordenes', { terceroId: proveedorId, fecha: '2026-11-10', imputaciones, ...extra });
     if (b.status !== 201) throw new Error(JSON.stringify(b.body));

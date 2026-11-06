@@ -9,13 +9,15 @@ export const DEMO = {
   email: 'admin@demo.com', password: 'admin1234', empresa: 'Demo S.A.',
   aprobador: 'aprobador@demo.com', passwordAprobador: 'aprobador1234',
   tesorero: 'tesorero@demo.com', passwordTesorero: 'tesorero1234',
+  cajero: 'cajero.rosario@demo.com', passwordCajero: 'cajero1234',
 };
 
 const ROLES: Record<string, Permiso[]> = {
   Administrador: TODOS_LOS_PERMISOS,
   Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear'],
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
-  Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver'],
+  Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar'],
+  'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver'],
 };
 
@@ -64,6 +66,8 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     });
     const e = empresa.id;
     await tx.puntoVenta.create({ data: { empresaId: e, numero: 1, descripcion: 'Casa central' } });
+    const central = await tx.sucursal.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Casa central', domicilio: 'Av. Corrientes 1234, CABA', esCentral: true } });
+    const rosario = await tx.sucursal.create({ data: { empresaId: e, codigo: 'ROS', nombre: 'Sucursal Rosario', domicilio: 'Córdoba 1450, Rosario' } });
 
     const roles: Record<string, string> = {};
     for (const [nombre, permisos] of Object.entries(ROLES)) roles[nombre] = (await tx.rol.create({ data: { empresaId: e, nombre, permisos } })).id;
@@ -76,6 +80,10 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       (await tx.usuario.findUnique({ where: { email: DEMO.tesorero } })) ??
       (await tx.usuario.create({ data: { email: DEMO.tesorero, nombre: 'Tesorero', passwordHash: await hash(DEMO.passwordTesorero) } }));
     await tx.usuarioEmpresa.create({ data: { usuarioId: tesorero.id, empresaId: e, rolId: roles.Tesorero } });
+    const cajero =
+      (await tx.usuario.findUnique({ where: { email: DEMO.cajero } })) ??
+      (await tx.usuario.create({ data: { email: DEMO.cajero, nombre: 'Cajero Rosario', passwordHash: await hash(DEMO.passwordCajero) } }));
+    await tx.usuarioEmpresa.create({ data: { usuarioId: cajero.id, empresaId: e, rolId: roles['Cajero sucursal'], sucursalId: rosario.id } });
 
     await cargarPlanModelo(tx, e);
     await cargarConfigCuentas(tx, e);
@@ -103,7 +111,8 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       data: { empresaId: e, bancoId: banco.id, numero: '1234567/8', cbu: '0110599500000001234565', alias: 'DEMO.SA.NACION', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.002') },
     });
     await tx.chequera.create({ data: { empresaId: e, cuentaBancariaId: cb.id, tipo: 'ECHEQ' } });
-    await tx.caja.create({ data: { empresaId: e, nombre: 'Caja principal', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
+    await tx.caja.create({ data: { empresaId: e, sucursalId: central.id, nombre: 'Caja principal', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
+    await tx.caja.create({ data: { empresaId: e, sucursalId: rosario.id, nombre: 'Caja Rosario', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
 
     await tx.centroCosto.createMany({ data: [{ empresaId: e, codigo: 'ADM', nombre: 'Administración' }, { empresaId: e, codigo: 'COM', nombre: 'Comercial' }] });
     await tx.deposito.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Depósito central', direccion: 'Av. Corrientes 1234, CABA' } });

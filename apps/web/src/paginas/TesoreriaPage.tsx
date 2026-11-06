@@ -1,16 +1,18 @@
 import { Paper, Tabs, Title } from '@mantine/core';
-import { estado, Maestro } from '../abm/Maestro';
+import { estado, Maestro, siNo } from '../abm/Maestro';
 import { MONEDAS, useCuentasImputables, useOpciones } from '../abm/opciones';
 
 interface Banco { id: string; nombre: string; codigoBcra: string | null }
 interface CuentaBancaria { id: string; numero: string; cbu: string | null; alias: string | null; monedaCodigo: string; activa: boolean; banco: Banco; bancoId: string; cuentaContableId: string }
 interface Chequera { id: string; tipo: string; desde: number | null; hasta: number | null; proximoNumero: number | null; activa: boolean; cuentaBancaria: CuentaBancaria }
-interface Caja { id: string; nombre: string; monedaCodigo: string; activa: boolean }
+interface Caja { id: string; nombre: string; monedaCodigo: string; activa: boolean; sucursalId: string; sucursal: { nombre: string } }
+interface Sucursal { id: string; codigo: string; nombre: string; domicilio: string | null; esCentral: boolean; activa: boolean }
 
 export function TesoreriaPage() {
   const cuentasContables = useCuentasImputables();
   const bancos = useOpciones<Banco>('/tesoreria/bancos', (b) => ({ value: b.id, label: b.nombre }));
   const cuentasBancarias = useOpciones<CuentaBancaria>('/tesoreria/cuentas-bancarias', (c) => ({ value: c.id, label: `${c.banco.nombre} - ${c.numero}` }));
+  const sucursales = useOpciones<Sucursal>('/tesoreria/sucursales', (x) => ({ value: x.id, label: x.nombre }));
   const permiso = 'tesoreria.maestros.editar' as const;
 
   return (
@@ -22,6 +24,7 @@ export function TesoreriaPage() {
           <Tabs.Tab value="chequeras">Chequeras</Tabs.Tab>
           <Tabs.Tab value="cajas">Cajas</Tabs.Tab>
           <Tabs.Tab value="bancos">Bancos</Tabs.Tab>
+          <Tabs.Tab value="sucursales">Sucursales</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="bancos">
           <Maestro<Banco> sinMarco config={{
@@ -81,14 +84,36 @@ export function TesoreriaPage() {
             valoresNuevos: { monedaCodigo: 'ARS', activa: true },
             campos: [
               { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
+              { nombre: 'sucursalId', etiqueta: 'Sucursal', tipo: 'select', opciones: sucursales, ayuda: 'Vacío: casa central.' },
               { nombre: 'monedaCodigo', etiqueta: 'Moneda', tipo: 'select', requerido: true, opciones: MONEDAS },
               { nombre: 'cuentaContableId', etiqueta: 'Cuenta contable', tipo: 'select', requerido: true, opciones: cuentasContables },
               { nombre: 'activa', etiqueta: 'Activa', tipo: 'booleano' },
             ],
             columnas: [
               { campo: 'nombre', titulo: 'Caja' },
+              { campo: 'sucursal', titulo: 'Sucursal', render: (c) => c.sucursal?.nombre ?? '' },
               { campo: 'monedaCodigo', titulo: 'Moneda' },
               { campo: 'activa', titulo: 'Estado', render: (c) => estado(c.activa) },
+            ],
+          }} />
+        </Tabs.Panel>
+        <Tabs.Panel value="sucursales">
+          <Maestro<Sucursal> sinMarco config={{
+            titulo: 'Sucursal', ruta: '/tesoreria/sucursales', permisoEditar: permiso,
+            valoresNuevos: { activa: true, esCentral: false },
+            campos: [
+              { nombre: 'codigo', etiqueta: 'Código (hasta 6 letras o números)', tipo: 'texto', requerido: true },
+              { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
+              { nombre: 'domicilio', etiqueta: 'Domicilio', tipo: 'texto' },
+              { nombre: 'esCentral', etiqueta: 'Casa central', tipo: 'booleano' },
+              { nombre: 'activa', etiqueta: 'Activa', tipo: 'booleano' },
+            ],
+            columnas: [
+              { campo: 'codigo', titulo: 'Código' },
+              { campo: 'nombre', titulo: 'Sucursal' },
+              { campo: 'domicilio', titulo: 'Domicilio' },
+              { campo: 'esCentral', titulo: 'Casa central', render: (x) => siNo(x.esCentral) },
+              { campo: 'activa', titulo: 'Estado', render: (x) => estado(x.activa) },
             ],
           }} />
         </Tabs.Panel>

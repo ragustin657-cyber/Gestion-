@@ -16,4 +16,11 @@ describe('MediosPago', () => {
     expect(screen.queryByTestId('falta-cubrir')).toBeNull();
     expect(screen.getByText(/Cubierto: \$ 118.343,40/)).toBeInTheDocument();
   });
+  it('un cheque de terceros cuenta por su importe', () => {
+    const cheques = [{ id: 'ch1', etiqueta: 'Galicia 123', monedaCodigo: 'ARS', importe: '50000' }];
+    const medio: MedioEditable = { tipo: 'CHEQUE_TERCERO', monedaCodigo: 'ARS', importe: '', chequeId: 'ch1' };
+    render(<MantineProvider><MediosPago {...props} totalACubrir="50000" chequesCartera={cheques} medios={[medio]} /></MantineProvider>);
+    expect(screen.queryByTestId('falta-cubrir')).toBeNull();
+    expect(screen.getByText(/Cubierto: \$ 50.000,00/)).toBeInTheDocument();
+  });
 });

@@ -42,7 +42,7 @@ describe('AsientosService', () => {
 
   const como = <T>(empresaId: string, fn: () => Promise<T>) =>
     cls.run(async () => {
-      cls.set(CLAVE_CONTEXTO, { usuarioId: '00000000-0000-0000-0000-000000000001', empresaId, permisos: [], superadmin: false });
+      cls.set(CLAVE_CONTEXTO, { usuarioId: '00000000-0000-0000-0000-000000000001', empresaId, permisos: [], superadmin: false, sucursalId: null });
       return await fn();
     });
   const cuenta = async (empresaId: string, codigo: string) =>

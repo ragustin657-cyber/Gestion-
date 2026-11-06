@@ -7,6 +7,7 @@ import { TenantPrisma } from '../prisma/tenant-prisma.service';
 type UsuarioEmpresaConDatos = {
   usuarioId: string;
   rolId: string;
+  sucursalId: string | null;
   activo: boolean;
   usuario: { email: string; nombre: string };
   rol: { nombre: string };
@@ -18,6 +19,7 @@ const vista = (ue: UsuarioEmpresaConDatos) => ({
   nombre: ue.usuario.nombre,
   rolId: ue.rolId,
   rol: ue.rol.nombre,
+  sucursalId: ue.sucursalId,
   activo: ue.activo,
 });
 
@@ -38,30 +40,32 @@ export class UsuariosService {
   }
 
   /** Crea el usuario (o reutiliza uno existente por email) y lo asigna a la empresa activa. */
-  crear(d: { email: string; nombre: string; password: string; rolId: string }) {
+  crear(d: { email: string; nombre: string; password: string; rolId: string; sucursalId?: string | null }) {
     return this.tenant.transaccion(async (tx) => {
       await this.verificarRol(tx, d.rolId);
+      if (d.sucursalId) await this.verificarSucursal(tx, d.sucursalId);
       const usuario =
         (await tx.usuario.findUnique({ where: { email: d.email } })) ??
         (await tx.usuario.create({
           data: { email: d.email, nombre: d.nombre, passwordHash: await hash(d.password) },
         }));
       const ue = await tx.usuarioEmpresa.create({
-        data: { usuarioId: usuario.id, empresaId: this.tenant.empresaId, rolId: d.rolId },
+        data: { usuarioId: usuario.id, empresaId: this.tenant.empresaId, rolId: d.rolId, sucursalId: d.sucursalId ?? null },
         include: { usuario: true, rol: true },
       });
       await this.auditoria.registrar(tx, {
-        entidad: 'Usuario', entidadId: usuario.id, accion: 'CREAR', datos: { email: d.email, rolId: d.rolId },
+        entidad: 'Usuario', entidadId: usuario.id, accion: 'CREAR', datos: { email: d.email, rolId: d.rolId, sucursalId: d.sucursalId ?? null },
       });
       return vista(ue);
     });
   }
 
   /** Cambia rol/estado en la empresa activa y, si se indica, blanquea la contraseña. */
-  modificar(usuarioId: string, d: { rolId?: string; activo?: boolean; password?: string | null }) {
+  modificar(usuarioId: string, d: { rolId?: string; activo?: boolean; password?: string | null; sucursalId?: string | null }) {
     const { password, ...cambios } = d;
     return this.tenant.transaccion(async (tx) => {
       if (cambios.rolId) await this.verificarRol(tx, cambios.rolId);
+      if (cambios.sucursalId) await this.verificarSucursal(tx, cambios.sucursalId);
       const ue = await tx.usuarioEmpresa.update({
         where: { usuarioId_empresaId: { usuarioId, empresaId: this.tenant.empresaId } },
         data: cambios,
@@ -78,6 +82,10 @@ export class UsuariosService {
       });
       return vista(ue);
     });
+  }
+
+  private async verificarSucursal(tx: Parameters<Parameters<TenantPrisma['transaccion']>[0]>[0], sucursalId: string) {
+    if (!(await tx.sucursal.findUnique({ where: { id: sucursalId } }))) throw new NotFoundException('Sucursal no encontrada');
   }
 
   private async verificarRol(tx: Parameters<Parameters<TenantPrisma['transaccion']>[0]>[0], rolId: string) {
