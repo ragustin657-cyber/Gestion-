@@ -20,8 +20,10 @@ export interface PuntoVenta { id: string; numero: number; descripcion: string | 
 export interface ComprobanteVenta {
   id: string; tipo: TipoVenta; letra: string; puntoVenta: number; numero: number | null; terceroId: string; fecha: string; fechaVencimiento: string;
   concepto: string; monedaCodigo: string; cotizacion: string; netoGravado: string; noGravado: string; exento: string; iva: string; total: string;
-  estado: string; cae: string | null; caeVencimiento: string | null; ultimoError: string | null; version: number; saldo?: string | null;
-  tercero?: { razonSocial: string }; renglones?: { id: string; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; neto: string; iva: string }[];
+  estado: string; cae: string | null; caeVencimiento: string | null; ultimoError: string | null; version: number; saldo?: string | null; numeroReservado: number | null;
+  puntoVentaId: string; fechaServicioDesde: string | null; fechaServicioHasta: string | null; fechaVencimientoPago: string | null;
+  comprobanteAsociadoId: string | null; aplicarAAsociado: boolean;
+  tercero?: { razonSocial: string }; renglones?: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; neto: string; iva: string }[];
   ivas?: { alicuota: string; base: string; importe: string }[];
 }
 export interface MovPendiente { id: string; origenTipo: string; origenId: string; descripcion: string; fecha: string; fechaVencimiento: string; monedaCodigo: string; importe: string; saldo: string; saldoPesos: string }
@@ -61,3 +63,10 @@ export function useOperacionVentas() {
 }
 
 export const numero = (s: string) => (s.trim() === '' ? NaN : Number(s.replace(/\./g, (m, i, t: string) => (t.includes(',') ? '' : m)).replace(',', '.')));
+
+/** Qué se puede hacer con un comprobante: uno con una emisión sin confirmar solo se reintenta (el reintento la resuelve). */
+export function accionesComprobante(c: { estado: string; numeroReservado: number | null }) {
+  const abierto = c.estado !== 'AUTORIZADO';
+  const libre = abierto && c.numeroReservado === null;
+  return { editar: libre, eliminar: libre, emitir: abierto };
+}

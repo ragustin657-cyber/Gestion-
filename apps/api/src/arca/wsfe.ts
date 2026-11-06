@@ -31,6 +31,8 @@ const fechaIso = (f: string) => (f && f.length === 8 ? `${f.slice(0, 4)}-${f.sli
 const textos = (items: unknown) => lista(items as Record<string, string>[]).map((e) => `(${e.Code}) ${e.Msg}`);
 /** Códigos de error de autenticación del WSFE: el token se descarta y se reintenta el login. */
 const ERRORES_TOKEN = new Set(['600', '601']);
+/** Errores internos de ARCA: no se sabe si procesó el pedido, así que se reintenta con recuperación. */
+const ERRORES_INTERNOS = new Set(['500', '501', '502']);
 
 /** El resultado de la operación; si el XML no es una respuesta SOAP del WSFE, es un error de conexión. */
 function resultado(xml: string, op: string): Record<string, any> {
@@ -59,6 +61,7 @@ export function leerSolicitarCae(xml: string): ResultadoCae {
   if (!det) {
     const e = errorDeServicio(r);
     if (e?.tokenInvalido || !e) throw e ?? new ErrorConexionArca('No se pudo conectar con ARCA: respuesta sin detalle');
+    if (lista(r.Errors?.Err as Record<string, string>[]).some((x) => ERRORES_INTERNOS.has(String(x.Code)))) throw e;
     return { resultado: 'R', errores: textos(r.Errors?.Err) };
   }
   const obs = textos(det.Observaciones?.Obs);

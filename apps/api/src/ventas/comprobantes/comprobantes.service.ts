@@ -16,7 +16,8 @@ import { DatosComprobanteVenta } from './dto';
 
 export const AUTORIZADO_NO_SE_ANULA = 'Un comprobante autorizado no se anula: emita una nota de crédito';
 export const EMISION_SIN_CONFIRMAR = 'El comprobante tiene una emisión sin confirmar: reintente para resolverla';
-export const EN_CURSO_MS = 2 * 60000;
+/** Una emisión se considera abandonada pasado este tiempo (más que el peor caso de llamadas a ARCA con sus timeouts). */
+export const EN_CURSO_MS = 5 * 60000;
 export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true } satisfies Prisma.ComprobanteVentaInclude;
 
 /** "0001-00000012" */

@@ -1,11 +1,11 @@
 import { Alert, Badge, Button, Group, Modal, Paper, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/cliente';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { useAuth } from '../auth/AuthContext';
-import { ESTADOS_VENTA, NOMBRE_TIPO, numeroVenta, TIPOS_VENTA, useClientes, useOperacionVentas, type ComprobanteVenta } from './comun';
+import { accionesComprobante, ESTADOS_VENTA, NOMBRE_TIPO, numeroVenta, TIPOS_VENTA, useClientes, useOperacionVentas, type ComprobanteVenta } from './comun';
 import { EstadoEmision } from './EstadoEmision';
 
 const estado = (e: string) => <Badge size="sm" variant="light" color={ESTADOS_VENTA[e]?.color ?? 'gray'}>{ESTADOS_VENTA[e]?.etiqueta ?? e}</Badge>;
@@ -14,8 +14,10 @@ const opcionesClientes = (cs: { id: string; razonSocial: string }[]) => cs.map((
 function DetalleComprobante({ id, onCerrar }: { id: string; onCerrar: () => void }) {
   const op = useOperacionVentas();
   const { puede } = useAuth();
+  const navegar = useNavigate();
   const q = useQuery({ queryKey: ['/ventas/comprobantes', id], queryFn: () => api<ComprobanteVenta>(`/ventas/comprobantes/${id}`) });
   const c = q.data;
+  const acciones = c ? accionesComprobante(c) : null;
   return (
     <Modal opened onClose={onCerrar} size="xl" title={c ? `${NOMBRE_TIPO[c.tipo]} ${c.letra} ${c.numero ? numeroVenta(c.puntoVenta, c.numero) : '(sin número)'}` : 'Comprobante'}>
       {c && (
@@ -29,6 +31,12 @@ function DetalleComprobante({ id, onCerrar }: { id: string; onCerrar: () => void
           </Table>
           <Group justify="flex-end"><Text fw={700}>Total {formatoMoneda(c.total, c.monedaCodigo)}</Text>{c.saldo != null && <Text c="dimmed">Saldo {formatoMoneda(c.saldo, c.monedaCodigo)}</Text>}</Group>
           <EstadoEmision comprobante={c} enviando={op.enviando} onReintentar={() => void (puede('venta.emitir') && op.ejecutar(() => api(`/ventas/comprobantes/${id}/emitir`, { metodo: 'POST' }), () => 'Comprobante autorizado').then(() => q.refetch()))} />
+          {puede('venta.emitir') && acciones && (acciones.editar || acciones.eliminar) && (
+            <Group justify="flex-end">
+              {acciones.editar && <Button variant="default" onClick={() => navegar(`/ventas/comprobante?id=${id}`)}>Editar</Button>}
+              {acciones.eliminar && <Button color="red" variant="light" loading={op.enviando} onClick={() => void op.ejecutar(() => api(`/ventas/comprobantes/${id}`, { metodo: 'DELETE' }), () => 'Comprobante eliminado').then((r) => r && onCerrar())}>Eliminar</Button>}
+            </Group>
+          )}
           {op.error && <Alert color="red">{op.error}</Alert>}
         </Stack>
       )}

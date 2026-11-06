@@ -69,6 +69,7 @@ export class ConsultasVentasService {
     const ventas = await db.comprobanteVenta.findMany({ where: { id: { in: ids } } });
     const recibos = await db.recibo.findMany({ where: { id: { in: ids } } });
     const ingresos = await db.ingresoValores.findMany({ where: { id: { in: ids } } });
+    const cheques = await db.chequeTercero.findMany({ where: { id: { in: ids } } });
     return (m: MovimientoCuentaCorriente) => {
       const v = ventas.find((x) => x.id === m.origenId);
       if (v) return `${NOMBRE[v.tipo]} ${v.letra} ${numeroVenta(v.puntoVenta, v.numero)}`;
@@ -76,6 +77,8 @@ export class ConsultasVentasService {
       if (r) return `Recibo ${numeroVenta(r.puntoVenta, r.numero)}`;
       const i = ingresos.find((x) => x.id === m.origenId);
       if (i) return `Cobro de Tesorería ${i.numero}`;
+      const ch = cheques.find((x) => x.id === m.origenId);
+      if (ch) return `Cheque rechazado ${ch.banco} ${ch.numero}`;
       return m.origenTipo;
     };
   }
@@ -90,15 +93,27 @@ export class ConsultasVentasService {
     const anterior = d ? await db.movimientoCuentaCorriente.aggregate({ where: { ...base, fecha: { lt: d } }, _sum: { importePesos: true } }) : null;
     const movs = await db.movimientoCuentaCorriente.findMany({ where: { ...base, fecha: { gte: d, lte: h } }, orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }] });
     const describir = await this.describir(movs);
-    let saldo = new D(anterior?._sum.importePesos ?? 0);
+    // Diferencias de cambio de las aplicaciones vigentes: ajustan Deudores por ventas en pesos
+    const difs = await db.aplicacionCobro.findMany({ where: { terceroId, anulada: false, NOT: { diferenciaCambio: 0 } } });
+    const difAnterior = d ? difs.filter((a) => a.fecha < d).reduce((s: Dec, a) => s.plus(a.diferenciaCambio), new D(0)) : new D(0);
+    type Fila = { id: string; origenTipo: string; origenId: string; fecha: Date; comprobante: string; monedaCodigo: string; importe: Dec; pesos: Dec; orden: number };
+    const filas: Fila[] = movs.map((m, i) => ({ id: m.id, origenTipo: m.origenTipo, origenId: m.origenId, fecha: m.fecha, comprobante: describir(m), monedaCodigo: m.monedaCodigo, importe: m.importe, pesos: m.importePesos, orden: i }));
+    for (const a of difs.filter((x) => (!d || x.fecha >= d) && (!h || x.fecha <= h)))
+      filas.push({ id: a.id, origenTipo: 'DIFERENCIA_CAMBIO', origenId: a.origenId, fecha: a.fecha, comprobante: 'Diferencia de cambio', monedaCodigo: 'ARS', importe: a.diferenciaCambio, pesos: a.diferenciaCambio, orden: 1e9 });
+    filas.sort((x, y) => x.fecha.getTime() - y.fecha.getTime() || x.orden - y.orden);
+    let saldo = new D(anterior?._sum.importePesos ?? 0).plus(difAnterior);
     const saldoAnterior = f2(saldo);
-    const movimientos = movs.map((m) => {
-      saldo = saldo.plus(m.importePesos);
+    const movimientos = filas.map((m) => {
+      saldo = saldo.plus(m.pesos);
       return {
-        id: m.id, origenTipo: m.origenTipo, origenId: m.origenId, fecha: m.fecha, comprobante: describir(m), monedaCodigo: m.monedaCodigo, importe: f2(m.importe),
-        debe: m.importePesos.gt(0) ? f2(m.importePesos) : '0.00', haber: m.importePesos.lt(0) ? f2(m.importePesos.neg()) : '0.00', saldo: f2(saldo),
+        id: m.id, origenTipo: m.origenTipo, origenId: m.origenId, fecha: m.fecha, comprobante: m.comprobante, monedaCodigo: m.monedaCodigo, importe: f2(m.importe),
+        debe: m.pesos.gt(0) ? f2(m.pesos) : '0.00', haber: m.pesos.lt(0) ? f2(m.pesos.neg()) : '0.00', saldo: f2(saldo),
       };
     });
+    // Saldo pendiente en la moneda de cada comprobante
+    const vivos = await db.movimientoCuentaCorriente.findMany({ where: base });
+    const saldos = { ARS: new D(0), USD: new D(0) };
+    for (const m of vivos) saldos[m.monedaCodigo === 'USD' ? 'USD' : 'ARS'] = saldos[m.monedaCodigo === 'USD' ? 'USD' : 'ARS'].plus(m.saldo);
     const corte = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
     const abiertos = await db.movimientoCuentaCorriente.findMany({ where: { ...base, saldo: { gt: 0 } }, orderBy: { fechaVencimiento: 'asc' } });
     const describirAbiertos = await this.describir(abiertos);
@@ -106,7 +121,7 @@ export class ConsultasVentasService {
       id: m.id, origenId: m.origenId, comprobante: describirAbiertos(m), fecha: m.fecha, vence: m.fechaVencimiento, monedaCodigo: m.monedaCodigo,
       diasVencido: Math.max(0, Math.round((corte.getTime() - m.fechaVencimiento.getTime()) / DIA)), saldo: f2(m.saldo), saldoPesos: f2(m.saldoPesos),
     }));
-    return { tercero, saldoAnterior, movimientos, saldoFinal: f2(saldo), pendientes };
+    return { tercero, saldoAnterior, movimientos, saldoFinal: f2(saldo), saldos: { ARS: f2(saldos.ARS), USD: f2(saldos.USD) }, pendientes };
   }
 
   /** Saldo de cada cliente (en pesos) por antigüedad de vencimiento al corte. Los saldos a favor van en "no vencido". */

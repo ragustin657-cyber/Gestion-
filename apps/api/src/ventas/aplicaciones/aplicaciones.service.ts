@@ -83,8 +83,10 @@ export class AplicacionesService implements OnModuleInit {
 
   /** Restituye los saldos de las aplicaciones de un origen y las marca anuladas. Devuelve la diferencia de cambio que tenían. */
   async revertirEnTx(tx: TxEmpresa, origenTipo: string, origenId: string): Promise<Dec> {
+    const todas = await tx.aplicacionCobro.findMany({ where: { origenTipo, origenId } });
+    await bloquear(tx, 'MovimientoCuentaCorriente', this.tenant.empresaId, [...new Set(todas.flatMap((a) => [a.creditoMovId, a.debitoMovId]))]);
+    // Releídas con los movimientos bloqueados: otra transacción pudo deshacerlas mientras tanto
     const aps = await tx.aplicacionCobro.findMany({ where: { origenTipo, origenId, anulada: false } });
-    await bloquear(tx, 'MovimientoCuentaCorriente', this.tenant.empresaId, [...new Set(aps.flatMap((a) => [a.creditoMovId, a.debitoMovId]))]);
     let dif = new D(0);
     for (const a of aps) {
       const cred = await tx.movimientoCuentaCorriente.findUniqueOrThrow({ where: { id: a.creditoMovId } });
@@ -136,7 +138,8 @@ export class AplicacionesService implements OnModuleInit {
     return this.tenant.transaccion(async (tx) => {
       const aps = await tx.aplicacionCobro.findMany({ where: { origenTipo: 'APLICACION', origenId: id } });
       if (!aps.length) throw new NotFoundException('Aplicación no encontrada');
-      if (aps.every((a) => a.anulada)) throw new BadRequestException('La aplicación ya fue deshecha');
+      await bloquear(tx, 'MovimientoCuentaCorriente', this.tenant.empresaId, [...new Set(aps.flatMap((a) => [a.creditoMovId, a.debitoMovId]))]);
+      if (!(await tx.aplicacionCobro.count({ where: { origenTipo: 'APLICACION', origenId: id, anulada: false } }))) throw new BadRequestException('La aplicación ya fue deshecha');
       await this.revertirEnTx(tx, 'APLICACION', id);
       const asiento = await tx.asiento.findFirst({ where: { origenTipo: 'APLICACION_COBRO', origenId: id, anulaAId: null } });
       if (asiento) {
@@ -180,6 +183,7 @@ export class AplicacionesService implements OnModuleInit {
     const ventas = await db.comprobanteVenta.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'VENTA').map((m) => m.origenId) } } });
     const recibos = await db.recibo.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'RECIBO').map((m) => m.origenId) } } });
     const ingresos = await db.ingresoValores.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'COBRO').map((m) => m.origenId) } } });
+    const cheques = await db.chequeTercero.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'CHEQUE_RECHAZADO_CLIENTE').map((m) => m.origenId) } } });
     const nombres = { FACTURA: 'Factura', NOTA_DEBITO: 'Nota de débito', NOTA_CREDITO: 'Nota de crédito' } as const;
     const descripcion = (m: MovimientoCuentaCorriente) => {
       const v = ventas.find((x) => x.id === m.origenId);
@@ -188,6 +192,8 @@ export class AplicacionesService implements OnModuleInit {
       if (r) return `Recibo ${numeroVenta(r.puntoVenta, r.numero)}`;
       const i = ingresos.find((x) => x.id === m.origenId);
       if (i) return `Cobro de Tesorería ${i.numero} del ${fechaAR(i.fecha)}`;
+      const ch = cheques.find((x) => x.id === m.origenId);
+      if (ch) return `Cheque rechazado ${ch.banco} ${ch.numero}`;
       return m.origenTipo;
     };
     const vista = (m: MovimientoCuentaCorriente) => ({

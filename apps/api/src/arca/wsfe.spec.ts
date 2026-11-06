@@ -52,6 +52,9 @@ describe('WSFE', () => {
       expect((e as ErrorConexionArca).tokenInvalido).toBe(true);
     }
   });
+  it('un error interno de ARCA (500 a 502) es un error de conexión, no un rechazo', () => {
+    expect(() => leerSolicitarCae(fx('error-501.xml'))).toThrow(ErrorConexionArca);
+  });
   it('una respuesta ilegible es un error de conexión', () => {
     expect(() => leerSolicitarCae('<html>502 Bad Gateway</html>')).toThrow(ErrorConexionArca);
   });

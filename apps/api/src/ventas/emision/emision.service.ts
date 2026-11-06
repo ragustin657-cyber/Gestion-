@@ -1,5 +1,5 @@
 import { BadGatewayException, BadRequestException, ConflictException, Injectable } from '@nestjs/common';
-import type { ComprobanteVenta, PeriodoContable, Tercero } from '@prisma/client';
+import type { AmbienteArca, ComprobanteVenta, PeriodoContable, Tercero } from '@prisma/client';
 import { alicuotaArca, cbteTipo, condicionIvaReceptorArca, docTipoArca, monedaArca, normalizarCuit, type AlicuotaIva, type LetraVenta } from '@gestion/shared';
 import { ConfigArcaService } from '../../arca/config-arca.service';
 import { ClienteArca, DatosCae, ErrorConexionArca, ResultadoCae } from '../../arca/cliente-arca';
@@ -46,33 +46,54 @@ export class EmisionService {
    */
   async emitir(id: string) {
     const cliente = await this.arca.cliente();
-    const r = await this.reservar(id);
+    const { ambiente } = await this.arca.obtener();
+    const r = await this.reservar(id, ambiente);
     let resultado: ResultadoCae;
     let numero: number;
     try {
       ({ resultado, numero } = await this.pedir(cliente, r.c, r.datos));
     } catch (e) {
-      await this.tenant.db.comprobanteVenta.update({ where: { id }, data: { emisionEnCurso: null, ...(e instanceof ErrorConexionArca ? { estado: 'PENDIENTE_CAE', ultimoError: e.message } : {}) } });
+      // Solo si este intento sigue siendo el dueño de la emisión y nadie la autorizó mientras tanto
+      await this.tenant.db.comprobanteVenta.updateMany({
+        where: { id, emisionEnCurso: r.propietario, estado: { not: 'AUTORIZADO' } },
+        data: { emisionEnCurso: null, ...(e instanceof ErrorConexionArca ? { estado: 'PENDIENTE_CAE', ultimoError: e.message } : {}) },
+      });
       if (e instanceof ErrorConexionArca) {
         await this.auditoria.registrar(this.tenant.db, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { emision: 'sin conexión', error: e.message } });
         throw new BadGatewayException(SIN_CONEXION);
       }
       throw e;
     }
-    if (resultado.resultado === 'R') {
-      const texto = resultado.errores.join('; ');
-      await this.tenant.transaccion(async (tx) => {
-        await bloquear(tx, 'ComprobanteVenta', this.tenant.empresaId, [id]);
-        await tx.comprobanteVenta.update({ where: { id }, data: { estado: 'RECHAZADO', ultimoError: texto, emisionEnCurso: null, numeroReservado: null } });
-        await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { emision: 'rechazada', errores: resultado.errores } });
+    if (resultado.resultado === 'R') return this.registrarRechazo(id, r.propietario, resultado.errores);
+    try {
+      return await this.autorizar(id, numero, resultado);
+    } catch (e) {
+      // ARCA autorizó pero no se pudo registrar: queda pendiente con el número reservado y el reintento lo recupera
+      await this.tenant.db.comprobanteVenta.updateMany({
+        where: { id, estado: { not: 'AUTORIZADO' } },
+        data: { emisionEnCurso: null, numeroReservado: numero, ultimoError: `ARCA autorizó el número ${numero} pero no se pudo registrar: ${(e as Error).message}` },
       });
-      throw new BadRequestException(`ARCA rechazó el comprobante: ${texto}`);
+      throw e;
     }
-    return this.autorizar(id, numero, resultado);
+  }
+
+  /** Resultado R de ARCA: el comprobante queda rechazado y sin número reservado. */
+  async registrarRechazo(id: string, propietario: Date, errores: string[]): Promise<never> {
+    const texto = errores.join('; ');
+    await this.tenant.transaccion(async (tx) => {
+      await bloquear(tx, 'ComprobanteVenta', this.tenant.empresaId, [id]);
+      const c = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id } });
+      // Un rechazo tardío (por ejemplo, 10016 porque otro intento ya autorizó ese número) no pisa nada
+      if (c.estado === 'AUTORIZADO' || c.emisionEnCurso?.getTime() !== propietario.getTime())
+        throw new ConflictException('El comprobante fue procesado por otro intento de emisión: actualice la pantalla');
+      await tx.comprobanteVenta.update({ where: { id }, data: { estado: 'RECHAZADO', ultimoError: texto, emisionEnCurso: null, numeroReservado: null } });
+      await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { emision: 'rechazada', errores } });
+    });
+    throw new BadRequestException(`ARCA rechazó el comprobante: ${texto}`);
   }
 
   /** Paso 1: bloquea el comprobante y el talonario ARCA, valida y marca la emisión en curso. */
-  private reservar(id: string) {
+  private reservar(id: string, ambiente: AmbienteArca) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
       await this.comprobantes.obtener(id, tx);
@@ -80,12 +101,13 @@ export class EmisionService {
       const c = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id }, include: { tercero: true } });
       if (c.estado === 'AUTORIZADO') throw new BadRequestException('El comprobante ya está autorizado');
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta);
-      const clave = `ARCA-${tipoArca}`;
+      const clave = `ARCA-${ambiente}-${tipoArca}`;
       await tx.$executeRaw`INSERT INTO "Talonario" ("id", "empresaId", "tipoComprobante", "puntoVenta", "ultimoNumero")
         VALUES (gen_random_uuid(), ${empresaId}::uuid, ${clave}, ${c.puntoVenta}, 0) ON CONFLICT ("empresaId", "tipoComprobante", "puntoVenta") DO NOTHING`;
       const talonario = await tx.talonario.findFirstOrThrow({ where: { tipoComprobante: clave, puntoVenta: c.puntoVenta } });
       await bloquear(tx, 'Talonario', empresaId, [talonario.id]);
       const otras = await tx.comprobanteVenta.findMany({ where: { puntoVenta: c.puntoVenta, tipo: c.tipo, letra: c.letra, emisionEnCurso: { not: null } } });
+      if (c.numeroReservado !== null && c.ambiente !== ambiente) throw new BadRequestException(`El comprobante tiene una emisión sin confirmar en ${c.ambiente}: vuelva a ese ambiente para resolverla`);
       if (otras.some(emisionEnCurso)) throw new ConflictException(OTRA_EN_CURSO);
       if (c.tipo === 'NOTA_CREDITO') {
         const disponible = await this.comprobantes.saldoDisponibleNc(tx, c.comprobanteAsociadoId!, c.id);
@@ -96,8 +118,9 @@ export class EmisionService {
       }
       await periodoAbierto(tx, empresaId, c.fecha);
       const datos = await this.datosCae(tx, c, tipoArca);
-      await tx.comprobanteVenta.update({ where: { id }, data: { emisionEnCurso: new Date(), intentos: { increment: 1 } } });
-      return { c, datos };
+      const propietario = new Date();
+      await tx.comprobanteVenta.update({ where: { id }, data: { emisionEnCurso: propietario, intentos: { increment: 1 }, ambiente } });
+      return { c, datos, propietario };
     });
   }
 
@@ -128,7 +151,9 @@ export class EmisionService {
     if (c.numeroReservado !== null && c.numeroReservado <= ultimo) {
       const previo = await cliente.consultar(d.ptoVta, d.cbteTipo, c.numeroReservado);
       const coincide = previo && previo.docNro === d.docNro && previo.fecha.replace(/-/g, '') === d.fecha && new D(previo.impTotal).eq(d.impTotal) && previo.monId === d.monId;
-      if (previo && coincide) return { resultado: { resultado: 'A', cae: previo.cae, caeVencimiento: previo.caeVencimiento, observaciones: ['Recuperado de un intento anterior'] }, numero: c.numeroReservado };
+      // Un número que ya tiene otro comprobante local no es de este
+      const ocupado = await this.tenant.db.comprobanteVenta.findFirst({ where: { id: { not: c.id }, ambiente: c.ambiente, puntoVenta: c.puntoVenta, tipo: c.tipo, letra: c.letra, numero: c.numeroReservado } });
+      if (previo && coincide && !ocupado) return { resultado: { resultado: 'A', cae: previo.cae, caeVencimiento: previo.caeVencimiento, observaciones: ['Recuperado de un intento anterior'] }, numero: c.numeroReservado };
       await this.auditoria.registrar(this.tenant.db, { entidad: 'ComprobanteVenta', entidadId: c.id, accion: 'MODIFICAR', datos: { recuperacion: 'el número reservado no corresponde a este comprobante', numeroReservado: c.numeroReservado } });
     }
     const numero = ultimo + 1;
@@ -142,6 +167,8 @@ export class EmisionService {
       const empresaId = this.tenant.empresaId;
       await bloquear(tx, 'ComprobanteVenta', empresaId, [id]);
       const advertencias: string[] = [];
+      const actual = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id } });
+      if (actual.estado === 'AUTORIZADO') return { ...(await this.comprobantes.obtener(id, tx)), advertencias: ['El comprobante ya había sido autorizado por otro intento'] };
       const c = await tx.comprobanteVenta.update({
         where: { id },
         data: {

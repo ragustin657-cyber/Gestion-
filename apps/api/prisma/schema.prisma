@@ -1402,6 +1402,7 @@ model ComprobanteVenta {
   puntoVentaId          String                    @db.Uuid
   puntoVenta            Int
   numero                Int?
+  ambiente              AmbienteArca              @default(SIMULADO)
   terceroId             String                    @db.Uuid
   fecha                 DateTime                  @db.Date
   fechaVencimiento      DateTime                  @db.Date
@@ -1435,7 +1436,7 @@ model ComprobanteVenta {
   ivas                  ComprobanteVentaIva[]
 
   @@unique([empresaId, numeroInterno])
-  @@unique([empresaId, puntoVenta, tipo, letra, numero])
+  @@unique([empresaId, ambiente, puntoVenta, tipo, letra, numero])
   @@index([empresaId, terceroId])
   @@index([empresaId, fecha])
 }

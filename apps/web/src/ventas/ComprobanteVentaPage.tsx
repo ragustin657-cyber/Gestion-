@@ -1,10 +1,11 @@
 import { Button, Checkbox, Group, Paper, Select, Stack, TextInput, Title, Alert } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { letraVenta, type LetraVenta } from '@gestion/shared';
 import { api, ErrorApi } from '../api/cliente';
 import { formatoMoneda, hoy } from '../compras/formato';
-import { NOMBRE_TIPO, numero, numeroVenta, TIPOS_VENTA, useClientes, useEmpresa, useOperacionVentas, usePuntosVenta, type ComprobanteVenta, type TipoVenta } from './comun';
+import { accionesComprobante, NOMBRE_TIPO, numero, numeroVenta, TIPOS_VENTA, useClientes, useEmpresa, useOperacionVentas, usePuntosVenta, type ComprobanteVenta, type TipoVenta } from './comun';
 import { EstadoEmision } from './EstadoEmision';
 import { alicuotaDe, GrillaVenta, renglonVacio, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
 
@@ -37,6 +38,21 @@ export function ComprobanteVentaPage() {
   const [aplicarAAsociado, setAplicarAAsociado] = useState(true);
   const [renglones, setRenglones] = useState<RenglonVentaEditable[]>([renglonVacio()]);
   const [actual, setActual] = useState<ComprobanteVenta | null>(null);
+  const [params] = useSearchParams();
+  const idEditar = params.get('id');
+
+  /** Editar un comprobante pendiente o rechazado (desde la consulta de comprobantes). */
+  useEffect(() => {
+    if (!idEditar) return;
+    void api<ComprobanteVenta>(`/ventas/comprobantes/${idEditar}`).then((c) => {
+      const f = (x: string | null) => (x ? x.slice(0, 10) : '');
+      setActual(c); setTipo(c.tipo); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setFecha(f(c.fecha)); setFechaVencimiento(f(c.fechaVencimiento));
+      setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
+      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setAplicarAAsociado(c.aplicarAAsociado);
+      setRenglones((c.renglones ?? []).map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota })));
+    }).catch(() => op.setError('No se pudo cargar el comprobante'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idEditar]);
 
   const cliente = clientes.find((c) => c.id === terceroId);
   const asociables = useQuery({
@@ -97,7 +113,7 @@ export function ComprobanteVentaPage() {
     op.setError('');
   }
 
-  const editable = !actual || actual.estado !== 'AUTORIZADO';
+  const editable = !actual || accionesComprobante(actual).editar;
   return (
     <Stack>
       <Paper withBorder p="md" radius="md">

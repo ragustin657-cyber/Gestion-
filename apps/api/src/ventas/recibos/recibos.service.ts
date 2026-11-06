@@ -113,6 +113,8 @@ export class RecibosService {
       const r = await tx.recibo.findUniqueOrThrow({ where: { id } });
       if (r.estado === 'ANULADO') throw new BadRequestException('El recibo ya está anulado');
       const mov = await tx.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenTipo: 'RECIBO', origenId: id } });
+      // Bloqueado antes de contar: una Aplicación concurrente sobre este crédito espera o ya se ve
+      await bloquear(tx, 'MovimientoCuentaCorriente', this.tenant.empresaId, [mov.id]);
       if (await tx.aplicacionCobro.count({ where: { creditoMovId: mov.id, anulada: false, NOT: { origenTipo: 'RECIBO', origenId: id } } }))
         throw new BadRequestException('El saldo del recibo fue aplicado: deshaga primero la aplicación');
       await this.aplicaciones.revertirEnTx(tx, 'RECIBO', id);
