@@ -30,3 +30,23 @@ export const esquemaFormato = z
     }
   });
 export type DatosFormato = z.infer<typeof esquemaFormato>;
+
+const zFechaTexto = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida').refine((s) => {
+  const d = new Date(`${s}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+}, 'Fecha inválida').transform((s) => new Date(`${s}T00:00:00Z`));
+const zId = z.string().uuid('Valor inválido');
+
+export const esquemaConciliacion = z.object({
+  cuentaBancariaId: zId,
+  desde: zFechaTexto,
+  hasta: zFechaTexto,
+  saldoInicial: z.number().finite().nullish(),
+  saldoFinal: z.number({ required_error: 'Campo obligatorio' }).finite(),
+}).refine((c) => c.desde <= c.hasta, { message: 'La fecha desde no puede ser posterior a la fecha hasta', path: ['hasta'] });
+export type DatosConciliacion = z.infer<typeof esquemaConciliacion>;
+
+export const esquemaVinculo = z.object({ lineas: z.array(zId), movimientos: z.array(zId) });
+export type DatosVinculo = z.infer<typeof esquemaVinculo>;
+export const esquemaLote = z.object({ vinculos: z.array(esquemaVinculo).min(1, 'Indique al menos una coincidencia') });
+export const esquemaMotivo = z.object({ motivo: z.string().trim().min(1, 'Debe indicar el motivo') });

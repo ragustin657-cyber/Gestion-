@@ -30,11 +30,12 @@ model Empresa {
   agenteRetencionSuss      Boolean  @default(false)
   jurisdiccionesIibb       String[]
 
-  montoAprobacionOc     Decimal      @default(0) @db.Decimal(18, 2)
-  toleranciaPrecioPct   Decimal      @default(2) @db.Decimal(18, 6)
-  toleranciaCantidadPct Decimal      @default(0) @db.Decimal(18, 6)
-  modoTresVias          ModoTresVias @default(AVISAR)
-  montoAprobacionOp     Decimal      @default(0) @db.Decimal(18, 2)
+  montoAprobacionOc          Decimal      @default(0) @db.Decimal(18, 2)
+  toleranciaPrecioPct        Decimal      @default(2) @db.Decimal(18, 6)
+  toleranciaCantidadPct      Decimal      @default(0) @db.Decimal(18, 6)
+  modoTresVias               ModoTresVias @default(AVISAR)
+  montoAprobacionOp          Decimal      @default(0) @db.Decimal(18, 2)
+  diasToleranciaConciliacion Int          @default(5)
 
   puntosVenta PuntoVenta[]
   roles       Rol[]
@@ -765,9 +766,11 @@ model MovimientoTesoreria {
   origenTipo       String
   origenId         String   @db.Uuid
   anulado          Boolean  @default(false)
+  vinculoId        String?  @db.Uuid
   creadoEn         DateTime @default(now())
 
   @@index([empresaId, origenTipo, origenId])
+  @@index([empresaId, cuentaBancariaId, fecha])
 }
 
 model AplicacionCuentaCorriente {
@@ -1153,7 +1156,51 @@ model LineaExtracto {
   saldo            Decimal?            @db.Decimal(18, 2)
   estado           EstadoLinea         @default(PENDIENTE)
   motivoIgnorada   String?
+  vinculoId        String?             @db.Uuid
+  conciliacionId   String?             @db.Uuid
   importacion      ImportacionExtracto @relation(fields: [importacionId], references: [id], onDelete: Cascade)
 
   @@index([empresaId, cuentaBancariaId, fecha])
+}
+
+enum EstadoConciliacion {
+  ABIERTA
+  CERRADA
+}
+
+enum TipoVinculo {
+  AUTOMATICO
+  MANUAL
+  REGISTRO
+}
+
+model Conciliacion {
+  id               String             @id @default(uuid()) @db.Uuid
+  empresaId        String             @db.Uuid
+  cuentaBancariaId String             @db.Uuid
+  desde            DateTime           @db.Date
+  hasta            DateTime           @db.Date
+  saldoInicial     Decimal            @db.Decimal(18, 2)
+  saldoFinal       Decimal            @db.Decimal(18, 2)
+  estado           EstadoConciliacion @default(ABIERTA)
+  resumen          Json?
+  cerradaPor       String?            @db.Uuid
+  cerradaEn        DateTime?
+  motivoReapertura String?
+  version          Int                @default(0)
+  creadoPor        String             @db.Uuid
+  creadoEn         DateTime           @default(now())
+
+  @@index([empresaId, cuentaBancariaId])
+}
+
+model VinculoConciliacion {
+  id             String      @id @default(uuid()) @db.Uuid
+  empresaId      String      @db.Uuid
+  conciliacionId String      @db.Uuid
+  tipo           TipoVinculo
+  creadoPor      String      @db.Uuid
+  creadoEn       DateTime    @default(now())
+
+  @@index([empresaId, conciliacionId])
 }

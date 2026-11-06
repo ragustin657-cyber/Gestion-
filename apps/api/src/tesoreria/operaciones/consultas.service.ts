@@ -8,7 +8,7 @@ import { D, Dec, hoy, saldoBanco, saldoCaja } from './tesoreria-comun';
 
 const ESTADOS = Object.values(EstadoCheque) as string[];
 
-const DESCRIPCIONES: Record<string, string> = {
+export const DESCRIPCIONES: Record<string, string> = {
   INGRESO: 'Ingreso de valores',
   TRASLADO: 'Traslado enviado',
   RECEPCION_TRASLADO: 'Recepción de traslado',
