@@ -14,6 +14,16 @@ export class ConciliacionesController {
     private readonly registro: RegistroService,
   ) {}
 
+  @Post(':id/cerrar') @HttpCode(200)
+  cerrar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ version: z.number().int().min(0) }))) d: { version: number }) {
+    return this.conciliaciones.cerrar(id, d.version);
+  }
+
+  @Post(':id/reabrir') @HttpCode(200) @RequierePermiso('tesoreria.anular')
+  reabrir(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaMotivo)) d: z.infer<typeof esquemaMotivo>) {
+    return this.conciliaciones.reabrir(id, d.motivo);
+  }
+
   @Post(':id/registrar')
   registrar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegistro)) d: DatosRegistro) {
     return this.registro.registrar(id, d);

@@ -2,7 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Conciliacion, Prisma, TipoVinculo } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../auditoria/auditoria.service';
-import { bloquear, fechaAR } from '../compras/comun';
+import { bloquear, fechaAR, MODIFICADO } from '../compras/comun';
+import { desvincular } from './bloqueo';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { DESCRIPCIONES } from '../tesoreria/operaciones/consultas.service';
@@ -207,11 +208,34 @@ export class ConciliacionesService {
     });
   }
 
-  /** Elimina un vínculo: sus líneas vuelven a PENDIENTE y sus movimientos quedan sin conciliar. */
-  async desvincular(tx: TxEmpresa, vinculoId: string) {
-    await tx.lineaExtracto.updateMany({ where: { vinculoId }, data: { estado: 'PENDIENTE', vinculoId: null, conciliacionId: null } });
-    await tx.movimientoTesoreria.updateMany({ where: { vinculoId }, data: { vinculoId: null } });
-    await tx.vinculoConciliacion.delete({ where: { id: vinculoId } });
+  cerrar(id: string, version: number) {
+    return this.tenant.transaccion(async (tx) => {
+      const c = await this.abierta(tx, id);
+      if (c.version !== version) throw new ConflictException(MODIFICADO);
+      const r = await this.resumen(tx, c);
+      if (r.lineasPendientes) throw new BadRequestException(`Hay ${r.lineasPendientes} líneas del extracto sin conciliar`);
+      const dif = new D(r.diferencia);
+      if (!dif.isZero()) throw new BadRequestException(`La conciliación no cuadra: diferencia ${pesos(dif)}`);
+      const cerrada = await tx.conciliacion.update({
+        where: { id }, data: { estado: 'CERRADA', resumen: r, cerradaPor: this.usuario(), cerradaEn: new Date(), motivoReapertura: null, version: { increment: 1 } },
+      });
+      await this.auditoria.registrar(tx, { entidad: 'Conciliacion', entidadId: id, accion: 'MODIFICAR', datos: { cierre: true, resumen: r } });
+      return cerrada;
+    });
+  }
+
+  reabrir(id: string, motivo: string) {
+    return this.tenant.transaccion(async (tx) => {
+      await this.buscar(tx, id);
+      await bloquear(tx, 'Conciliacion', this.tenant.empresaId, [id]);
+      const c = await tx.conciliacion.findUniqueOrThrow({ where: { id } });
+      if (c.estado !== 'CERRADA') throw new BadRequestException('La conciliación no está cerrada');
+      if (await tx.conciliacion.findFirst({ where: { cuentaBancariaId: c.cuentaBancariaId, id: { not: id }, OR: [{ estado: 'ABIERTA' }, { desde: { gt: c.hasta } }] } }))
+        throw new BadRequestException('Solo se puede reabrir la última conciliación de la cuenta');
+      const r = await tx.conciliacion.update({ where: { id }, data: { estado: 'ABIERTA', motivoReapertura: motivo, cerradaPor: null, cerradaEn: null, version: { increment: 1 } } });
+      await this.auditoria.registrar(tx, { entidad: 'Conciliacion', entidadId: id, accion: 'MODIFICAR', datos: { reapertura: motivo } });
+      return r;
+    });
   }
 
   eliminarVinculo(id: string, vinculoId: string) {
@@ -219,7 +243,7 @@ export class ConciliacionesService {
       await this.abierta(tx, id);
       const v = await tx.vinculoConciliacion.findFirst({ where: { id: vinculoId, conciliacionId: id } });
       if (!v) throw new NotFoundException('Vínculo no encontrado');
-      await this.desvincular(tx, vinculoId);
+      await desvincular(tx, vinculoId);
       await this.auditoria.registrar(tx, { entidad: 'Conciliacion', entidadId: id, accion: 'MODIFICAR', datos: { desvinculo: vinculoId } });
       return { ok: true };
     });
