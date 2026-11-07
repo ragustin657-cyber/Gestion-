@@ -1,0 +1,236 @@
+ 4.3.1.    Importar/ Exportar Retenciones / Percepciones
+ El Agente de Retención / Percepción encontrará, sobre el margen derecho de la ventana Datos de la
+ Declaración Jurada el botón Importar / Exportar Percepciones / Retenciones.
+ Seleccionando este botón podrá importar los datos de las retenciones / percepciones practicadas o, los datos
+ identificatorios de los sujetos retenidos.
+ El sistema permite especificar distintos formatos de importación ya sea para retenciones / percepciones o, para
+ sujetos retenidos / percibidos.
+ El aplicativo provee un formato estándar y permite agregar nuevos, borrarlos o modificarlos mediante el uso de
+ los botones Agregar, Modificar, Eliminar y Detallar, en la ventana Formatos de Importación. Al especificar
+ un formato de importación el sistema lo verificará y emitirá un mensaje de error en caso de encontrar
+ inconsistencias (ejemplo: cuando la especificación de un campo se superpone con otro).
+ Exportar retenciones, se podrán cargar los datos de las retenciones / percepciones practicadas, desde un
+ archivo de texto, para, copiar los datos de una declaración jurada a un archivo de texto.
+
+
+ 4.3.1.1. Importar / Exportar retenciones
+ Se podrán cargar los datos de las retenciones / percepciones practicadas, desde un archivo de texto, para ser
+ incorporados dentro de una nueva declaración jurada o una ya existente (IMPORTAR).
+ Importar, para poder efectuar dicha operación, el Agente de Retención / Percepción deberá ante
+ todo, generar un archivo de texto, conteniendo los datos de las retenciones / percepciones a
+ importar y luego, especificar cómo se encuentra conformado dicho archivo (formato de
+ importación).
+ Una vez seleccionado el formato, presionando el botón Importar, se desplegará una nueva
+ ventana en la cual se deberá indicar la ubicación del archivo de texto, desde el cual se leerán los
+ datos a importar.
+ Si durante la importación se detectan errores, el sistema visualizará los primeros 100, la lista
+ completa de errores se grabará en un archivo de nombre errimpret.log en el directorio Sicore.
+ Este archivo puede ser abierto con cualquier editor de texto (Word, Wordpad, Notepad, etc.) a
+ efectos de su consulta.
+
+ Puntos a tener en cuenta antes de efectuar la importación
+ Los datos a importar pueden ser:
+ -   Alfanuméricos, se podrán especificar letras y números. Si no posee información para completar estos
+     campos, sólo podrá utilizar espacios, nunca la tecla TAB.
+        Los datos alfanuméricos deberán estar alineados siempre a la izquierda, del total de posiciones que requiere
+        el formato.
+        De no completarse la totalidad del campo con los datos alfanuméricos, deberá utilizar como carácter de
+        relleno espacios.
+        Ejemplo: Longitud del campo: 5 caracteres, en caso de tener que completarse con dos datos, el mismo
+        quedaría: B 4 _ _ _
+ -   Numéricos deberán estar alineados siempre a la derecha, del total de posiciones que indica el formato. Si no
+     posee información podrá utilizar tantos espacios (nunca la tecla TAB), como ceros. Siendo recomendable el
+     uso de esta última opción.
+
+
+Archivo: AP_INS_SICORE.doc                                                                             Pág. 15 de 58
+ AFIP – SI.CO.RE.                                                       Versión:          50.0.0
+ Instructivo de Ayuda
+                                                                        Fecha:       28/01/2014
+
+      De no completarse la totalidad del campo con los datos numéricos, podrá utilizar como carácter de relleno
+      espacios o ceros.
+      Ejemplo: Longitud del campo: 5 caracteres, en caso de tener que completarse con un solo número, el mismo
+      quedaría: 0 0 0 0 1 o bien: _ _ _ _ 1
+ -    Fecha, el formato de la fecha deberá ser dd/mm/aaaa.
+ Todos los registros deben tener la misma longitud, no se pueden importar para un mismo archivo registros con
+ diferente longitud.
+ Los espacios deben ser realizados con la barra espaciadora. Nunca se deberán utilizar las teclas Tab y
+ Enter para dejar espacios. Se deberá tener en cuenta que en ningún campo se pueden dejar espacios utilizando
+ dichas teclas.
+ Los números de CUIT, CUIL o CDI, deben importarse sin guiones.
+ Observaciones Varias
+ Cuando se importan Notas de Crédito, se debe tener en cuenta que es obligatorio informar el Número de
+ Certificado Original.
+ Cuando especifique números de comprobante, omita cualquier tipo de separador, por ejemplo: para el caso de
+ una factura el sistema no aceptará los números 0001-12334599.
+ Lo correcto sería 000112334599.
+ Si desea obtener información sobre un régimen, deberá ingresar a la aplicación y en la ventana Datos de la
+ Declaración Jurada, seleccionar el botón Consulta. Cliqueando sobre el mismo, el sistema desplegará la
+ ventana Consulta de Declaraciones Juradas, dentro de la cual encontrará la opción Descripción de
+ Regímenes. Seleccionando la misma y cliqueando el botón Aceptar, el sistema desplegará una tabla
+ conteniendo la información buscada.
+ Tratándose de un código de impuesto 64 y el tipo de comprobante es Otro Comprobante, en el lugar donde
+ debe colocarse el número de comprobante, se deberá especificar el número de patente.
+ Se exponen a continuación ejemplos sobre archivos de importación de retenciones y percepciones:
+ A) 1° Retención / Percepción con tipo de comprobante Factura
+ 0110/12/2002012300000456                     30,002170561           50,0011/12/200200             50,00 0,00
+ 8023111111111      00000000000000
+ B) 2° Retención / Percepción con tipo de comprobante Notas de Crédito.
+ 0310/12/2002002300000567                          20,007676291               10,0011/12/200200 20,00        0,00
+ 8023111111111      00120023000045
+ C) 3° Retención / Percepción con operaciones de Beneficiarios del Exterior
+ 0110/12/2002078900000654         200,002181731               20,0011/12/200200 30,00 0,00             8355555
+ 00000000000000      050000003015
+ Recuerde que los registros deben comenzar y terminar en la misma línea, si bien en el ejemplo aparece un solo
+ registro en varias líneas, esto se debe solamente a la exhibición en el procesador de texto. Para indicar la
+ finalización del registro deberá usar un retorno de carro o avance de línea o ambos.
+
+
+ La Importación requiere la preexistencia de una declaración jurada.
+
+
+
+
+Archivo: AP_INS_SICORE.doc                                                                         Pág. 16 de 58
+ AFIP – SI.CO.RE.                                                     Versión:           50.0.0
+ Instructivo de Ayuda
+                                                                      Fecha:     28/01/2014
+
+ Tipos de Registros:
+ Sólo podrán importarse los siguientes datos:
+
+      Código de comprobante:
+
+   CODIGO                 DESCRIPCION
+     01         Factura
+     02         Recibo
+     03         Nota de Crédito
+     04         Nota de Débito
+     05         Otro comprobante
+     06         Orden de Pago
+     07         Recibo de Sueldo
+     08         Recibo de Sueldo- Devolución
+     09         Escritura Pública
+     10         C.1116
+     11         Factura (16 Dígitos)
+       12       Recibo de Haberes
+       13       Recibo de Haberes -Devolución
+
+
+      Fecha de emisión comprobante (menor o igual a la fecha de emisión del certificado)
+      Nro. del comprobante
+      Importe comprobante (mayor o igual a cero)
+      Código de impuesto, el sistema sólo aceptará los siguientes códigos de impuesto:
+
+  CODIGO                                        DESCRIPCION
+     064       Fondo Nacional de Incentivo Docente
+     172       Impuesto a la Transferencia de Inmuebles
+     210       Ganancias Régimen Especial de Ingreso R.G. 830
+     217       Impuesto a las Ganancias
+     218       Impuesto a las Ganancias - Beneficiarios del Exterior
+     219       Impuesto sobre los Bienes Personales
+     466       Gravamen de Emergencia a los Premios de determinados juegos de sorteo y
+               concursos deportivos
+     767       Impuesto al Valor Agregado
+
+
+      Código de régimen. Los regímenes se pueden visualizar y/o imprimir, ingresando en la
+        ventana Consulta de Declaraciones Juradas, y seleccionando la opción de consulta
+        Descripción de Regímenes.
+
+            Tratándose del Impuesto 210 - Ganancias Régimen Especial de Ingreso R.G. 830, para
+            llevar a cabo la importación, se utilizarán los regímenes de retención correspondientes al
+            impuesto 217 - Impuesto a las Ganancias
+
+      Código operación:
+
+ CODIGO                      DESCRIPCION
+
+Archivo: AP_INS_SICORE.doc                                                                        Pág. 17 de 58
+ AFIP – SI.CO.RE.                                                            Versión:       50.0.0
+ Instructivo de Ayuda
+                                                                             Fecha:     28/01/2014
+
+         1          Retención
+         2          Percepción
+         4          Imposibilidad de Retención
+
+
+      Base de cálculo
+        Especifica la Base de cálculo.
+        Cuando el tipo de comprobante sea Nota de Crédito, este campo representará la diferencia de la
+        retención original, y la que corresponde, luego de aplicar la Nota de Crédito. En otras palabras, el
+        importe que suma a favor del contribuyente.
+          En caso de especificarse la marca de operaciones con beneficiarios del exterior se deberán
+          agregar los siguientes campos:
+
+      Fecha de emisión de la retención (debe estar comprendida en el período de la declaración
+        jurada).
+      Código de Condición:
+
+     CODIGO                                   DESCRIPCION
+        0            Ninguna
+        1            Inscripto
+        2            No inscripto
+        3            No categorizado
+        6            Contratación Hora Dia Estadía
+        7            Contratación Mensual
+        8            Incluido en el Registro Fiscal de Granos
+        9            No incluido en el Registro Fiscal de Granos
+       10            Inscripto demás sujetos
+       11            Inscripto retemciones IVA Estaciones de Servicio
+       12            Servicios públicos
+       13            Venta de cosas muebles y locación - Alícuota general
+       14            Venta de cosas muebles y locación - Alícuota reducida
+       15            Retención sustitutiva
+       16            Sujetos suspendidos según artículo 40 inc. A)
+       17            Sujetos suspendidos según artículo 40 inc. B)
+       18            Aplica Convenio de Doble Imposición
+       19            No Aplica Convenio de Doble Imposición
+
+
+
+      Retención practicada a sujetos suspendidos según:
+
+     CODIGO                                   DESCRIPCION
+          0          Ninguno
+          1          Artículo 40 – Inciso A
+          2          Artículo 40 – Inciso B
+
+
+      Importe de la retención (debe ser mayor o igual a 0)
+      Porcentaje de Exclusión
+      Fecha de emisión del boletín
+
+Archivo: AP_INS_SICORE.doc                                                                           Pág. 18 de 58
+ AFIP – SI.CO.RE.                                                  Versión:        50.0.0
+ Instructivo de Ayuda
+                                                                   Fecha:      28/01/2014
+
+      Tipo de documento del retenido/percibido
+
+     CODIGO                  DESCRIPCION
+         80         C.U.I.T.
+         86         C.U.I.L.
+         83         Ident.Tributaria del Exterior
+         87         C.D.I.
+         84         Documento del Exterior
+      Nro. de documento del retenido/percibido
+
+ Sólo para el caso de Beneficiarios del Exterior, además, podrán importarse los siguientes
+ registros:
+      Número de certificado original
+      Denominación del ordenante
+      Acrecentamiento
+      Cuit del país del retenido
+      Cuit del ordenante
+
+
+ 4.3.1.2. Importar sujetos retenidos
+ Permite cargar los datos identificatorios de los sujetos retenidos desde un archivo de texto, para ser
+ incorporados dentro del padrón de sujetos retenidos, que mantiene el sistema.
+ El procedimiento es similar al descripto en el punto 4.3.1.1, salvo que la importación de sujetos
+ retenidos controla la existencia de dobles y el archivo de errores será errimpsuj.log.
+ Tipos de Registros:
+ Los datos a importar para sujetos retenidos son:

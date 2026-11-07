@@ -1,0 +1,424 @@
+                                                 ANEXO I – DISEÑOS DE REGISTROS
+
+           Diseño de Registro Ventas - Cabecera
+
+
+                                               DISEÑO DE REGISTRO
+
+                      DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                                Hoja / De :
+LIBRO_IVA_DIGITAL_VENTAS_CBTE                                                                                           1/1
+                                                       CARACTERISTICAS DEL
+                                                            REGISTRO
+                                                                        Longitud                                           Tipo
+                                                                         266
+ Cam                                      Tipo
+                    POSICIONES
+ po                                        de                 Denominación del campo                                 Observaciones
+ Nro.     Desde        Hasta    Cant.     Dato
+   1           1          8       8        2      Fecha de comprobante                                                 AAAAMMDD
+   2           9         11       3        2      Tipo de comprobante                                    Según tabla Comprobantes Ventas
+   3           12        16       5        2      Punto de venta
+   4           17        36       20       2      Número de comprobante
+   5           37        56       20       2      Número de comprobante hasta
+   6           57        58       2        2      Código de documento del comprador                      Según tabla Documentos
+   7           59        78       20       3      Número de identificación del comprador                 Completar con ceros a izquierda
+   8           79        108      30       3      Apellido y nombre o denominación del comprador
+   9       109           123      15       2      Importe total de la operación                          13 enteros 2 decimales sin punto decimal
+                                                  Importe total de conceptos que no integran el
+  10       124           138      15       2                                                             13 enteros 2 decimales sin punto decimal
+                                                  precio neto gravado
+  11       139           153      15       2      Percepción a no categorizados                          13 enteros 2 decimales sin punto decimal
+  12       154           168      15       2      Importe de operaciones exentas                         13 enteros 2 decimales sin punto decimal
+                                                  Importe de percepciones o pagos a cuenta de
+  13       169           183      15       2                                                             13 enteros 2 decimales sin punto decimal
+                                                  impuestos Nacionales
+  14       184           198      15       2      Importe de percepciones de Ingresos Brutos             13 enteros 2 decimales sin punto decimal
+  15       199           213      15       2      Importe de percepciones impuestos Municipales          13 enteros 2 decimales sin punto decimal
+  16       214           228      15       2      Importe impuestos internos                             13 enteros 2 decimales sin punto decimal
+  17       229           231      3        3      Código de moneda                                       Según tabla Tipo de Monedas
+  18       232           241      10       2      Tipo de cambio                                         4 enteros 6 decimales sin punto decimal
+  19       242           242      1        2      Cantidad de alícuotas de IVA
+  20       243           243      1        1      Código de operación                                    Según tabla Código de Operación
+  21       244           258      15       2      Otros Tributos                                         13 enteros 2 decimales sin punto decimal
+  22       259           266      8        2      Fecha de Vencimiento o Pago                                          AAAAMMDD
+
+
+                                                        CODIGOS DE TIPOS DE DATOS
+1 Alfabético        3 Alfanumérico        5 Empaquetado c/signo         7 Binario c/signo         9 Blanco
+2 Numérico          4 Caracter especial   6 Empaquetado s/signo         8 Binario s/signo
+
+
+
+
+                                                                   Página 1 de 9
+        Diseño de Registro Ventas por TurIVA- Cabecera
+
+
+
+                                       DISEÑO DE REGISTRO
+
+                                         DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                  Hoja / De :
+LIBRO_IVA_DIGITAL_VENTAS_TurIVA_CBTE                                                                      1/1
+                                              CARACTERISTICAS DEL
+                                                   REGISTRO
+                                                               Longitud                                      Tipo
+                                                                281
+Camp                              Tipo               Denominación del campo                            Observaciones
+              POSICIONES
+  o                                de
+ Nro.   Desde    Hasta   Cant.    Dato
+  1       1        8       8       2     Fecha de comprobante                              AAAAMMDD
+  2       9       11       3       2     Tipo de comprobante                               Según tabla Comprobantes Ventas
+  3      12       16       5       2     Punto de venta
+  4      17       36       20      2     Número de comprobante
+  5      37       56       20      2     Número de comprobante hasta
+  6      57       58       2       2     Código de documento del comprador                 Según tabla Documentos
+  7      59       78       20      3     Número de identificación del comprador            Completar con ceros a izquierda
+  8      79       108      30      3     Apellido y nombre o denominación del comprador
+  9      109      123      15      2     Importe total de la operación                     13 enteros 2 decimales sin punto decimal
+                                         Importe total de conceptos que no integran el
+ 10      124      138      15      2                                                       13 enteros 2 decimales sin punto decimal
+                                         precio neto gravado
+ 11      139      153      15      2     Percepción a no categorizados                     13 enteros 2 decimales sin punto decimal
+ 12      154      168      15      2     Importe de operaciones exentas                    13 enteros 2 decimales sin punto decimal
+                                         Importe de percepciones o pagos a cuenta de
+ 13      169      183      15      2                                                       13 enteros 2 decimales sin punto decimal
+                                         impuestos Nacionales
+ 14      184      198      15      2     Importe de percepciones de Ingresos Brutos        13 enteros 2 decimales sin punto decimal
+ 15      199      213      15      2     Importe de percepciones impuestos Municipales     13 enteros 2 decimales sin punto decimal
+ 16      214      228      15      2     Importe impuestos internos                        13 enteros 2 decimales sin punto decimal
+ 17      229      231      3       3     Código de moneda                                  Según tabla Tipo de Monedas
+ 18      232      241      10      2     Tipo de cambio                                    4 enteros 6 decimales sin punto decimal
+ 19      242      242      1       2     Cantidad de alícuotas de IVA
+ 20      243      243      1       1     Código de operación                               Según tabla Código de Operación
+ 21      244      258      15      2     Otros Tributos                                    13 enteros 2 decimales sin punto decimal
+ 22      259      266      8       2     Fecha de Vencimiento de Pago                      AAAAMMDD
+ 23      267      281      15      2     Importe Reintegro Decreto 1043/2016               13 enteros 2 decimales sin punto decimal
+
+
+                                               CODIGOS DE TIPOS DE DATOS
+                  1 Alfabético  3 Alfanumérico       5 Empaquetado c/signo     7 Binario c/signo       9 Blanco
+                         2 Numérico    4 Caracter especial 6 Empaquetado s/signo       8 Binario s/signo
+
+
+
+
+                                                          Página 2 de 9
+           Diseño de Registro Ventas - Alícuotas
+
+
+
+
+                                               DISEÑO DE REGISTRO
+
+                                                 DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                          Hoja / De :
+LIBRO_IVA_DIGITAL_VENTAS_ALICUOTAS                                                                                1/1
+                                                      CARACTERISTICAS DEL
+                                                           REGISTRO
+                                                                        Longitud                                     Tipo
+                                                                          62
+Camp                                      Tipo
+                    POSICIONES
+  o                                        de               Denominación del campo                             Observaciones
+ Nro.     Desde        Hasta    Cant.     Dato
+   1           1          3       3        2     Tipo de comprobante                               Según tabla Comprobantes
+   2           4          8       5        2     Punto de venta
+   3           9         28       20       2     Número de comprobante
+   4           29        43       15       2     Importe neto gravado                              13 enteros 2 decimales sin punto decimal
+   5           44        47       4        2     Alícuota de IVA                                   Según tabla Alícuotas
+   6           48        62       15       2     Impuesto Liquidado                                13 enteros 2 decimales sin punto decimal
+
+
+
+
+                                                       CODIGOS DE TIPOS DE DATOS
+1 Alfabético        3 Alfanumérico        5 Empaquetado c/signo         7 Binario c/signo   9 Blanco
+2 Numérico          4 Carácter especial   6 Empaquetado s/signo         8 Binario s/signo
+
+
+
+
+                                                                  Página 3 de 9
+          Diseño de Registro Compras e Importación de Bienes- Cabecera
+
+
+
+                                            DISEÑO DE REGISTRO
+
+                                             DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                          Hoja / De :
+LIBRO_IVA_DIGITAL_COMPRAS_CBTE                                                                                    1/1
+                                                   CARACTERISTICAS DEL
+                                                        REGISTRO
+                                                                    Longitud                                         Tipo
+                                                                     325
+Camp                               Tipo
+                POSICIONES
+  o                                 de                    Denominación del campo                               Observaciones
+ Nro.    Desde     Hasta   Cant.   Dato
+  1        1         8       8          2     Fecha de comprobante o fecha de oficialización       AAAAMMDD
+  2        9         11      3          2     Tipo de comprobante                                  Según tabla Comprobantes Compras
+  3        12        16      5          2     Punto de venta
+  4        17        36      20         2     Número de comprobante
+  5        37        52      16         3     Despacho de importación
+  6        53        54      2          2     Código de documento del vendedor                     Según tabla Documentos
+  7        55        74      20         3     Número de identificación del vendedor                Completar con ceros a izquierda
+  8        75       104      30         3     Apellido y nombre o denominación del vendedor
+  9       105       119      15         2     Importe total de la operación                        13 enteros 2 decimales sin punto decimal
+                                              Importe total de conceptos que no integran el
+  10      120       134      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              precio neto gravado
+  11      135       149      15         2     Importe de operaciones exentas                       13 enteros 2 decimales sin punto decimal
+                                              Importe de percepciones o pagos a cuenta del
+  12      150       164      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              Impuesto al Valor Agregado
+                                              Importe de percepciones o pagos a cuenta de
+  13      165       179      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              otros impuestos nacionales
+  14      180       194      15         2     Importe de percepciones de Ingresos Brutos           13 enteros 2 decimales sin punto decimal
+                                              Importe de percepciones de Impuestos
+  15      195       209      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              Municipales
+  16      210       224      15         2     Importe de Impuestos Internos                        13 enteros 2 decimales sin punto decimal
+  17      225       227      3          3     Código de moneda                                     Según tabla Monedas
+  18      228       237      10         2     Tipo de cambio                                       4 enteros 6 decimales sin punto decimal
+  19      238       238      1          2     Cantidad de alícuotas de IVA
+  20      239       239      1          1     Código de operación                                  Según tabla Código Operación
+  21      240       254      15         2     Crédito Fiscal Computable                            13 enteros 2 decimales sin punto decimal
+  22      255       269      15         2     Otros Tributos                                       13 enteros 2 decimales sin punto decimal
+  23      270       280      11         2     CUIT emisor/corredor
+  24      281       310      30         3     Denominación del emisor/corredor
+  25      311       325      15         2     IVA comisión                                         13 enteros 2 decimales sin punto decimal
+
+
+                                                    CODIGOS DE TIPOS DE DATOS
+1 Alfabético      3 Alfanumérico            5 Empaquetado c/signo              7 Binario c/signo      9 Blanco
+2 Numérico        4 Carácter especial       6 Empaquetado s/signo              8 Binario s/signo
+
+
+
+
+                                                               Página 4 de 9
+          Diseño de Registro Compras por TurIVA - Cabecera
+
+
+
+                                            DISEÑO DE REGISTRO
+
+                                             DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                          Hoja / De :
+LIBRO_IVA_DIGITAL_COMPRAS_TurIVA_CBTE                                                                             1/1
+                                                   CARACTERISTICAS DEL
+                                                        REGISTRO
+                                                                    Longitud                                         Tipo
+                                                                     340
+Camp                               Tipo
+                POSICIONES
+  o                                 de                    Denominación del campo                               Observaciones
+ Nro.    Desde     Hasta   Cant.   Dato
+  1        1         8       8          2     Fecha de comprobante o fecha de oficialización       AAAAMMDD
+  2        9         11      3          2     Tipo de comprobante                                  Según tabla Comprobantes Compras
+  3        12        16      5          2     Punto de venta
+  4        17        36      20         2     Número de comprobante
+  5        37        52      16         3     Despacho de importación
+  6        53        54      2          2     Código de documento del vendedor                     Según tabla Documentos
+  7        55        74      20         3     Número de identificación del vendedor                Completar con ceros a izquierda
+  8        75       104      30         3     Apellido y nombre o denominación del vendedor
+  9       105       119      15         2     Importe total de la operación                        13 enteros 2 decimales sin punto decimal
+                                              Importe total de conceptos que no integran el
+  10      120       134      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              precio neto gravado
+  11      135       149      15         2     Importe de operaciones exentas                       13 enteros 2 decimales sin punto decimal
+                                              Importe de percepciones o pagos a cuenta del
+  12      150       164      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              Impuesto al Valor Agregado
+                                              Importe de percepciones o pagos a cuenta de
+  13      165       179      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              otros impuestos nacionales
+  14      180       194      15         2     Importe de percepciones de Ingresos Brutos           13 enteros 2 decimales sin punto decimal
+                                              Importe de percepciones de Impuestos
+  15      195       209      15         2                                                          13 enteros 2 decimales sin punto decimal
+                                              Municipales
+  16      210       224      15         2     Importe de Impuestos Internos                        13 enteros 2 decimales sin punto decimal
+  17      225       227      3          3     Código de moneda                                     Según tabla Monedas
+  18      228       237      10         2     Tipo de cambio                                       4 enteros 6 decimales sin punto decimal
+  19      238       238      1          2     Cantidad de alícuotas de IVA
+  20      239       239      1          1     Código de operación                                  Según tabla Código Operación
+  21      240       254      15         2     Crédito Fiscal Computable                            13 enteros 2 decimales sin punto decimal
+  22      255       269      15         2     Otros Tributos                                       13 enteros 2 decimales sin punto decimal
+  23      270       280      11         2     CUIT emisor/corredor
+  24      281       310      30         3     Denominación del emisor/corredor
+  25      311       325      15         2     IVA comisión                                         13 enteros 2 decimales sin punto decimal
+  26      326       340      15         2     Importe Reintegro Decreto 1043/2016                  13 enteros 2 decimales sin punto decimal
+                                                    CODIGOS DE TIPOS DE DATOS
+1 Alfabético      3 Alfanumérico            5 Empaquetado c/signo              7 Binario c/signo      9 Blanco
+2 Numérico        4 Carácter especial       6 Empaquetado s/signo              8 Binario s/signo
+
+
+
+
+                                                               Página 5 de 9
+           Diseño de Registro Compras - Alícuotas
+
+
+
+                                               DISEÑO DE REGISTRO
+
+                                                 DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                          Hoja / De :
+LIBRO_IVA_DIGITAL_COMPRAS_ALICUOTAS                                                                               1/1
+                                                      CARACTERISTICAS DEL
+                                                           REGISTRO
+                                                                        Longitud                                     Tipo
+                                                                          84
+Camp                                      Tipo
+                    POSICIONES
+  o                                        de               Denominación del campo                             Observaciones
+ Nro.     Desde        Hasta    Cant.     Dato
+   1           1          3       3        2     Tipo de comprobante                               Según tabla Comprobantes
+   2           4          8       5        2     Punto de venta
+   3           9         28       20       2     Número de comprobante
+   4           29        30       2        2     Código de documento del vendedor                  Según tabla Documentos
+   5           31        50       20       3     Número de identificación del vendedor             Completar con ceros a izquierda
+   6           51        65       15       2     Importe neto gravado                              13 enteros 2 decimales sin punto decimal
+   7           66        69       4        2     Alícuota de IVA                                   Según tabla Alícuotas
+   8           70        84       15       2     Impuesto liquidado                                13 enteros 2 decimales sin punto decimal
+
+
+
+
+                                                       CODIGOS DE TIPOS DE DATOS
+1 Alfabético        3 Alfanumérico        5 Empaquetado c/signo         7 Binario c/signo   9 Blanco
+2 Numérico          4 Carácter especial   6 Empaquetado s/signo         8 Binario s/signo
+
+
+
+
+                                                                  Página 6 de 9
+           Diseño de Registro Importaciones de Bienes - Alícuotas
+
+
+
+                                               DISEÑO DE REGISTRO
+
+                                                 DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                          Hoja / De :
+LIBRO_IVA_DIGITAL_IMPORTACION_BIENES_ALICUOTA                                                                     1/1
+                                                      CARACTERISTICAS DEL
+                                                           REGISTRO
+                                                                        Longitud                                     Tipo
+                                                                          50
+Camp                                      Tipo
+                    POSICIONES
+  o                                        de               Denominación del campo                             Observaciones
+ Nro.     Desde        Hasta    Cant.     Dato
+   1           1         16       16       3     Despacho de importación
+   2           17        31       15       2     Importe neto gravado                              13 enteros 2 decimales sin punto decimal
+   3           32        35       4        2     Alícuota de IVA                                   Según tabla Alícuotas
+   4           36        50       15       2     Impuesto liquidado                                13 enteros 2 decimales sin punto decimal
+
+
+
+
+                                                       CODIGOS DE TIPOS DE DATOS
+1 Alfabético        3 Alfanumérico        5 Empaquetado c/signo         7 Binario c/signo   9 Blanco
+2 Numérico          4 Caracter especial   6 Empaquetado s/signo         8 Binario s/signo
+
+
+
+
+                                                               Página 7 de 9
+           Diseño de Registro – Importaciones de Servicios
+
+
+
+                                               DISEÑO DE REGISTRO
+
+                                                 DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                                  Hoja / De :
+LIBRO_IVA_DIGITAL_IMPORTACION_SERVICIOS_CREDITO_FISCAL                                                                    1/1
+                                                      CARACTERISTICAS DEL
+                                                           REGISTRO
+                                                                       Longitud                                            Tipo
+                                                                         211
+Camp                                      Tipo
+                    POSICIONES
+  o                                        de                  Denominación del campo                                  Observaciones
+ Nro.     Desde        Hasta    Cant.     Dato
+   1           1          1       1        2     Tipo de comprobante                                     1.Factura 2.Contrato 3.Otros
+   2           2         21       20       3     Descripción                                             Sólo si tipo de comprobante = 3.Otros
+   3           22        41       20       3     Identificación del comprobante
+   4           42        49       8        2     Fecha de la operación                                   AAAAMMDD
+   5           50        64       15       2     Monto en moneda original                                13 enteros 2 decimales sin punto decimal
+   6           65        67       3        3     Código de moneda                                        Según tablas de Monedas
+   7           68        77       10       2     Tipo de cambio                                          4 enteros 6 decimales
+   8           78        88       11       2     CUIT del Prestador
+   9           89        108      20       3     NIF del prestador
+                                                 Apellido y Nombre /Denominación del Prestador
+  10       109           138      30       3
+                                                 del Servicio
+  11       139           142      4        2     Alícuota aplicable                                      1050 ó 2100
+  12       143           150      8        2     Fecha de ingreso del impuesto                           AAAAMMDD
+  13       151           165      15       2     Monto impuesto ingresado                                13 enteros 2 decimales sin punto decimal
+  14       166           180      15       2     Impuesto computable                                     13 enteros 2 decimales sin punto decimal
+  15       181           200      20       3     Identificación del pago/liquidación/constancia
+  16       201           211      11       2     CUIT de la entidad de pago
+
+
+
+
+                                                       CODIGOS DE TIPOS DE DATOS
+1 Alfabético        3 Alfanumérico        5 Empaquetado c/signo          7 Binario c/signo        9 Blanco
+2 Numérico          4 Caracter especial   6 Empaquetado s/signo          8 Binario s/signo
+
+
+
+
+                                                                 Página 8 de 9
+           Diseño de Registro Comprobantes Anulados
+
+
+
+                                               DISEÑO DE REGISTRO
+
+                                                 DENOMINACION DE LA TAREA
+LIBRO DE IVA DIGITAL
+             DENOMINACION DEL ARCHIVO                                                                        Hoja / De :
+LIBRO_IVA_DIGITAL_CBTES_VENTAS_ANULADOS                                                                         1/1
+                                                      CARACTERISTICAS DEL
+                                                           REGISTRO
+                                                                       Longitud                                   Tipo
+                                                                         44
+Camp                                      Tipo
+                    POSICIONES
+  o                                        de               Denominación del campo                           Observaciones
+ Nro.     Desde        Hasta    Cant.     Dato
+   1           1          8       8        2     Fecha de comprobante                                          AAAAMMDD
+   2           9         11       3        2     Tipo de comprobante                              Según tabla Comprobantes Ventas
+   3           12        16       5        2     Punto de venta
+   4           17        36       20       2     Número de comprobante
+   5           37        44       8        2     Fecha de anulación del comprobante                            AAAAMMDD
+
+
+
+
+                                                       CODIGOS DE TIPOS DE DATOS
+1 Alfabético        3 Alfanumérico        5 Empaquetado c/signo        7 Binario c/signo   9 Blanco
+2 Numérico          4 Caracter especial   6 Empaquetado s/signo        8 Binario s/signo
+
+
+
+
+                                                                  Página 9 de 9
+

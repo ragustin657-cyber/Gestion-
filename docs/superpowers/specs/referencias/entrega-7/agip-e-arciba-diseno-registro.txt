@@ -1,0 +1,190 @@
+                                                                    Diseño de Registro de Importaciones de Retenciones/Percepciones
+           Versión
+ Orden     Anterior    Campo                                         Tipo de dato     Largo   Desde   Hasta   Opcional                       Validaciones                                 Observaciones
+            Arciba
+                                                                                                                         1: Retención
+   1       Sin Modif   Tipo de Operación                              Valores fijos     1       1      1         No
+                                                                                                                         2: Percepción
+   2       Sin Modif   Código de Norma                                  Número          3       2      4         No                                                             Según Tipo de Operación
+   3       Sin Modif   Fecha de retención/percepción                     Fecha         10       5      14        No                                                             Formato: dd/mm/aaaa
+                                                                                                                         Si Tipo de Operación =1 : 01 . Factura
+                                                                                                                                                  02 . Nota de Débito
+                                                                                                                                                  03 . Orden de Pago
+                                                                                                                                                  04 . Boleta de Depósito
+                                                                                                                                                  05 . Liquidación de pago
+    4      Sin Modif   Tipo de comprobante origen de la retención     Valores fijos     2      15      16        No                               06 . Certificado de obra
+                                                                                                                                                  07 . Recibo
+                                                                                                                                                  08 . Cont de Loc de Servic.
+                                                                                                                                                  09 . Otro Comprobante
+
+                                                                                                                         Si Tipo de Operación =2: 01 . Factura
+                                                                                                                                                  09 . Otro Comprobante
+
+                                                                                                                         Operación Retenciones
+                                                                                                                         Si Agente=R.I y Suj.Ret = R.I     : Letra= A,M,B
+                                                                                                                         Si Agente=R.I y Suj.Ret = Exento : Letra= C
+                                                                                                                         Si Agente=R.I y Suj.Ret = Monot. : Letra= C
+                                                                                                                         Si Agente=Exento y Suj.Ret=R.I : Letra= B
+                                                                                                                         Si Agente=Exento y Suj.Ret=Exento : Letra= C
+                                                                                                                         Si Agente=Exento y Suj.Ret=Monot. : Letra= C
+                                                                                                                         Operación Percepción
+                                                                                                                         Si Agente=R.I y Suj.Ret = R.I       : Letra= A,M,B
+    5      Sin Modif   Letra del Comprobante                          Valores fijos     1      17      17        Si
+                                                                                                                         Si Agente=R.I y Suj.Ret = Exento : Letra= B
+                                                                                                                         Si Agente=R.I y Suj.Ret = Monot. : Letra= B
+                                                                                                                         Si Agente=R.I y Suj.Ret = No Cat. : Letra= B
+                                                                                                                         Si Agente=Exento y Suj.Ret=R.I     : Letra=C
+                                                                                                                         Si Agente=Exento y Suj.Ret=Exento : Letra= C
+                                                                                                                         Si Agente=Exento y Suj.Ret=Monot. : Letra= C
+                                                                                                                         Si Agente=Exento y Suj.Ret=No Cat. : Letra=C
+                                                                                                                         Si Tipo Comprobante = (01,06,07): A,B,C,M sino
+                                                                                                                         1 dígito blanco
+
+
+   6      Modificado Nro de comprobante                                 Número         16      18      33        No      Mayor a 0(cero)
+
+    7      Sin Modif   Fecha del comprobante                             Fecha         10      34      43        No                                                             Formato: dd/mm/aaaa
+
+                                                                                                                         Decimales: 2
+    8     Modificado Monto del comprobante                              Número         16      44      59        No
+                                                                                                                         Máximo: 9999999999999,99
+
+
+
+
+Dirección Desarrollo de Sistemas                                                                                                                                                                          Página 1
+                                                              Diseño de Registro de Importaciones de Retenciones/Percepciones
+           Versión
+ Orden     Anterior    Campo                                   Tipo de dato     Largo   Desde   Hasta   Opcional                        Validaciones                          Observaciones
+            Arciba
+                                                                                                                                                                  Si Tipo de Operación =1 se carga el
+                                                                                                                                                                  Nro de certificado o blancos
+    9      Sin Modif   Nro de certificado propio                   Texto         16      60      75        Si
+                                                                                                                                                                  Si Tipo de Operación = 2 se completa
+                                                                                                                                                                  con blancos.
+                                                                                                                   3: CUIT
+   10      Sin Modif   Tipo de documento del Retenido           Valores fijos     1      76      76        No      2: CUIL
+                                                                                                                   1: CDI
+                                                                                                                   Mayor a 0(cero)                                Si nro de documento >=30000000000
+   11     Modificado Nro de documento del Retenido                Número         11      77      87        No
+                                                                                                                   Máximo: 99999999999                            :Tipo Documento=3
+                                                                                                                                                                  Si Tipo de Documento=3: Situación IB
+                                                                                                                   1: Local 2: Convenio Multilateral              del Retenido=(1,2,4,5)
+   12      Sin Modif   Situación IB del Retenido                Valores fijos     1      88      88        No                                                     Si Tipo de Documento=(1,2): Situación
+                                                                                                                   4: No inscripto 5: Reg.Simplificado
+                                                                                                                                                                  IB del Retenido=4
+                                                                                                                                                                  Se validará digito verificador.
+                                                                                                                                                                  1.Local: 8 digítos Número + 2 dígitos
+                                                                                                                                                                  Verificador
+                                                                                                                                                                  2. Conv.Multilateral: 3 dígitos
+   13      Sin Modif   Nro Inscripción IB del Retenido            Número         11      89      99        No      Si Situación IB del Retenido=4 : 00000000000   Jurisdicción + 6 dígitos Número + 1
+                                                                                                                                                                  Dígito Verificador
+                                                                                                                                                                  5.RS: 2 dígitos + 8 dígitos + 1 dígito
+                                                                                                                                                                  verificador
+
+                                                                                                                   1 - Responsable Inscripto
+   14      Sin Modif   Situación frente al IVA del Retenido     Valores fijos     1      100    100        No      3 - Exento
+                                                                                                                   4 - Monotributo
+
+   15      Sin Modif   Razón Social del Retenido                   Texto         30      101    130        No
+
+                                                                                                                   Decimales: 2
+   16     Modificado Importe otros conceptos                      Número         16      131    146        No      Mínimo: 0
+                                                                                                                   Máximo: 9999999999999,99
+                                                                                                                   Decimales: 2
+                                                                                                                                                                  Solo completar si Letra del
+   17     Modificado Importe IVA                                  Número         16      147    162        No      Mínimo: 0
+                                                                                                                                                                  Comprobante = (A,M)
+                                                                                                                   Máximo: 9999999999999,99
+
+                                                                                                                   Mayor a 0(cero)                                Monto Sujeto a Retención/ Percepción=
+   18     Modificado Monto Sujeto a Retención/ Percepción         Número         16      163    178        No      Decimales: 2                                   (Monto del comprobante - Importe Iva -
+                                                                                                                   Máximo: 9999999999999,99                       Importe otros conceptos)
+
+                                                                                                                   Mayor a 0(cero)
+                                                                                                                                                                  Según el Tipo de Operación,Código de
+   19      Sin Modif   Alícuota                                   Número          5      179    183        No      Decimales: 2
+                                                                                                                                                                  Norma y Tipo de Agente
+                                                                                                                   Máximo: 99,99
+
+
+
+
+Dirección Desarrollo de Sistemas                                                                                                                                                                           Página 2
+                                                          Diseño de Registro de Importaciones de Retenciones/Percepciones
+           Versión
+ Orden     Anterior   Campo                                  Tipo de dato   Largo   Desde   Hasta   Opcional                       Validaciones                     Observaciones
+            Arciba
+                                                                                                               Mayor a 0(cero)                           Retención/Percepción Practicada=
+   20     Modificado Retención/Percepción Practicada           Número         16     184    199        No      Decimales: 2                              Monto Sujeto a Retención/ Percepción
+                                                                                                               Máximo: 9999999999999,99                  * Alícuota /100
+
+   21     Modificado Monto Total Retenido/Percibido            Número         16     200    215        No      Igual a Retención/Percepción Practicada
+
+
+El archivo de importación debe estar ordenado por fecha de retención
+Los datos de tipo numérico se alinean a la derecha y se completan con ceros
+Los datos de tipo caracter se alinean a la izquierda y se completan con blancos
+
+
+
+
+Dirección Desarrollo de Sistemas                                                                                                                                                                Página 3
+                                                                       Diseño de Registro de Importaciones de Notas de crédito
+           Versión
+ Orden     Anterior    Campo                                        Tipo de dato    Largo   Desde   Hasta   Opcional                       Validaciones                                  Observaciones
+            Arciba
+                                                                                                                       1: Retención
+   1       Sin Modif   Tipo de Operación                            Valores fijos     1       1      1         No
+                                                                                                                       2: Percepción
+                                                                                                                       Mayor a 0 (cero)
+   2       Sin Modif   Nro. Nota de crédito                           Número         12       2      13        No
+                                                                                                                       Máximo: 999999999999
+   3       Sin Modif   Fecha Nota de crédito                           Fecha         10      14      23        No                                                             formato:dd/mm/aaaa
+                                                                                                                       Mayor a 0 (cero)
+   4      Modificado Monto nota de crédito                            Número         16      24      39        No      Decimales: 2
+                                                                                                                       Máximo: 9999999999999,99
+   5       Sin Modif   Nro. certificado propio                         Texto         16      40      55        Si
+                                                                                                                       Si Tipo de Operación =1 : 01 . Factura
+                                                                                                                                                02 . Nota de Débito
+                                                                                                                                                03 . Orden de Pago
+                                                                                                                                                04 . Boleta de Depósito
+                                                                                                                                                05 . Liquidación de pago
+    6      Sin Modif   Tipo de comprobante origen de la retención   Valores fijos     2      56      57        No                               06 . Certificado de obra
+                                                                                                                                                07 . Recibo
+                                                                                                                                                08 . Cont de Loc de Servic.
+                                                                                                                                                09 . Otro Comprobante
+                                                                                                                       Si Tipo de Operación =2: 01 . Factura
+                                                                                                                                                09 . Otro Comprobante
+
+                                                                                                                       Si Emisor=R.I y Receptor = R.I : Letra= A,M
+                                                                                                                       Si Emisor=R.I y Receptor <> R.I : Letra= B
+                                                                                                                       Si Emisor=Monotributo          : Letra= C
+   7       Sin Modif   Letra del Comprobante                        Valores fijos     1      58      58        Si
+                                                                                                                       Si Emisor=Exento                : Letra= B
+                                                                                                                       Si Tipo Comprobante = (01,06,07): A,B,C,M sino
+                                                                                                                       1 dígito blanco
+
+   8      Modificado Nro de comprobante                               Número         16      59      74        No      Mayor a 0 (cero)
+                                                                                                                                                                              Cuit/Cuil del comprobante origen de la
+   9      Modificado Nro de documento del Retenido                    Número         11      75      85        No
+                                                                                                                                                                              retención
+   10     Modificado Código de norma                                  Número          3      86      88        No                                                             Según Tipo de Operación
+
+   11     Modificado Fecha de retención/percepción                    Número         10      89      98        No                                                             Formato: dd/mm/aaaa
+                                                                                                                       Mayor a 0 (cero)
+                                                                                                                       Decimales: 2                                           Ret/percep a deducir= Monto nota de
+   12     Modificado Ret/percep a deducir                             Número         16      99     114        No
+                                                                                                                       Máximo: 9999999999999,99                               crédito * Alícuota/100
+
+                                                                                                                       Mayor a 0(cero)
+                                                                                                                                                                              Según el Tipo de Operación,Código de
+   13     Modificado Alícuota                                         Número          5      115    119        No      Decimales: 2
+                                                                                                                                                                              Norma y Tipo de Agente
+                                                                                                                       Máximo: 99,99
+
+
+
+
+Dirección Desarrollo de Sistemas                                                                                                                                                                                       Página 4
+
