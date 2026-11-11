@@ -27,6 +27,7 @@ export class AsientosManualesService {
   private async manual(tx: TxEmpresa, id: string) {
     const a = await tx.asiento.findUnique({ where: { id } });
     if (!a) throw new NotFoundException('Asiento no encontrado');
+    if (a.tipo === 'AJUSTE_INFLACION' || a.origenTipo === 'AJUSTE_INFLACION') throw new BadRequestException('Anule el ajuste desde Ajuste por inflación');
     if (a.tipo !== 'MANUAL') throw new BadRequestException(AUTOMATICO);
     await bloquear(tx, 'Asiento', this.tenant.empresaId, [id]);
     return tx.asiento.findUniqueOrThrow({ where: { id } });

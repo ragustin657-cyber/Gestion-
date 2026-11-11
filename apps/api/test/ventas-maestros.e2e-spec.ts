@@ -15,7 +15,7 @@ describe('ventas: maestros y configuración inicial', () => {
   it('conceptos contables de ventas y retenciones sufridas', async () => {
     const { http, empresaId } = await sesionConPlan(app, prisma);
     const cuentas = (await http.get('/api/compras/config')).body.cuentas as { concepto: string; cuentaContableId: string }[];
-    expect(cuentas).toHaveLength(26);
+    expect(cuentas).toHaveLength(28);
     const codigo = async (c: string) => (await prisma.cuentaContable.findUniqueOrThrow({ where: { id: cuentas.find((x) => x.concepto === c)!.cuentaContableId } })).codigo;
     expect(await codigo('VENTAS')).toBe('4.1.01');
     expect(await codigo('IVA_DEBITO_FISCAL')).toBe('2.1.02.001');

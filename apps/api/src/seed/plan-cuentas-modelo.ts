@@ -5,10 +5,17 @@ export interface CuentaModelo {
   nombre: string;
   imputable: boolean;
   tipo: TipoCuenta;
+  monetaria: boolean;
+}
+
+/** Clasificación por defecto para el ajuste por inflación: PN, resultados y bienes de uso son no monetarios. */
+export function monetariaPorDefecto(codigo: string, tipo: TipoCuenta): boolean {
+  if (tipo === 'PATRIMONIO_NETO' || tipo === 'RESULTADO_POSITIVO' || tipo === 'RESULTADO_NEGATIVO') return false;
+  return !(codigo === '1.2.01' || codigo.startsWith('1.2.01.'));
 }
 
 const c = (codigo: string, nombre: string, tipo: TipoCuenta, imputable = false): CuentaModelo => ({
-  codigo, nombre, tipo, imputable,
+  codigo, nombre, tipo, imputable, monetaria: monetariaPorDefecto(codigo, tipo),
 });
 const A = 'ACTIVO', P = 'PASIVO', PN = 'PATRIMONIO_NETO', RP = 'RESULTADO_POSITIVO', RN = 'RESULTADO_NEGATIVO';
 
@@ -55,6 +62,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('3', 'Patrimonio neto', PN),
   c('3.1', 'Capital', PN),
   c('3.1.01', 'Capital social', PN, true),
+  c('3.1.02', 'Ajuste de capital', PN, true),
   c('3.2', 'Resultados acumulados', PN),
   c('3.2.01', 'Resultados no asignados', PN, true),
   c('3.2.02', 'Resultado del ejercicio', PN, true),
@@ -64,6 +72,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('4.2', 'Otros ingresos', RP),
   c('4.2.01', 'Diferencias de cambio positivas', RP, true),
   c('4.2.02', 'Intereses ganados', RP, true),
+  c('4.2.03', 'Resultado por exposición a la inflación (RECPAM)', RP, true),
   c('5', 'Resultados negativos', RN),
   c('5.1', 'Costos', RN),
   c('5.1.01', 'Costo de mercaderías vendidas', RN, true),
@@ -91,5 +100,7 @@ export async function cargarPlanModelo(tx: Prisma.TransactionClient, empresaId: 
     });
     ids.set(c.codigo, creada.id);
   }
+  // Vínculos de ajuste por inflación
+  await tx.cuentaContable.update({ where: { id: ids.get('3.1.01')! }, data: { cuentaAjusteId: ids.get('3.1.02')! } });
   return PLAN_CUENTAS_MODELO.length;
 }

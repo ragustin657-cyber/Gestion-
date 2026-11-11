@@ -61,6 +61,7 @@ export const MENU: NodoMenu[] = [
         hijos: [
           { titulo: 'Asiento manual', ruta: '/contabilidad/asiento', permiso: 'asiento.registrar' },
           { titulo: 'Períodos y ejercicios', ruta: '/contabilidad/periodos', permiso: 'plancuentas.ver' },
+          { titulo: 'Ajuste por inflación', ruta: '/contabilidad/ajuste-inflacion', permiso: 'contabilidad.cerrar' },
         ],
       },
       {
@@ -161,7 +162,9 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Configuración de impuestos', ruta: '/admin/impuestos', permiso: 'impuestos.presentar' },
       { titulo: 'Retenciones', ruta: '/admin/retenciones', permiso: 'retenciones.config' },
       { titulo: 'Reglas de conciliación', ruta: '/admin/reglas-conciliacion', permiso: 'conciliacion.operar' },
+      { titulo: 'Configuración del ajuste por inflación', ruta: '/admin/ajuste-inflacion', permiso: 'contabilidad.cerrar' },
       { titulo: 'Padrones de IIBB', ruta: '/admin/padrones', soloSuperadmin: true },
+      { titulo: 'Índices de inflación', ruta: '/admin/indices-inflacion', soloSuperadmin: true },
     ],
   },
 ];

@@ -59,4 +59,11 @@ describe('menú del administrador general', () => {
     expect(hojas(filtrarMenu(MENU, ['retenciones.config']))).not.toContain('Padrones de IIBB');
     expect(hojas(filtrarMenu(MENU, ['retenciones.config'], true))).toContain('Padrones de IIBB');
   });
+
+  it('Índices de inflación solo para el administrador general', () => {
+    const todas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => [n.titulo, ...todas(n.hijos ?? [])]);
+    expect(todas(filtrarMenu(MENU, ['contabilidad.cerrar']))).not.toContain('Índices de inflación');
+    expect(todas(filtrarMenu(MENU, ['contabilidad.cerrar'], true))).toContain('Índices de inflación');
+    expect(todas(filtrarMenu(MENU, ['contabilidad.cerrar']))).toContain('Ajuste por inflación');
+  });
 });

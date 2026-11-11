@@ -24,7 +24,7 @@ export class EstadosController {
   }
 
   @Get('situacion')
-  async situacion(@Query() q: { fecha?: string; nivel?: string; formato?: string }, @Res({ passthrough: true }) res: Response) {
+  async situacion(@Query() q: { fecha?: string; nivel?: string; formato?: string; comparativoReexpresado?: string }, @Res({ passthrough: true }) res: Response) {
     const s = await this.estados.situacion(q);
     if (!q.formato) return s;
     if (q.formato !== 'pdf') throw new BadRequestException('Formato inválido: use pdf');
@@ -36,7 +36,7 @@ export class EstadosController {
   }
 
   @Get('resultados')
-  async resultados(@Query() q: { desde?: string; hasta?: string; nivel?: string; formato?: string }, @Res({ passthrough: true }) res: Response) {
+  async resultados(@Query() q: { desde?: string; hasta?: string; nivel?: string; formato?: string; comparativoReexpresado?: string }, @Res({ passthrough: true }) res: Response) {
     const r = await this.estados.resultados(q);
     if (!q.formato) return r;
     if (q.formato !== 'pdf') throw new BadRequestException('Formato inválido: use pdf');
