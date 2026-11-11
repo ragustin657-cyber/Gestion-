@@ -65,6 +65,15 @@ export const MENU: NodoMenu[] = [
         ],
       },
       {
+        titulo: 'Stock',
+        hijos: [
+          { titulo: 'Transferencia', ruta: '/stock/transferencia', permiso: 'stock.operar' },
+          { titulo: 'Inventario físico', ruta: '/stock/inventario', permiso: 'stock.operar' },
+          { titulo: 'Inventario inicial', ruta: '/stock/inicial', permiso: 'stock.operar' },
+          { titulo: 'Salida manual', ruta: '/stock/salida', permiso: 'stock.operar' },
+        ],
+      },
+      {
         titulo: 'Impuestos',
         hijos: [
           { titulo: 'Generar presentación', ruta: '/impuestos/generar', permiso: 'impuestos.presentar' },
@@ -104,6 +113,15 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Recibos', ruta: '/ventas/recibos', permiso: 'venta.ver' },
           { titulo: 'Cuenta corriente de clientes', ruta: '/ventas/cuenta-corriente', permiso: 'venta.ver' },
           { titulo: 'Saldos de clientes', ruta: '/ventas/saldos', permiso: 'venta.ver' },
+        ],
+      },
+      {
+        titulo: 'Stock',
+        hijos: [
+          { titulo: 'Existencias', ruta: '/stock/existencias', permiso: 'stock.ver' },
+          { titulo: 'Kardex', ruta: '/stock/kardex', permiso: 'stock.ver' },
+          { titulo: 'Valuación', ruta: '/stock/valuacion', permiso: 'stock.ver' },
+          { titulo: 'Documentos de stock', ruta: '/stock/documentos', permiso: 'stock.ver' },
         ],
       },
       {
@@ -162,6 +180,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Configuración de impuestos', ruta: '/admin/impuestos', permiso: 'impuestos.presentar' },
       { titulo: 'Retenciones', ruta: '/admin/retenciones', permiso: 'retenciones.config' },
       { titulo: 'Reglas de conciliación', ruta: '/admin/reglas-conciliacion', permiso: 'conciliacion.operar' },
+      { titulo: 'Configuración de stock', ruta: '/admin/stock', permiso: 'stock.operar' },
       { titulo: 'Configuración del ajuste por inflación', ruta: '/admin/ajuste-inflacion', permiso: 'contabilidad.cerrar' },
       { titulo: 'Padrones de IIBB', ruta: '/admin/padrones', soloSuperadmin: true },
       { titulo: 'Índices de inflación', ruta: '/admin/indices-inflacion', soloSuperadmin: true },

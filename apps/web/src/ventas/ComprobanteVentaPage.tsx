@@ -36,6 +36,10 @@ export function ComprobanteVentaPage() {
   const [cotizacion, setCotizacion] = useState('');
   const [asociadoId, setAsociadoId] = useState<string | null>(null);
   const [aplicarAAsociado, setAplicarAAsociado] = useState(true);
+  const [depositoId, setDepositoId] = useState<string | null>(null);
+  const [devuelveMercaderia, setDevuelveMercaderia] = useState(false);
+  const [avisosStock, setAvisosStock] = useState<string[]>([]);
+  const depositos = (useQuery({ queryKey: ['/depositos', 'ventas'], queryFn: () => api<{ id: string; nombre: string }[]>('/depositos') }).data ?? []).map((d) => ({ value: d.id, label: d.nombre }));
   const [renglones, setRenglones] = useState<RenglonVentaEditable[]>([renglonVacio()]);
   const [actual, setActual] = useState<ComprobanteVenta | null>(null);
   const [params] = useSearchParams();
@@ -48,7 +52,7 @@ export function ComprobanteVentaPage() {
       const f = (x: string | null) => (x ? x.slice(0, 10) : '');
       setActual(c); setTipo(c.tipo); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setFecha(f(c.fecha)); setFechaVencimiento(f(c.fechaVencimiento));
       setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
-      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setAplicarAAsociado(c.aplicarAAsociado);
+      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(c.depositoId ?? null); setDevuelveMercaderia(!!c.devuelveMercaderia);
       setRenglones((c.renglones ?? []).map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota })));
     }).catch(() => op.setError('No se pudo cargar el comprobante'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,6 +77,7 @@ export function ComprobanteVentaPage() {
     fechaVencimientoPago: concepto === 'PRODUCTOS' ? null : vencePago || null,
     monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null,
     comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado,
+    depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
     renglones: renglones.map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
   });
 
@@ -89,6 +94,7 @@ export function ComprobanteVentaPage() {
     if (!g) return;
     c = g;
     setActual(g);
+    setAvisosStock((g as ComprobanteVenta & { advertencias?: string[] }).advertencias ?? []);
     if (emitir) await emitirActual(g.id);
   }
 
@@ -130,6 +136,7 @@ export function ComprobanteVentaPage() {
           <TextInput label="Vencimiento" type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.currentTarget.value)} disabled={!editable} />
           <Select label="Concepto" w={200} allowDeselect={false} value={concepto} onChange={(v) => setConcepto(v ?? 'PRODUCTOS')} disabled={!editable}
             data={[{ value: 'PRODUCTOS', label: 'Productos' }, { value: 'SERVICIOS', label: 'Servicios' }, { value: 'PRODUCTOS_Y_SERVICIOS', label: 'Productos y servicios' }]} />
+          <Select label="Depósito" w={180} clearable placeholder="El del punto de venta" data={depositos} value={depositoId} onChange={setDepositoId} disabled={!editable} />
           <Select label="Moneda" w={110} allowDeselect={false} value={moneda} onChange={(v) => setMoneda(v ?? 'ARS')} data={['ARS', 'USD']} disabled={!editable} />
           {moneda === 'USD' && <TextInput label="Cotización" w={120} inputMode="decimal" placeholder="Del día" value={cotizacion} onChange={(e) => setCotizacion(e.currentTarget.value)} disabled={!editable} />}
         </Group>
@@ -145,6 +152,7 @@ export function ComprobanteVentaPage() {
             <Select label="Comprobante asociado" w={360} searchable value={asociadoId} onChange={setAsociadoId} disabled={!editable}
               data={asociables.map((a) => ({ value: a.id, label: `${NOMBRE_TIPO[a.tipo]} ${a.letra} ${numeroVenta(a.puntoVenta, a.numero)} · saldo ${formatoMoneda(a.saldo, a.monedaCodigo)}` }))} />
             {tipo === 'NOTA_CREDITO' && <Checkbox label="Aplicar a la factura asociada" checked={aplicarAAsociado} onChange={(e) => setAplicarAAsociado(e.currentTarget.checked)} disabled={!editable} />}
+            {tipo === 'NOTA_CREDITO' && <Checkbox label="Con devolución de mercadería" checked={devuelveMercaderia} onChange={(e) => setDevuelveMercaderia(e.currentTarget.checked)} disabled={!editable} />}
           </Group>
         )}
 
@@ -155,6 +163,7 @@ export function ComprobanteVentaPage() {
         {actual && <Stack mt="sm"><EstadoEmision comprobante={actual} enviando={op.enviando} onReintentar={() => void emitirActual(actual.id)} /></Stack>}
         <Group justify="flex-end" mt="md">
           {actual && <Button variant="default" onClick={nuevo}>Nuevo comprobante</Button>}
+          {avisosStock.map((a) => <Alert key={a} color="yellow">{a}</Alert>)}
           {editable && <Button variant="default" loading={op.enviando} disabled={!terceroId || !puntoVentaId} onClick={() => void guardar(false)}>Guardar</Button>}
           {editable && <Button loading={op.enviando} disabled={!terceroId || !puntoVentaId} onClick={() => void guardar(true)}>Emitir</Button>}
         </Group>

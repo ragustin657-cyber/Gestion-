@@ -30,7 +30,7 @@ const TIPOS = [
 
 const inicial = () => ({
   terceroId: '', tipo: 'FACTURA', letra: '', puntoVenta: '', numero: '', fechaEmision: hoy(), fechaContable: '', fechaVencimiento: '',
-  monedaCodigo: 'ARS', cotizacion: '', percepcionIva: '', impuestosInternos: '', noGravado: '', exento: '', totalDeclarado: '',
+  monedaCodigo: 'ARS', cotizacion: '', depositoId: '', percepcionIva: '', impuestosInternos: '', noGravado: '', exento: '', totalDeclarado: '',
 });
 const n = (s: string) => (s === '' ? 0 : Number(s));
 
@@ -92,7 +92,7 @@ export function FacturaProveedorPage() {
     fechaEmision: cab.fechaEmision, fechaContable: cab.fechaContable || cab.fechaEmision, fechaVencimiento: cab.fechaVencimiento || null,
     monedaCodigo: cab.monedaCodigo, cotizacion: cab.monedaCodigo === 'USD' && cab.cotizacion ? n(cab.cotizacion) : null,
     totalDeclarado: n(cab.totalDeclarado), percepcionIva: n(cab.percepcionIva), impuestosInternos: n(cab.impuestosInternos),
-    noGravado: n(cab.noGravado), exento: n(cab.exento),
+    noGravado: n(cab.noGravado), exento: n(cab.exento), depositoId: cab.depositoId || null,
     percepcionesIibb: iibb.filter((x) => n(x.importe) > 0).map((x) => ({ jurisdiccion: x.jurisdiccion, importe: n(x.importe) })),
     renglones: renglones.map((r) => ({
       ...((r.origen as Origen | undefined) ?? { origen: 'DIRECTO' }),
@@ -121,6 +121,7 @@ export function FacturaProveedorPage() {
           <TextInput label="Fecha de emisión" type="date" {...campo('fechaEmision')} />
           <TextInput label="Fecha contable" type="date" placeholder="Igual a la emisión" {...campo('fechaContable')} />
           <TextInput label="Vencimiento" type="date" description="Vacío: según días de pago del proveedor" {...campo('fechaVencimiento')} />
+          <Select label="Depósito" clearable description="Para artículos con stock comprados sin recepción" data={m.depositos} value={cab.depositoId || null} onChange={(v) => setCab({ ...cab, depositoId: v ?? '' })} />
           <Group grow gap="xs" align="flex-end">
             <Select label="Moneda" data={['ARS', 'USD']} value={cab.monedaCodigo} allowDeselect={false} onChange={(v) => setCab({ ...cab, monedaCodigo: v ?? 'ARS' })} />
             {cab.monedaCodigo === 'USD' && <TextInput label="Cotización" placeholder="Del día" inputMode="decimal" {...campo('cotizacion')} />}

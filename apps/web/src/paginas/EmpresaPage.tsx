@@ -1,14 +1,14 @@
-import { Divider, Loader, Paper, Title } from '@mantine/core';
+import { Divider, Loader, Paper, Select, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CondicionIva, ETIQUETAS_CONDICION_IVA, formatearCuit, validarCuit } from '@gestion/shared';
-import { api } from '../api/cliente';
+import { api, ErrorApi } from '../api/cliente';
 import { FormAbm } from '../abm/FormAbm';
 import { Maestro } from '../abm/Maestro';
 import { CampoAbm } from '../abm/tipos';
 
 interface Empresa { [k: string]: unknown; cuit: string }
-interface PuntoVenta { id: string; numero: number; descripcion: string | null; electronico: boolean }
+interface PuntoVenta { id: string; numero: number; descripcion: string | null; electronico: boolean; depositoId: string | null }
 
 const JURISDICCIONES = [
   ['901', 'CABA'], ['902', 'Buenos Aires'], ['903', 'Catamarca'], ['904', 'Córdoba'], ['905', 'Corrientes'], ['906', 'Chaco'],
@@ -29,7 +29,24 @@ const CAMPOS: CampoAbm[] = [
   { nombre: 'jurisdiccionesIibb', etiqueta: 'Agente de IIBB en jurisdicciones', tipo: 'multiselect', opciones: JURISDICCIONES, ancho: true },
 ];
 
+function DepositoPuntoVenta({ punto, depositos }: { punto: PuntoVenta; depositos: { value: string; label: string }[] }) {
+  const qc = useQueryClient();
+  return (
+    <Select size="xs" w={180} clearable placeholder="Sin depósito" aria-label={`Depósito por defecto ${punto.numero}`} data={depositos} value={punto.depositoId}
+      onChange={async (v) => {
+        try {
+          await api(`/empresas/actual/puntos-venta/${punto.id}`, { metodo: 'PATCH', body: { depositoId: v } });
+          notifications.show({ color: 'green', message: 'Depósito por defecto guardado' });
+          void qc.invalidateQueries({ queryKey: ['/empresas/actual/puntos-venta'] });
+        } catch (e) {
+          notifications.show({ color: 'red', message: e instanceof ErrorApi ? e.mensaje : 'Error inesperado' });
+        }
+      }} />
+  );
+}
+
 export function EmpresaPage() {
+  const depositos = (useQuery({ queryKey: ['/depositos', 'empresa'], queryFn: () => api<{ id: string; nombre: string }[]>('/depositos') }).data ?? []).map((d) => ({ value: d.id, label: d.nombre }));
   const qc = useQueryClient();
   const empresa = useQuery({ queryKey: ['/empresas/actual'], queryFn: () => api<Empresa>('/empresas/actual') });
   return (
@@ -59,6 +76,7 @@ export function EmpresaPage() {
           { campo: 'numero', titulo: 'Número', render: (p) => String(p.numero).padStart(4, '0') },
           { campo: 'descripcion', titulo: 'Descripción' },
           { campo: 'electronico', titulo: 'Electrónico', render: (p) => (p.electronico ? 'Sí' : 'No') },
+          { campo: 'depositoId', titulo: 'Depósito por defecto', render: (p) => <DepositoPuntoVenta punto={p} depositos={depositos} /> },
         ],
       }} />
     </Paper>
