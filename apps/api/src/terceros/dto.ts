@@ -1,4 +1,4 @@
-import { CondicionIva, TipoDocumento } from '@prisma/client';
+import { CondicionIva, SituacionIibb, TipoDocumento } from '@prisma/client';
 import { validarCuit, normalizarCuit } from '@gestion/shared';
 import { z } from 'zod';
 import { zTexto, zTextoOpcional } from '../comun/esquemas';
@@ -8,6 +8,8 @@ const base = z.object({
   nombreFantasia: zTextoOpcional,
   cuit: z.string({ required_error: 'Campo obligatorio' }).trim().min(1, 'Campo obligatorio'),
   tipoDocumento: z.nativeEnum(TipoDocumento).optional(),
+  situacionIibb: z.nativeEnum(SituacionIibb).nullish(),
+  numeroIibb: z.string().trim().max(20).nullish(),
   condicionIva: z.nativeEnum(CondicionIva),
   esProveedor: z.boolean().default(false),
   esCliente: z.boolean().default(false),

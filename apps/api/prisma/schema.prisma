@@ -121,6 +121,8 @@ model Tercero {
   nombreFantasia     String?
   cuit               String
   tipoDocumento      TipoDocumento       @default(CUIT)
+  situacionIibb      SituacionIibb?
+  numeroIibb         String?
   condicionIva       CondicionIva
   esProveedor        Boolean             @default(false)
   esCliente          Boolean             @default(false)
@@ -1525,4 +1527,52 @@ model AplicacionCobro {
   @@index([empresaId, origenTipo, origenId])
   @@index([empresaId, creditoMovId])
   @@index([empresaId, debitoMovId])
+}
+
+// ─── Entrega 7: impuestos ───
+
+enum SituacionIibb {
+  LOCAL
+  CONVENIO
+  NO_INSCRIPTO
+  SIMPLIFICADO
+}
+
+enum TipoPresentacion {
+  LIBRO_IVA_DIGITAL
+  SICORE
+  ARBA
+  AGIP
+}
+
+enum PeriodicidadArba {
+  MENSUAL
+  QUINCENAL
+}
+
+model ConfigImpuestos {
+  id               String           @id @default(uuid()) @db.Uuid
+  empresaId        String           @unique @db.Uuid
+  arbaActividad    String           @default("6")
+  arbaSucursal     Int              @default(1)
+  arbaPeriodicidad PeriodicidadArba @default(MENSUAL)
+  agipCodigoNorma  String           @default("029")
+}
+
+model Presentacion {
+  id            String           @id @default(uuid()) @db.Uuid
+  empresaId     String           @db.Uuid
+  tipo          TipoPresentacion
+  periodo       String
+  quincena      Int              @default(0)
+  nombreArchivo String
+  contenido     Bytes
+  registros     Int
+  total         Decimal          @db.Decimal(18, 2)
+  huella        String
+  advertencias  Json
+  generadoPor   String
+  generadoEn    DateTime         @default(now())
+
+  @@index([empresaId, tipo, periodo])
 }
