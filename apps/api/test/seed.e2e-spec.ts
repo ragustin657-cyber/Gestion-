@@ -72,6 +72,12 @@ describe('seed demo', () => {
     expect(contador.empresas[0].rol.permisos).toEqual(expect.arrayContaining(['asiento.registrar', 'contabilidad.cerrar', 'plancuentas.ver']));
     expect(await prisma.asiento.count({ where: { ejercicioId: null } })).toBe(0);
 
+    // Impuestos
+    expect(contador.empresas[0].rol.permisos).toEqual(expect.arrayContaining(['impuestos.ver', 'impuestos.presentar']));
+    const ri = await prisma.tercero.findMany({ where: { esProveedor: true, condicionIva: 'RESPONSABLE_INSCRIPTO' } });
+    expect(ri.length).toBeGreaterThan(0);
+    for (const t of ri) expect([t.situacionIibb, t.numeroIibb]).toEqual(['CONVENIO', expect.stringMatching(/^\d{10}$/)]);
+
     // Ventas
     expect((await prisma.configArca.findFirstOrThrow()).ambiente).toBe('SIMULADO');
     expect(await prisma.puntoVenta.findFirst({ where: { numero: 2, electronico: true } })).not.toBeNull();

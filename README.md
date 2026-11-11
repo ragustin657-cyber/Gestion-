@@ -137,6 +137,34 @@ El seed genera un extracto de ejemplo del Banco Nación en `apps/api/prisma/demo
 
 Usuario demo de facturación: **facturacion@demo.com** / **facturacion1234**.
 
+## Libros IVA y presentaciones impositivas (Entrega 7)
+
+- **Libros IVA Ventas y Compras** (Consultas → Impuestos): en pantalla, Excel y PDF, con columnas por alícuota. Si el IVA del libro no coincide con el Mayor de la cuenta de IVA, se muestra un aviso.
+- **Generar presentación** (Registraciones → Impuestos):
+
+| Presentación | Archivo |
+|---|---|
+| Libro IVA Digital | ZIP con los 4 archivos de ventas y compras (cabeceras y alícuotas) |
+| SICORE (Ganancias, impuesto 217) | TXT de 145 posiciones, del mes o de la primera quincena |
+| ARBA A-122R (IIBB Buenos Aires) | Lote `ER-CUIT-AAAAMMQ-ACTIVIDAD-LOTEnnnnn.zip` con el alta de retenciones |
+| AGIP e-ARCIBA (IIBB CABA) | TXT de retenciones de 215 posiciones. Exige la situación y el número de IIBB de cada proveedor (maestro de proveedores, pestaña Impuestos). |
+
+- **Presentaciones:**
+  - Historial con nueva descarga de cada archivo.
+  - Si después de generar cambian los datos del período (una factura cargada tarde, una OP anulada), avisa que corresponde rectificar.
+  - Generar no bloquea nada.
+- **Control con ARCA:** se sube el CSV de "Mis Comprobantes" (recibidos o emitidos) y el sistema muestra lo que está en ARCA y no en el sistema, lo que está en el sistema y no en ARCA, y las diferencias de importes.
+
+**Contexto normativo** (noviembre de 2026):
+- **RG 5707/2025:** el Libro IVA Digital es obligatorio solo para los exentos en IVA. Los Responsables Inscriptos liquidan con IVA Simple sobre "Mis Comprobantes": por eso el control con ARCA.
+- **RG 5921/2026:** las retenciones de IVA pasan a SIRE desde abril de 2027. Ganancias sigue en SICORE.
+- **ARBA, RN 22/25:** ARBA emite el comprobante de retención al procesar el lote. Al proveedor se le entrega el de ARBA.
+
+> ⚠️ **Verificar la primera importación en cada aplicativo.**
+> - **Diseños:** se tomaron de las publicaciones oficiales, guardadas en `docs/superpowers/specs/referencias/entrega-7/`.
+> - **SICORE:** las posiciones 45 a 145 siguen el formato estándar de mercado.
+> - **Valores a confirmar con el contador** (Administración → Configuración de impuestos): la actividad de ARBA ("6"), el código de norma de AGIP ("029") y los códigos de operación del Libro IVA Digital.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
