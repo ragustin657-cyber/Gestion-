@@ -115,12 +115,12 @@ describe('ajuste por inflación: asiento, anulación y Excel', () => {
     }
   });
 
-  it('el ejercicio siguiente exige el ajuste al cierre del anterior', async () => {
+  it('el ejercicio siguiente exige el cierre del anterior', async () => {
     const e = await escenarioEjemplo(app, prisma);
     expect((await e.s.http.post('/api/contabilidad/ejercicios/siguiente', {})).status).toBe(201);
     const r = await previa(e, '2027-01-31');
     expect(r.status).toBe(400);
-    expect(r.body.message).toBe('Genere primero el ajuste al cierre del ejercicio 1');
+    expect(r.body.message).toBe('Cierre primero el ejercicio 1');
   });
 
   it('exporta la previa a Excel', async () => {

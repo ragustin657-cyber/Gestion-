@@ -74,4 +74,15 @@ describe('ajuste por inflación: configuración y anticuación', () => {
     expect((await lector.http.get('/api/contabilidad/ajuste-inflacion/config')).status).toBe(200);
     expect((await lector.http.put('/api/contabilidad/ajuste-inflacion/config', { primerEjercicioId: e.ej.id, anticuacion: [] })).status).toBe(403);
   });
+
+  it('un asiento de apertura anulado después de configurarlo no se usa', async () => {
+    const e = await escenarioAjuste(app, prisma);
+    await e.indices(INDICES_EJEMPLO);
+    const a = await e.asiento('2026-01-01', [['1.2.01.002', 600, 0], ['3.1.01', 0, 600]]);
+    expect((await e.config({ asientoAperturaId: a.id, anticuacion: [] })).status).toBe(200);
+    expect((await e.s.http.post(`/api/contabilidad/asientos/${a.id}/anular`, { fecha: '2026-02-10', motivo: 'Error' })).status).toBe(201);
+    const r = await e.s.http.get('/api/contabilidad/ajuste-inflacion/previa?fecha=2026-03-31');
+    expect(r.status).toBe(400);
+    expect(r.body.message).toBe('El asiento de apertura está anulado: actualice la configuración');
+  });
 });

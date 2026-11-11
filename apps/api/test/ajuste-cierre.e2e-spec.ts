@@ -47,4 +47,20 @@ describe('ajuste por inflación: cierre del ejercicio', () => {
     await prisma.indiceInflacion.deleteMany({ where: { anio: 2026, mes: 12 } });
     expect(await e.faltantes()).toContain('Faltan los índices de: 12/2026');
   });
+
+  it('el ejercicio siguiente exige el cierre del anterior y parte de su apertura reexpresada', async () => {
+    const e = await listoParaCerrar();
+    expect((await e.generar()).status).toBe(201);
+    await e.indices({ '2027-01': 132 });
+    const previa = () => e.s.http.get('/api/contabilidad/ajuste-inflacion/previa?fecha=2027-01-31');
+    const antes = await previa();
+    expect(antes.status).toBe(400);
+    expect(antes.body.message).toBe('Cierre primero el ejercicio 1');
+    expect((await e.cerrar()).status).toBe(200);
+    const r = await previa();
+    expect(r.status).toBe(200);
+    const aj = Object.fromEntries((r.body.cuentas as { codigo: string; ajuste: string }[]).map((c) => [c.codigo, c.ajuste]));
+    expect(aj).toMatchObject({ '1.2.01.001': '12.00', '1.2.01.002': '144.00', '3.1.01': '-240.00', '3.2.01': '36.00', '3.2.02': '-2.00' });
+    expect(r.body.recpam).toBe('-50.00');
+  });
 });

@@ -55,18 +55,22 @@ export class AjusteInflacionService {
     const esPrimero = ej.id === primero.id;
     if (!esPrimero) {
       const anterior = await tx.ejercicio.findFirstOrThrow({ where: { numero: ej.numero - 1 } });
+      // La apertura de este ejercicio la genera el cierre del anterior: sin cierre, faltarían los saldos iniciales
+      if (anterior.estado !== 'CERRADO') throw new BadRequestException(`Cierre primero el ejercicio ${anterior.numero}`);
       const v = await this.ultimoVigente(tx, anterior.id);
       if (!v || v.fecha.getTime() !== anterior.hasta.getTime()) throw new BadRequestException(`Genere primero el ajuste al cierre del ejercicio ${anterior.numero}`);
     }
     const [recpamId, rnaId] = await Promise.all([this.conceptos.cuenta(tx, 'RECPAM'), this.conceptos.cuenta(tx, 'RESULTADOS_NO_ASIGNADOS')]);
     const apertura = await this.config.aperturaDe(tx, ej, config);
     const usaAsientoManual = esPrimero && config.asientoAperturaId;
+    if (usaAsientoManual && (await tx.asiento.count({ where: { OR: [{ anulaAId: config.asientoAperturaId }, { id: config.asientoAperturaId!, anulaAId: { not: null } }] } })))
+      throw new BadRequestException('El asiento de apertura está anulado: actualice la configuración');
     const excluirApertura = usaAsientoManual ? Prisma.sql`a."id" <> ${config.asientoAperturaId}::uuid` : Prisma.sql`a."tipo" <> 'APERTURA'`;
     const filas = await tx.$queryRaw<{ cuentaId: string; anio: number; mes: number; saldo: Prisma.Decimal; ajuste: boolean }[]>`
       SELECT r."cuentaContableId" AS "cuentaId", EXTRACT(YEAR FROM a."fecha")::int AS anio, EXTRACT(MONTH FROM a."fecha")::int AS mes,
              SUM(r."debe" - r."haber") AS saldo, (a."origenTipo" = ${ORIGEN_AJUSTE}) AS ajuste
       FROM "AsientoRenglon" r JOIN "Asiento" a ON a."id" = r."asientoId"
-      WHERE a."empresaId" = ${this.tenant.empresaId}::uuid AND a."ejercicioId" = ${ej.id}::uuid AND a."fecha" <= ${fecha}
+      WHERE a."empresaId" = ${this.tenant.empresaId}::uuid AND a."ejercicioId" = ${ej.id}::uuid AND a."fecha" <= ${fecha.toISOString().slice(0, 10)}::date
         AND a."tipo" NOT IN ('REFUNDICION', 'CIERRE') AND ${excluirApertura}
       GROUP BY 1, 2, 3, 5`;
     const movimientos = filas.filter((f) => !f.ajuste).map((f) => ({ cuentaId: f.cuentaId, mes: { anio: f.anio, mes: f.mes }, saldo: new D(f.saldo) }));
