@@ -52,6 +52,7 @@ export class AplicacionesService implements OnModuleInit {
       const deb = await tx.movimientoCuentaCorriente.findUnique({ where: { id: it.debitoMovId } });
       if (!cred || !deb || cred.terceroId !== d.terceroId || deb.terceroId !== d.terceroId || cred.anulado || deb.anulado)
         throw new BadRequestException('Movimiento de cuenta corriente inexistente o de otro cliente');
+      if (!ORIGENES_CLIENTE.includes(cred.origenTipo) || !ORIGENES_CLIENTE.includes(deb.origenTipo)) throw new BadRequestException('Solo se aplican comprobantes y cobros de clientes');
       if (!cred.saldo.lt(0) || !deb.saldo.gt(0)) throw new BadRequestException('El crédito o el débito no tienen saldo pendiente');
       if (importe.gt(deb.saldo)) throw new BadRequestException(SUPERA);
       const { pesosCredito, consumoCredito } = await this.consumo(tx, cred, deb, importe, d.fecha);

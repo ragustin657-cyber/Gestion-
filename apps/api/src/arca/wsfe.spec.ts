@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ErrorConexionArca } from './cliente-arca';
+import { ErrorConexionArca, ErrorServicioArca } from './cliente-arca';
 import { leerConsultar, leerSolicitarCae, leerUltimoAutorizado, xmlSolicitarCae } from './wsfe';
 
 const fx = (n: string) => readFileSync(join(__dirname, 'fixtures', n), 'utf8');
@@ -57,6 +57,15 @@ describe('WSFE', () => {
   });
   it('una respuesta ilegible es un error de conexión', () => {
     expect(() => leerSolicitarCae('<html>502 Bad Gateway</html>')).toThrow(ErrorConexionArca);
+  });
+  it('un error de configuración de ARCA (punto de venta no habilitado) no es un corte de conexión', () => {
+    try {
+      leerUltimoAutorizado(fx('ultimo-error-pv.xml'));
+      throw new Error('no lanzó');
+    } catch (e) {
+      expect(e).toBeInstanceOf(ErrorServicioArca);
+      expect((e as Error).message).toBe('ARCA rechazó la consulta: (11002) El punto de venta no se encuentra habilitado a usar el presente WS.');
+    }
   });
   it('último autorizado y consulta', () => {
     expect(leerUltimoAutorizado(fx('ultimo-autorizado.xml'))).toBe(14);

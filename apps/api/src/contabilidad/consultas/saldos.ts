@@ -66,6 +66,7 @@ export async function ejercicioDe(tx: TxEmpresa, fecha: Date): Promise<Ejercicio
 
 /** Ejercicio del rango; 400 si desde y hasta caen en ejercicios distintos. Sin fechas, el que contiene hoy o el último. */
 export async function ejercicioDelRango(tx: TxEmpresa, desde: Date | undefined, hasta: Date | undefined, hoy: Date, ejercicioId?: string): Promise<Ejercicio> {
+  if (desde && hasta && desde > hasta) throw new BadRequestException('La fecha desde no puede ser posterior a la fecha hasta');
   if (ejercicioId) {
     const e = await tx.ejercicio.findUnique({ where: { id: ejercicioId } });
     if (!e) throw new BadRequestException('Ejercicio inexistente');

@@ -45,10 +45,23 @@ function documento<T extends { cuit?: string; tipoDocumento?: TipoDocumento }>(t
   return t;
 }
 
-export const esquemaAltaTercero = base.refine(tipo, msgTipo).transform(documento);
+/**
+ * Número de IIBB según la situación (formato de AGIP): local 8+2 dígitos, convenio 3+6+1, simplificado 2+8+1;
+ * no inscripto, sin número.
+ */
+const LARGO_IIBB: Record<string, number> = { LOCAL: 10, CONVENIO: 10, SIMPLIFICADO: 11 };
+function iibb<T extends { situacionIibb?: SituacionIibb | null; numeroIibb?: string | null }>(t: T, ctx: z.RefinementCtx): void {
+  if (!t.situacionIibb || t.situacionIibb === 'NO_INSCRIPTO') return;
+  const largo = LARGO_IIBB[t.situacionIibb];
+  const n = (t.numeroIibb ?? '').replace(/[-\s]/g, '');
+  if (n && !new RegExp(`^\\d{${largo}}$`).test(n)) ctx.addIssue({ code: 'custom', path: ['numeroIibb'], message: `Debe tener ${largo} dígitos` });
+}
+
+export const esquemaAltaTercero = base.refine(tipo, msgTipo).superRefine(iibb).transform(documento);
 export const esquemaModTercero = base
   .partial()
   .refine((t) => t.esProveedor === undefined || t.esCliente === undefined || tipo(t), msgTipo)
+  .superRefine(iibb)
   .transform(documento);
 
 export const esquemaIibb = z.array(

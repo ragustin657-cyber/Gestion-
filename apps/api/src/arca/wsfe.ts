@@ -1,4 +1,4 @@
-import { ComprobanteArca, DatosCae, ErrorConexionArca, ResultadoCae } from './cliente-arca';
+import { ComprobanteArca, DatosCae, ErrorConexionArca, ErrorServicioArca, ResultadoCae } from './cliente-arca';
 import { leerXml, lista } from './xml';
 
 export const NS_WSFE = 'http://ar.gov.afip.dif.FEV1/';
@@ -69,9 +69,18 @@ export function leerSolicitarCae(xml: string): ResultadoCae {
   return { resultado: 'R', errores: [...textos(r.Errors?.Err), ...obs] };
 }
 
+/** Los errores de token o internos de ARCA son de conexión (se reintenta); los demás, de configuración. */
+function errorDeConsulta(r: Record<string, any>): Error | null {
+  const e = errorDeServicio(r);
+  if (!e) return null;
+  const errs = lista(r.Errors?.Err as Record<string, string>[]);
+  if (e.tokenInvalido || errs.some((x) => ERRORES_INTERNOS.has(String(x.Code)))) return e;
+  return new ErrorServicioArca(`ARCA rechazó la consulta: ${textos(errs).join('; ')}`);
+}
+
 export function leerUltimoAutorizado(xml: string): number {
   const r = resultado(xml, 'FECompUltimoAutorizado');
-  const e = errorDeServicio(r);
+  const e = errorDeConsulta(r);
   if (e) throw e;
   return Number(r.CbteNro ?? 0);
 }
@@ -81,7 +90,7 @@ export function leerConsultar(xml: string): ComprobanteArca | null {
   const g = r.ResultGet;
   if (!g) {
     if (lista(r.Errors?.Err as Record<string, string>[]).some((x) => String(x.Code) === '602')) return null;
-    const e = errorDeServicio(r);
+    const e = errorDeConsulta(r);
     if (e) throw e;
     return null;
   }

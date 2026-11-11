@@ -2,7 +2,7 @@ import { BadGatewayException, BadRequestException, ConflictException, Injectable
 import type { AmbienteArca, ComprobanteVenta, PeriodoContable, Tercero } from '@prisma/client';
 import { alicuotaArca, cbteTipo, condicionIvaReceptorArca, docTipoArca, monedaArca, normalizarCuit, type AlicuotaIva, type LetraVenta } from '@gestion/shared';
 import { ConfigArcaService } from '../../arca/config-arca.service';
-import { ClienteArca, DatosCae, ErrorConexionArca, ResultadoCae } from '../../arca/cliente-arca';
+import { ClienteArca, DatosCae, ErrorConexionArca, ErrorServicioArca, ResultadoCae } from '../../arca/cliente-arca';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { bloquear, fechaAR } from '../../compras/comun';
 import { ConfigComprasService } from '../../compras/config/config-compras.service';
@@ -56,8 +56,9 @@ export class EmisionService {
       // Solo si este intento sigue siendo el dueño de la emisión y nadie la autorizó mientras tanto
       await this.tenant.db.comprobanteVenta.updateMany({
         where: { id, emisionEnCurso: r.propietario, estado: { not: 'AUTORIZADO' } },
-        data: { emisionEnCurso: null, ...(e instanceof ErrorConexionArca ? { estado: 'PENDIENTE_CAE', ultimoError: e.message } : {}) },
+        data: { emisionEnCurso: null, ...(e instanceof ErrorConexionArca || e instanceof ErrorServicioArca ? { ultimoError: e.message } : {}), ...(e instanceof ErrorConexionArca ? { estado: 'PENDIENTE_CAE' } : {}) },
       });
+      if (e instanceof ErrorServicioArca) throw new BadRequestException(e.message);
       if (e instanceof ErrorConexionArca) {
         await this.auditoria.registrar(this.tenant.db, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { emision: 'sin conexión', error: e.message } });
         throw new BadGatewayException(SIN_CONEXION);

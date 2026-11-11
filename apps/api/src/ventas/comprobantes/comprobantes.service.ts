@@ -4,6 +4,7 @@ import type { ComprobanteVenta } from '@prisma/client';
 import { calcularVenta, cbteTipo, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
 import { fechaAR } from '../../compras/comun';
 import { importeAR, pdfVenta } from '../pdf/pdf-venta';
+import { importesConIva } from '../pdf/importes-b';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { bloquear, MODIFICADO } from '../../compras/comun';
@@ -49,7 +50,9 @@ export class ComprobantesVentaService {
     const mov = await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'VENTA', origenId: asociadoId, anulado: false } });
     const ncs = await tx.comprobanteVenta.findMany({ where: { comprobanteAsociadoId: asociadoId, tipo: 'NOTA_CREDITO', estado: 'AUTORIZADO', id: excluirId ? { not: excluirId } : undefined }, select: { id: true } });
     const movsNc = ncs.length ? await tx.movimientoCuentaCorriente.findMany({ where: { origenTipo: 'VENTA', origenId: { in: ncs.map((n) => n.id) }, anulado: false } }) : [];
-    return movsNc.reduce((s: Dec, m) => s.plus(m.saldo), new D(mov?.saldo ?? 0));
+    // También las NC pendientes de CAE sobre el mismo comprobante: dos NC en paralelo no pueden superar el saldo
+    const pendientes = await tx.comprobanteVenta.aggregate({ where: { comprobanteAsociadoId: asociadoId, tipo: 'NOTA_CREDITO', estado: 'PENDIENTE_CAE', id: excluirId ? { not: excluirId } : undefined }, _sum: { total: true } });
+    return movsNc.reduce((s: Dec, m) => s.plus(m.saldo), new D(mov?.saldo ?? 0)).minus(pendientes._sum.total ?? 0);
   }
 
   /** Valida y calcula: letra, cuenta de cada renglón, importes y cotización. Lanza 400 con los mensajes de la spec. */
@@ -159,6 +162,7 @@ export class ComprobantesVentaService {
     const t = c.tercero;
     const documento = t.tipoDocumento === 'CUIT' ? `CUIT ${formatearCuit(t.cuit)}` : t.tipoDocumento === 'DNI' ? `DNI ${t.cuit}` : 'Sin identificar';
     const titulos = { FACTURA: 'FACTURA', NOTA_DEBITO: 'NOTA DE DÉBITO', NOTA_CREDITO: 'NOTA DE CRÉDITO' } as const;
+    const importesB = importesConIva(c.renglones.map((r) => ({ neto: r.neto.toString(), iva: r.iva.toString(), alicuota: r.alicuota })), c.ivas.map((x) => ({ alicuota: x.alicuota.toString(), importe: x.importe.toString() })));
     const totales: [string, string][] = [];
     if (a) {
       totales.push(['Neto gravado', importeAR(c.netoGravado.toString())]);
@@ -174,14 +178,14 @@ export class ComprobantesVentaService {
       moneda: c.monedaCodigo === 'ARS' ? 'Pesos' : 'Dólares', cotizacion: c.monedaCodigo === 'ARS' ? null : importeAR(c.cotizacion.toString()),
       asociado: asoc ? `${asoc.letra} ${numeroVenta(asoc.puntoVenta, asoc.numero)}` : null,
       discriminaIva: a,
-      renglones: c.renglones.map((r) => {
+      renglones: c.renglones.map((r, i) => {
         const conIva = !a && letra === 'B';
         const factor = conIva && r.alicuota !== 'NO_GRAVADO' && r.alicuota !== 'EXENTO' ? 1 + Number(r.alicuota) / 100 : 1;
         return {
           descripcion: r.descripcion, cantidad: Number(r.cantidad).toLocaleString('es-AR', { maximumFractionDigits: 4 }),
           precio: Number(r.precioUnitario.mul(factor).toDecimalPlaces(2)).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
           alicuota: r.alicuota === 'NO_GRAVADO' ? 'No grav.' : r.alicuota === 'EXENTO' ? 'Exento' : `${Number(r.alicuota).toLocaleString('es-AR')}%`,
-          importe: importeAR(a ? r.neto.toString() : r.neto.plus(r.iva).toString()),
+          importe: importeAR(a ? r.neto.toString() : conIva ? importesB[i] : r.neto.plus(r.iva).toString()),
         };
       }),
       totales, total: importeAR(c.total.toString()), cae: c.cae, caeVencimiento: fechaAR(c.caeVencimiento!),

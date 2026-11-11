@@ -14,3 +14,10 @@ export function cuerpoGenerar(tipo: string, anio: string, mes: string, quincena:
   const admite = (tipo === 'SICORE' && q === 1) || (tipo === 'ARBA' && (q === 1 || q === 2));
   return { tipo, periodo: `${anio}${mes}`, quincena: admite ? q : null };
 }
+
+/** Opciones de quincena: SICORE mes o 1ª quincena; ARBA según su periodicidad (mensual: sin opción; quincenal: 1ª o 2ª). */
+export function quincenasPara(tipo: string, periodicidadArba: string): { value: string; label: string }[] {
+  if (tipo === 'SICORE') return [{ value: '0', label: 'Mes completo' }, { value: '1', label: '1ª quincena' }];
+  if (tipo === 'ARBA' && periodicidadArba === 'QUINCENAL') return [{ value: '1', label: '1ª quincena' }, { value: '2', label: '2ª quincena' }];
+  return [];
+}

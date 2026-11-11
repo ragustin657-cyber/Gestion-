@@ -44,7 +44,8 @@ export class AsientosService {
   ) {}
 
   /** Agrupa por cuenta y centro de costo, valida cuentas y balanceo. Devuelve los renglones a grabar. */
-  async validarRenglones(tx: TxEmpresa, renglonesEntrada: RenglonAsiento[]) {
+  /** `permitirInactivas`: los asientos de cierre, refundición y apertura llevan los saldos aunque la cuenta esté inactiva. */
+  async validarRenglones(tx: TxEmpresa, renglonesEntrada: RenglonAsiento[], permitirInactivas = false) {
     // Agrupar por cuenta + centro de costo, neteando debe y haber
     const grupos = new Map<string, { cuentaContableId: string; centroCostoId: string | null; neto: Dec; detalle?: string }>();
     for (const r of renglonesEntrada) {
@@ -67,7 +68,7 @@ export class AsientosService {
     const cuentas = await tx.cuentaContable.findMany({ where: { id: { in: [...new Set(renglones.map((r) => r.cuentaContableId))] } } });
     for (const r of renglones) {
       const c = cuentas.find((x) => x.id === r.cuentaContableId);
-      if (!c || !c.imputable || !c.activa)
+      if (!c || !c.imputable || (!c.activa && !permitirInactivas))
         throw new BadRequestException(`La cuenta contable ${c ? `${c.codigo} ${c.nombre}` : r.cuentaContableId} no es imputable o está inactiva`);
     }
 
@@ -78,7 +79,7 @@ export class AsientosService {
   }
 
   async generar(tx: TxEmpresa, a: DatosAsiento, anulaAId?: string): Promise<{ id: string; numero: number }> {
-    const renglones = await this.validarRenglones(tx, a.renglones);
+    const renglones = await this.validarRenglones(tx, a.renglones, a.tipo === 'CIERRE' || a.tipo === 'REFUNDICION' || a.tipo === 'APERTURA');
 
     // Control de fechas contables (bloquea el período hasta el fin de la transacción)
     const { ejercicio } = await periodoAbierto(tx, this.tenant.empresaId, a.fecha);

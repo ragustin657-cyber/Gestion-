@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, descargar, ErrorApi } from '../api/cliente';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
-import { cuerpoGenerar, MESES, NOMBRE_PRESENTACION, periodoTexto, TIPOS_PRESENTACION } from './comun';
+import { cuerpoGenerar, MESES, NOMBRE_PRESENTACION, periodoTexto, quincenasPara, TIPOS_PRESENTACION } from './comun';
 
 export interface FilaPresentacion {
   id: string; tipo: string; periodo: string; quincena: number; nombreArchivo: string; registros: number; total: string;
@@ -59,7 +59,8 @@ export function GenerarPresentacionPage() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState<{ id: string; nombreArchivo: string; registros: number; total: string; advertencias: string[]; controles?: Controles } | null>(null);
-  const conQuincena = tipo === 'SICORE' || tipo === 'ARBA';
+  const periodicidad = useQuery({ queryKey: ['/impuestos/config'], queryFn: () => api<{ arbaPeriodicidad: string }>('/impuestos/config') }).data?.arbaPeriodicidad ?? 'MENSUAL';
+  const quincenas = quincenasPara(tipo, periodicidad);
 
   async function generar() {
     setError('');
@@ -82,11 +83,10 @@ export function GenerarPresentacionPage() {
     <Paper withBorder p="md" radius="md">
       <Title order={3} mb="md">Generar presentación</Title>
       <Group align="flex-end">
-        <Select label="Presentación" w={320} allowDeselect={false} data={TIPOS_PRESENTACION} value={tipo} onChange={(v) => { setTipo(v ?? 'LIBRO_IVA_DIGITAL'); setQuincena('0'); setResultado(null); }} />
+        <Select label="Presentación" w={320} allowDeselect={false} data={TIPOS_PRESENTACION} value={tipo} onChange={(v) => { const t = v ?? 'LIBRO_IVA_DIGITAL'; setTipo(t); setQuincena(quincenasPara(t, periodicidad)[0]?.value ?? '0'); setResultado(null); }} />
         <Select label="Mes" w={150} allowDeselect={false} data={MESES} value={mes} onChange={(v) => setMes(v ?? mes)} />
         <TextInput label="Año" w={90} value={anio} onChange={(e) => setAnio(e.currentTarget.value)} />
-        {conQuincena && <Select label="Quincena" w={170} allowDeselect={false} value={quincena} onChange={(v) => setQuincena(v ?? '0')}
-          data={[{ value: '0', label: 'Mes completo' }, { value: '1', label: '1ª quincena' }, ...(tipo === 'ARBA' ? [{ value: '2', label: '2ª quincena' }] : [])]} />}
+        {!!quincenas.length && <Select label="Quincena" w={170} allowDeselect={false} value={quincena} onChange={(v) => setQuincena(v ?? '0')} data={quincenas} />}
         <Button loading={enviando} onClick={() => void generar()}>Generar</Button>
       </Group>
       {tipo === 'ARBA' && <Alert color="blue" mt="md">ARBA emite el comprobante de retención al procesar el lote (RN 22/25): entregue al proveedor el de ARBA.</Alert>}

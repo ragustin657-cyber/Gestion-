@@ -62,7 +62,10 @@ export class PresentacionesService {
     if (quincena && !CON_QUINCENA.includes(d.tipo)) throw new BadRequestException('Esta presentación es mensual');
     if (d.tipo === 'SICORE' && quincena === 2) throw new BadRequestException('SICORE solo admite el mes completo o la primera quincena');
     return this.tenant.transaccion(async (tx) => {
-      const ctx = { ...(await this.contexto(tx, d.periodo, quincena)), siguienteLote: () => this.numeracion.siguiente(tx, 'ARBA-LOTE', 0) };
+      const base = await this.contexto(tx, d.periodo, quincena);
+      if (d.tipo === 'ARBA' && base.config.arbaPeriodicidad === 'MENSUAL' && quincena) throw new BadRequestException('ARBA está configurada como mensual: genere el mes completo');
+      if (d.tipo === 'ARBA' && base.config.arbaPeriodicidad === 'QUINCENAL' && !quincena) throw new BadRequestException('ARBA está configurada como quincenal: indique la quincena');
+      const ctx = { ...base, siguienteLote: () => this.numeracion.siguiente(tx, 'ARBA-LOTE', 0) };
       const r = await this.ejecutar(d.tipo, tx, ctx);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const p = await tx.presentacion.create({

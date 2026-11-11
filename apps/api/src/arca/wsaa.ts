@@ -35,7 +35,12 @@ export const xmlLoginCms = (cms: string) =>
 /** Token, sign y vencimiento de la respuesta de LoginCms. Un SOAP Fault es un error de acceso. */
 export function leerLoginResponse(xml: string): { token: string; sign: string; vence: Date } {
   const body = leerXml(xml)?.Envelope?.Body;
-  if (body?.Fault) throw new ErrorConexionArca(`ARCA rechazó el acceso: ${body.Fault.faultstring ?? 'error desconocido'}`);
+  if (body?.Fault) {
+    const f = body.Fault;
+    if (String(f.faultcode ?? '').includes('alreadyAuthenticated') || /ya posee un TA valido/i.test(String(f.faultstring ?? '')))
+      throw new ErrorConexionArca('ARCA indica que ya hay un acceso vigente para este certificado que el sistema no tiene guardado: se libera solo al vencer (hasta 12 horas). Mientras tanto no se pueden pedir CAE.');
+    throw new ErrorConexionArca(`ARCA rechazó el acceso: ${f.faultstring ?? 'error desconocido'}`);
+  }
   const ret = body?.loginCmsResponse?.loginCmsReturn;
   if (typeof ret !== 'string') throw new ErrorConexionArca('No se pudo conectar con ARCA: respuesta de acceso ilegible');
   const t = leerXml(ret)?.loginTicketResponse;

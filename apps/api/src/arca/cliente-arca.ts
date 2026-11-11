@@ -55,3 +55,11 @@ export class ErrorConexionArca extends Error {
     this.tokenInvalido = o.tokenInvalido ?? false;
   }
 }
+
+/** ARCA respondió pero rechazó la operación por configuración (por ejemplo, punto de venta no habilitado): no es un corte. */
+export class ErrorServicioArca extends Error {
+  constructor(mensaje: string) {
+    super(mensaje);
+    this.name = 'ErrorServicioArca';
+  }
+}

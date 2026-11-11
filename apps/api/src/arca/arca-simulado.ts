@@ -1,8 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { TxEmpresa } from '../prisma/tenant-prisma.service';
-import { ClienteArca, ComprobanteArca, DatosCae, ErrorConexionArca, ResultadoCae } from './cliente-arca';
+import { ClienteArca, ComprobanteArca, DatosCae, ErrorConexionArca, ErrorServicioArca, ResultadoCae } from './cliente-arca';
 
-export type FallaSimulada = 'RECHAZO' | 'SIN_CONEXION' | 'AUTORIZA_SIN_RESPONDER';
+export type FallaSimulada = 'RECHAZO' | 'SIN_CONEXION' | 'AUTORIZA_SIN_RESPONDER' | 'ERROR_SERVICIO';
 const NC_ND = new Set([2, 3, 7, 8, 12, 13]);
 const fallas = new Map<string, FallaSimulada>();
 const iso = (f: string) => `${f.slice(0, 4)}-${f.slice(4, 6)}-${f.slice(6, 8)}`;
@@ -24,6 +24,10 @@ export class ArcaSimulado implements ClienteArca {
   }
 
   async ultimoAutorizado(ptoVta: number, cbteTipo: number): Promise<number> {
+    if (fallas.get(this.empresaId) === 'ERROR_SERVICIO') {
+      fallas.delete(this.empresaId);
+      throw new ErrorServicioArca('ARCA rechazó la consulta: (11002) El punto de venta no se encuentra habilitado a usar el presente WS.');
+    }
     const r = await this.db.arcaSimuladoComprobante.aggregate({ where: { ptoVta, cbteTipo }, _max: { numero: true } });
     return r._max.numero ?? 0;
   }

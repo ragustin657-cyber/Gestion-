@@ -83,11 +83,12 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
   }
 
   if (!vCbte.length && !cCbte.length) advertencias.push(`No hay comprobantes en ${mmaaaa(ctx.periodo)}`);
-  const contenido = await zip({
-    'VENTAS_CBTE.txt': archivo(vCbte), 'VENTAS_ALICUOTAS.txt': archivo(vAlic), 'COMPRAS_CBTE.txt': archivo(cCbte), 'COMPRAS_ALICUOTAS.txt': archivo(cAlic),
-  });
+  const archivos = { 'VENTAS_CBTE.txt': archivo(vCbte), 'VENTAS_ALICUOTAS.txt': archivo(vAlic), 'COMPRAS_CBTE.txt': archivo(cCbte), 'COMPRAS_ALICUOTAS.txt': archivo(cAlic) };
+  const contenido = await zip(archivos);
+  // La huella es la de los TXT (nombre y contenido), no la del ZIP: no cambia si cambia la compresión
+  const huellaDe = Buffer.from(Object.entries(archivos).flatMap(([n, b]) => [n, b.toString('latin1')]).join('\n'), 'latin1');
   return {
-    nombreArchivo: `LIBRO_IVA_DIGITAL_${normalizarCuit(ctx.empresa.cuit)}_${ctx.periodo}.zip`, contenido, huellaDe: contenido,
+    nombreArchivo: `LIBRO_IVA_DIGITAL_${normalizarCuit(ctx.empresa.cuit)}_${ctx.periodo}.zip`, contenido, huellaDe,
     registros: vCbte.length + cCbte.length, total: control.ventas.total, advertencias,
     controles: {
       ventas: { registros: vCbte.length, total: control.ventas.total.toFixed(2), iva: control.ventas.iva.toFixed(2) },

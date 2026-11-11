@@ -94,9 +94,12 @@ export class ConfigArcaService {
       ambiente, cuit: normalizarCuit(empresa.cuit), crt, key,
       tokens: {
         leer: () => db.tokenArca.findFirst({ where: filtro }),
+        // Un solo upsert: dos logins a la vez no chocan con el índice único
         guardar: async (t) => {
-          await db.tokenArca.deleteMany({ where: filtro });
-          await db.tokenArca.create({ data: { empresaId: this.tenant.empresaId, ...filtro, ...t } });
+          await db.tokenArca.upsert({
+            where: { empresaId_ambiente_servicio: { empresaId: this.tenant.empresaId, ...filtro } },
+            create: { empresaId: this.tenant.empresaId, ...filtro, ...t }, update: t,
+          });
         },
         borrar: async () => { await db.tokenArca.deleteMany({ where: filtro }); },
       },
