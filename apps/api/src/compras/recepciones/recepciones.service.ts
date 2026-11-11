@@ -10,6 +10,8 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { bloquear } from '../comun';
 import { OrdenesService } from '../ordenes/ordenes.service';
 import { DatosIR } from './dto';
+import { ComprasStock } from '../../stock/compras-stock';
+import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 
 const D = Prisma.Decimal;
 
@@ -21,6 +23,7 @@ export class RecepcionesService {
     private readonly numeracion: NumeracionService,
     private readonly ordenes: OrdenesService,
     private readonly cls: ClsService,
+    private readonly stock: ComprasStock,
   ) {}
 
   async listar(f: { terceroId?: string; desde?: string; hasta?: string; pagina?: string; porPagina?: string }) {
@@ -76,6 +79,9 @@ export class RecepcionesService {
         for (const [id, cantidad] of porRenglon)
           await tx.ordenCompraRenglon.update({ where: { id }, data: { cantidadRecibida: { increment: cantidad } } });
         for (const ocId of new Set(renglonesOc.map((r) => r.ordenCompraId))) await this.ordenes.recalcularEstado(tx, ocId);
+        const conRenglones = await tx.informeRecepcion.findUniqueOrThrow({ where: { id: ir.id }, include: { tercero: true, renglones: { include: { ordenCompraRenglon: { include: { ordenCompra: true } } } } } });
+        const asientoId = await this.stock.alRecibir(tx, { id: ir.id, numero, fecha: d.fecha, depositoId: d.depositoId ?? null, proveedor: conRenglones.tercero.razonSocial, renglones: conRenglones.renglones });
+        if (asientoId) await tx.informeRecepcion.update({ where: { id: ir.id }, data: { asientoId } });
         await this.auditoria.registrar(tx, { entidad: 'InformeRecepcion', entidadId: ir.id, accion: 'CREAR', datos: { numero, remito: d.remitoNumero } });
         return this.obtener(ir.id, tx);
       }),
@@ -95,6 +101,8 @@ export class RecepcionesService {
       const r = await tx.informeRecepcion.updateMany({ where: { id, estado: 'CONFIRMADO' }, data: { estado: 'ANULADO', motivoAnulacion: motivo } });
       if (!r.count) throw new ConflictException('La recepción ya está anulada');
       for (const ocId of new Set(ir.renglones.map((x) => x.ordenCompraRenglon.ordenCompraId))) await this.ordenes.recalcularEstado(tx, ocId);
+      const asientoAnulacionId = await this.stock.alAnularRecepcion(tx, { id, asientoId: ir.asientoId }, new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`), motivo);
+      if (asientoAnulacionId) await tx.informeRecepcion.update({ where: { id }, data: { asientoAnulacionId } });
       await this.auditoria.registrar(tx, { entidad: 'InformeRecepcion', entidadId: id, accion: 'ANULAR', datos: { motivo } });
       return this.obtener(id, tx);
     });
