@@ -5,11 +5,12 @@ import { DocumentosStockController } from './documentos/documentos.controller';
 import { DocumentosStockService } from './documentos/documentos.service';
 import { MotorStock } from './motor';
 import { ComprasStock } from './compras-stock';
+import { VentasStock } from './ventas-stock';
 
 @Global()
 @Module({
   controllers: [StockController, DocumentosStockController],
-  providers: [ConfigStockService, MotorStock, DocumentosStockService, ComprasStock],
-  exports: [ConfigStockService, MotorStock, DocumentosStockService, ComprasStock],
+  providers: [ConfigStockService, MotorStock, DocumentosStockService, ComprasStock, VentasStock],
+  exports: [ConfigStockService, MotorStock, DocumentosStockService, ComprasStock, VentasStock],
 })
 export class StockModule {}

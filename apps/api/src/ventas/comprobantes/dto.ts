@@ -22,6 +22,8 @@ export const esquemaComprobanteVenta = z
     cotizacion: z.number().positive('Debe ser mayor a cero').nullish(),
     comprobanteAsociadoId: z.string().uuid('Valor inválido').nullish(),
     aplicarAAsociado: z.boolean().default(true),
+    depositoId: z.string().uuid('Valor inválido').nullish(),
+    devuelveMercaderia: z.boolean().default(false),
     renglones: z
       .array(z.object({
         articuloId: z.string().uuid('Valor inválido').nullish(),

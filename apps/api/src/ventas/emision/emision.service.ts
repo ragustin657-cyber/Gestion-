@@ -7,6 +7,7 @@ import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { bloquear, fechaAR } from '../../compras/comun';
 import { ConfigComprasService } from '../../compras/config/config-compras.service';
 import { AsientosService } from '../../contabilidad/asientos/asientos.service';
+import { VentasStock } from '../../stock/ventas-stock';
 import { periodoAbierto } from '../../contabilidad/periodos/control';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { D } from '../../tesoreria/operaciones/tesoreria-comun';
@@ -34,6 +35,7 @@ export class EmisionService {
     private readonly asientos: AsientosService,
     private readonly cuentas: ConfigComprasService,
     private readonly auditoria: AuditoriaService,
+    private readonly stock: VentasStock,
   ) {}
 
   registrarAlAutorizar(f: AlAutorizar) {
@@ -192,6 +194,10 @@ export class EmisionService {
         fecha, descripcion: `${TIPO_TEXTO[c.tipo]} ${c.letra} ${numeroVenta(c.puntoVenta, numero)} - ${c.tercero.razonSocial}`, origenTipo: 'VENTA', origenId: c.id, renglones,
       });
       const final = await tx.comprobanteVenta.update({ where: { id }, data: { asientoId: asiento.id } });
+      advertencias.push(...(await this.stock.alEmitir(tx, {
+        id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId,
+        renglones: [...c.renglones].sort((a, b) => a.orden - b.orden).map((x) => ({ id: x.id, articuloId: x.articuloId, cantidad: x.cantidad })),
+      }, fecha, `${TIPO_TEXTO[c.tipo]} ${c.letra} ${numeroVenta(c.puntoVenta, numero)} - ${c.tercero.razonSocial}`)));
       if (this.alAutorizar) await this.alAutorizar(tx, final);
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { emision: 'autorizada', numero, cae: r.cae, advertencias } });
       return { ...(await this.comprobantes.obtener(id, tx)), advertencias };
