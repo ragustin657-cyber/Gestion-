@@ -42,6 +42,8 @@ const camposImpuestos = (regimenes: { codigo: string; descripcion: string }[]): 
   { nombre: 'exencionHasta', etiqueta: 'Exención vigente hasta', tipo: 'fecha' },
   { nombre: 'exentoGanancias', etiqueta: 'Exento de retención de Ganancias', tipo: 'booleano' },
   { nombre: 'exentoIva', etiqueta: 'Exento de retención de IVA', tipo: 'booleano' },
+  { nombre: 'situacionIibb', etiqueta: 'Situación en Ingresos Brutos', tipo: 'select', opciones: [{ value: 'LOCAL', label: 'Local' }, { value: 'CONVENIO', label: 'Convenio Multilateral' }, { value: 'NO_INSCRIPTO', label: 'No inscripto' }, { value: 'SIMPLIFICADO', label: 'Régimen simplificado' }], ayuda: 'Lo pide la presentación de AGIP' },
+  { nombre: 'numeroIibb', etiqueta: 'Número de inscripción en IIBB', tipo: 'texto' },
 ];
 
 const valores = (t: Tercero | null, campos: CampoAbm[]) =>

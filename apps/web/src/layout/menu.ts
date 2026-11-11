@@ -63,6 +63,13 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Períodos y ejercicios', ruta: '/contabilidad/periodos', permiso: 'plancuentas.ver' },
         ],
       },
+      {
+        titulo: 'Impuestos',
+        hijos: [
+          { titulo: 'Generar presentación', ruta: '/impuestos/generar', permiso: 'impuestos.presentar' },
+          { titulo: 'Control con ARCA', ruta: '/impuestos/control-arca', permiso: 'impuestos.presentar' },
+        ],
+      },
     ],
   },
   {
@@ -121,6 +128,14 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Libros legales', ruta: '/contabilidad/libros', permiso: 'contabilidad.cerrar' },
         ],
       },
+      {
+        titulo: 'Impuestos',
+        hijos: [
+          { titulo: 'Libro IVA Ventas', ruta: '/impuestos/libro-iva-ventas', permiso: 'impuestos.ver' },
+          { titulo: 'Libro IVA Compras', ruta: '/impuestos/libro-iva-compras', permiso: 'impuestos.ver' },
+          { titulo: 'Presentaciones', ruta: '/impuestos/presentaciones', permiso: 'impuestos.ver' },
+        ],
+      },
     ],
   },
   {
@@ -143,6 +158,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Auditoría', ruta: '/admin/auditoria', permiso: 'auditoria.ver' },
       { titulo: 'Configuración de compras', ruta: '/admin/compras', permiso: 'compras.config' },
       { titulo: 'Factura electrónica ARCA', ruta: '/admin/arca', permiso: 'arca.configurar' },
+      { titulo: 'Configuración de impuestos', ruta: '/admin/impuestos', permiso: 'impuestos.presentar' },
       { titulo: 'Retenciones', ruta: '/admin/retenciones', permiso: 'retenciones.config' },
       { titulo: 'Reglas de conciliación', ruta: '/admin/reglas-conciliacion', permiso: 'conciliacion.operar' },
       { titulo: 'Padrones de IIBB', ruta: '/admin/padrones', soloSuperadmin: true },

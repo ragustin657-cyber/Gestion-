@@ -31,6 +31,12 @@ describe('filtrarMenu', () => {
     expect(titulos(ventas.hijos!)).toContain('Comprobante de venta');
   });
 
+  it('con impuestos.presentar, Registraciones › Impuestos tiene Generar presentación y Control con ARCA', () => {
+    const m = filtrarMenu(MENU, ['impuestos.presentar']);
+    const imp = m.find((n) => n.titulo === 'Registraciones')!.hijos!.find((n) => n.titulo === 'Impuestos')!;
+    expect(titulos(imp.hijos!)).toEqual(['Generar presentación', 'Control con ARCA']);
+  });
+
   it('con todos los permisos muestra Maestros completo', () => {
     const m = filtrarMenu(MENU, ['tercero.ver', 'articulo.ver', 'plancuentas.ver', 'moneda.editar', 'tesoreria.maestros.editar', 'organizacion.editar']);
     expect(m.find((n) => n.titulo === 'Maestros')!.hijos).toHaveLength(6);
