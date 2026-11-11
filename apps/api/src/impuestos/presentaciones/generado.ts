@@ -23,6 +23,8 @@ export interface ContextoGeneracion {
   hasta: Date;
   /** Al recalcular para el historial: el nombre guardado (ARBA reusa su número de lote). */
   nombreGuardado?: string;
+  /** Próximo número de lote de ARBA (solo al generar, no al recalcular). */
+  siguienteLote?: () => Promise<number>;
 }
 
 export type Generador = (tx: TxEmpresa, ctx: ContextoGeneracion) => Promise<Generado>;

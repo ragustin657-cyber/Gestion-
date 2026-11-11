@@ -8,6 +8,10 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { ConfigImpuestosService } from '../config/config-impuestos.service';
 import { ErrorFormato } from '../formato/escritor';
 import { libroIvaDigital } from '../libros-iva/libro-iva-digital';
+import { agip } from '../retenciones/agip';
+import { arba } from '../retenciones/arba';
+import { sicore } from '../retenciones/sicore';
+import { NumeracionService } from '../../numeracion/numeracion.service';
 import { ContextoGeneracion, Generador } from './generado';
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
@@ -15,11 +19,12 @@ const CON_QUINCENA: TipoPresentacion[] = ['SICORE', 'ARBA'];
 
 @Injectable()
 export class PresentacionesService {
-  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital]]);
+  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital], ['SICORE', sicore], ['ARBA', arba], ['AGIP', agip]]);
 
   constructor(
     private readonly tenant: TenantPrisma,
     private readonly config: ConfigImpuestosService,
+    private readonly numeracion: NumeracionService,
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
   ) {}
@@ -54,7 +59,8 @@ export class PresentacionesService {
     const quincena = d.quincena ?? 0;
     if (quincena && !CON_QUINCENA.includes(d.tipo)) throw new BadRequestException('Esta presentación es mensual');
     return this.tenant.transaccion(async (tx) => {
-      const r = await this.ejecutar(d.tipo, tx, await this.contexto(tx, d.periodo, quincena));
+      const ctx = { ...(await this.contexto(tx, d.periodo, quincena)), siguienteLote: () => this.numeracion.siguiente(tx, 'ARBA-LOTE', 0) };
+      const r = await this.ejecutar(d.tipo, tx, ctx);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const p = await tx.presentacion.create({
         data: {
