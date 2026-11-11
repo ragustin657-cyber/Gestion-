@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { TipoDocumentoStock } from '@prisma/client';
+import { Prisma, TipoDocumentoStock } from '@prisma/client';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
@@ -92,13 +92,17 @@ export class DocumentosStockService {
         doc.renglones.forEach((r) => movs.push({ ...base, articuloId: r.articuloId, depositoId: d.depositoId, cantidad: new D(r.cantidad), costoUnitario: new D(r.costoUnitario!), tipo: 'INICIAL', origenRenglonId: r.id }));
       else if (d.tipo === 'SALIDA')
         doc.renglones.forEach((r) => movs.push({ ...base, articuloId: r.articuloId, depositoId: d.depositoId, cantidad: new D(r.cantidad).neg(), tipo: 'SALIDA_MANUAL', origenRenglonId: r.id }));
-      else throw new BadRequestException('Tipo de documento no disponible');
-      const res = await this.motor.moverVarios(tx, movs);
+      const p = new Partida();
+      const merc = await this.conceptos.cuenta(tx, 'MERCADERIAS');
+      let res: Resultado[];
+      if (d.tipo === 'TRANSFERENCIA') res = await this.transferir(tx, doc.renglones, base, d.depositoId, d.depositoDestinoId);
+      else if (d.tipo === 'INVENTARIO') res = await this.inventariar(tx, doc.renglones, base, d.depositoId, p, merc);
+      else {
+        res = await this.motor.moverVarios(tx, movs);
+        if (cuentaContableId) await this.contabilizar(tx, p, res, merc, cuentaContableId);
+      }
       let asientoId: string | null = null;
-      if (conAsiento && cuentaContableId) {
-        const p = new Partida();
-        const merc = await this.conceptos.cuenta(tx, 'MERCADERIAS');
-        await this.contabilizar(tx, p, res, merc, cuentaContableId);
+      if (conAsiento) {
         const rs = p.renglones();
         if (rs.length) asientoId = (await this.asientos.generar(tx, { fecha: d.fecha, descripcion: `${NOMBRE[d.tipo]} N° ${numero}`, origenTipo: ORIGEN_DOC, origenId: doc.id, renglones: rs })).id;
       }
@@ -106,6 +110,40 @@ export class DocumentosStockService {
       await this.auditoria.registrar(tx, { entidad: 'DocumentoStock', entidadId: doc.id, accion: 'CREAR', datos: { tipo: d.tipo, numero } });
       return { ...final, advertencias: res.map((r) => r.advertencia).filter((x): x is string => !!x) };
     });
+  }
+
+  private async transferir(tx: TxEmpresa, renglones: { id: string; articuloId: string; cantidad: Prisma.Decimal }[], base: Pick<Movimiento, 'fecha' | 'origenTipo' | 'origenId'>, origen: string, destino: string) {
+    if (origen === destino) throw new BadRequestException('El depósito de destino debe ser distinto del de origen');
+    if (!(await tx.deposito.findUnique({ where: { id: destino } }))) throw new BadRequestException('Depósito inexistente');
+    const res: Resultado[] = [];
+    for (const r of [...renglones].sort((a, b) => a.articuloId.localeCompare(b.articuloId))) {
+      const sale = await this.motor.mover(tx, { ...base, articuloId: r.articuloId, depositoId: origen, cantidad: new D(r.cantidad).neg(), tipo: 'TRANSFERENCIA', origenRenglonId: r.id });
+      const entra = await this.motor.mover(tx, { ...base, articuloId: r.articuloId, depositoId: destino, cantidad: new D(r.cantidad), costoUnitario: sale.costoUnitario, importe: sale.importe.neg(), tipo: 'TRANSFERENCIA', origenRenglonId: r.id });
+      res.push(sale, entra);
+    }
+    return res;
+  }
+
+  /** Inventario físico: diferencia contra el saldo al confirmar; sobrantes al promedio. */
+  private async inventariar(tx: TxEmpresa, renglones: { id: string; articuloId: string; cantidadContada: Prisma.Decimal | null }[], base: Pick<Movimiento, 'fecha' | 'origenTipo' | 'origenId'>, depositoId: string, p: Partida, merc: string) {
+    const ids = renglones.map((r) => r.articuloId);
+    if (new Set(ids).size !== ids.length) throw new BadRequestException('Hay artículos repetidos en el inventario');
+    await bloquear(tx, 'Articulo', this.tenant.empresaId, ids);
+    const [sobrantes, faltantes] = await Promise.all([this.conceptos.cuenta(tx, 'SOBRANTES_INVENTARIO'), this.conceptos.cuenta(tx, 'FALTANTES_INVENTARIO')]);
+    const res: Resultado[] = [];
+    for (const r of [...renglones].sort((a, b) => a.articuloId.localeCompare(b.articuloId))) {
+      const art = await tx.articulo.findUniqueOrThrow({ where: { id: r.articuloId } });
+      if (!art.controlaStock) throw new BadRequestException(`El artículo ${art.codigo} no controla stock`);
+      const saldo = new D((await tx.saldoStock.findFirst({ where: { articuloId: r.articuloId, depositoId } }))?.cantidad ?? 0);
+      const diferencia = new D(r.cantidadContada!).minus(saldo);
+      await tx.documentoStockRenglon.update({ where: { id: r.id }, data: { cantidad: diferencia } });
+      if (diferencia.isZero()) continue;
+      if (diferencia.gt(0) && new D(art.costoPromedio).isZero()) throw new BadRequestException(`El artículo ${art.codigo} no tiene costo: cárguelo con inventario inicial`);
+      const m = await this.motor.mover(tx, { ...base, articuloId: r.articuloId, depositoId, cantidad: diferencia, costoUnitario: diferencia.gt(0) ? new D(art.costoPromedio) : undefined, tipo: 'INVENTARIO', origenRenglonId: r.id });
+      await this.contabilizar(tx, p, [m], merc, diferencia.gt(0) ? sobrantes : faltantes);
+      res.push(m);
+    }
+    return res;
   }
 
   /** Mercaderías contra la cuenta del documento por cada movimiento, y las regularizaciones contra el costo de lo vendido. */
