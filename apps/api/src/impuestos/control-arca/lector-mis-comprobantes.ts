@@ -57,6 +57,9 @@ export function importe(s: string): string | null {
   return new Prisma.Decimal(n).toFixed(2);
 }
 
+/** Factura de crédito MiPyME (201…213) → el código de la factura, ND o NC equivalente (1…13). */
+const tipoBase = (t: number) => (t >= 201 && t <= 213 ? t - 200 : t);
+
 const fecha = (s: string) => {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : s.slice(0, 10);
@@ -80,7 +83,7 @@ export function leerMisComprobantes(buf: Buffer): { filas: FilaArca[] } {
     const fs = campos(l, sep);
     const neto = valor(fs, 'netoGravado'), iva = valor(fs, 'iva'), tc = valor(fs, 'tipoCambio');
     return {
-      fecha: fecha(valor(fs, 'fecha')!), tipo: Number(/^\s*(\d+)/.exec(valor(fs, 'tipo')!)?.[1] ?? NaN), puntoVenta: Number(valor(fs, 'puntoVenta')),
+      fecha: fecha(valor(fs, 'fecha')!), tipo: tipoBase(Number(/^\s*(\d+)/.exec(valor(fs, 'tipo')!)?.[1] ?? NaN)), puntoVenta: Number(valor(fs, 'puntoVenta')),
       numero: Number(valor(fs, 'numero')), documento: valor(fs, 'documento')!.replace(/\D/g, ''), netoGravado: neto === null ? null : importe(neto),
       iva: iva === null ? null : importe(iva), total: importe(valor(fs, 'total')!) as string, moneda: valor(fs, 'moneda'), tipoCambio: tc === null || tc === '' ? null : importe(tc),
     };

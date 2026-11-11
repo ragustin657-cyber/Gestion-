@@ -1,3 +1,4 @@
+import { unAnioAntes } from './fechas';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { CuentaContable, Ejercicio } from '@prisma/client';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
@@ -87,13 +88,13 @@ export class EstadosService {
   async resultados(q: { desde?: string; hasta?: string; nivel?: string }) {
     const db = this.tenant.db;
     const nivel = q.nivel ? Number(q.nivel) : 3;
+    if (!Number.isInteger(nivel) || nivel < 1) throw new BadRequestException('Nivel inválido');
     const ej = await ejercicioDelRango(db, fechaQuery(q.desde), fechaQuery(q.hasta), hoy());
     const desde = fechaQuery(q.desde) ?? ej.desde;
     const hasta = fechaQuery(q.hasta) ?? ej.hasta;
     const actual = await this.resultadosEn(db, ej, desde, hasta, nivel);
     const anterior = await db.ejercicio.findFirst({ where: { numero: ej.numero - 1 } });
-    const unAnio = (d: Date) => new Date(Date.UTC(d.getUTCFullYear() - 1, d.getUTCMonth(), d.getUTCDate()));
-    const comparativo = anterior ? await this.resultadosEn(db, anterior, unAnio(desde), unAnio(hasta), nivel) : null;
+    const comparativo = anterior ? await this.resultadosEn(db, anterior, unAnioAntes(desde), unAnioAntes(hasta), nivel) : null;
     return { ejercicio: { id: ej.id, numero: ej.numero }, desde, hasta, ...actual, comparativo };
   }
 }

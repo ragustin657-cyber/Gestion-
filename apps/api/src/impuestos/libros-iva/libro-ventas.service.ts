@@ -93,7 +93,8 @@ export class LibroVentasService {
   /** Advertencia si el IVA del libro no coincide con el Mayor de la cuenta del concepto. */
   async cuadre(tx: TxEmpresa, concepto: 'IVA_DEBITO_FISCAL' | 'IVA_CREDITO_FISCAL', desde: Date, hasta: Date, ivaLibro: Dec): Promise<string[]> {
     const mayor = await this.cuadreIva(tx, concepto, desde, hasta);
-    if (mayor.eq(ivaLibro)) return [];
+    // Un centavo de tolerancia: en moneda extranjera el libro redondea por alícuota y el asiento por renglón
+    if (mayor.minus(ivaLibro).abs().lte('0.01')) return [];
     const cuenta = await tx.cuentaContable.findUniqueOrThrow({ where: { id: await this.cuentas.cuenta(tx, concepto) } });
     return [`El IVA del libro (${f2(ivaLibro)}) difiere del Mayor de la cuenta ${cuenta.codigo} (${f2(mayor)})`];
   }

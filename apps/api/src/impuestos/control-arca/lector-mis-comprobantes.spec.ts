@@ -20,6 +20,10 @@ describe('lector de Mis Comprobantes', () => {
     const r = leerMisComprobantes(Buffer.from(csv));
     expect(r.filas.map((f) => [f.numero, f.total])).toEqual([[1532, '786500.00'], [1533, '100.00']]);
   });
+  it('las facturas de crédito MiPyME se leen con el código de la factura equivalente', () => {
+    const csv = `${ENC}\n05/11/2026;201 - Factura de Crédito Electrónica MiPyMEs (FCE) A;2;9;9;1;80;30711223343;X;1;$;100,00;0;0;21,00;121,00\n05/11/2026;208 - Nota de Crédito Electrónica MiPyMEs (FCE) B;2;10;10;1;80;30711223343;X;1;$;0;0;0;0;50,00\n`;
+    expect(leerMisComprobantes(Buffer.from(csv)).filas.map((f) => f.tipo)).toEqual([1, 8]);
+  });
   it('un CSV de otra cosa dice qué columnas faltan', () => {
     expect(() => leerMisComprobantes(Buffer.from('a;b;c\n1;2;3\n'))).toThrow('Al CSV le faltan las columnas: Fecha, Tipo, Punto de Venta, Número Desde, Nro. Doc., Imp. Total');
   });

@@ -26,6 +26,10 @@ describe('WSAA', () => {
     const md = forge.md.sha256.create().update(forge.asn1.toDer(attrs).getBytes());
     expect((cert.publicKey as forge.pki.rsa.PublicKey).verify(md.digest().getBytes(), p7.rawCapture.signature)).toBe(true);
   });
+  it('un ticket vigente que no tenemos explica que se libera solo al vencer', () => {
+    expect(() => leerLoginResponse(readFileSync(join(__dirname, 'fixtures/login-ya-autenticado.xml'), 'utf8')))
+      .toThrow('ARCA indica que ya hay un acceso vigente para este certificado que el sistema no tiene guardado: se libera solo al vencer (hasta 12 horas). Mientras tanto no se pueden pedir CAE.');
+  });
   it('lee token, sign y vencimiento', () => {
     const r = leerLoginResponse(readFileSync(join(__dirname, 'fixtures/login-cms.xml'), 'utf8'));
     expect(r).toEqual({ token: 'PD94bWwgdG9rZW4=', sign: 'c2lnbg==', vence: new Date('2026-11-09T00:00:00.000-03:00') });

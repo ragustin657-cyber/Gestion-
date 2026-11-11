@@ -62,7 +62,10 @@ export class PresentacionesService {
     if (quincena && !CON_QUINCENA.includes(d.tipo)) throw new BadRequestException('Esta presentación es mensual');
     if (d.tipo === 'SICORE' && quincena === 2) throw new BadRequestException('SICORE solo admite el mes completo o la primera quincena');
     return this.tenant.transaccion(async (tx) => {
-      const ctx = { ...(await this.contexto(tx, d.periodo, quincena)), siguienteLote: () => this.numeracion.siguiente(tx, 'ARBA-LOTE', 0) };
+      const base = await this.contexto(tx, d.periodo, quincena);
+      if (d.tipo === 'ARBA' && base.config.arbaPeriodicidad === 'MENSUAL' && quincena) throw new BadRequestException('ARBA está configurada como mensual: genere el mes completo');
+      if (d.tipo === 'ARBA' && base.config.arbaPeriodicidad === 'QUINCENAL' && !quincena) throw new BadRequestException('ARBA está configurada como quincenal: indique la quincena');
+      const ctx = { ...base, siguienteLote: () => this.numeracion.siguiente(tx, 'ARBA-LOTE', 0) };
       const r = await this.ejecutar(d.tipo, tx, ctx);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const p = await tx.presentacion.create({
@@ -99,7 +102,8 @@ export class PresentacionesService {
       await Promise.all(verificar.slice(i, i + EN_PARALELO).map(async (p) => {
         try {
           const g = await this.ejecutar(p.tipo, db, await this.contexto(db, p.periodo, p.quincena, p.nombreArchivo));
-          estado.set(p.id, { cambiaron: sha(g.huellaDe) !== p.huella });
+          // Las generaciones anteriores al cambio de huella del Libro IVA Digital guardaron la del archivo completo
+          estado.set(p.id, { cambiaron: sha(g.huellaDe) !== p.huella && sha(g.contenido) !== p.huella });
         } catch (e) {
           estado.set(p.id, { cambiaron: null, error: `No se pudo verificar: ${(e as Error).message}` });
         }

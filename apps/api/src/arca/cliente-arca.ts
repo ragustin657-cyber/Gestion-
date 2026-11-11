@@ -49,9 +49,20 @@ export interface ComprobanteArca {
 /** ARCA no respondió, respondió algo ilegible o rechazó el acceso: el comprobante queda pendiente y se puede reintentar. */
 export class ErrorConexionArca extends Error {
   readonly tokenInvalido: boolean;
-  constructor(mensaje: string, o: { tokenInvalido?: boolean } = {}) {
+  /** WSAA no entrega un ticket nuevo porque hay uno vigente para el certificado. */
+  readonly yaAutenticado: boolean;
+  constructor(mensaje: string, o: { tokenInvalido?: boolean; yaAutenticado?: boolean } = {}) {
     super(mensaje);
     this.name = 'ErrorConexionArca';
     this.tokenInvalido = o.tokenInvalido ?? false;
+    this.yaAutenticado = o.yaAutenticado ?? false;
+  }
+}
+
+/** ARCA respondió pero rechazó la operación por configuración (por ejemplo, punto de venta no habilitado): no es un corte. */
+export class ErrorServicioArca extends Error {
+  constructor(mensaje: string) {
+    super(mensaje);
+    this.name = 'ErrorServicioArca';
   }
 }

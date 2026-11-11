@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Res, StreamableFile } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ConsultasComprasService, fechaQuery } from '../../compras/consultas/consultas.service';
@@ -8,6 +8,12 @@ import { D } from '../../tesoreria/operaciones/tesoreria-comun';
 import { ALICUOTAS_LIBRO, LibroVentasService } from './libro-ventas.service';
 
 const fecha = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('/');
+/** Desde y hasta obligatorios y en orden. */
+function rango(desde?: string, hasta?: string) {
+  const d = fechaQuery(desde), h = fechaQuery(hasta);
+  if (!d || !h) throw new BadRequestException('Indique las fechas desde y hasta');
+  if (d > h) throw new BadRequestException('La fecha desde no puede ser posterior a la fecha hasta');
+}
 const imp = (titulo: string, ancho = 12): Columna => ({ titulo, ancho, importe: true });
 const porAlicuotaCols = (): Columna[] => ALICUOTAS_LIBRO.flatMap((a) => [imp(`Neto ${a.replace('.', ',')}%`, 13), ...(a === '0' ? [] : [imp(`IVA ${a.replace('.', ',')}%`)])]);
 const COLUMNAS_VENTAS: Columna[] = [
@@ -43,6 +49,7 @@ export class LibrosIvaController {
 
   @Get('libro-iva-ventas')
   async libroVentas(@Query('desde') desde: string, @Query('hasta') hasta: string, @Query('formato') formato: string | undefined, @Res({ passthrough: true }) res: Response) {
+    rango(desde, hasta);
     const l = await this.ventas.libro(desde, hasta);
     if (formato !== 'xlsx' && formato !== 'pdf') return l;
     const filas: Fila[] = l.filas.map((f) => [fecha(f.fecha), f.comprobante, f.cliente, f.documento, f.condicionIva, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), f.noDiscriminado, f.noGravado, f.exento, f.total]);
@@ -52,6 +59,7 @@ export class LibrosIvaController {
 
   @Get('libro-iva-compras')
   async libroCompras(@Query('desde') desde: string, @Query('hasta') hasta: string, @Query('formato') formato: string | undefined, @Res({ passthrough: true }) res: Response) {
+    rango(desde, hasta);
     const l = await this.compras.libroIva(desde, hasta);
     const ivaLibro = Object.values(l.totales.ivaPorAlicuota).reduce((a, x) => a.plus(x), new D(0));
     const advertencias = await this.ventas.cuadre(this.tenant.db, 'IVA_CREDITO_FISCAL', fechaQuery(desde, true)!, fechaQuery(hasta, true)!, ivaLibro);
