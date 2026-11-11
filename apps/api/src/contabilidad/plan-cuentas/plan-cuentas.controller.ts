@@ -12,8 +12,12 @@ const esquemaAlta = z.object({
   padreId: z.string().uuid().optional().nullable(),
   imputable: z.boolean(),
   tipo: z.nativeEnum(TipoCuenta).optional(),
+  monetaria: z.boolean().optional(),
 });
-const esquemaMod = z.object({ nombre: zTexto.optional(), imputable: z.boolean().optional(), activa: z.boolean().optional() });
+const esquemaMod = z.object({
+  nombre: zTexto.optional(), imputable: z.boolean().optional(), activa: z.boolean().optional(),
+  monetaria: z.boolean().optional(), cuentaAjusteId: z.string().uuid().nullable().optional(),
+});
 
 @Controller('plan-cuentas')
 export class PlanCuentasController {
