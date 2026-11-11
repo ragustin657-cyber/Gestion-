@@ -40,6 +40,8 @@ export const PERMISOS = {
   'cobro.registrar': 'Registrar recibos y aplicaciones',
   'venta.ver': 'Ver ventas y cuentas corrientes de clientes',
   'arca.configurar': 'Configurar factura electrónica ARCA',
+  'impuestos.ver': 'Ver libros IVA y presentaciones',
+  'impuestos.presentar': 'Generar presentaciones impositivas y controlar con ARCA',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

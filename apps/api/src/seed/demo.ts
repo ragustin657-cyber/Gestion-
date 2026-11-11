@@ -23,7 +23,7 @@ const ROLES: Record<string, Permiso[]> = {
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
-  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar'],
+  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar'],
   Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver'],
 };
 
@@ -111,8 +111,16 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       (await tx.cuentaContable.findFirstOrThrow({ where: { empresaId: e, codigo } })).id;
 
     let codigo = 0;
-    for (const [razonSocial, cuit, regimenGanancias] of PROVEEDORES)
-      await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('20') ? 'MONOTRIBUTO' : 'RESPONSABLE_INSCRIPTO', esProveedor: true, diasPago: 30, regimenGanancias } });
+    for (const [razonSocial, cuit, regimenGanancias] of PROVEEDORES) {
+      const ri = !cuit.startsWith('20');
+      // Los RI con Convenio Multilateral: número de inscripción de 10 dígitos (para AGIP)
+      await tx.tercero.create({
+        data: {
+          empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: ri ? 'RESPONSABLE_INSCRIPTO' : 'MONOTRIBUTO', esProveedor: true, diasPago: 30, regimenGanancias,
+          situacionIibb: ri ? 'CONVENIO' : 'NO_INSCRIPTO', numeroIibb: ri ? `901${cuit.slice(2, 9)}` : null,
+        },
+      });
+    }
     for (const [razonSocial, cuit] of CLIENTES)
       await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('27') ? 'CONSUMIDOR_FINAL' : 'RESPONSABLE_INSCRIPTO', esCliente: true, diasPago: 15 } });
     await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial: 'Consumidor Final', cuit: 'Consumidor final', tipoDocumento: 'OTRO', condicionIva: 'CONSUMIDOR_FINAL', esCliente: true } });

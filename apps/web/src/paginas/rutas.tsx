@@ -33,6 +33,10 @@ import { ComprobanteVentaPage } from '../ventas/ComprobanteVentaPage';
 import { ConfigArcaPage } from '../ventas/ConfigArcaPage';
 import { ComprobantesVentaPage, CuentaCorrienteClientesPage, RecibosPage, SaldosClientesPage } from '../ventas/ConsultasVentasPages';
 import { ReciboPage } from '../ventas/ReciboPage';
+import { ConfigImpuestosPage } from '../impuestos/ConfigImpuestosPage';
+import { ControlArcaPage } from '../impuestos/ControlArcaPage';
+import { LibroIvaComprasPage as LibroIvaComprasImpuestosPage, LibroIvaVentasPage } from '../impuestos/LibrosIvaPages';
+import { GenerarPresentacionPage, PresentacionesPage } from '../impuestos/PresentacionesPages';
 import { DiarioPage, MayorPage, SumasSaldosPage } from '../contabilidad/ConsultasContablesPages';
 import { AsientoPage } from '../contabilidad/DetalleAsiento';
 import { ResultadosPage, SituacionPage } from '../contabilidad/EstadosPages';
@@ -123,4 +127,10 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/ventas/cuenta-corriente', elemento: <CuentaCorrienteClientesPage /> },
   { ruta: '/ventas/saldos', elemento: <SaldosClientesPage /> },
   { ruta: '/admin/arca', elemento: <ConfigArcaPage /> },
+  { ruta: '/impuestos/generar', elemento: <GenerarPresentacionPage /> },
+  { ruta: '/impuestos/control-arca', elemento: <ControlArcaPage /> },
+  { ruta: '/impuestos/libro-iva-ventas', elemento: <LibroIvaVentasPage /> },
+  { ruta: '/impuestos/libro-iva-compras', elemento: <LibroIvaComprasImpuestosPage /> },
+  { ruta: '/impuestos/presentaciones', elemento: <PresentacionesPage /> },
+  { ruta: '/admin/impuestos', elemento: <ConfigImpuestosPage /> },
 ];

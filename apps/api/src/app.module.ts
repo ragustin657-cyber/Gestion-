@@ -8,6 +8,7 @@ import { TesoreriaOperacionesModule } from './tesoreria/tesoreria-operaciones.mo
 import { ContabilidadModule } from './contabilidad/contabilidad.module';
 import { ArcaModule } from './arca/arca.module';
 import { VentasModule } from './ventas/ventas.module';
+import { ImpuestosModule } from './impuestos/impuestos.module';
 import { ConciliacionModule } from './conciliacion/conciliacion.module';
 import { TesoreriaMaestrosModule } from './tesoreria/maestros/tesoreria-maestros.module';
 import { ConfigComprasModule } from './compras/config/config-compras.module';
@@ -49,6 +50,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     ContabilidadModule,
     ArcaModule,
     VentasModule,
+    ImpuestosModule,
   ],
   controllers: [SaludController],
 })
