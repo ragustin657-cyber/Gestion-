@@ -34,7 +34,7 @@ describe('entrega 8: pulido para producción', () => {
     expect((await nc(1000)).status).toBe(201);
     const segunda = await nc(300);
     expect(segunda.status).toBe(400);
-    expect(segunda.body.message).toBe('La nota de crédito supera el saldo de la factura 0001-00000001');
+    expect(segunda.body.message).toMatch(/^La nota de crédito supera el saldo de la factura 0001-00000001\. Hay notas de crédito pendientes de CAE sobre esa factura: N° interno \d+ por 1\.000,00\. Edítelas o elimínelas\.$/);
   });
 
   it('las aplicaciones solo admiten movimientos de clientes', async () => {
@@ -95,6 +95,8 @@ describe('entrega 8: pulido para producción', () => {
     expect(r.status).toBe(400);
     expect(JSON.stringify(r.body.campos)).toContain('numeroIibb');
     expect((await s.http.patch(`/api/terceros/${proveedorId}`, { situacionIibb: 'SIMPLIFICADO', numeroIibb: '12345678901' })).status).toBe(200);
+    expect((await s.http.patch(`/api/terceros/${proveedorId}`, { situacionIibb: 'CONVENIO', numeroIibb: '30712345671' })).status).toBe(200);
+    expect((await s.http.patch(`/api/terceros/${proveedorId}`, { situacionIibb: 'LOCAL', numeroIibb: '30712345671' })).status).toBe(200);
     expect((await s.http.patch(`/api/terceros/${proveedorId}`, { situacionIibb: 'NO_INSCRIPTO', numeroIibb: null })).status).toBe(200);
   });
 
@@ -121,6 +123,9 @@ describe('entrega 8: pulido para producción', () => {
     for (const n of ['VENTAS_CBTE.txt', 'VENTAS_ALICUOTAS.txt', 'COMPRAS_CBTE.txt', 'COMPRAS_ALICUOTAS.txt']) partes.push(n, Buffer.from(await zip.file(n)!.async('uint8array')).toString('latin1'));
     const { createHash } = await import('node:crypto');
     expect(p.huella).toBe(createHash('sha256').update(partes.join('\n'), 'latin1').digest('hex'));
+    // Una presentación guardada antes del cambio (huella del ZIP) no aparece como cambiada
+    await prisma.presentacion.update({ where: { id: g.id }, data: { huella: createHash('sha256').update(Buffer.from(p.contenido)).digest('hex') } });
+    expect((await v.http.get('/api/impuestos/presentaciones')).body[0].cambiaron).toBe(false);
   });
 
   it('control con ARCA: una FCE coincide con la factura A cargada', async () => {

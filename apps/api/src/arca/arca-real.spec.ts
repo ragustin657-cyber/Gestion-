@@ -44,6 +44,12 @@ describe('ArcaReal', () => {
     expect(r.resultado).toBe('A');
     expect(llamadas.map((l) => l.accion)).toEqual(['http://ar.gov.afip.dif.FEV1/FECAESolicitar', '', 'http://ar.gov.afip.dif.FEV1/FECAESolicitar']);
   });
+  it('si ARCA dice que ya hay un ticket vigente y el guardado todavía vale, usa el guardado', async () => {
+    const porVencer = { token: 'T', sign: 'S', vence: new Date(Date.now() + 5 * 60000) };
+    const { arca, llamadas } = armar([fx('login-ya-autenticado.xml'), fx('ultimo-autorizado.xml')], porVencer);
+    expect(await arca.ultimoAutorizado(2, 1)).toBe(14);
+    expect(llamadas.map((l) => l.url)).toEqual([expect.stringContaining('wsaahomo'), expect.stringContaining('wswhomo')]);
+  });
   it('un corte de red es un error de conexión', async () => {
     const { arca } = armar([], { token: 'T', sign: 'S', vence: new Date(Date.now() + 3600000) });
     await expect(arca.ultimoAutorizado(2, 1)).rejects.toBeInstanceOf(ErrorConexionArca);

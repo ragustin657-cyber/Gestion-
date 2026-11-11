@@ -102,7 +102,8 @@ export class PresentacionesService {
       await Promise.all(verificar.slice(i, i + EN_PARALELO).map(async (p) => {
         try {
           const g = await this.ejecutar(p.tipo, db, await this.contexto(db, p.periodo, p.quincena, p.nombreArchivo));
-          estado.set(p.id, { cambiaron: sha(g.huellaDe) !== p.huella });
+          // Las generaciones anteriores al cambio de huella del Libro IVA Digital guardaron la del archivo completo
+          estado.set(p.id, { cambiaron: sha(g.huellaDe) !== p.huella && sha(g.contenido) !== p.huella });
         } catch (e) {
           estado.set(p.id, { cambiaron: null, error: `No se pudo verificar: ${(e as Error).message}` });
         }

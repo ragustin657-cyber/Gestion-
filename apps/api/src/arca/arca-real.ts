@@ -49,7 +49,15 @@ export class ArcaReal implements ClienteArca {
     const guardado = await this.o.tokens.leer();
     if (guardado && guardado.vence.getTime() - Date.now() > MARGEN_TOKEN_MS) return { token: guardado.token, sign: guardado.sign, cuit: this.o.cuit };
     const cms = firmarTra(armarTra('wsfe', new Date()), this.o.crt, this.o.key);
-    const t = leerLoginResponse(await this.post(ENDPOINTS[this.o.ambiente].wsaa, '', xmlLoginCms(cms)));
+    let t: Token;
+    try {
+      t = leerLoginResponse(await this.post(ENDPOINTS[this.o.ambiente].wsaa, '', xmlLoginCms(cms)));
+    } catch (e) {
+      // Se renueva antes de que venza; si ARCA todavía no entrega uno nuevo, el guardado sigue sirviendo hasta su vencimiento
+      if (e instanceof ErrorConexionArca && e.yaAutenticado && guardado && guardado.vence.getTime() > Date.now())
+        return { token: guardado.token, sign: guardado.sign, cuit: this.o.cuit };
+      throw e;
+    }
     await this.o.tokens.guardar(t);
     return { token: t.token, sign: t.sign, cuit: this.o.cuit };
   }

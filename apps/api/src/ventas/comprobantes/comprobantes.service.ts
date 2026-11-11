@@ -55,6 +55,15 @@ export class ComprobantesVentaService {
     return movsNc.reduce((s: Dec, m) => s.plus(m.saldo), new D(mov?.saldo ?? 0)).minus(pendientes._sum.total ?? 0);
   }
 
+  /** Mensaje del tope de NC; si hay NC pendientes de CAE sobre el mismo comprobante, las nombra (pueden ser borradores olvidados). */
+  async mensajeTopeNc(tx: TxEmpresa, asociadoId: string, excluirId?: string): Promise<string> {
+    const asoc = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: asociadoId } });
+    const base = `La nota de crédito supera el saldo de la factura ${numeroVenta(asoc.puntoVenta, asoc.numero)}`;
+    const pendientes = await tx.comprobanteVenta.findMany({ where: { comprobanteAsociadoId: asociadoId, tipo: 'NOTA_CREDITO', estado: 'PENDIENTE_CAE', id: excluirId ? { not: excluirId } : undefined }, orderBy: { numeroInterno: 'asc' } });
+    if (!pendientes.length) return base;
+    return `${base}. Hay notas de crédito pendientes de CAE sobre esa factura: ${pendientes.map((p) => `N° interno ${p.numeroInterno} por ${importeAR(p.total.toString())}`).join(', ')}. Edítelas o elimínelas.`;
+  }
+
   /** Valida y calcula: letra, cuenta de cada renglón, importes y cotización. Lanza 400 con los mensajes de la spec. */
   async preparar(tx: TxEmpresa, d: DatosComprobanteVenta, id?: string) {
     const tercero = await tx.tercero.findUnique({ where: { id: d.terceroId } });
@@ -80,10 +89,7 @@ export class ComprobantesVentaService {
     const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
     if (d.tipo === 'NOTA_CREDITO') {
       const disponible = await this.saldoDisponibleNc(tx, d.comprobanteAsociadoId!, id);
-      if (new D(calc.total).gt(disponible)) {
-        const asoc = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: d.comprobanteAsociadoId! } });
-        throw new BadRequestException(`La nota de crédito supera el saldo de la factura ${numeroVenta(asoc.puntoVenta, asoc.numero)}`);
-      }
+      if (new D(calc.total).gt(disponible)) throw new BadRequestException(await this.mensajeTopeNc(tx, d.comprobanteAsociadoId!, id));
     }
     const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
     const articulos = await tx.articulo.findMany({ where: { id: { in: d.renglones.map((r) => r.articuloId).filter((x): x is string => !!x) } } });

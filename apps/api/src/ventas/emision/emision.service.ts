@@ -112,10 +112,7 @@ export class EmisionService {
       if (otras.some(emisionEnCurso)) throw new ConflictException(OTRA_EN_CURSO);
       if (c.tipo === 'NOTA_CREDITO') {
         const disponible = await this.comprobantes.saldoDisponibleNc(tx, c.comprobanteAsociadoId!, c.id);
-        if (c.total.gt(disponible)) {
-          const asoc = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: c.comprobanteAsociadoId! } });
-          throw new BadRequestException(`La nota de crédito supera el saldo de la factura ${numeroVenta(asoc.puntoVenta, asoc.numero)}`);
-        }
+        if (c.total.gt(disponible)) throw new BadRequestException(await this.comprobantes.mensajeTopeNc(tx, c.comprobanteAsociadoId!, c.id));
       }
       await periodoAbierto(tx, empresaId, c.fecha);
       const datos = await this.datosCae(tx, c, tipoArca);
