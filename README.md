@@ -165,6 +165,19 @@ Usuario demo de facturación: **facturacion@demo.com** / **facturacion1234**.
 > - **SICORE:** las posiciones 45 a 145 siguen el formato estándar de mercado.
 > - **Valores a confirmar con el contador** (Administración → Configuración de impuestos): la actividad de ARBA ("6"), el código de norma de AGIP ("029") y los códigos de operación del Libro IVA Digital.
 
+## Ajuste por inflación contable (Entrega 9)
+
+RT 6 / RT 54, método directo: las cuentas no monetarias se reexpresan movimiento por movimiento con el índice de cada mes, y la diferencia va contra el RECPAM.
+
+1. **Índices** (Administración → Índices de inflación, solo el administrador general): IPC FACPCE mensual, compartido por todas las empresas. Se carga a mano o importando un CSV `AAAA-MM;valor` (también `MM/AAAA`, con coma o punto decimal). No viene con valores precargados.
+2. **Plan de cuentas:** cada cuenta es *monetaria* o *no monetaria*. Por defecto son no monetarias el patrimonio neto, los resultados y los bienes de uso. Una cuenta puede tener una *cuenta de ajuste* (Capital social → 3.1.02 Ajuste de capital). El RECPAM es la cuenta 4.2.03.
+3. **Configuración** (Administración → Configuración del ajuste por inflación): el primer ejercicio que se ajusta y la anticuación de su apertura (el mes de origen de cada parte de los saldos iniciales). Lo no anticuado se toma al inicio del ejercicio, con aviso. La reexpresión de la apertura va contra Resultados no asignados.
+4. **Ajuste** (Registraciones → Contabilidad General → Ajuste por inflación): se elige un fin de mes y se ve la vista previa por cuenta (saldo contable, reexpresado, ajuste) con el RECPAM, también en Excel. *Generar* registra el asiento. Se puede ajustar cualquier mes: cada asiento agrega solo lo que falta, incluso si después se cargó un asiento con fecha anterior. Solo se anula el último ajuste.
+5. **Cierre del ejercicio:** si la empresa ajusta, no se cierra sin un ajuste al último día que esté al día.
+6. **Estados contables:** la casilla *Comparativo reexpresado* lleva el ejercicio anterior a moneda de la fecha de los estados.
+
+Fuera de alcance: ajuste impositivo (Ganancias), segregación de componentes financieros, valores corrientes y método indirecto.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
