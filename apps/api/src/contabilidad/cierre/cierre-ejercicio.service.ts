@@ -9,6 +9,8 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { AsientosService, RenglonAsiento } from '../asientos/asientos.service';
 import { D, Dec, saldosPorCuenta } from '../consultas/saldos';
 import { PeriodosService } from '../periodos/periodos.service';
+import { AjusteInflacionService } from '../ajuste-inflacion/ajuste-inflacion.service';
+import { ConfigAjusteService } from '../ajuste-inflacion/config.service';
 
 const RESULTADOS = ['RESULTADO_POSITIVO', 'RESULTADO_NEGATIVO'];
 const PATRIMONIALES = ['ACTIVO', 'PASIVO', 'PATRIMONIO_NETO'];
@@ -27,6 +29,8 @@ export class CierreEjercicioService {
     private readonly cuentas: ConfigComprasService,
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
+    private readonly configAjuste: ConfigAjusteService,
+    private readonly ajustes: AjusteInflacionService,
   ) {}
 
   private async ejercicio(tx: TxEmpresa, id: string) {
@@ -45,6 +49,27 @@ export class CierreEjercicioService {
     const sig = await tx.ejercicio.findFirst({ where: { numero: e.numero + 1 }, include: { periodos: { orderBy: [{ anio: 'asc' }, { mes: 'asc' }] } } });
     if (!sig) r.push('Abra el ejercicio siguiente');
     else if (sig.periodos[0]?.estado !== 'ABIERTO') r.push('El primer período del ejercicio siguiente debe estar abierto');
+    r.push(...(await this.faltantesAjuste(tx, e)));
+    return r;
+  }
+
+  /** Requisitos del ajuste por inflación al cierre (spec §7). */
+  private async faltantesAjuste(tx: TxEmpresa, e: Ejercicio): Promise<string[]> {
+    const config = await this.configAjuste.obtener(tx);
+    if (!config) return [];
+    const primero = await tx.ejercicio.findUnique({ where: { id: config.primerEjercicioId } });
+    if (!primero || e.numero < primero.numero) return [];
+    const r: string[] = [];
+    const vigente = await this.ajustes.ultimoVigente(tx, e.id);
+    const alCierre = vigente?.fecha.getTime() === e.hasta.getTime();
+    if (!alCierre) r.push('Genere el ajuste por inflación al cierre');
+    try {
+      const c = await this.ajustes.calcular(tx, e.hasta);
+      if (alCierre && c.renglones.length) r.push('El ajuste por inflación al cierre está desactualizado: genere uno nuevo');
+    } catch (err) {
+      if (!(err instanceof BadRequestException)) throw err;
+      r.push(err.message);
+    }
     return r;
   }
 
