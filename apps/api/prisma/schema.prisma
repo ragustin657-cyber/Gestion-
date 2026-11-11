@@ -180,9 +180,15 @@ model CuentaContable {
   imputable Boolean
   tipo      TipoCuenta
   activa    Boolean          @default(true)
+  /// Para el ajuste por inflación: las no monetarias se reexpresan.
+  monetaria      Boolean          @default(true)
+  /// Cuenta donde se registra el ajuste por inflación de esta (p. ej. Capital → Ajuste de capital).
+  cuentaAjusteId String?          @db.Uuid
   empresa   Empresa          @relation(fields: [empresaId], references: [id])
   padre     CuentaContable?  @relation("Jerarquia", fields: [padreId], references: [id])
   hijos     CuentaContable[] @relation("Jerarquia")
+  cuentaAjuste CuentaContable?  @relation("Ajuste", fields: [cuentaAjusteId], references: [id], onDelete: Restrict)
+  ajustadas    CuentaContable[] @relation("Ajuste")
 
   @@unique([empresaId, codigo])
 }
@@ -1256,6 +1262,7 @@ enum TipoAsiento {
   REFUNDICION
   CIERRE
   APERTURA
+  AJUSTE_INFLACION
 }
 
 model Ejercicio {
@@ -1575,4 +1582,37 @@ model Presentacion {
   generadoEn    DateTime         @default(now())
 
   @@index([empresaId, tipo, periodo])
+}
+
+/// Índice de precios mensual (IPC FACPCE) para el ajuste por inflación. Global: lo mantiene el administrador general.
+model IndiceInflacion {
+  id             String   @id @default(uuid()) @db.Uuid
+  anio           Int
+  mes            Int
+  valor          Decimal  @db.Decimal(18, 6)
+  actualizadoPor String
+  actualizadoEn  DateTime @updatedAt
+
+  @@unique([anio, mes])
+}
+
+model ConfigAjusteInflacion {
+  id                String   @id @default(uuid()) @db.Uuid
+  empresaId         String   @unique @db.Uuid
+  primerEjercicioId String   @db.Uuid
+  asientoAperturaId String?  @db.Uuid
+  actualizadoPor    String
+  actualizadoEn     DateTime @updatedAt
+}
+
+/// Anticuación de los saldos de apertura del primer ejercicio ajustado (importe con signo: positivo = deudor).
+model AnticuacionApertura {
+  id               String  @id @default(uuid()) @db.Uuid
+  empresaId        String  @db.Uuid
+  cuentaContableId String  @db.Uuid
+  anio             Int
+  mes              Int
+  importe          Decimal @db.Decimal(18, 2)
+
+  @@unique([empresaId, cuentaContableId, anio, mes])
 }

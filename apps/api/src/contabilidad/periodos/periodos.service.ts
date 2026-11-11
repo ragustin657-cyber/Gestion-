@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { PeriodoContable } from '@prisma/client';
+import type { PeriodoContable, TipoAsiento } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 import { bloquear } from '../../compras/comun';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
@@ -23,12 +23,12 @@ export class PeriodosService {
 
   /**
    * Asigna los números definitivos de los asientos del período, siguiendo el último del ejercicio:
-   * por fecha; a igual fecha APERTURA, luego AUTOMATICO y MANUAL, y REFUNDICION y CIERRE al final; luego por carga.
+   * por fecha; a igual fecha APERTURA, luego AUTOMATICO y MANUAL, luego AJUSTE_INFLACION, y REFUNDICION y CIERRE al final; luego por carga.
    */
   async numerarPeriodo(tx: TxEmpresa, periodo: PeriodoContable): Promise<number> {
     const ultimo = await tx.asiento.aggregate({ where: { ejercicioId: periodo.ejercicioId }, _max: { numeroDefinitivo: true } });
     const asientos = await tx.asiento.findMany({ where: { ejercicioId: periodo.ejercicioId, fecha: { gte: periodo.desde, lte: periodo.hasta }, numeroDefinitivo: null } });
-    const rango = { APERTURA: 0, AUTOMATICO: 1, MANUAL: 1, REFUNDICION: 2, CIERRE: 3 } as const;
+    const rango: Record<TipoAsiento, number> = { APERTURA: 0, AUTOMATICO: 1, MANUAL: 1, AJUSTE_INFLACION: 2, REFUNDICION: 3, CIERRE: 4 };
     asientos.sort((a, b) => a.fecha.getTime() - b.fecha.getTime() || rango[a.tipo] - rango[b.tipo] || a.creadoEn.getTime() - b.creadoEn.getTime() || a.numero - b.numero);
     let n = ultimo._max.numeroDefinitivo ?? 0;
     for (const a of asientos) await tx.asiento.update({ where: { id: a.id }, data: { numeroDefinitivo: ++n } });
