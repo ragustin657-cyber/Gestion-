@@ -11,7 +11,7 @@ export interface CuentaModelo {
 /** Clasificación por defecto para el ajuste por inflación: PN, resultados y bienes de uso son no monetarios. */
 export function monetariaPorDefecto(codigo: string, tipo: TipoCuenta): boolean {
   if (tipo === 'PATRIMONIO_NETO' || tipo === 'RESULTADO_POSITIVO' || tipo === 'RESULTADO_NEGATIVO') return false;
-  return !(codigo === '1.2.01' || codigo.startsWith('1.2.01.'));
+  return !['1.2.01', '1.1.05'].some((r) => codigo === r || codigo.startsWith(`${r}.`));
 }
 
 const c = (codigo: string, nombre: string, tipo: TipoCuenta, imputable = false): CuentaModelo => ({
@@ -43,6 +43,8 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('1.1.03.008', 'Retenciones SUSS sufridas', A, true),
   c('1.1.04', 'Otros créditos', A),
   c('1.1.04.001', 'Anticipos a proveedores', A, true),
+  c('1.1.05', 'Bienes de cambio', A),
+  c('1.1.05.001', 'Mercaderías', A, true),
   c('1.2', 'Activo no corriente', A),
   c('1.2.01', 'Bienes de uso', A),
   c('1.2.01.001', 'Muebles y útiles', A, true),
@@ -53,6 +55,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('2.1.01', 'Deudas comerciales', P),
   c('2.1.01.001', 'Proveedores', P, true),
   c('2.1.01.002', 'Cheques diferidos a pagar', P, true),
+  c('2.1.01.003', 'Mercadería recibida a facturar', P, true),
   c('2.1.02', 'Deudas fiscales', P),
   c('2.1.02.001', 'IVA Débito Fiscal', P, true),
   c('2.1.02.002', 'Retenciones Ganancias a depositar', P, true),
@@ -73,6 +76,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('4.2.01', 'Diferencias de cambio positivas', RP, true),
   c('4.2.02', 'Intereses ganados', RP, true),
   c('4.2.03', 'Resultado por exposición a la inflación (RECPAM)', RP, true),
+  c('4.2.04', 'Sobrantes de inventario', RP, true),
   c('5', 'Resultados negativos', RN),
   c('5.1', 'Costos', RN),
   c('5.1.01', 'Costo de mercaderías vendidas', RN, true),
@@ -82,6 +86,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.03', 'Diferencias de cambio negativas', RN, true),
   c('5.2.04', 'Diferencias de caja', RN, true),
   c('5.2.05', 'Impuesto a los débitos y créditos bancarios', RN, true),
+  c('5.2.06', 'Faltantes de inventario', RN, true),
 ];
 
 /** Código del padre según la convención de puntos ('1.1.01' → '1.1'). */

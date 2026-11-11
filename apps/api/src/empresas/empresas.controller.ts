@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { CondicionIva } from '@prisma/client';
 import { z } from 'zod';
 import { RequierePermiso, SoloSuperadmin } from '../auth/requiere-permiso.decorator';
@@ -52,6 +52,12 @@ export class EmpresasController {
   @RequierePermiso('empresa.administrar')
   puntosVenta() {
     return this.empresas.puntosVenta();
+  }
+
+  @Patch('actual/puntos-venta/:id')
+  @RequierePermiso('empresa.administrar')
+  modificarPuntoVenta(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ depositoId: z.string().uuid('Valor inválido').nullable() }))) d: { depositoId: string | null }) {
+    return this.empresas.modificarPuntoVenta(id, d);
   }
 
   @Post('actual/puntos-venta')

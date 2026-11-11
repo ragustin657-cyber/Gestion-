@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { conUnicidad } from '../comun/errores';
@@ -15,6 +15,7 @@ export interface DatosArticulo {
   cuentaVentaId?: string | null;
   esServicio?: boolean;
   activo?: boolean;
+  controlaStock?: boolean;
 }
 
 const DUPLICADO = 'Ya existe un artículo con ese código';
@@ -55,6 +56,7 @@ export class ArticulosService {
     return conUnicidad(DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
         await this.verificarCuentas(tx, d);
+        if (d.esServicio && d.controlaStock) throw new BadRequestException('Un servicio no controla stock');
         const a = await tx.articulo.create({ data: { ...d, empresaId: this.tenant.empresaId } });
         await this.auditoria.registrar(tx, { entidad: 'Articulo', entidadId: a.id, accion: 'CREAR', datos: d });
         return a;
@@ -66,6 +68,11 @@ export class ArticulosService {
     return conUnicidad(DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
         await this.verificarCuentas(tx, d);
+        const actual = await tx.articulo.findUniqueOrThrow({ where: { id } });
+        const controla = d.controlaStock ?? actual.controlaStock;
+        if ((d.esServicio ?? actual.esServicio) && controla) throw new BadRequestException('Un servicio no controla stock');
+        if (actual.controlaStock && !controla && (await tx.movimientoStock.count({ where: { articuloId: id } })))
+          throw new BadRequestException('El artículo tiene movimientos de stock');
         const a = await tx.articulo.update({ where: { id }, data: d });
         await this.auditoria.registrar(tx, { entidad: 'Articulo', entidadId: id, accion: 'MODIFICAR', datos: d });
         return a;

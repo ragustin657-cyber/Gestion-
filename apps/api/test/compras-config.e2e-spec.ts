@@ -12,17 +12,17 @@ describe('configuración de compras', () => {
   beforeEach(async () => limpiarBase(prisma));
   afterAll(async () => app.close());
 
-  it('una empresa nueva tiene los 28 conceptos y modo AVISAR', async () => {
+  it('una empresa nueva tiene los 33 conceptos y modo AVISAR', async () => {
     const { http } = await sesionConPlan(app, prisma);
     const r = await http.get('/api/compras/config');
     expect(r.status).toBe(200);
     expect(r.body.modoTresVias).toBe('AVISAR');
     expect(r.body.montoAprobacionOc).toBe('0');
     expect(r.body.cuentas.map((c: { concepto: string }) => c.concepto).sort()).toEqual(
-      ['ANTICIPOS_PROVEEDORES', 'CHEQUES_DIFERIDOS', 'CHEQUES_RECHAZADOS', 'DEUDORES_POR_VENTAS', 'DIFERENCIAS_DE_CAJA', 'DIFERENCIA_CAMBIO_NEGATIVA',
-        'DIFERENCIA_CAMBIO_POSITIVA', 'GASTOS_BANCARIOS', 'GASTO_POR_DEFECTO', 'IMPUESTOS_INTERNOS', 'IVA_CREDITO_FISCAL', 'IVA_DEBITO_FISCAL', 'PERCEPCION_IIBB', 'PERCEPCION_IVA',
+      ['ANTICIPOS_PROVEEDORES', 'CHEQUES_DIFERIDOS', 'CHEQUES_RECHAZADOS', 'COSTO_MERCADERIAS_VENDIDAS', 'DEUDORES_POR_VENTAS', 'DIFERENCIAS_DE_CAJA', 'DIFERENCIA_CAMBIO_NEGATIVA',
+        'DIFERENCIA_CAMBIO_POSITIVA', 'FALTANTES_INVENTARIO', 'GASTOS_BANCARIOS', 'GASTO_POR_DEFECTO', 'IMPUESTOS_INTERNOS', 'IVA_CREDITO_FISCAL', 'IVA_DEBITO_FISCAL', 'MERCADERIAS', 'MERCADERIA_A_FACTURAR', 'PERCEPCION_IIBB', 'PERCEPCION_IVA',
         'PROVEEDORES', 'RECPAM', 'RESULTADOS_NO_ASIGNADOS', 'RESULTADO_DEL_EJERCICIO', 'RETENCION_GANANCIAS', 'RETENCION_IIBB', 'RETENCION_SUFRIDA_GANANCIAS', 'RETENCION_SUFRIDA_IIBB', 'RETENCION_SUFRIDA_IVA', 'RETENCION_SUFRIDA_SUSS',
-        'TRANSFERENCIAS_A_ACREDITAR', 'VALORES_A_DEPOSITAR', 'VALORES_EN_TRANSITO', 'VENTAS'],
+        'SOBRANTES_INVENTARIO', 'TRANSFERENCIAS_A_ACREDITAR', 'VALORES_A_DEPOSITAR', 'VALORES_EN_TRANSITO', 'VENTAS'],
     );
   });
 

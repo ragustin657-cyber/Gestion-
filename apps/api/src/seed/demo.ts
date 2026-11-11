@@ -19,12 +19,12 @@ export const DEMO = {
 
 const ROLES: Record<string, Permiso[]> = {
   Administrador: TODOS_LOS_PERMISOS,
-  Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear'],
+  Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear', 'stock.ver'],
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
-  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar'],
-  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver'],
+  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar', 'stock.ver', 'stock.operar'],
+  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver'],
 };
 
 /** Proveedores demo: razón social, CUIT y régimen de Ganancias (null: sin retención). */

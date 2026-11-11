@@ -10,6 +10,7 @@ import { ArcaModule } from './arca/arca.module';
 import { VentasModule } from './ventas/ventas.module';
 import { ImpuestosModule } from './impuestos/impuestos.module';
 import { IndicesInflacionModule } from './indices-inflacion/indices-inflacion.module';
+import { StockModule } from './stock/stock.module';
 import { ConciliacionModule } from './conciliacion/conciliacion.module';
 import { TesoreriaMaestrosModule } from './tesoreria/maestros/tesoreria-maestros.module';
 import { ConfigComprasModule } from './compras/config/config-compras.module';
@@ -53,6 +54,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     VentasModule,
     ImpuestosModule,
     IndicesInflacionModule,
+    StockModule,
   ],
   controllers: [SaludController],
 })
