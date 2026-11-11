@@ -34,6 +34,9 @@ import { ConfigArcaPage } from '../ventas/ConfigArcaPage';
 import { ComprobantesVentaPage, CuentaCorrienteClientesPage, RecibosPage, SaldosClientesPage } from '../ventas/ConsultasVentasPages';
 import { ReciboPage } from '../ventas/ReciboPage';
 import { ConfigImpuestosPage } from '../impuestos/ConfigImpuestosPage';
+import { AjusteInflacionPage } from '../contabilidad/ajuste-inflacion/AjusteInflacionPage';
+import { ConfigAjustePage } from '../contabilidad/ajuste-inflacion/ConfigAjustePage';
+import { IndicesInflacionPage } from '../contabilidad/ajuste-inflacion/IndicesInflacionPage';
 import { ControlArcaPage } from '../impuestos/ControlArcaPage';
 import { LibroIvaComprasPage as LibroIvaComprasImpuestosPage, LibroIvaVentasPage } from '../impuestos/LibrosIvaPages';
 import { GenerarPresentacionPage, PresentacionesPage } from '../impuestos/PresentacionesPages';
@@ -133,4 +136,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/impuestos/libro-iva-compras', elemento: <LibroIvaComprasImpuestosPage /> },
   { ruta: '/impuestos/presentaciones', elemento: <PresentacionesPage /> },
   { ruta: '/admin/impuestos', elemento: <ConfigImpuestosPage /> },
+  { ruta: '/admin/indices-inflacion', elemento: <IndicesInflacionPage /> },
+  { ruta: '/admin/ajuste-inflacion', elemento: <ConfigAjustePage /> },
+  { ruta: '/contabilidad/ajuste-inflacion', elemento: <AjusteInflacionPage /> },
 ];

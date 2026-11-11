@@ -7,7 +7,7 @@ import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { FormAbm } from '../abm/FormAbm';
 
-interface NodoCuenta { id: string; codigo: string; nombre: string; imputable: boolean; tipo: string; activa: boolean; hijos: NodoCuenta[] }
+interface NodoCuenta { id: string; codigo: string; nombre: string; imputable: boolean; tipo: string; activa: boolean; monetaria: boolean; cuentaAjusteId: string | null; hijos: NodoCuenta[] }
 type Edicion = { modo: 'alta'; padre: NodoCuenta } | { modo: 'editar'; cuenta: NodoCuenta } | null;
 
 function Fila({ n, nivel, editable, abiertos, alternar, editar }: {
@@ -27,6 +27,7 @@ function Fila({ n, nivel, editable, abiertos, alternar, editar }: {
         <Text size="sm" ff="monospace" w={110} style={{ flexShrink: 0 }}>{n.codigo}</Text>
         <Text size="sm" fw={n.imputable ? 400 : 600} c={n.activa ? undefined : 'dimmed'} style={{ flex: 1 }} truncate>{n.nombre}</Text>
         {n.imputable && <Badge size="xs" variant="light" visibleFrom="xs">Imputable</Badge>}
+        <Text size="xs" c="dimmed" w={90} ta="center" visibleFrom="sm" title="Clasificación para el ajuste por inflación">{n.monetaria ? 'Monetaria' : 'No monetaria'}</Text>
         {editable && (
           <Group gap={2} wrap="nowrap">
             {!n.imputable && (
@@ -56,6 +57,8 @@ export function PlanCuentasPage() {
   const [edicion, setEdicion] = useState<Edicion>(null);
   const alternar = (id: string) => setAbiertos((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const todos = (ns: NodoCuenta[]): string[] => ns.flatMap((n) => [n.id, ...todos(n.hijos)]);
+  const plano = (ns: NodoCuenta[]): NodoCuenta[] => ns.flatMap((n) => [n, ...plano(n.hijos)]);
+  const opcionesAjuste = plano(arbol.data ?? []).filter((c) => c.imputable && !c.monetaria).map((c) => ({ value: c.id, label: `${c.codigo} ${c.nombre}` }));
 
   return (
     <Paper withBorder p="md" radius="md">
@@ -82,13 +85,15 @@ export function PlanCuentasPage() {
                   { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
                   { nombre: 'imputable', etiqueta: 'Imputable', tipo: 'booleano' },
                   { nombre: 'activa', etiqueta: 'Activa', tipo: 'booleano' },
+                  { nombre: 'monetaria', etiqueta: 'Monetaria (no se reexpresa en el ajuste por inflación)', tipo: 'booleano' },
+                  { nombre: 'cuentaAjusteId', etiqueta: 'Cuenta de ajuste por inflación (opcional)', tipo: 'select', opciones: opcionesAjuste.filter((o) => o.value !== edicion.cuenta.id) },
                 ]}
             valoresIniciales={edicion.modo === 'alta'
               ? { codigo: sugerirCodigo(edicion.padre), nombre: '', imputable: true }
-              : { nombre: edicion.cuenta.nombre, imputable: edicion.cuenta.imputable, activa: edicion.cuenta.activa }}
+              : { nombre: edicion.cuenta.nombre, imputable: edicion.cuenta.imputable, activa: edicion.cuenta.activa, monetaria: edicion.cuenta.monetaria, cuentaAjusteId: edicion.cuenta.cuentaAjusteId ?? '' }}
             onEnviar={(v) => edicion.modo === 'alta'
               ? api('/plan-cuentas', { metodo: 'POST', body: { ...v, padreId: edicion.padre.id } })
-              : api(`/plan-cuentas/${edicion.cuenta.id}`, { metodo: 'PATCH', body: v })}
+              : api(`/plan-cuentas/${edicion.cuenta.id}`, { metodo: 'PATCH', body: { ...v, cuentaAjusteId: v.cuentaAjusteId || null } })}
             onExito={() => {
               if (edicion.modo === 'alta') setAbiertos((s) => new Set(s).add(edicion.padre.id));
               setEdicion(null);
