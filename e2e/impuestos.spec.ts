@@ -21,7 +21,7 @@ test('impuestos: el contador genera el Libro IVA Digital y SICORE del mes y ve e
   const zip = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Generar' }).click();
   expect((await zip).suggestedFilename()).toMatch(/^LIBRO_IVA_DIGITAL_\d{11}_\d{6}\.zip$/);
-  await expect(page.getByText(/registros · total/)).toBeVisible();
+  await expect(page.getByText(/Ventas: \d+ comprobantes · total/)).toBeVisible();
 
   await elegir(page, 'Presentación', 'SICORE (Ganancias)');
   const txt = page.waitForEvent('download');

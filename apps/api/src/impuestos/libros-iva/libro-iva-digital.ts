@@ -5,6 +5,7 @@ import { ALICUOTA_LIVA, codigoCompra, codigoOperacion, documentoArca } from '../
 import { archivo, linea } from '../formato/escritor';
 import { LIVA_COMPRAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_VENTAS_ALICUOTAS, LIVA_VENTAS_CBTE } from '../formato/formatos';
 import { ContextoGeneracion, Generado, mmaaaa, zip } from '../presentaciones/generado';
+import { ventasDelAmbiente } from './libro-ventas.service';
 
 const clave = (a: Dec) => new D(a).toString();
 const alic = (a: Dec) => {
@@ -21,10 +22,18 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
     return r.texto;
   };
   const vCbte: string[] = [], vAlic: string[] = [], cCbte: string[] = [], cAlic: string[] = [];
-  let total = new D(0);
+  // Totales de control en pesos, calculados igual que los libros (NC restan; IVA redondeado por alícuota)
+  const control = { ventas: { total: new D(0), iva: new D(0) }, compras: { total: new D(0), iva: new D(0) } };
+  const acumular = (lado: 'ventas' | 'compras', c: { tipo: string; cotizacion: Dec; totalPesos: Dec; ivas: { importe: Dec }[] }) => {
+    const s = c.tipo === 'NOTA_CREDITO' ? -1 : 1;
+    control[lado].total = control[lado].total.plus(c.totalPesos.mul(s));
+    for (const i of c.ivas) control[lado].iva = control[lado].iva.plus(i.importe.mul(c.cotizacion).toDecimalPlaces(2).mul(s));
+  };
 
+  const { ambiente, omitidos } = await ventasDelAmbiente(tx, ctx.desde, ctx.hasta);
+  advertencias.push(...omitidos);
   const ventas = await tx.comprobanteVenta.findMany({
-    where: { estado: 'AUTORIZADO', fecha: { gte: ctx.desde, lte: ctx.hasta } }, include: { ivas: true, tercero: true },
+    where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: ctx.desde, lte: ctx.hasta } }, include: { ivas: true, tercero: true },
     orderBy: [{ fecha: 'asc' }, { tipo: 'asc' }, { puntoVenta: 'asc' }, { numero: 'asc' }],
   });
   for (const c of ventas) {
@@ -43,7 +52,7 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
     }, n)));
     for (const a of alicuotas)
       vAlic.push(agregar(linea(LIVA_VENTAS_ALICUOTAS, { tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numero, netoGravado: a.neto.toString(), alicuota: a.alicuota, impuesto: a.impuesto.toString() }, n)));
-    total = total.plus(c.total);
+    acumular('ventas', c);
   }
 
   const compras = await tx.comprobanteCompra.findMany({
@@ -70,7 +79,7 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
         tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numero, codigoDocumento: doc.codigo, numeroDocumento: doc.numero(c.tercero.cuit),
         netoGravado: a.neto.toString(), alicuota: a.alicuota, impuesto: a.impuesto.toString(),
       }, n)));
-    total = total.plus(c.total);
+    acumular('compras', c);
   }
 
   if (!vCbte.length && !cCbte.length) advertencias.push(`No hay comprobantes en ${mmaaaa(ctx.periodo)}`);
@@ -79,6 +88,10 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
   });
   return {
     nombreArchivo: `LIBRO_IVA_DIGITAL_${normalizarCuit(ctx.empresa.cuit)}_${ctx.periodo}.zip`, contenido, huellaDe: contenido,
-    registros: vCbte.length + cCbte.length, total, advertencias,
+    registros: vCbte.length + cCbte.length, total: control.ventas.total, advertencias,
+    controles: {
+      ventas: { registros: vCbte.length, total: control.ventas.total.toFixed(2), iva: control.ventas.iva.toFixed(2) },
+      compras: { registros: cCbte.length, total: control.compras.total.toFixed(2), iva: control.compras.iva.toFixed(2) },
+    },
   };
 }

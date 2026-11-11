@@ -4,6 +4,7 @@ import { fechaQuery } from '../../compras/consultas/consultas.service';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
 import { D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import { codigoCompra } from '../codigos';
+import { ventasDelAmbiente } from '../libros-iva/libro-ventas.service';
 import { leerMisComprobantes } from './lector-mis-comprobantes';
 
 interface Importes { total: string; neto: string | null; iva: string | null }
@@ -11,6 +12,10 @@ interface Registro { clave: string; fecha: string; tipo: number; puntoVenta: num
 
 const f2 = (d: Dec) => d.toFixed(2);
 const distinto = (a: string | null, b: string | null) => a !== null && b !== null && new D(a).minus(b).abs().gt('0.01');
+/** Campos que difieren. Neto e IVA solo se comparan si el sistema los tiene discriminados (letras A y M; ventas B). */
+const camposDistintos = (a: Importes, s: Importes) => [
+  ...(distinto(a.total, s.total) ? ['Total'] : []), ...(distinto(a.neto, s.neto) ? ['Neto gravado'] : []), ...(distinto(a.iva, s.iva) ? ['IVA'] : []),
+];
 
 @Injectable()
 export class ControlArcaService {
@@ -35,15 +40,20 @@ export class ControlArcaService {
         const tipo = codigoCompra(c.tipo, c.letra), doc = normalizarCuit(c.tercero.cuit);
         sistema.push({
           clave: `${doc}|${tipo}|${c.puntoVenta}|${c.numero}`, fecha: c.fechaEmision.toISOString().slice(0, 10), tipo, puntoVenta: c.puntoVenta, numero: c.numero, documento: doc,
-          importes: { total: f2(c.totalPesos), neto: f2(c.netoGravado.mul(c.cotizacion)), iva: f2(c.iva.mul(c.cotizacion)) },
+          importes: c.letra === 'A' || c.letra === 'M'
+            ? { total: f2(c.totalPesos), neto: f2(c.netoGravado.mul(c.cotizacion)), iva: f2(c.iva.mul(c.cotizacion)) }
+            : { total: f2(c.totalPesos), neto: null, iva: null },
         });
       }
     } else {
-      for (const c of await db.comprobanteVenta.findMany({ where: { estado: 'AUTORIZADO', fecha: { gte: desde, lte: hasta } }, include: { tercero: true } })) {
+      const { ambiente } = await ventasDelAmbiente(db, desde, hasta);
+      for (const c of await db.comprobanteVenta.findMany({ where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: desde, lte: hasta } }, include: { tercero: true } })) {
         const tipo = cbteTipo(c.tipo, c.letra as LetraVenta);
         sistema.push({
           clave: `${tipo}|${c.puntoVenta}|${c.numero}`, fecha: c.fecha.toISOString().slice(0, 10), tipo, puntoVenta: c.puntoVenta, numero: c.numero!, documento: c.tercero.cuit,
-          importes: { total: f2(c.totalPesos), neto: f2(c.netoGravado.mul(c.cotizacion)), iva: f2(c.iva.mul(c.cotizacion)) },
+          importes: c.letra === 'C'
+            ? { total: f2(c.totalPesos), neto: null, iva: null }
+            : { total: f2(c.totalPesos), neto: f2(c.netoGravado.mul(c.cotizacion)), iva: f2(c.iva.mul(c.cotizacion)) },
         });
       }
     }
@@ -55,8 +65,8 @@ export class ControlArcaService {
       const s = porClave.get(a.clave);
       if (!s) { soloArca.push({ fecha: a.fecha, tipo: a.tipo, puntoVenta: a.puntoVenta, numero: a.numero, documento: a.documento, total: a.importes.total }); continue; }
       vistos.add(a.clave);
-      if (distinto(a.importes.total, s.importes.total) || distinto(a.importes.neto, s.importes.neto) || distinto(a.importes.iva, s.importes.iva))
-        diferencias.push({ fecha: a.fecha, tipo: a.tipo, puntoVenta: a.puntoVenta, numero: a.numero, documento: a.documento, arca: a.importes, sistema: s.importes });
+      const campos = camposDistintos(a.importes, s.importes);
+      if (campos.length) diferencias.push({ fecha: a.fecha, tipo: a.tipo, puntoVenta: a.puntoVenta, numero: a.numero, documento: a.documento, campos, arca: a.importes, sistema: s.importes });
       else coinciden++;
     }
     const soloSistema = sistema.filter((s) => !vistos.has(s.clave)).map((s) => ({ fecha: s.fecha, tipo: s.tipo, puntoVenta: s.puntoVenta, numero: s.numero, documento: s.documento, total: s.importes.total }));

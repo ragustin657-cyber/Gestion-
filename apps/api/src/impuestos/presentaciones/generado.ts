@@ -12,6 +12,8 @@ export interface Generado {
   /** Contenido que define la huella: el TXT interno en ARBA, el archivo completo en el resto. */
   huellaDe: Buffer;
   advertencias: string[];
+  /** Totales de control por archivo, en pesos (Libro IVA Digital). */
+  controles?: Record<string, { registros: number; total: string; iva: string }>;
 }
 
 export interface ContextoGeneracion {

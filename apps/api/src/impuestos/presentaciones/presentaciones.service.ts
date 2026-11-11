@@ -16,6 +16,8 @@ import { ContextoGeneracion, Generador } from './generado';
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const CON_QUINCENA: TipoPresentacion[] = ['SICORE', 'ARBA'];
+const MAX_VERIFICADAS = 24;
+const EN_PARALELO = 4;
 
 @Injectable()
 export class PresentacionesService {
@@ -58,6 +60,7 @@ export class PresentacionesService {
     if (!/^\d{6}$/.test(d.periodo) || mes < 1 || mes > 12) throw new BadRequestException('Período inválido (AAAAMM)');
     const quincena = d.quincena ?? 0;
     if (quincena && !CON_QUINCENA.includes(d.tipo)) throw new BadRequestException('Esta presentación es mensual');
+    if (d.tipo === 'SICORE' && quincena === 2) throw new BadRequestException('SICORE solo admite el mes completo o la primera quincena');
     return this.tenant.transaccion(async (tx) => {
       const ctx = { ...(await this.contexto(tx, d.periodo, quincena)), siguienteLote: () => this.numeracion.siguiente(tx, 'ARBA-LOTE', 0) };
       const r = await this.ejecutar(d.tipo, tx, ctx);
@@ -69,11 +72,14 @@ export class PresentacionesService {
         },
       });
       await this.auditoria.registrar(tx, { entidad: 'Presentacion', entidadId: p.id, accion: 'CREAR', datos: { tipo: d.tipo, periodo: d.periodo, quincena, registros: r.registros, huella: p.huella } });
-      return { id: p.id, nombreArchivo: p.nombreArchivo, registros: p.registros, total: p.total, advertencias: r.advertencias };
+      return { id: p.id, nombreArchivo: p.nombreArchivo, registros: p.registros, total: p.total, advertencias: r.advertencias, controles: r.controles };
     }, { timeout: 60000 });
   }
 
-  /** Historial. La generación más reciente de cada (tipo, período, quincena) se recalcula para avisar si los datos cambiaron. */
+  /**
+   * Historial. La generación más reciente de cada (tipo, período, quincena) se recalcula para avisar si los datos cambiaron
+   * (solo las 24 más recientes, de a 4 en paralelo). Si no se puede recalcular, `cambiaron` es null y `error` dice por qué.
+   */
   async listar(f: { tipo?: string; periodo?: string }) {
     const db = this.tenant.db;
     const filas = await db.presentacion.findMany({
@@ -81,23 +87,24 @@ export class PresentacionesService {
       select: { id: true, tipo: true, periodo: true, quincena: true, nombreArchivo: true, registros: true, total: true, huella: true, advertencias: true, generadoPor: true, generadoEn: true },
       orderBy: { generadoEn: 'desc' },
     });
-    const vistas = new Set<string>();
-    const r = [];
+    const ultimas: typeof filas = [];
+    const claves = new Set<string>();
     for (const p of filas) {
       const k = `${p.tipo}|${p.periodo}|${p.quincena}`;
-      let cambiaron: boolean | null = null;
-      if (!vistas.has(k)) {
-        vistas.add(k);
+      if (!claves.has(k)) { claves.add(k); ultimas.push(p); }
+    }
+    const verificar = ultimas.slice(0, MAX_VERIFICADAS);
+    const estado = new Map<string, { cambiaron: boolean | null; error?: string }>();
+    for (let i = 0; i < verificar.length; i += EN_PARALELO)
+      await Promise.all(verificar.slice(i, i + EN_PARALELO).map(async (p) => {
         try {
           const g = await this.ejecutar(p.tipo, db, await this.contexto(db, p.periodo, p.quincena, p.nombreArchivo));
-          cambiaron = sha(g.huellaDe) !== p.huella;
-        } catch {
-          cambiaron = true;
+          estado.set(p.id, { cambiaron: sha(g.huellaDe) !== p.huella });
+        } catch (e) {
+          estado.set(p.id, { cambiaron: null, error: `No se pudo verificar: ${(e as Error).message}` });
         }
-      }
-      r.push({ ...p, huella: undefined, cambiaron });
-    }
-    return r;
+      }));
+    return filas.map((p) => ({ ...p, huella: undefined, ...(estado.get(p.id) ?? { cambiaron: null }) }));
   }
 
   async archivo(id: string) {

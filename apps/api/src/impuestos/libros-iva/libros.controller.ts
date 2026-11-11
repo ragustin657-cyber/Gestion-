@@ -8,10 +8,15 @@ import { D } from '../../tesoreria/operaciones/tesoreria-comun';
 import { ALICUOTAS_LIBRO, LibroVentasService } from './libro-ventas.service';
 
 const fecha = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('/');
-const columnas = (tercero: string): Columna[] => [
-  { titulo: 'Fecha', ancho: 11 }, { titulo: 'Comprobante', ancho: 26 }, { titulo: tercero, ancho: 28 }, { titulo: 'CUIT/Doc.', ancho: 15 },
-  ...ALICUOTAS_LIBRO.flatMap((a) => [{ titulo: `Neto ${a.replace('.', ',')}%`, ancho: 13, importe: true }, ...(a === '0' ? [] : [{ titulo: `IVA ${a.replace('.', ',')}%`, ancho: 12, importe: true }])]),
-  { titulo: 'No gravado', ancho: 12, importe: true }, { titulo: 'Exento', ancho: 12, importe: true }, { titulo: 'Total', ancho: 14, importe: true },
+const imp = (titulo: string, ancho = 12): Columna => ({ titulo, ancho, importe: true });
+const porAlicuotaCols = (): Columna[] => ALICUOTAS_LIBRO.flatMap((a) => [imp(`Neto ${a.replace('.', ',')}%`, 13), ...(a === '0' ? [] : [imp(`IVA ${a.replace('.', ',')}%`)])]);
+const COLUMNAS_VENTAS: Columna[] = [
+  { titulo: 'Fecha', ancho: 11 }, { titulo: 'Comprobante', ancho: 26 }, { titulo: 'Cliente', ancho: 28 }, { titulo: 'CUIT/Doc.', ancho: 15 }, { titulo: 'Condición IVA', ancho: 18 },
+  ...porAlicuotaCols(), imp('No discriminado', 14), imp('No gravado'), imp('Exento'), imp('Total', 14),
+];
+const COLUMNAS_COMPRAS: Columna[] = [
+  { titulo: 'Fecha', ancho: 11 }, { titulo: 'Comprobante', ancho: 26 }, { titulo: 'Proveedor', ancho: 28 }, { titulo: 'CUIT/Doc.', ancho: 15 },
+  ...porAlicuotaCols(), imp('Perc. IVA'), imp('Perc. IIBB'), imp('Imp. internos'), imp('No computable', 14), imp('No gravado'), imp('Exento'), imp('Total', 14),
 ];
 const porAlicuota = (neto: Record<string, string>, iva: Record<string, string>) =>
   ALICUOTAS_LIBRO.flatMap((a) => [neto[a] ?? null, ...(a === '0' ? [] : [iva[a] ?? null])]);
@@ -40,9 +45,9 @@ export class LibrosIvaController {
   async libroVentas(@Query('desde') desde: string, @Query('hasta') hasta: string, @Query('formato') formato: string | undefined, @Res({ passthrough: true }) res: Response) {
     const l = await this.ventas.libro(desde, hasta);
     if (formato !== 'xlsx' && formato !== 'pdf') return l;
-    const filas: Fila[] = l.filas.map((f) => [fecha(f.fecha), f.comprobante, f.cliente, f.documento, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), f.noGravado, f.exento, f.total]);
-    filas.push(['', 'Totales', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), l.totales.noGravado, l.totales.exento, l.totales.total]);
-    return this.salida(res, 'libro-iva-ventas', 'Libro IVA Ventas', desde, hasta, formato, columnas('Cliente'), filas);
+    const filas: Fila[] = l.filas.map((f) => [fecha(f.fecha), f.comprobante, f.cliente, f.documento, f.condicionIva, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), f.noDiscriminado, f.noGravado, f.exento, f.total]);
+    filas.push(['', 'Totales', '', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), l.totales.noDiscriminado, l.totales.noGravado, l.totales.exento, l.totales.total]);
+    return this.salida(res, 'libro-iva-ventas', 'Libro IVA Ventas', desde, hasta, formato, COLUMNAS_VENTAS, filas);
   }
 
   @Get('libro-iva-compras')
@@ -51,8 +56,10 @@ export class LibrosIvaController {
     const ivaLibro = Object.values(l.totales.ivaPorAlicuota).reduce((a, x) => a.plus(x), new D(0));
     const advertencias = await this.ventas.cuadre(this.tenant.db, 'IVA_CREDITO_FISCAL', fechaQuery(desde, true)!, fechaQuery(hasta, true)!, ivaLibro);
     if (formato !== 'xlsx' && formato !== 'pdf') return { ...l, advertencias };
-    const filas: Fila[] = l.filas.map((f) => [fecha(f.fechaContable), `${f.tipo} ${f.letra} ${f.numero}`, f.razonSocial, f.cuit, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), f.noGravado, f.exento, f.total]);
-    filas.push(['', 'Totales', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), l.totales.noGravado, l.totales.exento, l.totales.total]);
-    return this.salida(res, 'libro-iva-compras', 'Libro IVA Compras', desde, hasta, formato, columnas('Proveedor'), filas);
+    const extra = (f: { percepcionIva: string; percepcionesIibb: string; impuestosInternos: string; noComputable: string; noGravado: string; exento: string; total: string }) =>
+      [f.percepcionIva, f.percepcionesIibb, f.impuestosInternos, f.noComputable, f.noGravado, f.exento, f.total];
+    const filas: Fila[] = l.filas.map((f) => [fecha(f.fechaContable), `${f.tipo} ${f.letra} ${f.numero}`, f.razonSocial, f.cuit, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), ...extra(f)]);
+    filas.push(['', 'Totales', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), ...extra(l.totales)]);
+    return this.salida(res, 'libro-iva-compras', 'Libro IVA Compras', desde, hasta, formato, COLUMNAS_COMPRAS, filas);
   }
 }

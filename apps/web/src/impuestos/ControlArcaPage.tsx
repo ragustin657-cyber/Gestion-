@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { sesion } from '../auth/sesion';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 
-interface Fila { fecha: string; tipo: number; puntoVenta: number; numero: number; documento: string; total?: string; arca?: { total: string }; sistema?: { total: string } }
+interface Fila { fecha: string; tipo: number; puntoVenta: number; numero: number; documento: string; total?: string; campos?: string[]; arca?: { total: string }; sistema?: { total: string } }
 interface Resultado { coinciden: number; soloArca: Fila[]; soloSistema: Fila[]; diferencias: Fila[] }
 
 async function enviar(form: Record<string, string>, archivo: File, formato?: string): Promise<Response> {
@@ -21,11 +21,11 @@ function TablaFilas({ titulo, filas, color, diferencias }: { titulo: string; fil
       {!!filas.length && (
         <Table withTableBorder>
           <Table.Thead><Table.Tr><Table.Th>Fecha</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Comprobante</Table.Th><Table.Th>Documento</Table.Th>
-            {diferencias ? <><Table.Th ta="right">Total ARCA</Table.Th><Table.Th ta="right">Total sistema</Table.Th></> : <Table.Th ta="right">Total</Table.Th>}</Table.Tr></Table.Thead>
+            {diferencias ? <><Table.Th>Difiere</Table.Th><Table.Th ta="right">Total ARCA</Table.Th><Table.Th ta="right">Total sistema</Table.Th></> : <Table.Th ta="right">Total</Table.Th>}</Table.Tr></Table.Thead>
           <Table.Tbody>{filas.map((f, i) => (
             <Table.Tr key={i}><Table.Td>{formatoFecha(f.fecha)}</Table.Td><Table.Td>{String(f.tipo).padStart(3, '0')}</Table.Td>
               <Table.Td>{`${String(f.puntoVenta).padStart(5, '0')}-${String(f.numero).padStart(8, '0')}`}</Table.Td><Table.Td>{f.documento}</Table.Td>
-              {diferencias ? <><Table.Td ta="right">{formatoMoneda(f.arca?.total)}</Table.Td><Table.Td ta="right">{formatoMoneda(f.sistema?.total)}</Table.Td></> : <Table.Td ta="right">{formatoMoneda(f.total)}</Table.Td>}
+              {diferencias ? <><Table.Td>{f.campos?.join(', ')}</Table.Td><Table.Td ta="right">{formatoMoneda(f.arca?.total)}</Table.Td><Table.Td ta="right">{formatoMoneda(f.sistema?.total)}</Table.Td></> : <Table.Td ta="right">{formatoMoneda(f.total)}</Table.Td>}
             </Table.Tr>
           ))}</Table.Tbody>
         </Table>

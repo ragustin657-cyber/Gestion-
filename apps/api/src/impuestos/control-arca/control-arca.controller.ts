@@ -24,14 +24,16 @@ export class ControlArcaController {
     const r = await this.control.controlar({ sentido: b.sentido, desde: iso(b.desde), hasta: iso(b.hasta), archivo: archivo?.buffer ?? Buffer.alloc(0) });
     if (formato !== 'xlsx') return r;
     const filas: Fila[] = [
-      ...r.soloArca.map((x) => ['En ARCA y no en el sistema', x.fecha, x.tipo, x.puntoVenta, x.numero, x.documento, x.total, null]),
-      ...r.soloSistema.map((x) => ['En el sistema y no en ARCA', x.fecha, x.tipo, x.puntoVenta, x.numero, x.documento, null, x.total]),
-      ...r.diferencias.map((x) => ['Con diferencias', x.fecha, x.tipo, x.puntoVenta, x.numero, x.documento, x.arca.total, x.sistema.total]),
+      ...r.soloArca.map((x) => ['En ARCA y no en el sistema', x.fecha, x.tipo, x.puntoVenta, x.numero, x.documento, '', x.total, null]),
+      ...r.soloSistema.map((x) => ['En el sistema y no en ARCA', x.fecha, x.tipo, x.puntoVenta, x.numero, x.documento, '', null, x.total]),
+      ...r.diferencias.map((x) => ['Con diferencias', x.fecha, x.tipo, x.puntoVenta, x.numero, x.documento,
+        x.campos.map((c) => `${c}: ARCA ${c === 'Total' ? x.arca.total : c === 'IVA' ? x.arca.iva : x.arca.neto} / sistema ${c === 'Total' ? x.sistema.total : c === 'IVA' ? x.sistema.iva : x.sistema.neto}`).join('; '),
+        x.arca.total, x.sistema.total]),
     ];
     res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="control-arca-${iso(b.desde)}-${iso(b.hasta)}.xlsx"` });
     return new StreamableFile(await tablaXlsx('Control con Mis Comprobantes', `${b.sentido === 'RECIBIDOS' ? 'Recibidos' : 'Emitidos'} · coinciden ${r.coinciden}`, [
       { titulo: 'Situación', ancho: 28 }, { titulo: 'Fecha', ancho: 12 }, { titulo: 'Tipo', ancho: 6 }, { titulo: 'P. venta', ancho: 9 }, { titulo: 'Número', ancho: 12 },
-      { titulo: 'Documento', ancho: 15 }, { titulo: 'Total ARCA', ancho: 15, importe: true }, { titulo: 'Total sistema', ancho: 15, importe: true },
+      { titulo: 'Documento', ancho: 15 }, { titulo: 'Campos que difieren', ancho: 50 }, { titulo: 'Total ARCA', ancho: 15, importe: true }, { titulo: 'Total sistema', ancho: 15, importe: true },
     ], filas));
   }
 }

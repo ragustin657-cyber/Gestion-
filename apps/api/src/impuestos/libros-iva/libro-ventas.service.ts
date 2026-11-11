@@ -19,6 +19,16 @@ export interface FilaLibroVentas {
 }
 export interface TotalesLibro { netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noDiscriminado: string; noGravado: string; exento: string; iva: string; total: string }
 
+/**
+ * Las ventas que cuentan son las del ambiente de ARCA vigente de la empresa: las de otro ambiente (simulado,
+ * homologación) no tienen validez fiscal. Devuelve las advertencias de las omitidas.
+ */
+export async function ventasDelAmbiente(tx: TxEmpresa, desde: Date, hasta: Date) {
+  const ambiente = (await tx.configArca.findFirst())?.ambiente ?? 'SIMULADO';
+  const otros = await tx.comprobanteVenta.groupBy({ by: ['ambiente'], where: { estado: 'AUTORIZADO', fecha: { gte: desde, lte: hasta }, ambiente: { not: ambiente } }, _count: { _all: true } });
+  return { ambiente, omitidos: otros.map((o) => `Se omitieron ${o._count._all} comprobantes de venta emitidos en ambiente ${o.ambiente}`) };
+}
+
 @Injectable()
 export class LibroVentasService {
   constructor(private readonly tenant: TenantPrisma, private readonly cuentas: ConfigComprasService) {}
@@ -27,8 +37,9 @@ export class LibroVentasService {
   async libro(desde: string, hasta: string): Promise<{ filas: FilaLibroVentas[]; totales: TotalesLibro; advertencias: string[] }> {
     const db = this.tenant.db;
     const d = fechaQuery(desde, true)!, h = fechaQuery(hasta, true)!;
+    const { ambiente, omitidos } = await ventasDelAmbiente(db, d, h);
     const comps = await db.comprobanteVenta.findMany({
-      where: { estado: 'AUTORIZADO', fecha: { gte: d, lte: h } }, include: { ivas: true, tercero: true },
+      where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: d, lte: h } }, include: { ivas: true, tercero: true },
       orderBy: [{ fecha: 'asc' }, { tipo: 'asc' }, { puntoVenta: 'asc' }, { numero: 'asc' }],
     });
     const sum = { neto: {} as Record<string, Dec>, iva: {} as Record<string, Dec>, noDiscriminado: new D(0), noGravado: new D(0), exento: new D(0), total: new D(0) };
@@ -61,7 +72,7 @@ export class LibroVentasService {
     });
     const ivaTotal = Object.values(sum.iva).reduce((a: Dec, x) => a.plus(x), new D(0));
     const mapa = (m: Record<string, Dec>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, f2(v)]));
-    const advertencias = await this.cuadre(db, 'IVA_DEBITO_FISCAL', d, h, ivaTotal);
+    const advertencias = [...omitidos, ...(await this.cuadre(db, 'IVA_DEBITO_FISCAL', d, h, ivaTotal))];
     return {
       filas, advertencias,
       totales: { netoPorAlicuota: mapa(sum.neto), ivaPorAlicuota: mapa(sum.iva), noDiscriminado: f2(sum.noDiscriminado), noGravado: f2(sum.noGravado), exento: f2(sum.exento), iva: f2(ivaTotal), total: f2(sum.total) },
@@ -71,7 +82,10 @@ export class LibroVentasService {
   /** Movimiento del período en la cuenta del concepto, con su signo natural (débito fiscal: haber − debe; crédito: debe − haber). */
   async cuadreIva(tx: TxEmpresa, concepto: 'IVA_DEBITO_FISCAL' | 'IVA_CREDITO_FISCAL', desde: Date, hasta: Date): Promise<Dec> {
     const cuenta = await this.cuentas.cuenta(tx, concepto);
-    const r = await tx.asientoRenglon.aggregate({ where: { cuentaContableId: cuenta, asiento: { fecha: { gte: desde, lte: hasta } } }, _sum: { debe: true, haber: true } });
+    // Sin cierre, refundición ni apertura: mueven saldos de un ejercicio a otro, no son IVA del período
+    const r = await tx.asientoRenglon.aggregate({
+      where: { cuentaContableId: cuenta, asiento: { fecha: { gte: desde, lte: hasta }, tipo: { notIn: ['CIERRE', 'APERTURA', 'REFUNDICION'] } } }, _sum: { debe: true, haber: true },
+    });
     const debe = new D(r._sum.debe ?? 0), haber = new D(r._sum.haber ?? 0);
     return concepto === 'IVA_DEBITO_FISCAL' ? haber.minus(debe) : debe.minus(haber);
   }

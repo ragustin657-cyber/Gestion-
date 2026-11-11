@@ -48,11 +48,12 @@ function campos(linea: string, sep: string): string[] {
   return r;
 }
 
-/** "1.234,56", "1234,56" o "1234.56" → "1234.56" (si hay coma, el punto es separador de miles). */
-export function importe(s: string): string {
-  const limpio = s.replace(/[$\s]/g, '').replace(/^U\$S/i, '');
+/** "1.234,56", "1234,56", "1234.56" o "U$S 100,00" → "1234.56" (si hay coma, el punto es separador de miles). null si no es un importe. */
+export function importe(s: string): string | null {
+  const limpio = s.replace(/U\$S/gi, '').replace(/[$\s]/g, '');
   if (!limpio) return '0.00';
   const n = limpio.includes(',') ? limpio.replace(/\./g, '').replace(',', '.') : limpio;
+  if (!/^-?\d+(\.\d+)?$/.test(n)) return null;
   return new Prisma.Decimal(n).toFixed(2);
 }
 
@@ -81,8 +82,8 @@ export function leerMisComprobantes(buf: Buffer): { filas: FilaArca[] } {
     return {
       fecha: fecha(valor(fs, 'fecha')!), tipo: Number(/^\s*(\d+)/.exec(valor(fs, 'tipo')!)?.[1] ?? NaN), puntoVenta: Number(valor(fs, 'puntoVenta')),
       numero: Number(valor(fs, 'numero')), documento: valor(fs, 'documento')!.replace(/\D/g, ''), netoGravado: neto === null ? null : importe(neto),
-      iva: iva === null ? null : importe(iva), total: importe(valor(fs, 'total')!), moneda: valor(fs, 'moneda'), tipoCambio: tc === null || tc === '' ? null : importe(tc),
+      iva: iva === null ? null : importe(iva), total: importe(valor(fs, 'total')!) as string, moneda: valor(fs, 'moneda'), tipoCambio: tc === null || tc === '' ? null : importe(tc),
     };
-  }).filter((f) => Number.isFinite(f.tipo) && Number.isFinite(f.numero));
+  }).filter((f) => Number.isFinite(f.tipo) && f.tipo > 0 && Number.isFinite(f.numero) && f.numero > 0 && f.total !== null);
   return { filas };
 }
