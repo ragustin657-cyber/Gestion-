@@ -12,6 +12,11 @@ type TipoDoc = 'TRANSFERENCIA' | 'INVENTARIO' | 'INICIAL' | 'SALIDA';
 export interface RenglonDoc { articuloId: string; cantidad: string; costoUnitario?: string }
 interface ArticuloStock { id: string; codigo: string; descripcion: string }
 
+/** Un renglón sin cantidad (o sin costo en el inventario inicial) no se envía como cero: hay que completarlo. */
+export function renglonesIncompletos(tipo: TipoDoc, renglones: RenglonDoc[]): boolean {
+  return renglones.some((r) => r.cantidad === '' || (tipo === 'INICIAL' && (r.costoUnitario ?? '') === ''));
+}
+
 /** Grilla del inventario físico: lo contado contra el saldo del sistema, con la diferencia. */
 export function GrillaInventario({ articulos, saldos, renglones, onChange }: {
   articulos: ArticuloStock[]; saldos: Record<string, string>; renglones: RenglonDoc[]; onChange: (r: RenglonDoc[]) => void;
@@ -119,7 +124,8 @@ export function DocumentoStockPage({ tipo }: { tipo: TipoDoc }) {
           {resultado.advertencias.map((a) => <Alert key={a} color="yellow">{a}</Alert>)}
         </Stack>
       )}
-      <Group mt="md"><Button loading={op.enviando} disabled={!depositoId || !renglones.length} onClick={() => void confirmar()}>Confirmar</Button></Group>
+      {renglonesIncompletos(tipo, renglones) && <Text size="sm" c="orange" mt="sm">{tipo === 'INVENTARIO' ? 'Complete lo contado en todos los renglones (o quite los que no contó)' : 'Complete la cantidad y el costo de todos los renglones'}</Text>}
+      <Group mt="md"><Button loading={op.enviando} disabled={!depositoId || !renglones.length || renglonesIncompletos(tipo, renglones)} onClick={() => void confirmar()}>Confirmar</Button></Group>
     </Paper>
   );
 }

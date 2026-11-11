@@ -151,7 +151,9 @@ export class ComprobantesService {
     });
     const gastoDefecto = await this.config.cuenta(tx, 'GASTO_POR_DEFECTO');
     const cuentaCompra = (articuloId: string | null | undefined) => articulos.find((a) => a.id === articuloId)?.cuentaCompraId ?? gastoDefecto;
-    const [cuentaMercaderias, cuentaAFacturar] = await Promise.all([this.stock.cuentaRenglon(tx, 'DIRECTO'), this.stock.cuentaRenglon(tx, 'RECEPCION')]);
+    // Cuentas de stock: solo si hay artículos que controlan stock (las empresas sin stock no necesitan esos conceptos)
+    const hayStock = articulos.some((a) => a.controlaStock);
+    const [cuentaMercaderias, cuentaAFacturar] = hayStock ? await Promise.all([this.stock.cuentaRenglon(tx, 'DIRECTO'), this.stock.cuentaRenglon(tx, 'RECEPCION')]) : ['', ''];
     let origenActual = 'DIRECTO';
     const cuentaArticulo = (articuloId: string | null | undefined) =>
       articulos.find((a) => a.id === articuloId)?.controlaStock ? (origenActual === 'RECEPCION' ? cuentaAFacturar : cuentaMercaderias) : cuentaCompra(articuloId);
@@ -185,6 +187,8 @@ export class ComprobantesService {
         const oc = ocRenglones.find((x) => x.id === ir.ordenCompraRenglonId)!;
         articuloId = oc.articuloId;
         ordenCompraRenglonId = oc.id;
+        // Si la recepción no movió stock (se recibió antes de controlarlo), el renglón se registra como compra directa
+        if (articulos.find((a) => a.id === articuloId)?.controlaStock && !(await this.stock.recepcionConStock(tx, ir.id))) origenActual = 'DIRECTO';
         cuentaContableId = cuentaArticulo(articuloId);
         lineas3v.push({ indice: i, precioFacturado: String(r.precioUnitario), precioOc: oc.precioUnitario.toString(), cantidadFacturada: '0', pendienteFacturar: '0' });
         acumular(`IR:${ir.id}`, i, r.cantidad, ir.cantidad.minus(ir.cantidadFacturada));
@@ -194,6 +198,8 @@ export class ComprobantesService {
         if (!oc) throw new NotFoundException('Renglón de orden de compra no encontrado');
         if (oc.ordenCompra.terceroId !== d.terceroId) throw new BadRequestException('Todos los renglones deben ser del proveedor indicado');
         if (!['APROBADA', 'PARCIALMENTE_RECIBIDA', 'CUMPLIDA'].includes(oc.ordenCompra.estado)) throw new BadRequestException('La orden de compra no está aprobada');
+        if (articulos.find((a) => a.id === oc.articuloId)?.controlaStock)
+          throw new BadRequestException('Los artículos que controlan stock se facturan desde la recepción o como compra directa');
         articuloId = oc.articuloId;
         ordenCompraRenglonId = oc.id;
         cuentaContableId = cuentaArticulo(articuloId);
@@ -273,7 +279,8 @@ export class ComprobantesService {
       },
     });
 
-    // 10. Asiento en pesos
+    // 10. Asiento en pesos (antes, los artículos con stock: mismo orden de bloqueo que recepciones y documentos)
+    await this.stock.bloquearArticulos(tx, renglones.map((r) => r.articuloId));
     const asiento = await this.generarAsiento(tx, {
       id: comp.id, tipo: d.tipo, letra, puntoVenta: d.puntoVenta, numero: d.numero, razonSocial: prov.razonSocial, fecha: d.fechaContable,
       renglones, iva: tot.iva, percepcionIva: String(d.percepcionIva),
@@ -288,6 +295,7 @@ export class ComprobantesService {
     await this.stock.alFacturar(tx, {
       id: comp.id, tipo: d.tipo, fecha: d.fechaContable, depositoId: d.depositoId ?? null, cotizacion,
       descripcion: `${ETIQUETA_TIPO[d.tipo]} ${letra ?? ''} ${d.puntoVenta}-${d.numero} - ${prov.razonSocial}`.replace(/\s+/g, ' '), renglones: conIds,
+      pesos: new Map([...asiento.pesos].filter(([k]) => /^r\d+$/.test(k)).map(([k, v]) => [Number(k.slice(1)) + 1, new D(v)])),
     });
 
     await this.auditoria.registrar(tx, {
@@ -312,6 +320,7 @@ export class ComprobantesService {
       if (!marcado.count) throw new ConflictException('El comprobante ya está anulado');
 
       const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
+      await this.stock.bloquearArticulos(tx, c.renglones.map((r) => r.articuloId));
       const contra = c.asientoId ? await this.asientos.contraasiento(tx, c.asientoId, hoy, `Anulación: ${motivo}`) : null;
       await tx.comprobanteCompra.update({ where: { id }, data: { asientoAnulacionId: contra?.id ?? null } });
       if (mov) await tx.movimientoCuentaCorriente.update({ where: { id: mov.id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });
@@ -364,9 +373,11 @@ export class ComprobantesService {
       haber: l.lado === 'HABER' ? l.importe : undefined,
     }));
     const numero = `${String(c.puntoVenta).padStart(5, '0')}-${String(c.numero).padStart(8, '0')}`;
-    return this.asientos.generar(tx, {
+    const pesos = new Map(enPesos.map((l) => [l.clave, l.importe]));
+    const generado = await this.asientos.generar(tx, {
       fecha: c.fecha, descripcion: `${ETIQUETA_TIPO[c.tipo]} ${c.letra ?? ''} ${numero} - ${c.razonSocial}`.replace(/\s+/g, ' '),
       origenTipo: 'COMPRA', origenId: c.id, renglones,
     });
+    return { ...generado, pesos };
   }
 }

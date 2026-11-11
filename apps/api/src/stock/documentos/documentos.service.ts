@@ -117,8 +117,8 @@ export class DocumentosStockService {
     if (!(await tx.deposito.findUnique({ where: { id: destino } }))) throw new BadRequestException('Depósito inexistente');
     const res: Resultado[] = [];
     for (const r of [...renglones].sort((a, b) => a.articuloId.localeCompare(b.articuloId))) {
-      const sale = await this.motor.mover(tx, { ...base, articuloId: r.articuloId, depositoId: origen, cantidad: new D(r.cantidad).neg(), tipo: 'TRANSFERENCIA', origenRenglonId: r.id });
-      const entra = await this.motor.mover(tx, { ...base, articuloId: r.articuloId, depositoId: destino, cantidad: new D(r.cantidad), costoUnitario: sale.costoUnitario, importe: sale.importe.neg(), tipo: 'TRANSFERENCIA', origenRenglonId: r.id });
+      const sale = await this.motor.mover(tx, { ...base, articuloId: r.articuloId, depositoId: origen, cantidad: new D(r.cantidad).neg(), tipo: 'TRANSFERENCIA', origenRenglonId: r.id, regularizar: false });
+      const entra = await this.motor.mover(tx, { ...base, articuloId: r.articuloId, depositoId: destino, cantidad: new D(r.cantidad), costoUnitario: sale.costoUnitario, importe: sale.importe.neg(), tipo: 'TRANSFERENCIA', origenRenglonId: r.id, regularizar: false });
       res.push(sale, entra);
     }
     return res;
@@ -168,6 +168,7 @@ export class DocumentosStockService {
       const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
       const res = await this.revertir(tx, ORIGEN_DOC, id, hoy);
       const contra = doc.asientoId ? await this.asientos.contraasiento(tx, doc.asientoId, hoy, `Anulación: ${motivo}`) : null;
+      await contabilizarRegularizacion(tx, this.asientos, this.conceptos, res, { fecha: hoy, descripcion: `Regularización de stock - anulación de ${NOMBRE[doc.tipo]} N° ${doc.numero}`, origenTipo: ORIGEN_DOC, origenId: id });
       const final = await tx.documentoStock.update({ where: { id }, data: { estado: 'ANULADO', motivoAnulacion: motivo, asientoAnulacionId: contra?.id ?? null }, include: { renglones: true } });
       await this.auditoria.registrar(tx, { entidad: 'DocumentoStock', entidadId: id, accion: 'ANULAR', datos: { motivo } });
       return { ...final, advertencias: res.map((r) => r.advertencia).filter((x): x is string => !!x) };
@@ -180,11 +181,24 @@ export class DocumentosStockService {
   }
 }
 
+/** Asiento de las regularizaciones (Mercaderías contra costo de lo vendido) que dejó una operación sin asiento propio para ellas. */
+export async function contabilizarRegularizacion(
+  tx: TxEmpresa, asientos: AsientosService, conceptos: ConfigComprasService, res: Resultado[],
+  d: { fecha: Date; descripcion: string; origenTipo: string; origenId: string },
+) {
+  const total = res.reduce((s, r) => s.plus(r.regularizacion), cero);
+  if (total.isZero()) return null;
+  const p = new Partida();
+  p.agregar(await conceptos.cuenta(tx, 'MERCADERIAS'), total);
+  p.agregar(await conceptos.cuenta(tx, 'COSTO_MERCADERIAS_VENDIDAS'), total.neg());
+  return asientos.generar(tx, { ...d, renglones: p.renglones() });
+}
+
 /** Movimientos inversos de un origen, con el importe exacto de cada uno. */
 export async function revertirOrigen(tx: TxEmpresa, motor: MotorStock, origenTipo: string, origenId: string, fecha: Date): Promise<Resultado[]> {
   const movs = await tx.movimientoStock.findMany({ where: { origenTipo, origenId, anulaAId: null }, orderBy: { creadoEn: 'asc' } });
   return motor.moverVarios(tx, movs.map((m) => ({
     fecha, articuloId: m.articuloId, depositoId: m.depositoId, cantidad: new D(m.cantidad).neg(), costoUnitario: new D(m.costoUnitario),
-    importe: new D(m.importe).neg(), tipo: m.tipo, origenTipo, origenId, origenRenglonId: m.origenRenglonId, anulaAId: m.id,
+    importe: new D(m.importe).neg(), tipo: m.tipo, origenTipo, origenId, origenRenglonId: m.origenRenglonId, anulaAId: m.id, regularizar: m.tipo !== 'TRANSFERENCIA',
   })));
 }

@@ -117,6 +117,9 @@ export class EmisionService {
         if (c.total.gt(disponible)) throw new BadRequestException(await this.comprobantes.mensajeTopeNc(tx, c.comprobanteAsociadoId!, c.id));
       }
       await periodoAbierto(tx, empresaId, c.fecha);
+      // Stock: lo que impediría registrar la venta se controla antes de pedir el CAE
+      const renglones = await tx.comprobanteVentaRenglon.findMany({ where: { comprobanteId: id } });
+      await this.stock.prevalidar(tx, { id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId, renglones });
       const datos = await this.datosCae(tx, c, tipoArca);
       const propietario = new Date();
       await tx.comprobanteVenta.update({ where: { id }, data: { emisionEnCurso: propietario, intentos: { increment: 1 }, ambiente } });
@@ -186,6 +189,7 @@ export class EmisionService {
         },
       });
       const fecha = await this.fechaAsiento(tx, c.fecha, advertencias);
+      await this.stock.bloquearArticulos(tx, c.renglones);
       const renglones = asientoVenta(
         { tipo: c.tipo, total: c.total.toString(), iva: c.iva.toString(), cotizacion: c.cotizacion.toString(), renglones: c.renglones.map((x) => ({ cuentaContableId: x.cuentaContableId, neto: x.neto.toString() })) },
         { deudores: await this.cuentas.cuenta(tx, 'DEUDORES_POR_VENTAS'), ivaDebito: await this.cuentas.cuenta(tx, 'IVA_DEBITO_FISCAL') },

@@ -5,7 +5,7 @@ import { ConfigComprasService } from '../compras/config/config-compras.service';
 import { AsientosService } from '../contabilidad/asientos/asientos.service';
 import { D, Dec } from '../contabilidad/consultas/saldos';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
-import { Partida, revertirOrigen } from './documentos/documentos.service';
+import { contabilizarRegularizacion, Partida, revertirOrigen } from './documentos/documentos.service';
 import { MotorStock, Resultado } from './motor';
 
 export const ORIGEN_RECEPCION = 'RECEPCION';
@@ -15,7 +15,7 @@ export const SIN_DEPOSITO = 'Indique el depósito: hay artículos que controlan 
 const cero = new D(0);
 
 interface RenglonIr { id: string; cantidad: Dec; ordenCompraRenglon: { articuloId: string | null; precioUnitario: Dec; bonificacionPct: Dec; ordenCompra: { cotizacion: Dec } } }
-interface RenglonFactura { id: string; origen: string; articuloId: string | null; cantidad: Dec; importe: Dec; informeRecepcionRenglonId: string | null }
+interface RenglonFactura { id: string; orden: number; origen: string; articuloId: string | null; cantidad: Dec; importe: Dec; informeRecepcionRenglonId: string | null }
 
 /** Stock de recepciones y facturas de compra (spec §4). */
 @Injectable()
@@ -26,6 +26,17 @@ export class ComprasStock {
     private readonly asientos: AsientosService,
     private readonly conceptos: ConfigComprasService,
   ) {}
+
+  /** Bloquea los artículos que controlan stock antes de generar asientos (orden de bloqueo: artículos, luego período y numeración). */
+  async bloquearArticulos(tx: TxEmpresa, ids: (string | null | undefined)[]) {
+    const stock = await this.conStock(tx, ids);
+    if (stock.size) await bloquear(tx, 'Articulo', this.tenant.empresaId, [...stock.keys()]);
+  }
+
+  /** ¿La recepción de este renglón movió stock? (no, si se recibió antes de que el artículo controlara stock) */
+  async recepcionConStock(tx: TxEmpresa, informeRecepcionRenglonId: string): Promise<boolean> {
+    return !!(await tx.movimientoStock.count({ where: { origenTipo: ORIGEN_RECEPCION, origenRenglonId: informeRecepcionRenglonId, anulaAId: null } }));
+  }
 
   /** Artículos que controlan stock, por id. */
   async conStock(tx: TxEmpresa, ids: (string | null | undefined)[]): Promise<Map<string, Articulo>> {
@@ -57,8 +68,10 @@ export class ComprasStock {
 
   /** Anulación de la recepción: salida al costo de entrada y contraasiento. */
   async alAnularRecepcion(tx: TxEmpresa, ir: { id: string; asientoId: string | null }, fecha: Date, motivo: string): Promise<string | null> {
-    await revertirOrigen(tx, this.motor, ORIGEN_RECEPCION, ir.id, fecha);
-    return ir.asientoId ? (await this.asientos.contraasiento(tx, ir.asientoId, fecha, `Anulación: ${motivo}`)).id : null;
+    const res = await revertirOrigen(tx, this.motor, ORIGEN_RECEPCION, ir.id, fecha);
+    const contra = ir.asientoId ? (await this.asientos.contraasiento(tx, ir.asientoId, fecha, `Anulación: ${motivo}`)).id : null;
+    await contabilizarRegularizacion(tx, this.asientos, this.conceptos, res, { fecha, descripcion: 'Regularización de stock - anulación de recepción', origenTipo: ORIGEN_RECEPCION, origenId: ir.id });
+    return contra;
   }
 
   /** Cuenta del renglón de factura para un artículo que controla stock. */
@@ -76,7 +89,7 @@ export class ComprasStock {
   }
 
   /** Factura, NC o ND de compra ya registrada: mueve stock y genera el asiento STOCK_COMPRA si hace falta. */
-  async alFacturar(tx: TxEmpresa, c: { id: string; tipo: string; fecha: Date; depositoId: string | null; cotizacion: Dec; descripcion: string; renglones: RenglonFactura[] }) {
+  async alFacturar(tx: TxEmpresa, c: { id: string; tipo: string; fecha: Date; depositoId: string | null; cotizacion: Dec; descripcion: string; renglones: RenglonFactura[]; pesos?: Map<number, Dec> }) {
     const stock = await this.conStock(tx, c.renglones.map((r) => r.articuloId));
     const renglones = c.renglones.filter((r) => r.articuloId && stock.has(r.articuloId)).sort((a, b) => a.articuloId!.localeCompare(b.articuloId!));
     if (!renglones.length) return;
@@ -85,28 +98,36 @@ export class ComprasStock {
     const esNotaCD = c.tipo === 'NOTA_CREDITO' || c.tipo === 'NOTA_DEBITO';
     const base = { fecha: c.fecha, origenTipo: ORIGEN_COMPRA, origenId: c.id };
     for (const r of renglones) {
-      const pesos = new D(r.importe).times(c.cotizacion).toDecimalPlaces(2);
+      // El importe en pesos es el del asiento de la factura (el redondeo en moneda extranjera ya repartido)
+      const pesos = c.pesos?.get(r.orden) ?? new D(r.importe).times(c.cotizacion).toDecimalPlaces(2);
       const cantidad = new D(r.cantidad);
-      if (r.origen === 'RECEPCION') {
-        const recibido = await tx.movimientoStock.findFirst({ where: { origenTipo: ORIGEN_RECEPCION, origenRenglonId: r.informeRecepcionRenglonId, anulaAId: null } });
-        const valorRecibido = recibido ? cantidad.times(recibido.costoUnitario).toDecimalPlaces(2) : pesos;
+      const recibido = r.origen === 'RECEPCION'
+        ? await tx.movimientoStock.findFirst({ where: { origenTipo: ORIGEN_RECEPCION, origenRenglonId: r.informeRecepcionRenglonId, anulaAId: null } })
+        : null;
+      if (r.origen === 'RECEPCION' && recibido) {
+        const valorRecibido = cantidad.times(recibido.costoUnitario).toDecimalPlaces(2);
         const d = pesos.minus(valorRecibido);
         if (d.isZero()) continue;
         const { aStock, aCosto } = await this.repartir(tx, r.articuloId!, cantidad, d);
-        if (!aStock.isZero()) await this.motor.mover(tx, { ...base, articuloId: r.articuloId!, depositoId: null, cantidad: cero, importe: aStock, tipo: 'AJUSTE_COSTO', origenRenglonId: r.id });
+        if (!aStock.isZero()) await this.regularizar(tx, p, [await this.motor.mover(tx, { ...base, articuloId: r.articuloId!, depositoId: null, cantidad: cero, importe: aStock, tipo: 'AJUSTE_COSTO', origenRenglonId: r.id })], merc);
         p.agregar(merc, aStock);
         p.agregar(cmv, aCosto);
         p.agregar(aFacturar, d.neg());
       } else if (esNotaCD) {
         const d = c.tipo === 'NOTA_CREDITO' ? pesos.neg() : pesos;
         const { aStock, aCosto } = await this.repartir(tx, r.articuloId!, cantidad, d);
-        if (!aStock.isZero()) await this.motor.mover(tx, { ...base, articuloId: r.articuloId!, depositoId: null, cantidad: cero, importe: aStock, tipo: 'AJUSTE_COSTO', origenRenglonId: r.id });
+        if (!aStock.isZero()) await this.regularizar(tx, p, [await this.motor.mover(tx, { ...base, articuloId: r.articuloId!, depositoId: null, cantidad: cero, importe: aStock, tipo: 'AJUSTE_COSTO', origenRenglonId: r.id })], merc);
         // El renglón de la NC/ND ya va a Mercaderías: la parte que corresponde a lo vendido pasa al costo
         p.agregar(cmv, aCosto);
         p.agregar(merc, aCosto.neg());
       } else {
-        if (!c.depositoId) throw new BadRequestException(SIN_DEPOSITO);
-        const res = await this.motor.mover(tx, { ...base, articuloId: r.articuloId!, depositoId: c.depositoId, cantidad, costoUnitario: pesos.div(cantidad).toDecimalPlaces(6), importe: pesos, tipo: 'COMPRA', origenRenglonId: r.id });
+        // Compra directa, o recepción hecha antes de que el artículo controlara stock: entra al depósito de la recepción o de la factura
+        const ir = r.origen === 'RECEPCION' && r.informeRecepcionRenglonId
+          ? await tx.informeRecepcionRenglon.findUnique({ where: { id: r.informeRecepcionRenglonId }, include: { informeRecepcion: true } })
+          : null;
+        const depositoId = ir?.informeRecepcion.depositoId ?? c.depositoId;
+        if (!depositoId) throw new BadRequestException(SIN_DEPOSITO);
+        const res = await this.motor.mover(tx, { ...base, articuloId: r.articuloId!, depositoId, cantidad, costoUnitario: pesos.div(cantidad).toDecimalPlaces(6), importe: pesos, tipo: 'COMPRA', origenRenglonId: r.id });
         await this.regularizar(tx, p, [res], merc);
       }
     }
@@ -116,9 +137,10 @@ export class ComprasStock {
 
   /** Anulación de la factura: movimientos inversos y contraasiento del asiento STOCK_COMPRA. */
   async alAnularFactura(tx: TxEmpresa, comprobanteId: string, fecha: Date, motivo: string) {
-    await revertirOrigen(tx, this.motor, ORIGEN_COMPRA, comprobanteId, fecha);
+    const res = await revertirOrigen(tx, this.motor, ORIGEN_COMPRA, comprobanteId, fecha);
     const a = await tx.asiento.findFirst({ where: { origenTipo: ORIGEN_STOCK_COMPRA, origenId: comprobanteId, anulaAId: null } });
     if (a && !(await tx.asiento.count({ where: { anulaAId: a.id } }))) await this.asientos.contraasiento(tx, a.id, fecha, `Anulación: ${motivo}`);
+    await contabilizarRegularizacion(tx, this.asientos, this.conceptos, res, { fecha, descripcion: 'Regularización de stock - anulación de factura de compra', origenTipo: ORIGEN_STOCK_COMPRA, origenId: comprobanteId });
   }
 
   /** Regularizaciones de stock negativo: van al costo de lo vendido. */

@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { bloquear } from '../compras/comun';
+import { TenantPrisma } from '../prisma/tenant-prisma.service';
 import { ConfigComprasService } from '../compras/config/config-compras.service';
 import { AsientosService } from '../contabilidad/asientos/asientos.service';
 import { D, Dec } from '../contabilidad/consultas/saldos';
@@ -25,6 +27,7 @@ interface DatosStockVenta {
 @Injectable()
 export class VentasStock {
   constructor(
+    private readonly tenant: TenantPrisma,
     private readonly motor: MotorStock,
     private readonly config: ConfigStockService,
     private readonly asientos: AsientosService,
@@ -94,19 +97,38 @@ export class VentasStock {
     }
   }
 
-  /** Al emitir: salidas (factura) o devoluciones (NC) y asiento de costo. Devuelve advertencias. */
+  /**
+   * Antes de pedir el CAE: todo lo que podría impedir registrar el stock después de que ARCA autorice
+   * (depósito, conceptos contables, stock con BLOQUEAR, límite de devolución). Lanza si algo falla.
+   */
+  async prevalidar(tx: TxEmpresa, c: DatosStockVenta): Promise<void> {
+    if (!this.mueve(c)) return;
+    const { cant } = await this.porArticulo(tx, c.renglones);
+    if (!cant.size) return;
+    if (c.depositoId && !(await tx.deposito.findUnique({ where: { id: c.depositoId } }))) throw new BadRequestException('Depósito inexistente');
+    await Promise.all([this.conceptos.cuenta(tx, 'MERCADERIAS'), this.conceptos.cuenta(tx, 'COSTO_MERCADERIAS_VENDIDAS')]);
+    await this.controlar(tx, c);
+  }
+
+  /** Bloquea los artículos con stock del comprobante (antes de generar asientos: mismo orden que compras y documentos). */
+  async bloquearArticulos(tx: TxEmpresa, renglones: DatosStockVenta['renglones']) {
+    const { arts } = await this.porArticulo(tx, renglones);
+    if (arts.size) await bloquear(tx, 'Articulo', this.tenant.empresaId, [...arts.keys()]);
+  }
+
+  /** Al emitir (ya autorizado por ARCA): salidas (factura) o devoluciones (NC) y asiento de costo. Nunca bloquea: avisa. */
   async alEmitir(tx: TxEmpresa, c: DatosStockVenta & { id: string }, fecha: Date, descripcion: string): Promise<string[]> {
     if (!this.mueve(c)) return [];
     const { arts, cant } = await this.porArticulo(tx, c.renglones);
     if (!cant.size) return [];
     if (!c.depositoId) throw new BadRequestException(SIN_DEPOSITO);
-    const base = { fecha, origenTipo: ORIGEN_VENTA, origenId: c.id };
+    const base = { fecha, origenTipo: ORIGEN_VENTA, origenId: c.id, forzar: true };
     const renglones = c.renglones.filter((r) => r.articuloId && cant.has(r.articuloId));
     let res;
     if (c.tipo === 'FACTURA') {
       res = await this.motor.moverVarios(tx, renglones.map((r) => ({ ...base, articuloId: r.articuloId!, depositoId: c.depositoId, cantidad: new D(r.cantidad).neg(), tipo: 'VENTA' as const, origenRenglonId: r.id })));
     } else {
-      await this.limiteDevolucion(tx, c, arts, cant);
+      void arts; // el límite de devolución se controló antes de pedir el CAE
       const { vendido } = c.comprobanteAsociadoId ? await this.vendido(tx, c.comprobanteAsociadoId, c.id) : { vendido: new Map() };
       res = await this.motor.moverVarios(tx, renglones.map((r) => {
         const v = vendido.get(r.articuloId!) as { cantidad: Dec; importe: Dec } | undefined;

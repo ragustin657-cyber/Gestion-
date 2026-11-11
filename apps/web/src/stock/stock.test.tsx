@@ -1,6 +1,6 @@
 import { MantineProvider } from '@mantine/core';
 import { render, screen } from '@testing-library/react';
-import { GrillaInventario } from './DocumentoStockPage';
+import { GrillaInventario, renglonesIncompletos } from './DocumentoStockPage';
 import { TablaKardex } from './KardexPage';
 import { ControlValuacion } from './ValuacionPage';
 
@@ -35,5 +35,12 @@ describe('stock (web)', () => {
     expect(screen.getByText('Coincide con el Mayor')).toBeInTheDocument();
     rerender(<MantineProvider><ControlValuacion valuacion={{ fecha: '2026-11-30', filas: [], total: '476.67', mayor: '466.67', control: '10.00' }} /></MantineProvider>);
     expect(screen.getByText('Diferencia con el Mayor: $ 10,00')).toBeInTheDocument();
+  });
+
+  it('no se confirma un inventario con renglones sin contar ni un inicial sin costo', () => {
+    expect(renglonesIncompletos('INVENTARIO', [{ articuloId: 'a', cantidad: '3' }, { articuloId: 'b', cantidad: '' }])).toBe(true);
+    expect(renglonesIncompletos('INVENTARIO', [{ articuloId: 'a', cantidad: '0' }])).toBe(false);
+    expect(renglonesIncompletos('INICIAL', [{ articuloId: 'a', cantidad: '3', costoUnitario: '' }])).toBe(true);
+    expect(renglonesIncompletos('SALIDA', [{ articuloId: 'a', cantidad: '2' }])).toBe(false);
   });
 });

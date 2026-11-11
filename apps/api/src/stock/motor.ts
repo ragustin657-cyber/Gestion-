@@ -23,6 +23,10 @@ export interface Movimiento {
   origenId: string;
   origenRenglonId?: string | null;
   anulaAId?: string | null;
+  /** No bloquear por stock negativo (la operación ya ocurrió, p. ej. un comprobante autorizado por ARCA): solo avisa. */
+  forzar?: boolean;
+  /** false: no regularizar el valor (transferencias, que no cambian la cantidad total). */
+  regularizar?: boolean;
 }
 
 export interface Resultado {
@@ -83,7 +87,7 @@ export class MotorStock {
         if (s0.minus(c).lt(0)) {
           const dep = await tx.deposito.findUniqueOrThrow({ where: { id: m.depositoId } });
           const msj = `Stock insuficiente de ${art.codigo} en ${dep.nombre}: hay ${s0.toString()}, se piden ${c.toString()}`;
-          if ((await this.config.modo(tx)) === 'BLOQUEAR') throw new BadRequestException(msj);
+          if (!m.forzar && (await this.config.modo(tx)) === 'BLOQUEAR') throw new BadRequestException(msj);
           advertencia = msj;
         }
         if (m.importe) importe = r2(m.importe);
@@ -106,8 +110,11 @@ export class MotorStock {
     const q1 = q0.plus(cant);
     let v1 = v0.plus(importe);
     // Entrada que cubre un saldo negativo: el valor queda al costo de la entrada y la diferencia va al costo de lo vendido
-    if (cant.gt(0) && q0.lt(0) && q1.gte(0)) {
-      const objetivo = r2(q1.times(costoUnitario));
+    const objetivo = m.regularizar === false ? null
+      : cant.gt(0) && q0.lt(0) && q1.gte(0) ? r2(q1.times(costoUnitario))
+      : q1.isZero() && !v1.isZero() ? cero // sin cantidad no queda valor: el resto va al costo de lo vendido
+      : null;
+    if (objetivo) {
       regularizacion = objetivo.minus(v1);
       if (!regularizacion.isZero()) {
         await tx.movimientoStock.create({
