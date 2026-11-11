@@ -11,6 +11,6 @@ import { RecepcionesService } from './recepciones/recepciones.service';
 @Module({
   controllers: [OrdenesController, RecepcionesController, ComprobantesController, ConsultasComprasController],
   providers: [OrdenesService, RecepcionesService, ComprobantesService, ConsultasComprasService],
-  exports: [OrdenesService, RecepcionesService, ComprobantesService],
+  exports: [OrdenesService, RecepcionesService, ComprobantesService, ConsultasComprasService],
 })
 export class ComprasModule {}
