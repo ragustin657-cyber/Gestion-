@@ -1963,3 +1963,32 @@ model AmortizacionBien {
 
   @@index([empresaId, bienId])
 }
+
+model Presupuesto {
+  id            String               @id @default(uuid()) @db.Uuid
+  empresaId     String               @db.Uuid
+  ejercicioId   String               @db.Uuid
+  nombre        String
+  vigente       Boolean              @default(false)
+  observaciones String?
+  creadoPor     String
+  creadoEn      DateTime             @default(now())
+  actualizadoEn DateTime             @updatedAt
+  importes      PresupuestoImporte[]
+
+  @@unique([empresaId, ejercicioId, nombre])
+}
+
+model PresupuestoImporte {
+  id               String      @id @default(uuid()) @db.Uuid
+  empresaId        String      @db.Uuid
+  presupuestoId    String      @db.Uuid
+  presupuesto      Presupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  cuentaContableId String      @db.Uuid
+  centroCostoId    String?     @db.Uuid
+  anio             Int
+  mes              Int
+  importe          Decimal     @db.Decimal(18, 2)
+
+  @@index([empresaId, presupuestoId])
+}
