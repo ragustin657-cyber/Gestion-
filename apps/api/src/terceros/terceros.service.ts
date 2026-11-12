@@ -1,11 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { normalizarCuit } from '@gestion/shared';
 import { AuditoriaService } from '../auditoria/auditoria.service';
 import { conUnicidad } from '../comun/errores';
 import { paginacion } from '../comun/paginado';
 import { NumeracionService } from '../numeracion/numeracion.service';
-import { TenantPrisma } from '../prisma/tenant-prisma.service';
+import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { AltaTercero, IibbTercero, ModTercero } from './dto';
 
 const CUIT_DUPLICADO = 'Ya existe un proveedor o cliente con ese CUIT';
@@ -58,9 +58,14 @@ export class TercerosService {
     return t;
   }
 
+  private async verificarLista(tx: TxEmpresa, id: string | null | undefined) {
+    if (id && !(await tx.listaPrecios.findUnique({ where: { id } }))) throw new BadRequestException('Lista de precios inexistente');
+  }
+
   crear(d: AltaTercero) {
     return conUnicidad(CUIT_DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
+        await this.verificarLista(tx, d.listaPreciosId);
         const codigo = await this.numeracion.siguiente(tx, 'TERCERO', 0);
         const t = await tx.tercero.create({
           data: { ...d, email: d.email || null, empresaId: this.tenant.empresaId, codigo },
@@ -74,6 +79,7 @@ export class TercerosService {
   modificar(id: string, d: ModTercero) {
     return conUnicidad(CUIT_DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
+        await this.verificarLista(tx, d.listaPreciosId);
         const t = await tx.tercero.update({
           where: { id },
           data: { ...d, email: d.email === '' ? null : d.email, diasPago: 'diasPago' in d ? (d.diasPago ?? 0) : undefined },

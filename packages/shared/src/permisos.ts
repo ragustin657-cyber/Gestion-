@@ -44,6 +44,8 @@ export const PERMISOS = {
   'impuestos.presentar': 'Generar presentaciones impositivas y controlar con ARCA',
   'stock.ver': 'Ver existencias, kardex y valuación',
   'stock.operar': 'Registrar movimientos de stock y configurarlo',
+  'precios.editar': 'Editar listas de precios',
+  'pedido.gestionar': 'Gestionar pedidos y remitos de venta',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

@@ -25,6 +25,7 @@ const base = z.object({
   exencionHasta: z.coerce.date().optional().nullable(),
   inscriptoGanancias: z.boolean().optional(),
   activo: z.boolean().optional(),
+  listaPreciosId: z.string().uuid('Valor inválido').nullish(),
 });
 
 const tipo = (t: { esProveedor?: boolean; esCliente?: boolean }) => t.esProveedor || t.esCliente;

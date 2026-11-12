@@ -149,6 +149,7 @@ model Tercero {
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
+  listaPreciosId  String?   @db.Uuid
 }
 
 model TerceroIibb {
@@ -1474,6 +1475,8 @@ model ComprobanteVentaRenglon {
   neto             Decimal          @db.Decimal(18, 2)
   iva              Decimal          @db.Decimal(18, 2)
   cuentaContableId String           @db.Uuid
+  remitoRenglonId  String?          @db.Uuid
+  pedidoRenglonId  String?          @db.Uuid
   comprobante      ComprobanteVenta @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
 }
 
@@ -1727,4 +1730,141 @@ model ConfigStock {
   id            String            @id @default(uuid()) @db.Uuid
   empresaId     String            @unique @db.Uuid
   stockNegativo ModoStockNegativo @default(BLOQUEAR)
+}
+
+enum MotivoPrecio {
+  MANUAL
+  AUMENTO
+  IMPORTACION
+  BAJA
+}
+
+model ListaPrecios {
+  id           String        @id @default(uuid()) @db.Uuid
+  empresaId    String        @db.Uuid
+  nombre       String
+  monedaCodigo String
+  activa       Boolean       @default(true)
+  porDefecto   Boolean       @default(false)
+  precios      PrecioLista[]
+
+  @@unique([empresaId, nombre])
+}
+
+model PrecioLista {
+  id            String       @id @default(uuid()) @db.Uuid
+  empresaId     String       @db.Uuid
+  listaId       String       @db.Uuid
+  articuloId    String       @db.Uuid
+  precio        Decimal      @db.Decimal(18, 4)
+  actualizadoEn DateTime     @default(now()) @updatedAt
+  lista         ListaPrecios @relation(fields: [listaId], references: [id], onDelete: Cascade)
+
+  @@unique([listaId, articuloId])
+}
+
+model HistorialPrecio {
+  id             String       @id @default(uuid()) @db.Uuid
+  empresaId      String       @db.Uuid
+  listaId        String       @db.Uuid
+  articuloId     String       @db.Uuid
+  precioAnterior Decimal?     @db.Decimal(18, 4)
+  precioNuevo    Decimal?     @db.Decimal(18, 4)
+  motivo         MotivoPrecio
+  usuario        String
+  fecha          DateTime     @default(now())
+
+  @@index([empresaId, listaId, articuloId])
+}
+
+enum EstadoPedido {
+  PRESUPUESTO
+  CONFIRMADO
+  PARCIALMENTE_ENTREGADO
+  ENTREGADO
+  CERRADO
+  ANULADO
+}
+
+model PedidoVenta {
+  id             String               @id @default(uuid()) @db.Uuid
+  empresaId      String               @db.Uuid
+  numero         Int
+  terceroId      String               @db.Uuid
+  fecha          DateTime             @db.Date
+  validoHasta    DateTime?            @db.Date
+  monedaCodigo   String
+  cotizacion     Decimal              @default(1) @db.Decimal(18, 6)
+  listaPreciosId String?              @db.Uuid
+  depositoId     String?              @db.Uuid
+  estado         EstadoPedido         @default(PRESUPUESTO)
+  observaciones  String?
+  letra          String
+  netoGravado    Decimal              @db.Decimal(18, 2)
+  noGravado      Decimal              @db.Decimal(18, 2)
+  exento         Decimal              @db.Decimal(18, 2)
+  iva            Decimal              @db.Decimal(18, 2)
+  total          Decimal              @db.Decimal(18, 2)
+  motivoCierre   String?
+  creadoPor      String
+  creadoEn       DateTime             @default(now())
+  version        Int                  @default(0)
+  renglones      PedidoVentaRenglon[]
+
+  @@unique([empresaId, numero])
+}
+
+model PedidoVentaRenglon {
+  id                String      @id @default(uuid()) @db.Uuid
+  empresaId         String      @db.Uuid
+  pedidoId          String      @db.Uuid
+  orden             Int
+  articuloId        String?     @db.Uuid
+  descripcion       String
+  cantidad          Decimal     @db.Decimal(18, 4)
+  precioUnitario    Decimal     @db.Decimal(18, 4)
+  alicuota          String
+  neto              Decimal     @db.Decimal(18, 2)
+  iva               Decimal     @db.Decimal(18, 2)
+  cantidadEntregada Decimal     @default(0) @db.Decimal(18, 4)
+  cantidadFacturada Decimal     @default(0) @db.Decimal(18, 4)
+  pedido            PedidoVenta @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+}
+
+enum EstadoRemito {
+  CONFIRMADO
+  ANULADO
+}
+
+model Remito {
+  id                 String          @id @default(uuid()) @db.Uuid
+  empresaId          String          @db.Uuid
+  numero             Int
+  puntoVenta         Int
+  terceroId          String          @db.Uuid
+  fecha              DateTime        @db.Date
+  depositoId         String          @db.Uuid
+  estado             EstadoRemito    @default(CONFIRMADO)
+  motivoAnulacion    String?
+  asientoId          String?         @db.Uuid
+  asientoAnulacionId String?         @db.Uuid
+  observaciones      String?
+  creadoPor          String
+  creadoEn           DateTime        @default(now())
+  renglones          RemitoRenglon[]
+
+  @@unique([empresaId, puntoVenta, numero])
+}
+
+model RemitoRenglon {
+  id                String  @id @default(uuid()) @db.Uuid
+  empresaId         String  @db.Uuid
+  remitoId          String  @db.Uuid
+  orden             Int
+  pedidoRenglonId   String? @db.Uuid
+  articuloId        String? @db.Uuid
+  descripcion       String
+  cantidad          Decimal @db.Decimal(18, 4)
+  cantidadFacturada Decimal @default(0) @db.Decimal(18, 4)
+  remito            Remito  @relation(fields: [remitoId], references: [id], onDelete: Cascade)
 }
