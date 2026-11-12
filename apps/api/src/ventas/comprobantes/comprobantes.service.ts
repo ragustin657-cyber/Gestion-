@@ -7,6 +7,7 @@ import { importeAR, pdfVenta } from '../pdf/pdf-venta';
 import { importesConIva } from '../pdf/importes-b';
 import { ClsService } from 'nestjs-cls';
 import { VentasStock } from '../../stock/ventas-stock';
+import { OrigenesVenta } from './origenes';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { bloquear, MODIFICADO } from '../../compras/comun';
 import { ConfigComprasService } from '../../compras/config/config-compras.service';
@@ -35,6 +36,7 @@ export class ComprobantesVentaService {
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
     private readonly stock: VentasStock,
+    private readonly origenes: OrigenesVenta,
   ) {}
 
   obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -94,17 +96,23 @@ export class ComprobantesVentaService {
       if (new D(calc.total).gt(disponible)) throw new BadRequestException(await this.mensajeTopeNc(tx, d.comprobanteAsociadoId!, id));
     }
     const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
-    const articulos = await tx.articulo.findMany({ where: { id: { in: d.renglones.map((r) => r.articuloId).filter((x): x is string => !!x) } } });
+    const origenes = await this.origenes.resolver(tx, { tipo: d.tipo, terceroId: d.terceroId, renglones: d.renglones });
+    const articulos = await tx.articulo.findMany({ where: { id: { in: [...d.renglones.map((r) => r.articuloId), ...origenes.map((o) => o.articuloId)].filter((x): x is string => !!x) } } });
     const ventas = await this.cuentas.cuenta(tx, 'VENTAS');
     const renglones = d.renglones.map((r, i) => {
       if (r.articuloId && !articulos.some((a) => a.id === r.articuloId)) throw new BadRequestException('Artículo inexistente');
+      const o = origenes[i];
       return {
-        empresaId: this.tenant.empresaId, orden: i, articuloId: r.articuloId ?? null, descripcion: r.descripcion, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota),
-        neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, cuentaContableId: articulos.find((a) => a.id === r.articuloId)?.cuentaVentaId ?? ventas,
+        empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota),
+        neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, cuentaContableId: articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas,
       };
     });
     const depositoId = d.depositoId ?? pv.depositoId ?? null;
-    const advertencias = await this.stock.controlar(tx, { id, tipo: d.tipo, depositoId, devuelveMercaderia: d.devuelveMercaderia, comprobanteAsociadoId: d.comprobanteAsociadoId ?? null, renglones: d.renglones.map((r) => ({ articuloId: r.articuloId ?? null, cantidad: r.cantidad })) });
+    // Los renglones de remito ya salieron del stock: no se controlan ni se mueven
+    const advertencias = await this.stock.controlar(tx, {
+      id, tipo: d.tipo, depositoId, devuelveMercaderia: d.devuelveMercaderia, comprobanteAsociadoId: d.comprobanteAsociadoId ?? null,
+      renglones: d.renglones.map((r, i) => ({ articuloId: origenes[i].remitoRenglonId ? null : origenes[i].articuloId, cantidad: r.cantidad })),
+    });
     return {
       advertencias,
       datos: {

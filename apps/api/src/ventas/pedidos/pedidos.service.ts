@@ -152,6 +152,12 @@ export class PedidosService {
     });
   }
 
+  async articulosConStock(ids: (string | null)[]): Promise<string[]> {
+    const lista = ids.filter((x): x is string => !!x);
+    if (!lista.length) return [];
+    return (await this.tenant.db.articulo.findMany({ where: { id: { in: lista }, controlaStock: true }, select: { id: true } })).map((a) => a.id);
+  }
+
   /** Estado de entrega según lo entregado (no toca pedidos cerrados, anulados ni presupuestos). */
   async recalcularEstado(tx: TxEmpresa, pedidoId: string) {
     const p = await tx.pedidoVenta.findUniqueOrThrow({ where: { id: pedidoId }, include: { renglones: true } });

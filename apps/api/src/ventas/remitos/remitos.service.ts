@@ -120,6 +120,7 @@ export class RemitosService {
     return this.tenant.transaccion(async (tx) => {
       await this.obtener(id, tx);
       await bloquear(tx, 'Remito', this.tenant.empresaId, [id]);
+      await bloquear(tx, 'RemitoRenglon', this.tenant.empresaId, (await tx.remitoRenglon.findMany({ where: { remitoId: id }, select: { id: true } })).map((x) => x.id));
       const r = await this.obtener(id, tx);
       if (r.estado === 'ANULADO') throw new ConflictException('El remito ya está anulado');
       if (r.renglones.some((x) => new D(x.cantidadFacturada).gt(0))) throw new BadRequestException('El remito tiene renglones facturados');

@@ -4,6 +4,7 @@ import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { DatosRemito, esquemaAnulacionRemito, esquemaRemito } from './dto';
 import { RemitosService } from './remitos.service';
+import { PedidosService } from '../pedidos/pedidos.service';
 
 @Controller('ventas/remitos')
 export class RemitosController {
@@ -39,5 +40,26 @@ export class RemitosController {
   @Post(':id/anular') @RequierePermiso('pedido.gestionar')
   anular(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaAnulacionRemito)) d: { motivo: string }) {
     return this.remitos.anular(id, d.motivo);
+  }
+}
+
+/** Remitos y pedidos con cantidades pendientes de facturar de un cliente (selector de la factura). */
+@Controller('ventas/pendientes-facturar')
+export class PendientesFacturarController {
+  constructor(
+    private readonly remitos: RemitosService,
+    private readonly pedidos: PedidosService,
+  ) {}
+
+  @Get() @RequierePermiso('venta.ver')
+  async pendientes(@Query('terceroId') terceroId?: string) {
+    const pedidos = await this.pedidos.listar({ terceroId, pendientes: 'facturar' });
+    const conStock = new Set((await this.pedidos.articulosConStock(pedidos.flatMap((p) => p.renglones.map((r) => r.articuloId)))));
+    return {
+      remitos: await this.remitos.pendientesFacturar(terceroId),
+      pedidos: pedidos.flatMap((p) => p.renglones
+        .filter((r) => Number(r.pendienteFacturar) > 0 && !(r.articuloId && conStock.has(r.articuloId)))
+        .map((r) => ({ pedidoRenglonId: r.id, pedidoId: p.id, numero: `Pedido ${p.numero}`, articuloId: r.articuloId, descripcion: r.descripcion, cantidad: r.cantidad.toString(), pendiente: r.pendienteFacturar, precioUnitario: r.precioUnitario.toString(), alicuota: r.alicuota }))),
+    };
   }
 }
