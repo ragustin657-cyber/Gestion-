@@ -113,8 +113,10 @@ export class ComprasStock {
         const despues = new D(ir.cantidadFacturada);
         const antes = despues.minus(cantidad);
         const cu = new D(recibido.costoUnitario);
-        const hasta = despues.gte(recibido.cantidad) ? new D(recibido.importe) : despues.times(cu).toDecimalPlaces(2);
-        const valorRecibido = hasta.minus(antes.times(cu).toDecimalPlaces(2));
+        // Valor acumulado de q unidades facturadas: hasta lo recibido, el importe exacto de la recepción; lo facturado de más, a su costo
+        const rec = new D(recibido.cantidad);
+        const acumulado = (q: Dec) => (q.gte(rec) ? new D(recibido.importe).plus(q.minus(rec).times(cu).toDecimalPlaces(2)) : q.times(cu).toDecimalPlaces(2));
+        const valorRecibido = acumulado(despues).minus(acumulado(antes));
         const d = pesos.minus(valorRecibido);
         if (d.isZero()) continue;
         const { aStock, aCosto } = await this.repartir(tx, r.articuloId!, cantidad, d);

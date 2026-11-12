@@ -155,4 +155,45 @@ describe('entrega 12: pulido de las entregas 9 a 11', () => {
     const m = await e.http.put(`/api/ventas/comprobantes/${b.body.id}`, { ...e.datos({ renglones: [{ articuloId: a.id, descripcion: 'x', cantidad: 3, precioUnitario: 100, alicuota: 21 }] }), version: b.body.version });
     expect(m.body.advertencias).toEqual([`Stock insuficiente de ${a.codigo} en Central: hay 1, se piden 3`]);
   });
+
+  it('R1. facturar de más una recepción no lleva el excedente al stock', async () => {
+    const e = await compras();
+    const oc = await ocAprobada(e.http, prisma, e.empresaId, e, 100, 10);
+    const ir = (await e.http.post('/api/compras/recepciones', { terceroId: e.proveedorId, fecha: '2026-11-05', depositoId: e.deposito.id, remitoNumero: '0001-00000888', renglones: [{ ordenCompraRenglonId: oc.renglones[0].id, cantidad: 100 }] })).body;
+    await prisma.informeRecepcionRenglon.update({ where: { id: ir.renglones[0].id }, data: { cantidad: 110 } }); // permite facturar 110 de una recepción de 100
+    expect((await e.factura([{ origen: 'RECEPCION', informeRecepcionRenglonId: ir.renglones[0].id, cantidad: 60, precioUnitario: 10 }])).status).toBe(201);
+    expect((await e.factura([{ origen: 'RECEPCION', informeRecepcionRenglonId: ir.renglones[0].id, cantidad: 50, precioUnitario: 10 }])).status).toBe(201);
+    expect(await e.estado(e.articuloId)).toMatchObject({ cantidad: '100', valor: '1000' });
+  });
+
+  it('R3. la valuación neta las anulaciones de ajustes anteriores a esta entrega', async () => {
+    const e = await compras();
+    await e.inicial(e.articuloId, 10, 10);
+    const merc = await e.cuenta('1.1.05.001');
+    const ej = await prisma.ejercicio.findFirstOrThrow({ where: { empresaId: e.empresaId } });
+    const recpam = await e.cuenta('4.2.03');
+    for (const [numero, tipo, signo] of [[9001, 'AJUSTE_INFLACION', 1], [9002, 'AUTOMATICO', -1]] as const)
+      await prisma.asiento.create({ data: {
+        empresaId: e.empresaId, numero, fecha: new Date('2026-11-04T00:00:00Z'), descripcion: 'Ajuste', origenTipo: 'AJUSTE_INFLACION', origenId: 'x', creadoPor: 't', tipo, ejercicioId: ej.id,
+        renglones: { create: signo > 0
+          ? [{ empresaId: e.empresaId, cuentaContableId: merc, debe: 30 }, { empresaId: e.empresaId, cuentaContableId: recpam, haber: 30 }]
+          : [{ empresaId: e.empresaId, cuentaContableId: merc, haber: 30 }, { empresaId: e.empresaId, cuentaContableId: recpam, debe: 30 }] },
+      } });
+    expect((await e.http.get('/api/stock/valuacion?fecha=2026-11-30')).body).toMatchObject({ control: '0.00', ajusteInflacion: '0.00' });
+  });
+
+  it('R4. la valuación del ejercicio siguiente descuenta el ajuste arrastrado en la apertura', async () => {
+    const e = await compras();
+    await e.inicial(e.articuloId, 10, 10);
+    const merc = await e.cuenta('1.1.05.001');
+    const ej1 = await prisma.ejercicio.findFirstOrThrow({ where: { empresaId: e.empresaId, numero: 1 } });
+    const ej2 = (await e.http.post('/api/contabilidad/ejercicios/siguiente', {})).body;
+    const crear = (numero: number, fecha: string, ejercicioId: string, tipo: 'AJUSTE_INFLACION' | 'APERTURA', origenTipo: string, importe: number, contra: string) => prisma.asiento.create({ data: {
+      empresaId: e.empresaId, numero, fecha: new Date(`${fecha}T00:00:00Z`), descripcion: 'x', origenTipo, origenId: 'x', creadoPor: 't', tipo, ejercicioId,
+      renglones: { create: [{ empresaId: e.empresaId, cuentaContableId: merc, debe: importe }, { empresaId: e.empresaId, cuentaContableId: contra, haber: importe }] },
+    } });
+    await crear(9001, '2026-12-31', ej1.id, 'AJUSTE_INFLACION', 'AJUSTE_INFLACION', 30, await e.cuenta('4.2.03'));
+    await crear(9002, '2027-01-01', ej2.id, 'APERTURA', 'APERTURA', 130, await e.cuenta('3.2.01'));
+    expect((await e.http.get('/api/stock/valuacion?fecha=2027-01-15')).body).toMatchObject({ total: '100.00', mayor: '100.00', control: '0.00', ajusteInflacion: '30.00' });
+  });
 });

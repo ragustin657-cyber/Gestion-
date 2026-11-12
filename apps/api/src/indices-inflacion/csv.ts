@@ -32,7 +32,7 @@ export function parsearCsvIndices(texto: string): FilaIndice[] {
       if (esPrimera && !/^\s*\d/.test(p ?? '')) return; // encabezado (no empieza con un número)
       throw falla('período inválido');
     }
-    const val = resto.some((x) => x) ? null : numeroAR(v ?? '');
+    const val = resto.some((x) => x) ? null : numeroAR(v ?? '', campos.sep === ',');
     if (!val) throw falla('valor inválido');
     const clave = `${per.anio}-${per.mes}`;
     if (vistos.has(clave)) throw falla('período repetido');

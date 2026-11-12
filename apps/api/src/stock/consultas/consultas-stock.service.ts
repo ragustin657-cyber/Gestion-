@@ -96,11 +96,12 @@ export class ConsultasStockService {
     try {
       const ej = await ejercicioDe(db, fecha);
       const merc = await this.conceptos.cuenta(db, 'MERCADERIAS');
-      // El ajuste por inflación reexpresa Mercaderías en el Mayor pero no en el kardex: se muestra aparte
-      const s = (await saldosPorCuenta(db, { ejercicioId: ej.id, hasta: fecha, excluirTipos: ['CIERRE', 'AJUSTE_INFLACION'] })).get(merc);
-      mayor = s ? s.debe.minus(s.haber) : cero;
-      const aj = await db.asientoRenglon.aggregate({ where: { cuentaContableId: merc, asiento: { ejercicioId: ej.id, fecha: { lte: fecha }, origenTipo: 'AJUSTE_INFLACION' } }, _sum: { debe: true, haber: true } });
+      // El ajuste por inflación reexpresa Mercaderías en el Mayor pero no en el kardex: se muestra aparte.
+      // Se toma todo lo acumulado (también lo de ejercicios anteriores, que llega con la apertura) y sus anulaciones.
+      const s = (await saldosPorCuenta(db, { ejercicioId: ej.id, hasta: fecha, excluirTipos: ['CIERRE'] })).get(merc);
+      const aj = await db.asientoRenglon.aggregate({ where: { cuentaContableId: merc, asiento: { fecha: { lte: fecha }, origenTipo: 'AJUSTE_INFLACION' } }, _sum: { debe: true, haber: true } });
       ajusteInflacion = new D(aj._sum.debe ?? 0).minus(aj._sum.haber ?? 0);
+      mayor = (s ? s.debe.minus(s.haber) : cero).minus(ajusteInflacion);
     } catch (e) {
       if (!(e instanceof BadRequestException)) throw e;
     }

@@ -27,3 +27,9 @@ describe('parsearCsvIndices (formatos de planilla)', () => {
     ]);
   });
 });
+
+describe('parsearCsvIndices (coma como separador)', () => {
+  it('con coma como separador, el punto es decimal', () => {
+    expect(parsearCsvIndices('2025-01,123.456')).toEqual([{ anio: 2025, mes: 1, valor: '123.456' }]);
+  });
+});

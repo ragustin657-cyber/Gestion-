@@ -24,4 +24,14 @@ describe('leerPrecios', () => {
     const r = await leerPrecios(Buffer.from(await wb.xlsx.writeBuffer()), 'p.xlsx');
     expect(r).toEqual([{ codigo: '1001', precio: '2000', linea: 2 }]);
   });
+
+  it('xlsx: un resultado numérico con decimales no se toma como miles', async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('P');
+    ws.addRow(['A', { formula: '12.345*1', result: 12.345 }]);
+    ws.addRow(['B', 1234.5]);
+    const r = await leerPrecios(Buffer.from(await wb.xlsx.writeBuffer()), 'p.xlsx');
+    expect(r.map((x) => x.precio)).toEqual(['12.345', '1234.5']);
+  });
 });
