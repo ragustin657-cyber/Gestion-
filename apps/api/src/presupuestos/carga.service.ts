@@ -13,6 +13,8 @@ const RESULTADOS = ['RESULTADO_POSITIVO', 'RESULTADO_NEGATIVO'];
 /** Texto de una celda de Excel (resultado de fórmulas incluido). */
 function celda(v: unknown): string {
   if (v === null || v === undefined) return '';
+  // Un encabezado 01/2026 escrito en Excel se guarda como fecha: se lee como AAAA-MM
+  if (v instanceof Date) return `${v.getUTCFullYear()}-${String(v.getUTCMonth() + 1).padStart(2, '0')}`;
   if (typeof v === 'object' && v && 'result' in v) return celda((v as { result: unknown }).result);
   if (typeof v === 'object' && v && 'richText' in v) return (v as { richText: { text: string }[] }).richText.map((t) => t.text).join('');
   return String(v);
@@ -101,6 +103,7 @@ export class CargaPresupuestoService {
         if (!m) return null;
         return c.includes('/') ? `${m[2]}-${m[1]}` : `${m[1]}-${m[2]}`;
       });
+      if (!columnas.some((c) => c)) throw new BadRequestException('No se encontraron columnas de meses (MM/AAAA)');
       const cuentas = new Map((await tx.cuentaContable.findMany()).map((c) => [c.codigo, c]));
       const centros = new Map((await tx.centroCosto.findMany({ where: { activo: true } })).map((c) => [c.codigo, c]));
       const errores: { linea: number; mensaje: string }[] = [];

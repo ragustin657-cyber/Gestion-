@@ -27,7 +27,22 @@ describe('presupuestos (web)', () => {
     const celda = screen.getByLabelText('4.1.01 10/2026');
     fireEvent.change(celda, { target: { value: '5000' } });
     fireEvent.blur(celda);
-    expect(cambios).toEqual([['4.1.01', { '2026-10': 5000, '2026-11': 1000000 }]]);
+    expect(cambios).toEqual([['4.1.01', { '2026-10': 5000 }]]);
+  });
+
+  it('celdas con decimales: no cambia al salir sin tocar y entiende coma y punto decimal', () => {
+    const cambios: unknown[] = [];
+    const g = { ...grilla, lineas: [{ ...grilla.lineas[0], importes: { '2026-10': '8333.33', '2026-11': '1000000.00' } }] };
+    envolver(<GrillaPresupuesto grilla={g} editable onCambiar={(l, imp) => cambios.push(imp)} />);
+    const celda = screen.getByLabelText('4.1.01 10/2026');
+    fireEvent.focus(celda);
+    fireEvent.blur(celda);
+    expect(cambios).toEqual([]);
+    fireEvent.change(celda, { target: { value: '1.500,50' } });
+    fireEvent.blur(celda);
+    fireEvent.change(celda, { target: { value: '1500.75' } });
+    fireEvent.blur(celda);
+    expect(cambios).toEqual([{ '2026-10': 1500.5 }, { '2026-10': 1500.75 }]);
   });
 
   it('tabla de comparación', () => {

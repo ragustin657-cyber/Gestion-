@@ -11,13 +11,27 @@ import { useCentrosCosto, useEjercicios } from '../contabilidad/comun';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { Grilla, LineaGrilla, mmaaaa, PresupuestoLista } from './comun';
 
-/** Celda editable: guarda al salir si cambió. */
+const mostrar = (v: string) => (Number(v) ? Number(v).toLocaleString('es-AR', { maximumFractionDigits: 2 }) : '');
+/** '1.500,50' o '1500,50' (formato argentino) y '1500.50' (punto decimal) → 1500.5; vacío → 0; inválido → NaN. */
+export function numeroCelda(t: string): number {
+  const s = t.trim().replace(/\s/g, '');
+  if (!s) return 0;
+  if (s.includes(',')) return Number(s.replace(/\./g, '').replace(',', '.'));
+  if (/^\d+\.\d{1,2}$/.test(s)) return Number(s);
+  return Number(s.replace(/\./g, ''));
+}
+
+/** Celda editable: guarda al salir solo si el valor cambió. */
 function Celda({ linea, mes, valor, onGuardar }: { linea: LineaGrilla; mes: string; valor: string; onGuardar: (v: number) => void }) {
-  const [texto, setTexto] = useState(Number(valor) ? String(Number(valor)) : '');
-  useEffect(() => setTexto(Number(valor) ? String(Number(valor)) : ''), [valor]);
+  const [texto, setTexto] = useState(mostrar(valor));
+  useEffect(() => setTexto(mostrar(valor)), [valor]);
   return <TextInput size="xs" w={100} styles={{ input: { textAlign: 'right' } }} aria-label={`${linea.codigo} ${mmaaaa(mes)}`} value={texto} inputMode="decimal"
     onChange={(e) => setTexto(e.currentTarget.value)}
-    onBlur={() => { const n = Number(texto.replace(/\./g, '').replace(',', '.') || 0); if (!Number.isNaN(n) && n !== Number(valor)) onGuardar(n); }} />;
+    onBlur={() => {
+      const n = numeroCelda(texto);
+      if (Number.isNaN(n) || n < 0) { setTexto(mostrar(valor)); return; }
+      if (Math.round(n * 100) !== Math.round(Number(valor) * 100)) onGuardar(Math.round(n * 100) / 100);
+    }} />;
 }
 
 export function GrillaPresupuesto({ grilla, editable, onCambiar }: { grilla: Grilla; editable: boolean; onCambiar: (l: LineaGrilla, importes: Record<string, number>) => void }) {
@@ -30,7 +44,7 @@ export function GrillaPresupuesto({ grilla, editable, onCambiar }: { grilla: Gri
             <Table.Tr key={`${l.cuentaContableId}|${l.centroCostoId ?? ''}`}>
               <Table.Td><Text size="sm">{l.codigo} {l.nombre}</Text>{l.centroCosto && <Text size="xs" c="dimmed">{l.centroCosto}</Text>}</Table.Td>
               {grilla.meses.map((m) => <Table.Td key={m} ta="right">{editable
-                ? <Celda linea={l} mes={m} valor={l.importes[m]} onGuardar={(v) => onCambiar(l, Object.fromEntries(grilla.meses.map((x) => [x, x === m ? v : Number(l.importes[x])])))} />
+                ? <Celda linea={l} mes={m} valor={l.importes[m]} onGuardar={(v) => onCambiar(l, { [m]: v })} />
                 : formatoMoneda(l.importes[m])}</Table.Td>)}
               <Table.Td ta="right" fw={600}>{formatoMoneda(l.total)}</Table.Td>
             </Table.Tr>
@@ -113,7 +127,8 @@ export function EditorPresupuestoPage() {
   const actualizar = (g: Grilla) => { qc.setQueryData(['/presupuestos/grilla', id], g); void qc.invalidateQueries({ queryKey: ['/presupuestos'] }); };
   const editable = puede('presupuesto.editar');
   const guardarLinea = async (l: { cuentaContableId: string; centroCostoId: string | null }, importes: Record<string, number>) => {
-    const r = await op.ejecutar(() => api<Grilla>(`/presupuestos/${id}/lineas`, { metodo: 'PUT', body: { ...l, importes } }), () => 'Guardado');
+    // Solo el mes editado (parcial): un segundo guardado rápido no pisa al primero
+    const r = await op.ejecutar(() => api<Grilla>(`/presupuestos/${id}/lineas`, { metodo: 'PUT', body: { cuentaContableId: l.cuentaContableId, centroCostoId: l.centroCostoId, importes, parcial: true } }), () => 'Guardado');
     if (r) actualizar(r);
   };
   const enviar = async () => {

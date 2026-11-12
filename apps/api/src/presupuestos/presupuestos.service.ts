@@ -34,6 +34,8 @@ export class PresupuestosService {
   }
 
   async presupuesto(tx: TxEmpresa, id: string, paraModificar = false) {
+    // Las modificaciones del mismo presupuesto se hacen de a una (dos guardados simultáneos de una línea no chocan)
+    if (paraModificar) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`presupuesto:${id}`}))`;
     const p = await tx.presupuesto.findUnique({ where: { id } });
     if (!p) throw new NotFoundException('Presupuesto inexistente');
     const ejercicio = await tx.ejercicio.findUniqueOrThrow({ where: { id: p.ejercicioId } });
@@ -173,7 +175,13 @@ export class PresupuestosService {
     return this.tenant.transaccion(async (tx) => {
       const { ejercicio } = await this.presupuesto(tx, id, true);
       await this.validarLinea(tx, ejercicio, { cuentaContableId: d.cuentaContableId, centroCostoId: d.centroCostoId, meses: Object.keys(d.importes) });
-      await this.reemplazarLinea(tx, id, d.cuentaContableId, d.centroCostoId ?? null, d.importes);
+      if (d.parcial) {
+        for (const [m, v] of Object.entries(d.importes)) {
+          const clave = { presupuestoId: id, cuentaContableId: d.cuentaContableId, centroCostoId: d.centroCostoId ?? null, anio: Number(m.slice(0, 4)), mes: Number(m.slice(5, 7)) };
+          await tx.presupuestoImporte.deleteMany({ where: clave });
+          if (v) await tx.presupuestoImporte.create({ data: { ...clave, empresaId: this.tenant.empresaId, importe: new D(v) } });
+        }
+      } else await this.reemplazarLinea(tx, id, d.cuentaContableId, d.centroCostoId ?? null, d.importes);
       await tx.presupuesto.update({ where: { id }, data: { actualizadoEn: new Date() } });
       return this.grilla(id, tx);
     });

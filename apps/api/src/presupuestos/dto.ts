@@ -13,6 +13,8 @@ export const esquemaLinea = z.object({
   cuentaContableId: uuid,
   centroCostoId: uuid.nullish(),
   importes: z.record(mes, z.number().min(0, 'No puede ser negativo')),
+  /** true: solo cambian los meses enviados (0 borra ese mes); false: se reemplaza la línea entera. */
+  parcial: z.boolean().optional(),
 });
 export type DatosPresupuesto = z.infer<typeof esquemaPresupuesto>;
 export type DatosLinea = z.infer<typeof esquemaLinea>;
