@@ -1,7 +1,9 @@
 import { ActionIcon, Button, Group, ScrollArea, Select, Stack, Table, Text, TextInput } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { ALICUOTAS_IVA, calcularTotales, EntradaTotales, importeRenglon } from '@gestion/shared';
+import { Fragment } from 'react';
 import { Opcion } from '../abm/tipos';
+import { BienRenglon, CamposBien, Rubro } from '../bienes-uso/comun';
 import { formatoMoneda } from './formato';
 
 export interface RenglonEditable {
@@ -16,6 +18,8 @@ export interface RenglonEditable {
   soloLectura?: ('cantidad' | 'precioUnitario' | 'articuloId')[];
   origen?: unknown;
   etiqueta?: string;
+  /** Datos del bien de uso cuando la cuenta es la de un rubro. */
+  bien?: BienRenglon;
 }
 
 export interface ArticuloGrilla { id: string; codigo: string; descripcion: string; alicuotaIva: string | number }
@@ -53,11 +57,14 @@ export interface PropsGrilla {
   moneda?: string;
   permitirAgregar?: boolean;
   extrasTotales?: ExtrasTotales;
+  /** Rubros de bienes de uso: un renglón a su cuenta pide los datos del bien. */
+  rubros?: Rubro[];
 }
 
 export function GrillaRenglones({
-  renglones, onChange, discriminaIva, articulos, centrosCosto, cuentas = [], mostrarCuenta, moneda = 'ARS', permitirAgregar = true, extrasTotales,
+  renglones, onChange, discriminaIva, articulos, centrosCosto, cuentas = [], mostrarCuenta, moneda = 'ARS', permitirAgregar = true, extrasTotales, rubros = [],
 }: PropsGrilla) {
+  const rubroDe = (r: RenglonEditable) => (mostrarCuenta && r.cuentaContableId ? rubros.find((x) => x.cuentaOrigenId === r.cuentaContableId) : undefined);
   const cambiar = (i: number, cambios: Partial<RenglonEditable>) => onChange(renglones.map((r, j) => (j === i ? { ...r, ...cambios } : r)));
   const opcionesArticulo = articulos.map((a) => ({ value: a.id, label: `${a.codigo} - ${a.descripcion}` }));
   const opcionesCentro = centrosCosto.map((c) => ({ value: c.id, label: `${c.codigo} - ${c.nombre}` }));
@@ -85,8 +92,10 @@ export function GrillaRenglones({
           <Table.Tbody>
             {renglones.map((r, i) => {
               const imp = importeSeguro(r);
+              const rubro = rubroDe(r);
               return (
-                <Table.Tr key={i}>
+                <Fragment key={i}>
+                <Table.Tr>
                   <Table.Td>
                     {r.etiqueta && <Text size="xs" c="dimmed">{r.etiqueta}</Text>}
                     <Select
@@ -111,6 +120,14 @@ export function GrillaRenglones({
                     <ActionIcon variant="subtle" color="red" aria-label="Quitar renglón" onClick={() => onChange(renglones.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon>
                   </Table.Td>
                 </Table.Tr>
+                {rubro && (
+                  <Table.Tr>
+                    <Table.Td colSpan={mostrarCuenta ? 10 : 9}>
+                      <CamposBien rubro={rubro} valor={r.bien ?? { descripcion: r.descripcion, vidaUtilMeses: '', valorResidual: '' }} onChange={(bien) => cambiar(i, { bien })} />
+                    </Table.Td>
+                  </Table.Tr>
+                )}
+                </Fragment>
               );
             })}
           </Table.Tbody>

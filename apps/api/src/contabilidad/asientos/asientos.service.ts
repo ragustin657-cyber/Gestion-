@@ -17,6 +17,8 @@ export interface RenglonAsiento {
   debe?: string;
   haber?: string;
   detalle?: string;
+  /** Fecha de origen para el ajuste por inflación (alta del bien de uso, por ejemplo). */
+  fechaOrigen?: Date | null;
 }
 
 export interface DatosAsiento {
@@ -47,10 +49,10 @@ export class AsientosService {
   /** `permitirInactivas`: los asientos de cierre, refundición y apertura llevan los saldos aunque la cuenta esté inactiva. */
   async validarRenglones(tx: TxEmpresa, renglonesEntrada: RenglonAsiento[], permitirInactivas = false) {
     // Agrupar por cuenta + centro de costo, neteando debe y haber
-    const grupos = new Map<string, { cuentaContableId: string; centroCostoId: string | null; neto: Dec; detalle?: string }>();
+    const grupos = new Map<string, { cuentaContableId: string; centroCostoId: string | null; neto: Dec; detalle?: string; fechaOrigen: Date | null }>();
     for (const r of renglonesEntrada) {
-      const k = `${r.cuentaContableId}|${r.centroCostoId ?? ''}`;
-      const g = grupos.get(k) ?? { cuentaContableId: r.cuentaContableId, centroCostoId: r.centroCostoId ?? null, neto: new D(0), detalle: r.detalle };
+      const k = `${r.cuentaContableId}|${r.centroCostoId ?? ''}|${r.fechaOrigen ? r.fechaOrigen.toISOString().slice(0, 10) : ''}`;
+      const g = grupos.get(k) ?? { cuentaContableId: r.cuentaContableId, centroCostoId: r.centroCostoId ?? null, neto: new D(0), detalle: r.detalle, fechaOrigen: r.fechaOrigen ?? null };
       g.neto = g.neto.plus(new D(r.debe ?? 0)).minus(new D(r.haber ?? 0));
       grupos.set(k, g);
     }
@@ -62,6 +64,7 @@ export class AsientosService {
         debe: g.neto.gt(0) ? g.neto.toDecimalPlaces(2) : new D(0),
         haber: g.neto.lt(0) ? g.neto.neg().toDecimalPlaces(2) : new D(0),
         detalle: g.detalle ?? null,
+        fechaOrigen: g.fechaOrigen,
       }));
     if (!renglones.length) throw new BadRequestException('El asiento no tiene importes');
 
@@ -100,7 +103,8 @@ export class AsientosService {
   }
 
   /** Asiento inverso del indicado (debe ↔ haber), vinculado por anulaAId. */
-  async contraasiento(tx: TxEmpresa, asientoId: string, fecha: Date, descripcion: string): Promise<{ id: string; numero: number }> {
+  /** `fechaOrigen`: para los renglones que no la tienen (anulaciones que el ajuste por inflación debe reexpresar desde el origen). */
+  async contraasiento(tx: TxEmpresa, asientoId: string, fecha: Date, descripcion: string, fechaOrigen?: Date): Promise<{ id: string; numero: number }> {
     const orig = await tx.asiento.findUnique({ where: { id: asientoId }, include: { renglones: true } });
     if (!orig) throw new BadRequestException('Asiento original inexistente');
     if (await tx.asiento.count({ where: { anulaAId: orig.id } })) throw new BadRequestException('El asiento ya fue anulado');
@@ -110,7 +114,7 @@ export class AsientosService {
         fecha, descripcion, origenTipo: orig.origenTipo, origenId: orig.origenId, tipo: orig.tipo === 'MANUAL' || orig.tipo === 'AJUSTE_INFLACION' ? orig.tipo : 'AUTOMATICO',
         renglones: orig.renglones.map((r) => ({
           cuentaContableId: r.cuentaContableId, centroCostoId: r.centroCostoId,
-          debe: r.haber.toString(), haber: r.debe.toString(), detalle: r.detalle ?? undefined,
+          debe: r.haber.toString(), haber: r.debe.toString(), detalle: r.detalle ?? undefined, fechaOrigen: r.fechaOrigen ?? fechaOrigen ?? null,
         })),
       },
       orig.id,

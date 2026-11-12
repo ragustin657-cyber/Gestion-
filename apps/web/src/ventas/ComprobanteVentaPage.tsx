@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { letraVenta, type LetraVenta } from '@gestion/shared';
 import { api, ErrorApi } from '../api/cliente';
+import { useAuth } from '../auth/AuthContext';
 import { formatoMoneda, hoy } from '../compras/formato';
 import { accionesComprobante, NOMBRE_TIPO, numero, numeroVenta, TIPOS_VENTA, useClientes, useEmpresa, useOperacionVentas, usePuntosVenta, type ComprobanteVenta, type TipoVenta } from './comun';
 import { EstadoEmision } from './EstadoEmision';
@@ -23,11 +24,12 @@ export function depositoParaEditar(depositoId: string | null | undefined, deposi
 }
 
 /** Renglón editable a partir de un comprobante guardado, conservando su origen (remito o pedido). */
-export function renglonDesdeComprobante(r: { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null }): RenglonVentaEditable {
+export function renglonDesdeComprobante(r: { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; bienUsoId?: string | null }): RenglonVentaEditable {
   const origen = r.remitoRenglonId ? 'REMITO' : r.pedidoRenglonId ? 'PEDIDO' : 'DIRECTO';
   return {
     articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota,
-    origen, remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null,
+    origen, remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, bienUsoId: r.bienUsoId ?? null,
+    ...(r.bienUsoId ? { etiqueta: 'Bien de uso' } : {}),
     ...(origen === 'DIRECTO' ? {} : { etiqueta: origen === 'REMITO' ? 'Desde remito' : 'Desde pedido' }),
   };
 }
@@ -87,6 +89,8 @@ export function ComprobanteVentaPage() {
     setSeleccionPend({});
     setSelectorPendientes(false);
   }
+  const { puede } = useAuth();
+  const bienesActivos = useQuery({ queryKey: ['/bienes-uso', 'activos'], queryFn: () => api<{ id: string; numero: number; descripcion: string }[]>('/bienes-uso', { query: { estado: 'ACTIVO' } }), enabled: puede('bienes.ver') }).data ?? [];
   const depositos = (useQuery({ queryKey: ['/depositos', 'ventas'], queryFn: () => api<{ id: string; nombre: string }[]>('/depositos') }).data ?? []).map((d) => ({ value: d.id, label: d.nombre }));
   const [renglones, setRenglones] = useState<RenglonVentaEditable[]>([renglonVacio()]);
   const [actual, setActual] = useState<ComprobanteVenta | null>(null);
@@ -126,7 +130,7 @@ export function ComprobanteVentaPage() {
     monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null,
     comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado,
     depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
-    renglones: renglones.map((r) => ({ origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, articuloId: r.articuloId, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
+    renglones: renglones.map((r) => ({ origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, articuloId: r.articuloId, bienUsoId: r.bienUsoId ?? null, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
   });
 
   async function recargar(id: string) {
@@ -205,7 +209,11 @@ export function ComprobanteVentaPage() {
         )}
 
         <Title order={5} mt="lg" mb="xs">Renglones</Title>
-        {editable && tipo === 'FACTURA' && terceroId && <Group><Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button></Group>}
+        {editable && tipo === 'FACTURA' && terceroId && <Group>
+          <Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button>
+          {puede('bienes.ver') && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
+            onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
+        </Group>}
         <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
         <Modal opened={selectorPendientes} onClose={() => setSelectorPendientes(false)} title="Remitos y pedidos pendientes de facturar" size="xl">

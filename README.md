@@ -221,6 +221,15 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Cómo se calcula:** ventas = neto sin IVA de los comprobantes autorizados en pesos (NC restan); costo = movimientos de stock de la venta o del remito facturado; margen y porcentaje solo sobre lo que tiene costo (la *cobertura* indica qué parte de las ventas lo tiene). Coincide con el Mayor de Ventas y Costo de mercaderías vendidas.
 - **En moneda de hoy:** reexpresa cada mes con los índices de inflación cargados; si falta alguno, muestra importes nominales y avisa qué meses faltan.
 
+## Bienes de uso (Entrega 14)
+
+- **Rubros** (Maestros → *Rubros de bienes de uso*): cuenta de valor de origen, de amortización acumulada y de gasto, y vida útil. Vienen Muebles y útiles (10 años), Rodados (5) y Equipos de computación (3).
+- **Altas:** al registrar una factura de proveedor con un renglón a la cuenta de un rubro, se cargan descripción, vida útil y residual del bien; el bien queda con el valor en pesos de ese renglón. También alta manual (con asiento contra la cuenta que se elija) y carga inicial de bienes que ya estaban en la apertura (con su amortización acumulada).
+- **Amortización del mes** (Registraciones → Contabilidad General): lineal por meses, desde el mes de alta y sin amortizar el mes de baja. Vista previa, Generar y Anular la última. Un bien cargado tarde recupera los meses que le faltaban en la siguiente generación. El cierre del ejercicio exige la amortización del mes de cierre.
+- **Bajas y ventas:** baja por desuso, siniestro o robo (el residual va a *Bajas de bienes de uso*); venta desde el comprobante de venta con *Agregar bien de uso* (el neto y el residual van a *Resultado por venta de bienes de uso*, fuera de los informes de ventas).
+- **Inflación:** los asientos de amortización y de baja llevan la fecha de alta del bien, y el ajuste por inflación los reexpresa desde ese mes.
+- **Planilla de bienes de uso** (Consultas → Contabilidad General): por rubro, valores de origen y amortizaciones al inicio, altas, bajas, del ejercicio y al cierre, con el control contra el Mayor; en moneda de cierre opcional; Excel y PDF.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

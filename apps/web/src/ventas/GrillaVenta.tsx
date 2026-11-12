@@ -9,6 +9,8 @@ export interface RenglonVentaEditable {
   articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string;
   /** Renglones que vienen de un remito o de un pedido (factura). */
   origen?: 'DIRECTO' | 'REMITO' | 'PEDIDO'; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; etiqueta?: string;
+  /** Venta de un bien de uso (sin artículo, cantidad 1). */
+  bienUsoId?: string | null;
 }
 export interface ArticuloVenta { value: string; label: string; descripcion: string; alicuotaIva: string }
 

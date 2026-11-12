@@ -9,6 +9,7 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { AsientosService, RenglonAsiento } from '../asientos/asientos.service';
 import { D, Dec, saldosPorCuenta } from '../consultas/saldos';
 import { PeriodosService } from '../periodos/periodos.service';
+import { faltanteCierreAmortizacion } from '../../bienes-uso/amortizacion.service';
 import { AjusteInflacionService } from '../ajuste-inflacion/ajuste-inflacion.service';
 import { ConfigAjusteService } from '../ajuste-inflacion/config.service';
 
@@ -49,6 +50,8 @@ export class CierreEjercicioService {
     const sig = await tx.ejercicio.findFirst({ where: { numero: e.numero + 1 }, include: { periodos: { orderBy: [{ anio: 'asc' }, { mes: 'asc' }] } } });
     if (!sig) r.push('Abra el ejercicio siguiente');
     else if (sig.periodos[0]?.estado !== 'ABIERTO') r.push('El primer período del ejercicio siguiente debe estar abierto');
+    const amort = await faltanteCierreAmortizacion(tx, e);
+    if (amort) r.push(amort);
     r.push(...(await this.faltantesAjuste(tx, e)));
     return r;
   }

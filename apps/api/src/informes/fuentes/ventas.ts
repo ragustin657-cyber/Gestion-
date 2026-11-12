@@ -23,7 +23,7 @@ export async function porLotes<T>(ids: string[], f: (lote: string[]) => Promise<
 export async function renglonesVendidos(tx: TxEmpresa, desde: Date, hasta: Date): Promise<RenglonVendido[]> {
   const comps = await tx.comprobanteVenta.findMany({
     where: { estado: 'AUTORIZADO', fecha: { gte: desde, lte: hasta } },
-    select: { id: true, tipo: true, fecha: true, cotizacion: true, terceroId: true, tercero: { select: { razonSocial: true } }, renglones: { select: { id: true, articuloId: true, descripcion: true, cantidad: true, neto: true, remitoRenglonId: true } } },
+    select: { id: true, tipo: true, fecha: true, cotizacion: true, terceroId: true, tercero: { select: { razonSocial: true } }, renglones: { where: { bienUsoId: null }, select: { id: true, articuloId: true, descripcion: true, cantidad: true, neto: true, remitoRenglonId: true } } },
   });
   const renglones = comps.flatMap((c) => c.renglones);
   // Costo de facturas directas y devoluciones: movimientos de stock del renglón

@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useCuentasImputables } from '../abm/opciones';
 import { useMaestrosCompras } from './datos';
 import { formatoMoneda, hoy, numeroInterno } from './formato';
+import { bienParaApi, useRubros } from '../bienes-uso/comun';
 import { GrillaRenglones, RenglonEditable, renglonVacio, totalesGrilla } from './GrillaRenglones';
 import { GuardarComprobante } from './GuardarComprobante';
 import { Seleccion, SelectorPendientes } from './SelectorPendientes';
@@ -42,6 +43,7 @@ export function FacturaProveedorPage() {
   const [cab, setCab] = useState(inicial());
   const [iibb, setIibb] = useState<{ jurisdiccion: string; importe: string }[]>([]);
   const [renglones, setRenglones] = useState<RenglonEditable[]>([]);
+  const rubros = useRubros().data ?? [];
   const [selector, setSelector] = useState<'RECEPCION' | 'ORDEN_COMPRA' | null>(null);
   const [pendientes, setPendientes] = useState<(PendienteIR | PendienteOC)[]>([]);
   const [seleccion, setSeleccion] = useState<Seleccion>({});
@@ -99,6 +101,7 @@ export function FacturaProveedorPage() {
       articuloId: r.articuloId || null, descripcion: r.descripcion, cantidad: Number(r.cantidad), precioUnitario: Number(r.precioUnitario),
       bonificacionPct: n(r.bonificacionPct), alicuotaIva: Number(r.alicuotaIva), centroCostoId: r.centroCostoId || null,
       cuentaContableId: r.origen ? null : r.cuentaContableId || null,
+      ...(!r.origen && r.cuentaContableId && rubros.some((x) => x.cuentaOrigenId === r.cuentaContableId) ? { bien: bienParaApi(r.bien ?? { descripcion: r.descripcion, vidaUtilMeses: '', valorResidual: '' }) } : {}),
     })),
   });
 
@@ -135,7 +138,7 @@ export function FacturaProveedorPage() {
         </Group>
         {errorSelector && <Alert color="red">{errorSelector}</Alert>}
         {renglones.length > 0 && (
-          <GrillaRenglones renglones={renglones} onChange={setRenglones} discriminaIva={discrimina} articulos={m.articulos} centrosCosto={m.centros}
+          <GrillaRenglones rubros={rubros} renglones={renglones} onChange={setRenglones} discriminaIva={discrimina} articulos={m.articulos} centrosCosto={m.centros}
             cuentas={cuentas} mostrarCuenta moneda={cab.monedaCodigo} permitirAgregar={false} extrasTotales={extras} />
         )}
 

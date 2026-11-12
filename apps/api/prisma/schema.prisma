@@ -361,6 +361,8 @@ model AsientoRenglon {
   debe             Decimal @default(0) @db.Decimal(18, 2)
   haber            Decimal @default(0) @db.Decimal(18, 2)
   detalle          String?
+  /// Fecha de origen para el ajuste por inflación (p. ej. alta del bien de uso); si falta, la del asiento
+  fechaOrigen      DateTime? @db.Date
   asiento          Asiento @relation(fields: [asientoId], references: [id])
 
   @@index([empresaId, cuentaContableId])
@@ -1477,6 +1479,7 @@ model ComprobanteVentaRenglon {
   cuentaContableId String           @db.Uuid
   remitoRenglonId  String?          @db.Uuid
   pedidoRenglonId  String?          @db.Uuid
+  bienUsoId        String?          @db.Uuid
   comprobante      ComprobanteVenta @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
 }
 
@@ -1867,4 +1870,96 @@ model RemitoRenglon {
   cantidad          Decimal @db.Decimal(18, 4)
   cantidadFacturada Decimal @default(0) @db.Decimal(18, 4)
   remito            Remito  @relation(fields: [remitoId], references: [id], onDelete: Cascade)
+}
+
+enum OrigenBienUso {
+  FACTURA
+  MANUAL
+  INICIAL
+}
+
+enum EstadoBienUso {
+  ACTIVO
+  BAJA
+}
+
+enum MotivoBajaBienUso {
+  DESUSO
+  SINIESTRO
+  ROBO
+  VENTA
+}
+
+enum EstadoProcesoAmortizacion {
+  VIGENTE
+  ANULADO
+}
+
+model RubroBienUso {
+  id                   String  @id @default(uuid()) @db.Uuid
+  empresaId            String  @db.Uuid
+  nombre               String
+  cuentaOrigenId       String  @db.Uuid
+  cuentaAmortizacionId String  @db.Uuid
+  cuentaGastoId        String  @db.Uuid
+  vidaUtilMeses        Int
+  activo               Boolean @default(true)
+  bienes               BienUso[]
+
+  @@unique([empresaId, nombre])
+}
+
+model BienUso {
+  id                         String             @id @default(uuid()) @db.Uuid
+  empresaId                  String             @db.Uuid
+  numero                     Int
+  descripcion                String
+  rubroId                    String             @db.Uuid
+  rubro                      RubroBienUso       @relation(fields: [rubroId], references: [id])
+  fechaAlta                  DateTime           @db.Date
+  valorOrigen                Decimal            @db.Decimal(18, 2)
+  vidaUtilMeses              Int
+  valorResidual              Decimal            @default(0) @db.Decimal(18, 2)
+  origen                     OrigenBienUso
+  comprobanteCompraRenglonId String?            @db.Uuid
+  asientoAltaId              String?            @db.Uuid
+  amortizacionInicial        Decimal            @default(0) @db.Decimal(18, 2)
+  fechaAmortizacionInicial   DateTime?          @db.Date
+  estado                     EstadoBienUso      @default(ACTIVO)
+  fechaBaja                  DateTime?          @db.Date
+  motivoBaja                 MotivoBajaBienUso?
+  comprobanteVentaRenglonId  String?            @db.Uuid
+  asientoBajaId              String?            @db.Uuid
+  creadoPor                  String
+  creadoEn                   DateTime           @default(now())
+  amortizaciones             AmortizacionBien[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, comprobanteCompraRenglonId])
+}
+
+model ProcesoAmortizacion {
+  id        String                    @id @default(uuid()) @db.Uuid
+  empresaId String                    @db.Uuid
+  mes       String
+  asientoId String                    @db.Uuid
+  estado    EstadoProcesoAmortizacion @default(VIGENTE)
+  creadoPor String
+  creadoEn  DateTime                  @default(now())
+  items     AmortizacionBien[]
+
+  @@index([empresaId, mes])
+}
+
+model AmortizacionBien {
+  id        String              @id @default(uuid()) @db.Uuid
+  empresaId String              @db.Uuid
+  bienId    String              @db.Uuid
+  bien      BienUso             @relation(fields: [bienId], references: [id], onDelete: Cascade)
+  procesoId String              @db.Uuid
+  proceso   ProcesoAmortizacion @relation(fields: [procesoId], references: [id])
+  mes       String
+  importe   Decimal             @db.Decimal(18, 2)
+
+  @@index([empresaId, bienId])
 }

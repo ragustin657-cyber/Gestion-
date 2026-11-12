@@ -57,6 +57,10 @@ import { LibrosPage } from '../contabilidad/LibrosPage';
 import { PeriodosPage } from '../contabilidad/PeriodosPage';
 import { AntiguedadPage, MargenesPage, RotacionPage, VentasInformePage } from '../informes/InformesPages';
 import { TableroPage } from '../informes/TableroPage';
+import { AmortizacionPage } from '../bienes-uso/AmortizacionPage';
+import { BienesPage, FichaBienPage } from '../bienes-uso/BienesPage';
+import { PlanillaBienesPage } from '../bienes-uso/PlanillaBienesPage';
+import { RubrosPage } from '../bienes-uso/RubrosPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -165,6 +169,11 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/stock/valuacion', elemento: <ValuacionPage /> },
   { ruta: '/admin/ajuste-inflacion', elemento: <ConfigAjustePage /> },
   { ruta: '/contabilidad/ajuste-inflacion', elemento: <AjusteInflacionPage /> },
+  { ruta: '/maestros/rubros-bienes', elemento: <RubrosPage /> },
+  { ruta: '/contabilidad/bienes', elemento: <BienesPage /> },
+  { ruta: '/contabilidad/bienes/:id', elemento: <FichaBienPage /> },
+  { ruta: '/contabilidad/amortizacion', elemento: <AmortizacionPage /> },
+  { ruta: '/contabilidad/planilla-bienes', elemento: <PlanillaBienesPage /> },
   { ruta: '/informes/tablero', elemento: <TableroPage /> },
   { ruta: '/informes/ventas', elemento: <VentasInformePage /> },
   { ruta: '/informes/margenes', elemento: <MargenesPage /> },

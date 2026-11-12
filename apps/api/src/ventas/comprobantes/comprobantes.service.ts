@@ -1,3 +1,4 @@
+import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ComprobanteVenta } from '@prisma/client';
@@ -37,6 +38,7 @@ export class ComprobantesVentaService {
     private readonly cls: ClsService,
     private readonly stock: VentasStock,
     private readonly origenes: OrigenesVenta,
+    private readonly bajas: BajasService,
   ) {}
 
   obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -89,6 +91,8 @@ export class ComprobantesVentaService {
       if (asoc.monedaCodigo !== d.monedaCodigo) throw new BadRequestException('El comprobante asociado está en otra moneda');
       letra = asoc.letra as LetraVenta;
     }
+    // Venta de bienes de uso (spec E14 §5): el neto va al resultado por venta y la baja se registra al autorizar
+    await this.bajas.validarVenta(tx, { id, tipo: d.tipo, fecha: d.fecha }, d.renglones);
     if (letra === 'A' && tercero.tipoDocumento !== 'CUIT') throw new BadRequestException('El cliente no tiene CUIT válido para una factura A');
     const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
     if (d.tipo === 'NOTA_CREDITO') {
@@ -99,12 +103,14 @@ export class ComprobantesVentaService {
     const origenes = await this.origenes.resolver(tx, { tipo: d.tipo, terceroId: d.terceroId, renglones: d.renglones });
     const articulos = await tx.articulo.findMany({ where: { id: { in: [...d.renglones.map((r) => r.articuloId), ...origenes.map((o) => o.articuloId)].filter((x): x is string => !!x) } } });
     const ventas = await this.cuentas.cuenta(tx, 'VENTAS');
+    const resultadoBienes = d.renglones.some((r) => r.bienUsoId) ? await this.cuentas.cuenta(tx, 'RESULTADO_VENTA_BIENES_USO') : null;
     const renglones = d.renglones.map((r, i) => {
       if (r.articuloId && !articulos.some((a) => a.id === r.articuloId)) throw new BadRequestException('Artículo inexistente');
       const o = origenes[i];
       return {
         empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota),
-        neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, cuentaContableId: articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas,
+        neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, bienUsoId: r.bienUsoId ?? null,
+        cuentaContableId: r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas),
       };
     });
     const depositoId = d.depositoId ?? pv.depositoId ?? null;

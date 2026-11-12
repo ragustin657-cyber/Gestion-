@@ -64,6 +64,8 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Asiento manual', ruta: '/contabilidad/asiento', permiso: 'asiento.registrar' },
           { titulo: 'Períodos y ejercicios', ruta: '/contabilidad/periodos', permiso: 'plancuentas.ver' },
           { titulo: 'Ajuste por inflación', ruta: '/contabilidad/ajuste-inflacion', permiso: 'contabilidad.cerrar' },
+          { titulo: 'Bienes de uso', ruta: '/contabilidad/bienes', permiso: 'bienes.ver' },
+          { titulo: 'Amortización del mes', ruta: '/contabilidad/amortizacion', permiso: 'contabilidad.cerrar' },
         ],
       },
       {
@@ -149,6 +151,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Estado de situación patrimonial', ruta: '/contabilidad/situacion', permiso: 'plancuentas.ver' },
           { titulo: 'Estado de resultados', ruta: '/contabilidad/resultados', permiso: 'plancuentas.ver' },
           { titulo: 'Libros legales', ruta: '/contabilidad/libros', permiso: 'contabilidad.cerrar' },
+          { titulo: 'Planilla de bienes de uso', ruta: '/contabilidad/planilla-bienes', permiso: 'bienes.ver' },
         ],
       },
       {
@@ -177,6 +180,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Proveedores y clientes', ruta: '/maestros/terceros', permiso: 'tercero.ver' },
       { titulo: 'Artículos', ruta: '/maestros/articulos', permiso: 'articulo.ver' },
       { titulo: 'Listas de precios', ruta: '/maestros/listas-precios', permiso: 'precios.editar' },
+      { titulo: 'Rubros de bienes de uso', ruta: '/maestros/rubros-bienes', permiso: 'bienes.gestionar' },
       { titulo: 'Plan de cuentas', ruta: '/maestros/plan-cuentas', permiso: 'plancuentas.ver' },
       { titulo: 'Monedas y cotizaciones', ruta: '/maestros/monedas', permiso: 'moneda.editar' },
       { titulo: 'Bancos y cajas', ruta: '/maestros/tesoreria', permiso: 'tesoreria.maestros.editar' },

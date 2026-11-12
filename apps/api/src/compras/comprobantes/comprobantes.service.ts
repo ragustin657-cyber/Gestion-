@@ -3,6 +3,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
+import { BienesService } from '../../bienes-uso/bienes.service';
+import { RubrosService } from '../../bienes-uso/rubros.service';
 import {
   calcularTotales, CondicionIva, discriminaIva, hoyEn, ZONA_ARGENTINA, importeRenglon, Letra, letrasValidas, lineasEnPesos, LineaMoneda,
 } from '@gestion/shared';
@@ -59,6 +61,8 @@ export class ComprobantesService {
     private readonly plan: PlanCuentasService,
     private readonly cls: ClsService,
     private readonly stock: ComprasStock,
+    private readonly rubros: RubrosService,
+    private readonly bienes: BienesService,
   ) {}
 
   async listar(f: FiltroComprobantes) {
@@ -219,6 +223,18 @@ export class ComprobantesService {
       });
     }
 
+    // 3b. Bienes de uso: cada renglón a la cuenta de un rubro trae los datos del bien (spec E14 §3)
+    const rubrosRenglon = new Map<number, { id: string; vidaUtilMeses: number }>();
+    if (d.tipo !== 'NOTA_CREDITO')
+      for (const [i, r] of renglones.entries()) {
+        const rubro = await this.rubros.rubroDeCuenta(tx, r.cuentaContableId);
+        if (!rubro) continue;
+        // Desde recepción u OC (cuenta tomada del artículo) el bien toma la descripción del renglón y la vida útil del rubro
+        if (!d.renglones[i].bien && d.renglones[i].origen !== 'DIRECTO') d.renglones[i].bien = { descripcion: d.renglones[i].descripcion };
+        if (!d.renglones[i].bien) throw new BadRequestException(`Indique el bien de uso del renglón ${i + 1}`);
+        rubrosRenglon.set(i, rubro);
+      }
+
     // 4. Totales y control contra el total del papel
     const discrimina = discriminaIva(letra);
     const tot = calcularTotales({
@@ -294,6 +310,11 @@ export class ComprobantesService {
 
     // 11. Stock (spec §4)
     const conIds = await tx.comprobanteCompraRenglon.findMany({ where: { comprobanteId: comp.id }, orderBy: { orden: 'asc' } });
+    // 11b. Bienes de uso al valor en pesos que debitó el asiento
+    if (rubrosRenglon.size)
+      await this.bienes.crearDesdeFactura(tx, d.fechaContable, [...rubrosRenglon].map(([i, rubro]) => ({
+        id: conIds[i].id, rubroId: rubro.id, vidaRubro: rubro.vidaUtilMeses, valorPesos: new D(asiento.pesos.get(`r${i}`)!), bien: d.renglones[i].bien!,
+      })));
     await this.stock.alFacturar(tx, {
       id: comp.id, tipo: d.tipo, fecha: d.fechaContable, depositoId: d.depositoId ?? null, cotizacion,
       descripcion: `${ETIQUETA_TIPO[d.tipo]} ${letra ?? ''} ${d.puntoVenta}-${d.numero} - ${prov.razonSocial}`.replace(/\s+/g, ' '), renglones: conIds,
@@ -323,7 +344,9 @@ export class ComprobantesService {
 
       const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
       await this.stock.bloquearArticulos(tx, c.renglones.map((r) => r.articuloId));
-      const contra = c.asientoId ? await this.asientos.contraasiento(tx, c.asientoId, hoy, `Anulación: ${motivo}`) : null;
+      // Con bienes de uso, la anulación lleva la fecha de origen de la factura (el ajuste por inflación la neutraliza)
+      const conBienes = await tx.bienUso.count({ where: { comprobanteCompraRenglonId: { in: c.renglones.map((r) => r.id) } } });
+      const contra = c.asientoId ? await this.asientos.contraasiento(tx, c.asientoId, hoy, `Anulación: ${motivo}`, conBienes ? c.fechaContable : undefined) : null;
       await tx.comprobanteCompra.update({ where: { id }, data: { asientoAnulacionId: contra?.id ?? null } });
       if (mov) await tx.movimientoCuentaCorriente.update({ where: { id: mov.id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });
 
@@ -336,6 +359,7 @@ export class ComprobantesService {
           await tx.ordenCompraRenglon.update({ where: { id: r.ordenCompraRenglonId }, data: { cantidadFacturada: { decrement: r.cantidad } } });
       }
       await this.stock.alAnularFactura(tx, id, hoy, motivo);
+      await this.bienes.alAnularFactura(tx, c.renglones.map((r) => r.id));
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteCompra', entidadId: id, accion: 'ANULAR', datos: { motivo } });
       return this.obtener(id, tx);
     });

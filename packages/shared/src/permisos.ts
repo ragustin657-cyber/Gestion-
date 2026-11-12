@@ -46,6 +46,8 @@ export const PERMISOS = {
   'stock.operar': 'Registrar movimientos de stock y configurarlo',
   'precios.editar': 'Editar listas de precios',
   'pedido.gestionar': 'Gestionar pedidos y remitos de venta',
+  'bienes.ver': 'Ver bienes de uso',
+  'bienes.gestionar': 'Gestionar bienes de uso',
   'informes.ver': 'Ver informes de gestión',
 } as const;
 
