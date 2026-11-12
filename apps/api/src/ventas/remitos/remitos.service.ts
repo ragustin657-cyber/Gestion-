@@ -57,7 +57,7 @@ export class RemitosService {
       if (!depositoId) throw new BadRequestException('Indique el depósito');
       if (!(await tx.deposito.findUnique({ where: { id: depositoId } }))) throw new BadRequestException('Depósito inexistente');
       const tercero = await tx.tercero.findUnique({ where: { id: d.terceroId } });
-      if (!tercero || !tercero.esCliente) throw new BadRequestException('Cliente inexistente o inactivo');
+      if (!tercero || !tercero.esCliente || !tercero.activo) throw new BadRequestException('Cliente inexistente o inactivo');
 
       // 1. Renglones de pedido: bloqueo y tope de entrega
       const prIds = d.renglones.map((r) => r.pedidoRenglonId).filter((x): x is string => !!x);

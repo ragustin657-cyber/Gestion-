@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { filasCsv, numeroAR } from '../comun/csv';
 
 export interface FilaIndice { anio: number; mes: number; valor: string }
 
@@ -12,32 +13,26 @@ function periodo(t: string): { anio: number; mes: number } | null {
   return mes >= 1 && mes <= 12 ? { anio, mes } : null;
 }
 
-/** Valor positivo con punto o coma decimal, normalizado con punto ('55,5' → '55.5'). */
-function valor(t: string): string | null {
-  const v = t.trim().replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(v) || Number(v) <= 0) return null;
-  return v.replace(/^0+(?=\d)/, '');
-}
-
 /**
  * CSV de índices: período (AAAA-MM o MM/AAAA) y valor, separados por ';' o ','.
  * Con coma decimal el separador es ';'. Se ignoran las líneas vacías y una primera línea sin período (encabezado).
  */
 export function parsearCsvIndices(texto: string): FilaIndice[] {
-  const lineas = texto.replace(/^﻿/, '').split(/\r?\n/);
   const r: FilaIndice[] = [];
   const vistos = new Set<string>();
-  lineas.forEach((linea, i) => {
-    if (!linea.trim()) return;
-    const sep = linea.includes(';') ? ';' : ',';
-    const [p, v, ...resto] = linea.split(sep);
+  let primera = true;
+  filasCsv(texto).forEach((campos, i) => {
+    if (!campos.length || campos.every((c) => !c)) return;
+    const [p, v, ...resto] = campos;
     const per = periodo(p ?? '');
     const falla = (motivo: string) => new BadRequestException(`Línea ${i + 1}: ${motivo}`);
+    const esPrimera = primera;
+    primera = false;
     if (!per) {
-      if (i === 0 && !/^\s*\d/.test(p ?? '')) return; // encabezado (no empieza con un número)
+      if (esPrimera && !/^\s*\d/.test(p ?? '')) return; // encabezado (no empieza con un número)
       throw falla('período inválido');
     }
-    const val = resto.length ? null : valor(v ?? '');
+    const val = resto.some((x) => x) ? null : numeroAR(v ?? '');
     if (!val) throw falla('valor inválido');
     const clave = `${per.anio}-${per.mes}`;
     if (vistos.has(clave)) throw falla('período repetido');

@@ -5,6 +5,7 @@ import { conUnicidad } from '../comun/errores';
 import { paginacion } from '../comun/paginado';
 import { PlanCuentasService } from '../contabilidad/plan-cuentas/plan-cuentas.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
+import { bloquear } from '../compras/comun';
 
 export interface DatosArticulo {
   codigo: string;
@@ -68,6 +69,7 @@ export class ArticulosService {
     return conUnicidad(DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
         await this.verificarCuentas(tx, d);
+        await bloquear(tx, 'Articulo', this.tenant.empresaId, [id]);
         const actual = await tx.articulo.findUniqueOrThrow({ where: { id } });
         const controla = d.controlaStock ?? actual.controlaStock;
         if ((d.esServicio ?? actual.esServicio) && controla) throw new BadRequestException('Un servicio no controla stock');

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
-import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
+import { RequiereAlguno, RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
 import { esquemaAumento, esquemaLista, esquemaModLista, esquemaPrecio } from './dto';
@@ -29,7 +29,7 @@ export class PreciosController {
     return this.precios.modificarLista(id, d);
   }
 
-  @Get('listas/:id/precios') @RequierePermiso('venta.ver')
+  @Get('listas/:id/precios') @RequiereAlguno('venta.ver', 'pedido.gestionar')
   preciosDe(@Param('id', ParseUUIDPipe) id: string, @Query('q') q?: string) {
     return this.precios.precios(id, q);
   }
@@ -55,13 +55,15 @@ export class PreciosController {
     return this.precios.importar(id, archivo?.buffer, archivo?.originalname ?? 'precios.csv');
   }
 
-  @Get('listas/:id/historial') @RequierePermiso('venta.ver')
+  @Get('listas/:id/historial') @RequiereAlguno('venta.ver', 'pedido.gestionar')
   historial(@Param('id', ParseUUIDPipe) id: string, @Query('articuloId') articuloId?: string) {
     return this.precios.historial(id, articuloId);
   }
 
   @Get('precio') @RequierePermiso()
-  sugerido(@Query() q: { terceroId: string; articuloId: string; monedaCodigo: string; cotizacion?: string }) {
-    return this.precios.sugerido(this.tenant.db, { ...q, cotizacion: q.cotizacion ? Number(q.cotizacion) : null });
+  sugerido(@Query(new ZodValidationPipe(z.object({
+    terceroId: z.string().uuid('Cliente inválido'), articuloId: z.string().uuid('Artículo inválido'), monedaCodigo: z.enum(['ARS', 'USD']), cotizacion: z.coerce.number().positive().optional(),
+  }))) q: { terceroId: string; articuloId: string; monedaCodigo: string; cotizacion?: number }) {
+    return this.precios.sugerido(this.tenant.db, { ...q, cotizacion: q.cotizacion ?? null });
   }
 }

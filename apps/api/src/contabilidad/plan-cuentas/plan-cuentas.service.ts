@@ -98,6 +98,10 @@ export class PlanCuentasService {
       const monetaria = d.monetaria ?? actual.monetaria;
       const cuentaAjusteId = d.cuentaAjusteId === undefined ? actual.cuentaAjusteId : d.cuentaAjusteId;
       if (cuentaAjusteId && monetaria) throw new BadRequestException('Solo las cuentas no monetarias tienen cuenta de ajuste');
+      if (monetaria && !actual.monetaria) {
+        const ajustada = await tx.cuentaContable.findFirst({ where: { cuentaAjusteId: id } });
+        if (ajustada) throw new BadRequestException(`La cuenta ajusta a la cuenta ${ajustada.codigo}: no puede ser monetaria`);
+      }
       if (d.cuentaAjusteId) await this.validarCuentaAjuste(tx, id, d.cuentaAjusteId);
       if (d.imputable) {
         const hijos = await tx.cuentaContable.count({ where: { padreId: id } });
@@ -113,6 +117,8 @@ export class PlanCuentasService {
   private async validarCuentaAjuste(tx: TxEmpresa, id: string, ajusteId: string) {
     const a = await tx.cuentaContable.findUnique({ where: { id: ajusteId } });
     if (!a || !a.imputable || a.monetaria) throw new BadRequestException('La cuenta de ajuste debe ser imputable y no monetaria');
+    const cuenta = await tx.cuentaContable.findUniqueOrThrow({ where: { id } });
+    if (a.tipo !== cuenta.tipo) throw new BadRequestException('La cuenta de ajuste debe ser del mismo tipo que la cuenta');
     if (ajusteId === id) throw new BadRequestException('La cuenta de ajuste no puede ser la misma cuenta');
     const otra = await tx.cuentaContable.findFirst({ where: { cuentaAjusteId: ajusteId, id: { not: id } } });
     if (otra) throw new BadRequestException(`La cuenta de ajuste ya ajusta a la cuenta ${otra.codigo}`);
