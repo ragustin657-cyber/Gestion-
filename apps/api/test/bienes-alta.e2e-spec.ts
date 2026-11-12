@@ -38,7 +38,6 @@ describe('bienes de uso: altas', () => {
     expect(await prisma.bienUso.count({ where: { id: bien.id } })).toBe(0);
   });
 
-  it.todo('anular factura con amortización generada');
 
   it('alta manual con asiento', async () => {
     const b = await prepararBienes(app, prisma);

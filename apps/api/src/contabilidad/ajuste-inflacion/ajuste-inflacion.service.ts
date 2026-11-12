@@ -67,7 +67,7 @@ export class AjusteInflacionService {
       throw new BadRequestException('El asiento de apertura está anulado: actualice la configuración');
     const excluirApertura = usaAsientoManual ? Prisma.sql`a."id" <> ${config.asientoAperturaId}::uuid` : Prisma.sql`a."tipo" <> 'APERTURA'`;
     const filas = await tx.$queryRaw<{ cuentaId: string; anio: number; mes: number; saldo: Prisma.Decimal; ajuste: boolean }[]>`
-      SELECT r."cuentaContableId" AS "cuentaId", EXTRACT(YEAR FROM a."fecha")::int AS anio, EXTRACT(MONTH FROM a."fecha")::int AS mes,
+      SELECT r."cuentaContableId" AS "cuentaId", EXTRACT(YEAR FROM COALESCE(r."fechaOrigen", a."fecha"))::int AS anio, EXTRACT(MONTH FROM COALESCE(r."fechaOrigen", a."fecha"))::int AS mes,
              SUM(r."debe" - r."haber") AS saldo, (a."origenTipo" = ${ORIGEN_AJUSTE}) AS ajuste
       FROM "AsientoRenglon" r JOIN "Asiento" a ON a."id" = r."asientoId"
       WHERE a."empresaId" = ${this.tenant.empresaId}::uuid AND a."ejercicioId" = ${ej.id}::uuid AND a."fecha" <= ${fecha.toISOString().slice(0, 10)}::date

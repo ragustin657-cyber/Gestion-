@@ -72,7 +72,7 @@ export class BienesService {
   async alAnularFactura(tx: TxEmpresa, renglonIds: string[]) {
     const bienes = await tx.bienUso.findMany({ where: { comprobanteCompraRenglonId: { in: renglonIds } }, orderBy: { numero: 'asc' } });
     for (const b of bienes)
-      if (b.estado === 'BAJA' || (await tx.amortizacionBien.count({ where: { bienId: b.id } })))
+      if (b.estado === 'BAJA' || (await this.tieneAmortizaciones(tx, b.id)))
         throw new BadRequestException(`El bien N° ${b.numero} ya tiene amortizaciones o baja: anúlelas primero`);
     if (bienes.length) await tx.bienUso.deleteMany({ where: { id: { in: bienes.map((b) => b.id) } } });
   }
@@ -159,7 +159,7 @@ export class BienesService {
       const b = await tx.bienUso.findUnique({ where: { id } });
       if (!b) throw new NotFoundException('Bien de uso inexistente');
       if (b.origen === 'FACTURA') throw new BadRequestException('Un bien dado de alta por factura se elimina anulando la factura');
-      if (b.estado === 'BAJA' || (await tx.amortizacionBien.count({ where: { bienId: id } }))) throw new BadRequestException('El bien ya tiene amortizaciones o baja: anúlelas primero');
+      if (b.estado === 'BAJA' || (await this.tieneAmortizaciones(tx, id))) throw new BadRequestException('El bien ya tiene amortizaciones o baja: anúlelas primero');
       if (b.asientoAltaId) await this.asientos.contraasiento(tx, b.asientoAltaId, hoy(), `Eliminación del bien de uso N° ${b.numero}`);
       await tx.bienUso.delete({ where: { id } });
       return { ok: true };
