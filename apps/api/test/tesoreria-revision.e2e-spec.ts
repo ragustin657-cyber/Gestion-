@@ -26,9 +26,9 @@ describe('tesorería: correcciones de la revisión final', () => {
       fecha: enDias(0), cajaId: t.cajaCen.id, origen: 'CLIENTE', terceroId: t.clienteId, concepto: 'x', cheques: [t.cheque(50000, { fechaPago: enDias(10) })], transferencias: [],
     });
     await t.http.post('/api/tesoreria/depositos', { fecha: enDias(0), cajaId: t.cajaCen.id, cuentaBancariaId: t.ars.id, cheques: [r.body.cheques[0].id] });
-    const flujo = (await t.http.get('/api/tesoreria/flujo?dias=15')).body;
-    expect(flujo[0].saldo).toBe('50000');
-    expect(flujo[10].saldo).toBe('50000');
+    const flujo = (await t.http.get(`/api/tesoreria/flujo?agrupar=dia&hasta=${enDias(14)}`)).body.filas;
+    expect(flujo[0].saldo).toBe('50000.00');
+    expect(flujo[10].saldo).toBe('50000.00');
   });
 
   it('la visibilidad del cheque sigue a la sucursal donde está ahora', async () => {

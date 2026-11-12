@@ -72,14 +72,14 @@ describe('consultas de tesorería', () => {
     await prisma.chequePropio.create({
       data: { empresaId: t.empresaId, chequeraId: chequera.id, numero: 'E-9', fechaEmision: new Date(`${enDias(-5)}T00:00:00Z`), fechaPago: new Date(`${enDias(5)}T00:00:00Z`), monedaCodigo: 'ARS', importe: 12000, beneficiarioId: t.proveedorId, ordenPagoId: randomUUID() },
     });
-    const r = await t.http.get('/api/tesoreria/flujo?dias=30');
+    const r = await t.http.get(`/api/tesoreria/flujo?agrupar=dia&hasta=${enDias(29)}`);
     expect(r.status).toBe(200);
-    expect(r.body).toHaveLength(30);
-    expect(r.body[0]).toMatchObject({ fecha: enDias(0), ingresos: '0', egresos: '0', saldo: '100000' });
-    expect(r.body[5]).toMatchObject({ fecha: enDias(5), egresos: '12000', saldo: '88000' });
-    expect(r.body[10]).toMatchObject({ fecha: enDias(10), ingresos: '30000', saldo: '118000' });
-    expect(r.body[29].saldo).toBe('118000');
-    expect((await t.http.get('/api/tesoreria/flujo?dias=0')).status).toBe(400);
-    expect((await t.http.get('/api/tesoreria/flujo?dias=abc')).status).toBe(400);
+    expect(r.body.filas).toHaveLength(30);
+    expect(r.body.filas[0]).toMatchObject({ desde: enDias(0), totalIngresos: '0.00', totalEgresos: '0.00', saldo: '100000.00' });
+    expect(r.body.filas[5]).toMatchObject({ desde: enDias(5), egresos: expect.objectContaining({ chequesPropios: '12000.00' }), saldo: '88000.00' });
+    expect(r.body.filas[10]).toMatchObject({ desde: enDias(10), ingresos: expect.objectContaining({ cheques: '30000.00' }), saldo: '118000.00' });
+    expect(r.body.filas[29].saldo).toBe('118000.00');
+    expect((await t.http.get(`/api/tesoreria/flujo?hasta=${enDias(-1)}`)).status).toBe(400);
+    expect((await t.http.get('/api/tesoreria/flujo?hasta=abc')).status).toBe(400);
   });
 });
