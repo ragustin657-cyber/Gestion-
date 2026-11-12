@@ -1,3 +1,4 @@
+import { saldosAFecha } from '../../finanzas/saldos';
 import { ORIGENES_CLIENTE } from '../comun';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -98,7 +99,8 @@ export class ConsultasComprasService {
 
   async antiguedadDeuda(fecha?: string) {
     const corte = fechaQuery(fecha) ?? new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
-    const movs = await this.tenant.db.movimientoCuentaCorriente.findMany({ where: { anulado: false, origenTipo: { notIn: ORIGENES_CLIENTE }, NOT: { saldoPesos: 0 } } });
+    // Saldo de cada comprobante a la fecha de corte, sin los posteriores (spec E15 §3)
+    const movs = await saldosAFecha(this.tenant.db, 'proveedores', corte);
     const terceros = await this.tenant.db.tercero.findMany({ where: { id: { in: [...new Set(movs.map((m) => m.terceroId))] } }, select: { id: true, razonSocial: true } });
     const filas = new Map<string, { porVencer: Dec; d0a30: Dec; d31a60: Dec; d61a90: Dec; mas90: Dec }>();
     for (const m of movs) {
