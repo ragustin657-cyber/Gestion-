@@ -12,6 +12,7 @@ import { ImpuestosModule } from './impuestos/impuestos.module';
 import { IndicesInflacionModule } from './indices-inflacion/indices-inflacion.module';
 import { StockModule } from './stock/stock.module';
 import { InformesModule } from './informes/informes.module';
+import { BienesUsoModule } from './bienes-uso/bienes-uso.module';
 import { ConciliacionModule } from './conciliacion/conciliacion.module';
 import { TesoreriaMaestrosModule } from './tesoreria/maestros/tesoreria-maestros.module';
 import { ConfigComprasModule } from './compras/config/config-compras.module';
@@ -57,6 +58,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     IndicesInflacionModule,
     StockModule,
     InformesModule,
+    BienesUsoModule,
   ],
   controllers: [SaludController],
 })

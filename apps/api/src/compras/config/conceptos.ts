@@ -3,6 +3,8 @@ import type { Prisma } from '@prisma/client';
 /** Conceptos contables de compras y su cuenta en el plan de cuentas modelo. */
 export const CONCEPTOS_CUENTA = {
   PROVEEDORES: '2.1.01.001',
+  RESULTADO_VENTA_BIENES_USO: '4.2.05',
+  BAJAS_BIENES_USO: '5.2.08',
   IVA_CREDITO_FISCAL: '1.1.03.001',
   PERCEPCION_IVA: '1.1.03.002',
   PERCEPCION_IIBB: '1.1.03.003',

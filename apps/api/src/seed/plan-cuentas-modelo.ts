@@ -11,7 +11,7 @@ export interface CuentaModelo {
 /** Clasificación por defecto para el ajuste por inflación: PN, resultados y bienes de uso son no monetarios. */
 export function monetariaPorDefecto(codigo: string, tipo: TipoCuenta): boolean {
   if (tipo === 'PATRIMONIO_NETO' || tipo === 'RESULTADO_POSITIVO' || tipo === 'RESULTADO_NEGATIVO') return false;
-  return !['1.2.01', '1.1.05'].some((r) => codigo === r || codigo.startsWith(`${r}.`));
+  return !['1.2.01', '1.2.02', '1.1.05'].some((r) => codigo === r || codigo.startsWith(`${r}.`));
 }
 
 const c = (codigo: string, nombre: string, tipo: TipoCuenta, imputable = false): CuentaModelo => ({
@@ -50,6 +50,10 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('1.2.01.001', 'Muebles y útiles', A, true),
   c('1.2.01.002', 'Rodados', A, true),
   c('1.2.01.003', 'Equipos de computación', A, true),
+  c('1.2.02', 'Amortizaciones acumuladas de bienes de uso', A),
+  c('1.2.02.001', 'Amort. acum. muebles y útiles', A, true),
+  c('1.2.02.002', 'Amort. acum. rodados', A, true),
+  c('1.2.02.003', 'Amort. acum. equipos de computación', A, true),
   c('2', 'Pasivo', P),
   c('2.1', 'Pasivo corriente', P),
   c('2.1.01', 'Deudas comerciales', P),
@@ -77,6 +81,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('4.2.02', 'Intereses ganados', RP, true),
   c('4.2.03', 'Resultado por exposición a la inflación (RECPAM)', RP, true),
   c('4.2.04', 'Sobrantes de inventario', RP, true),
+  c('4.2.05', 'Resultado por venta de bienes de uso', RP, true),
   c('5', 'Resultados negativos', RN),
   c('5.1', 'Costos', RN),
   c('5.1.01', 'Costo de mercaderías vendidas', RN, true),
@@ -87,6 +92,15 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.04', 'Diferencias de caja', RN, true),
   c('5.2.05', 'Impuesto a los débitos y créditos bancarios', RN, true),
   c('5.2.06', 'Faltantes de inventario', RN, true),
+  c('5.2.07', 'Amortizaciones de bienes de uso', RN, true),
+  c('5.2.08', 'Bajas de bienes de uso', RN, true),
+];
+
+/** Rubros de bienes de uso del plan modelo: nombre, cuenta de origen, de amortización acumulada y vida útil en meses. */
+export const RUBROS_MODELO: [string, string, string, number][] = [
+  ['Muebles y útiles', '1.2.01.001', '1.2.02.001', 120],
+  ['Rodados', '1.2.01.002', '1.2.02.002', 60],
+  ['Equipos de computación', '1.2.01.003', '1.2.02.003', 36],
 ];
 
 /** Código del padre según la convención de puntos ('1.1.01' → '1.1'). */
@@ -107,5 +121,8 @@ export async function cargarPlanModelo(tx: Prisma.TransactionClient, empresaId: 
   }
   // Vínculos de ajuste por inflación
   await tx.cuentaContable.update({ where: { id: ids.get('3.1.01')! }, data: { cuentaAjusteId: ids.get('3.1.02')! } });
+  // Rubros de bienes de uso precargados
+  for (const [nombre, origen, amort, vidaUtilMeses] of RUBROS_MODELO)
+    await tx.rubroBienUso.create({ data: { empresaId, nombre, cuentaOrigenId: ids.get(origen)!, cuentaAmortizacionId: ids.get(amort)!, cuentaGastoId: ids.get('5.2.07')!, vidaUtilMeses } });
   return PLAN_CUENTAS_MODELO.length;
 }
