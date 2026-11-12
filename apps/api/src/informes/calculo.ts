@@ -19,10 +19,11 @@ const mmaaaa = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`;
 /** Coeficiente de cada mes a moneda del último mes con índice que no supere `mesHasta` (spec §3). */
 export function coeficientes(meses: string[], indices: Map<string, Dec>, mesHasta: string): { coef: Map<string, Dec>; base: string } | { faltan: string[] } {
   const base = [...indices.keys()].filter((m) => m <= mesHasta).sort().pop();
-  const faltan = [...new Set(meses.filter((m) => !indices.has(m)))].sort();
+  // Los meses posteriores a la base (índice aún no publicado) ya están en moneda de la base: coeficiente 1
+  const faltan = [...new Set(meses.filter((m) => !indices.has(m) && (!base || m <= base)))].sort();
   if (!base || faltan.length) return { faltan: (faltan.length ? faltan : [mesHasta]).map(mmaaaa) };
   const ib = indices.get(base)!;
-  return { coef: new Map([...new Set(meses)].map((m) => [m, ib.div(indices.get(m)!)])), base };
+  return { coef: new Map([...new Set(meses)].map((m) => [m, m > base ? new D(1) : ib.div(indices.get(m)!)])), base };
 }
 
 /** Rotación = costo vendido / stock promedio; días de cobertura = stock final / costo diario. */

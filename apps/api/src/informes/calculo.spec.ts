@@ -39,3 +39,15 @@ describe('cálculo de informes', () => {
     expect(iso(anioAnterior(f('2026-02-01'), f('2026-02-28')))).toEqual(['2025-02-01', '2025-02-28']);
   });
 });
+
+describe('revisión: meses posteriores al último índice', () => {
+  it('quedan con coeficiente 1 y los anteriores se reexpresan a la base', () => {
+    const { Prisma } = jest.requireActual('@prisma/client');
+    const idx = new Map([['2026-09', new Prisma.Decimal(100)], ['2026-10', new Prisma.Decimal(110)]]);
+    const c = coeficientes(['2026-09', '2026-10', '2026-11'], idx, '2026-11');
+    if ('faltan' in c) throw new Error('no debía faltar');
+    expect(c.base).toBe('2026-10');
+    expect([c.coef.get('2026-09')!.toFixed(2), c.coef.get('2026-10')!.toFixed(2), c.coef.get('2026-11')!.toFixed(2)]).toEqual(['1.10', '1.00', '1.00']);
+    expect(coeficientes(['2026-08', '2026-11'], idx, '2026-11')).toEqual({ faltan: ['08/2026'] });
+  });
+});

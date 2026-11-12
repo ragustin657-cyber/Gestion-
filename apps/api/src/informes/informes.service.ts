@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { Prisma } from '@prisma/client';
 import { fechaQuery } from '../compras/consultas/consultas.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
@@ -71,9 +72,12 @@ export class InformesService {
   /** Tablero de dirección (spec §4). */
   async tablero(q: { desde?: string; hasta?: string; reexpresar?: string }) {
     const db = this.tenant.db;
-    const { desde, hasta } = this.periodo(q);
+    const { desde, hasta: hastaPedido } = this.periodo(q);
+    // Un período que termina en el futuro se mide hasta hoy: vencidos, stock y comparaciones con la misma cantidad de días
+    const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
+    const hasta = hastaPedido > hoy && desde <= hoy ? hoy : hastaPedido;
     const ant = periodoAnterior(desde, hasta), anio = anioAnterior(desde, hasta);
-    const inicioSerie = new Date(Date.UTC(hasta.getUTCFullYear(), hasta.getUTCMonth() - 11, 1));
+    const inicioSerie = new Date(Date.UTC(hastaPedido.getUTCFullYear(), hastaPedido.getUTCMonth() - 11, 1));
     const [act, rAnt, rAnio, serie, clientes, proveedores, stock] = await Promise.all([
       renglonesVendidos(db, desde, hasta), renglonesVendidos(db, ant.desde, ant.hasta), renglonesVendidos(db, anio.desde, anio.hasta),
       renglonesVendidos(db, inicioSerie, hasta), antiguedad(db, 'clientes', hasta), antiguedad(db, 'proveedores', hasta), valorStock(db, hasta),
@@ -84,7 +88,7 @@ export class InformesService {
     const meses = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(inicioSerie.getUTCFullYear(), inicioSerie.getUTCMonth() + i, 1)).toISOString().slice(0, 7));
     const porMes = new Map(this.agrupar(s, 'mes').map((f) => [f.clave, f]));
     return {
-      periodo: { desde: q.desde, hasta: q.hasta },
+      periodo: { desde: q.desde, hasta: hasta.toISOString().slice(0, 10) },
       ...(aviso ? { aviso } : {}),
       indicadores: {
         ventas: { valor: rp.ventas, anterior: ra.ventas, anioAnterior: ry.ventas },
@@ -151,7 +155,13 @@ export class InformesService {
   }
 
   async margenes(q: { desde?: string; hasta?: string; agrupar?: string; reexpresar?: string }) {
-    const r = await this.ventas({ ...q, agrupar: q.agrupar === 'cliente' ? 'cliente' : 'articulo' });
-    return { ...r, filas: r.filas.filter((f) => f.margenPct !== null).sort((a, b) => new D(b.margen).cmp(a.margen)) };
+    const { desde, hasta } = this.periodo(q);
+    const { rs, aviso } = await this.vendidos(this.tenant.db, desde, hasta, q.reexpresar === 'true');
+    // Filas y totales solo con lo que tiene costo; la cobertura dice qué parte de las ventas lo tiene
+    const conCosto = rs.filter((r) => r.costo !== null);
+    const { _ventas, _margen, _costo, ...totales } = resumir(conCosto);
+    void _ventas; void _margen; void _costo;
+    const filas = this.agrupar(conCosto, q.agrupar === 'cliente' ? 'cliente' : 'articulo').sort((a, b) => new D(b.margen).cmp(a.margen));
+    return { filas, totales: { ...totales, sinCosto: resumir(rs).sinCosto, cobertura: resumir(rs).cobertura }, ...(aviso ? { aviso } : {}) };
   }
 }

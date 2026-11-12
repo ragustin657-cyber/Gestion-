@@ -33,7 +33,7 @@ describe('informes: tablero', () => {
 
   it('comparaciones', async () => {
     const e = await escenarioInformes(app, prisma);
-    await e.emitir({ fecha: '2026-10-20', fechaVencimiento: '2026-10-25', renglones: [e.ren(e.s.id, 1, 500)] });
+    await e.emitir({ fecha: '2026-10-28', fechaVencimiento: '2026-10-29', renglones: [e.ren(e.s.id, 1, 500)] });
     const r = (await e.http.get(`/api/informes/tablero?${nov}`)).body;
     expect(r.indicadores.ventas).toEqual({ valor: '1060.00', anterior: '500.00', anioAnterior: '0.00' });
     expect(r.indicadores.margenPct).toEqual({ valor: '56.58', anterior: null, anioAnterior: null });
@@ -56,7 +56,7 @@ describe('informes: tablero', () => {
 
   it('reexpresa la serie', async () => {
     const e = await escenarioInformes(app, prisma);
-    await e.emitir({ fecha: '2026-10-20', fechaVencimiento: '2026-11-20', renglones: [e.ren(e.s.id, 1, 1000)] });
+    await e.emitir({ fecha: '2026-10-28', fechaVencimiento: '2026-11-20', renglones: [e.ren(e.s.id, 1, 1000)] });
     const q = `${nov}&reexpresar=true`;
     expect((await e.http.get(`/api/informes/tablero?${q}`)).body.aviso).toBe('Faltan los índices de: 10/2026, 11/2026: se muestran importes nominales');
     for (const [anio, mes, valor] of [[2026, 10, 100], [2026, 11, 110]]) await prisma.indiceInflacion.create({ data: { anio, mes, valor, actualizadoPor: 't' } });
