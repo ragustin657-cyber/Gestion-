@@ -46,6 +46,7 @@ export const PERMISOS = {
   'stock.operar': 'Registrar movimientos de stock y configurarlo',
   'precios.editar': 'Editar listas de precios',
   'pedido.gestionar': 'Gestionar pedidos y remitos de venta',
+  'informes.ver': 'Ver informes de gestión',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

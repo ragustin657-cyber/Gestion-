@@ -214,6 +214,13 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 
 > **Para empresas migradas desde antes de la Entrega 9:** los conceptos RECPAM, Resultados no asignados y Costo de mercaderías vendidas se asociaron por código. Si su plan usa esos códigos para otras cuentas, revise la asociación en Administración → Configuración de compras (cuentas por concepto).
 
+## Informes de gestión (Entrega 13)
+
+- **Tablero de dirección** (inicio para quien tiene el permiso *Ver informes de gestión*): ventas y margen bruto del período con variación contra el período anterior y el año anterior, cobranzas vencidas, deuda vencida con proveedores y stock valorizado; gráfico de ventas y margen de los últimos 12 meses y rankings de 10 clientes y 10 artículos. Cada tarjeta lleva a su informe.
+- **Informes** (menú *Informes de gestión*): Ventas por cliente, artículo o mes; Márgenes; Antigüedad de saldos de clientes y proveedores por tramos (a vencer, 1–30, 31–60, 61–90, más de 90, a favor); Rotación de stock y días de cobertura. Orden por columna, totales y exportación a Excel y PDF.
+- **Cómo se calcula:** ventas = neto sin IVA de los comprobantes autorizados en pesos (NC restan); costo = movimientos de stock de la venta o del remito facturado; margen y porcentaje solo sobre lo que tiene costo (la *cobertura* indica qué parte de las ventas lo tiene). Coincide con el Mayor de Ventas y Costo de mercaderías vendidas.
+- **En moneda de hoy:** reexpresa cada mes con los índices de inflación cargados; si falta alguno, muestra importes nominales y avisa qué meses faltan.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
