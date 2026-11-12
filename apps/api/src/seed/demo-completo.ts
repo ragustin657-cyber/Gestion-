@@ -202,7 +202,7 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
     const fv = await app.get(ComprobantesVentaService).crear({
       terceroId: norte, puntoVentaId: pv.id, tipo: 'FACTURA', concepto: 'SERVICIOS', fecha, fechaVencimiento: enDias(15), fechaServicioDesde: inicioMes, fechaServicioHasta: finMes,
       fechaVencimientoPago: enDias(15), monedaCodigo: 'ARS', aplicarAAsociado: true, devuelveMercaderia: false, emitir: false,
-      renglones: [{ articuloId: soporte.id, descripcion: 'Soporte técnico mensual', cantidad: 1, precioUnitario: 250000, alicuota: 21 }],
+      renglones: [{ origen: 'DIRECTO', articuloId: soporte.id, descripcion: 'Soporte técnico mensual', cantidad: 1, precioUnitario: 250000, alicuota: 21 }],
     });
     await app.get(EmisionService).emitir(fv.id);
     await app.get(RecibosService).crear({

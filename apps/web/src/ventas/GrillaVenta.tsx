@@ -1,10 +1,15 @@
 import { ActionIcon, Button, Group, ScrollArea, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
+import { useRef } from 'react';
 import { calcularVenta, letraVenta, type AlicuotaVenta, type CondicionIva, type LetraVenta } from '@gestion/shared';
 import { formatoMoneda } from '../compras/formato';
 import { NOMBRE_TIPO, numero, type TipoVenta } from './comun';
 
-export interface RenglonVentaEditable { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string }
+export interface RenglonVentaEditable {
+  articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string;
+  /** Renglones que vienen de un remito o de un pedido (factura). */
+  origen?: 'DIRECTO' | 'REMITO' | 'PEDIDO'; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; etiqueta?: string;
+}
 export interface ArticuloVenta { value: string; label: string; descripcion: string; alicuotaIva: string }
 
 export const ALICUOTAS_VENTA = [
@@ -13,6 +18,13 @@ export const ALICUOTAS_VENTA = [
 ];
 export const renglonVacio = (): RenglonVentaEditable => ({ articuloId: null, descripcion: '', cantidad: '1', precioUnitario: '', alicuota: '21' });
 export const alicuotaDe = (a: string): AlicuotaVenta => (a === 'EXENTO' || a === 'NO_GRAVADO' ? a : (Number(a) as AlicuotaVenta));
+
+/** Aplica un precio sugerido solo si el renglón sigue con ese artículo y sin precio cargado (la respuesta puede llegar tarde). */
+export function aplicarPrecioSugerido(renglones: RenglonVentaEditable[], i: number, articuloId: string, precio: string): RenglonVentaEditable[] {
+  const r = renglones[i];
+  if (!r || r.articuloId !== articuloId || r.precioUnitario !== '') return renglones;
+  return renglones.map((x, j) => (j === i ? { ...x, precioUnitario: String(Number(precio)) } : x));
+}
 
 /** Totales del comprobante con el mismo cálculo que el servidor (null si hay renglones incompletos). */
 export function totalesVenta(renglones: RenglonVentaEditable[], letra: LetraVenta) {
@@ -32,10 +44,14 @@ export function TituloComprobante({ tipo, empresa, cliente, letra }: { tipo: Tip
   return <Title order={4}>{`${NOMBRE_TIPO[tipo]} ${l ?? ''}`.trim()}</Title>;
 }
 
-export function GrillaVenta({ renglones, onChange, letra, moneda, articulos }: {
+export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio }: {
   renglones: RenglonVentaEditable[]; onChange: (r: RenglonVentaEditable[]) => void; letra: LetraVenta; moneda: string; articulos: ArticuloVenta[];
+  /** Precio de la lista del cliente para el artículo elegido. */
+  sugerirPrecio?: (articuloId: string) => Promise<string | null>;
 }) {
   const cambiar = (i: number, c: Partial<RenglonVentaEditable>) => onChange(renglones.map((x, j) => (j === i ? { ...x, ...c } : x)));
+  const ultimos = useRef(renglones);
+  ultimos.current = renglones;
   const t = totalesVenta(renglones, letra);
   const discrimina = letra !== 'C';
   return (
@@ -48,11 +64,18 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos }: {
               const neto = numero(r.cantidad) * numero(r.precioUnitario);
               return (
                 <Table.Tr key={i}>
-                  <Table.Td><Select size="xs" w={180} aria-label="Artículo" searchable clearable placeholder="Texto libre" data={articulos} value={r.articuloId}
-                    onChange={(v) => {
+                  <Table.Td>{r.etiqueta ? <Text size="xs" fw={600}>{r.etiqueta}</Text> : <Select size="xs" w={180} aria-label="Artículo" searchable clearable placeholder="Texto libre" data={articulos} value={r.articuloId}
+                    onChange={async (v) => {
                       const a = articulos.find((x) => x.value === v);
-                      cambiar(i, a ? { articuloId: v, descripcion: a.descripcion, alicuota: String(Number(a.alicuotaIva)) } : { articuloId: null });
-                    }} /></Table.Td>
+                      if (!a) return cambiar(i, { articuloId: null });
+                      const base = { articuloId: v, descripcion: a.descripcion, alicuota: String(Number(a.alicuotaIva)), ...(sugerirPrecio ? { precioUnitario: '' } : {}) };
+                      cambiar(i, base);
+                      const precio = sugerirPrecio && v ? await sugerirPrecio(v) : null;
+                      if (precio) {
+                        const nuevos = aplicarPrecioSugerido(ultimos.current, i, v!, precio);
+                        if (nuevos !== ultimos.current) onChange(nuevos);
+                      }
+                    }} />}</Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Descripción" value={r.descripcion} onChange={(e) => cambiar(i, { descripcion: e.currentTarget.value })} /></Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Cantidad" inputMode="decimal" value={r.cantidad} onChange={(e) => cambiar(i, { cantidad: e.currentTarget.value })} /></Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Precio unitario" inputMode="decimal" value={r.precioUnitario} onChange={(e) => cambiar(i, { precioUnitario: e.currentTarget.value })} /></Table.Td>

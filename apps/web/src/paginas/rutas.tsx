@@ -35,6 +35,10 @@ import { ComprobantesVentaPage, CuentaCorrienteClientesPage, RecibosPage, Saldos
 import { ReciboPage } from '../ventas/ReciboPage';
 import { ConfigImpuestosPage } from '../impuestos/ConfigImpuestosPage';
 import { ConfigStockPage } from '../stock/ConfigStockPage';
+import { ListasPreciosPage } from '../ventas/ListasPreciosPage';
+import { PedidoVentaPage } from '../ventas/PedidoVentaPage';
+import { PedidosPage, RemitosPage as RemitosConsultaPage } from '../ventas/PedidosRemitosPages';
+import { RemitoPage } from '../ventas/RemitoPage';
 import { DocumentoStockPage } from '../stock/DocumentoStockPage';
 import { DocumentosStockPage } from '../stock/DocumentosStockPage';
 import { ExistenciasPage } from '../stock/ExistenciasPage';
@@ -144,6 +148,11 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/admin/impuestos', elemento: <ConfigImpuestosPage /> },
   { ruta: '/admin/indices-inflacion', elemento: <IndicesInflacionPage /> },
   { ruta: '/admin/stock', elemento: <ConfigStockPage /> },
+  { ruta: '/maestros/listas-precios', elemento: <ListasPreciosPage /> },
+  { ruta: '/ventas/pedido', elemento: <PedidoVentaPage /> },
+  { ruta: '/ventas/remito', elemento: <RemitoPage /> },
+  { ruta: '/ventas/pedidos', elemento: <PedidosPage /> },
+  { ruta: '/ventas/remitos', elemento: <RemitosConsultaPage /> },
   { ruta: '/stock/transferencia', elemento: <DocumentoStockPage key="t" tipo="TRANSFERENCIA" /> },
   { ruta: '/stock/inventario', elemento: <DocumentoStockPage key="i" tipo="INVENTARIO" /> },
   { ruta: '/stock/inicial', elemento: <DocumentoStockPage key="n" tipo="INICIAL" /> },

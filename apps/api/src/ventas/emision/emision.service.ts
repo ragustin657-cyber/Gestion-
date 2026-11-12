@@ -8,6 +8,7 @@ import { bloquear, fechaAR } from '../../compras/comun';
 import { ConfigComprasService } from '../../compras/config/config-compras.service';
 import { AsientosService } from '../../contabilidad/asientos/asientos.service';
 import { VentasStock } from '../../stock/ventas-stock';
+import { OrigenesVenta } from '../comprobantes/origenes';
 import { periodoAbierto } from '../../contabilidad/periodos/control';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { D } from '../../tesoreria/operaciones/tesoreria-comun';
@@ -36,6 +37,7 @@ export class EmisionService {
     private readonly cuentas: ConfigComprasService,
     private readonly auditoria: AuditoriaService,
     private readonly stock: VentasStock,
+    private readonly origenes: OrigenesVenta,
   ) {}
 
   registrarAlAutorizar(f: AlAutorizar) {
@@ -119,7 +121,8 @@ export class EmisionService {
       await periodoAbierto(tx, empresaId, c.fecha);
       // Stock: lo que impediría registrar la venta se controla antes de pedir el CAE
       const renglones = await tx.comprobanteVentaRenglon.findMany({ where: { comprobanteId: id } });
-      await this.stock.prevalidar(tx, { id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId, renglones });
+      await this.origenes.resolver(tx, { tipo: c.tipo, terceroId: c.terceroId, renglones });
+      await this.stock.prevalidar(tx, { id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId, renglones: renglones.filter((x) => !x.remitoRenglonId) });
       const datos = await this.datosCae(tx, c, tipoArca);
       const propietario = new Date();
       await tx.comprobanteVenta.update({ where: { id }, data: { emisionEnCurso: propietario, intentos: { increment: 1 }, ambiente } });
@@ -189,7 +192,8 @@ export class EmisionService {
         },
       });
       const fecha = await this.fechaAsiento(tx, c.fecha, advertencias);
-      await this.stock.bloquearArticulos(tx, c.renglones);
+      advertencias.push(...(await this.origenes.registrar(tx, c.renglones)));
+      await this.stock.bloquearArticulos(tx, c.renglones.filter((x) => !x.remitoRenglonId));
       const renglones = asientoVenta(
         { tipo: c.tipo, total: c.total.toString(), iva: c.iva.toString(), cotizacion: c.cotizacion.toString(), renglones: c.renglones.map((x) => ({ cuentaContableId: x.cuentaContableId, neto: x.neto.toString() })) },
         { deudores: await this.cuentas.cuenta(tx, 'DEUDORES_POR_VENTAS'), ivaDebito: await this.cuentas.cuenta(tx, 'IVA_DEBITO_FISCAL') },
@@ -200,7 +204,7 @@ export class EmisionService {
       const final = await tx.comprobanteVenta.update({ where: { id }, data: { asientoId: asiento.id } });
       advertencias.push(...(await this.stock.alEmitir(tx, {
         id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId,
-        renglones: [...c.renglones].sort((a, b) => a.orden - b.orden).map((x) => ({ id: x.id, articuloId: x.articuloId, cantidad: x.cantidad })),
+        renglones: [...c.renglones].filter((x) => !x.remitoRenglonId).sort((a, b) => a.orden - b.orden).map((x) => ({ id: x.id, articuloId: x.articuloId, cantidad: x.cantidad })),
       }, fecha, `${TIPO_TEXTO[c.tipo]} ${c.letra} ${numeroVenta(c.puntoVenta, numero)} - ${c.tercero.razonSocial}`)));
       if (this.alAutorizar) await this.alAutorizar(tx, final);
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { emision: 'autorizada', numero, cae: r.cae, advertencias } });

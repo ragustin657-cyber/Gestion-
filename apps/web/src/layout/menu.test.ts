@@ -74,4 +74,11 @@ describe('menú del administrador general', () => {
     expect(todas(filtrarMenu(MENU, ['stock.operar']))).toContain('Inventario físico');
     expect(todas(filtrarMenu(MENU, []))).not.toContain('Existencias');
   });
+
+  it('Pedidos, remitos y listas de precios según permisos', () => {
+    const todas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => [n.titulo, ...todas(n.hijos ?? [])]);
+    expect(todas(filtrarMenu(MENU, ['pedido.gestionar']))).toEqual(expect.arrayContaining(['Pedido de venta', 'Remito']));
+    expect(todas(filtrarMenu(MENU, ['precios.editar']))).toContain('Listas de precios');
+    expect(todas(filtrarMenu(MENU, ['venta.ver']))).toEqual(expect.arrayContaining(['Pedidos', 'Remitos']));
+  });
 });

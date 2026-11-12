@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { esAlicuotaIva } from '@gestion/shared';
 import { zFecha } from '../../compras/comun';
 
-const zAlicuota = z.union([
+export const zAlicuota = z.union([
   z.number().refine(esAlicuotaIva, 'Alícuota de IVA inválida'),
   z.enum(['NO_GRAVADO', 'EXENTO']),
 ]);
@@ -26,6 +26,9 @@ export const esquemaComprobanteVenta = z
     devuelveMercaderia: z.boolean().default(false),
     renglones: z
       .array(z.object({
+        origen: z.enum(['DIRECTO', 'REMITO', 'PEDIDO']).default('DIRECTO'),
+        remitoRenglonId: z.string().uuid('Valor inválido').nullish(),
+        pedidoRenglonId: z.string().uuid('Valor inválido').nullish(),
         articuloId: z.string().uuid('Valor inválido').nullish(),
         descripcion: z.string().trim().min(1, 'Campo obligatorio'),
         cantidad: z.number().gt(0, 'Debe ser mayor a cero'),

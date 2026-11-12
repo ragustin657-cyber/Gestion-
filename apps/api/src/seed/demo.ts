@@ -24,7 +24,7 @@ const ROLES: Record<string, Permiso[]> = {
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar', 'stock.ver', 'stock.operar'],
-  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver'],
+  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver', 'precios.editar', 'pedido.gestionar'],
 };
 
 /** Proveedores demo: razón social, CUIT y régimen de Ganancias (null: sin retención). */
@@ -54,6 +54,12 @@ const ARTICULOS = [
   ['SRV-ELEC', 'Mantenimiento eléctrico', 'HS', 21, true],
   ['LIB-CONT', 'Libro contable', 'UN', 0, false],
 ] as const;
+
+/** Precios de la lista Minorista (la Mayorista es un 15 % menor). */
+const PRECIOS_MINORISTA: Record<string, number> = {
+  'RES-A4': 9500, 'TON-85A': 68000, 'CAB-UTP': 1200, 'LAM-LED': 2500, 'YER-1K': 4800, 'AZU-1K': 1500,
+  'SRV-FLETE': 25000, 'SRV-SOPORTE': 350000, 'SRV-ELEC': 18000, 'LIB-CONT': 12000,
+};
 
 /** Carga una empresa demo completa. Idempotente: si ya existe, no hace nada. */
 export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'existente'> {
@@ -128,8 +134,16 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
 
     const gastos = await cuenta('5.2.01');
     const ventas = await cuenta('4.1.01');
-    for (const [cod, descripcion, unidad, alicuotaIva, esServicio] of ARTICULOS)
-      await tx.articulo.create({ data: { empresaId: e, codigo: cod, descripcion, unidad, alicuotaIva, esServicio, cuentaCompraId: gastos, cuentaVentaId: ventas, controlaStock: cod === 'LAM-LED' } });
+    const minorista = await tx.listaPrecios.create({ data: { empresaId: e, nombre: 'Minorista', monedaCodigo: 'ARS', porDefecto: true } });
+    const mayorista = await tx.listaPrecios.create({ data: { empresaId: e, nombre: 'Mayorista', monedaCodigo: 'ARS' } });
+    for (const [cod, descripcion, unidad, alicuotaIva, esServicio] of ARTICULOS) {
+      const a = await tx.articulo.create({ data: { empresaId: e, codigo: cod, descripcion, unidad, alicuotaIva, esServicio, cuentaCompraId: gastos, cuentaVentaId: ventas, controlaStock: cod === 'LAM-LED' } });
+      const precio = PRECIOS_MINORISTA[cod];
+      await tx.precioLista.createMany({ data: [
+        { empresaId: e, listaId: minorista.id, articuloId: a.id, precio },
+        { empresaId: e, listaId: mayorista.id, articuloId: a.id, precio: Math.round(precio * 0.85) },
+      ] });
+    }
 
     const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
     await tx.cotizacion.create({ data: { empresaId: e, monedaCodigo: 'USD', fecha: hoy, valor: 1450 } });

@@ -24,7 +24,7 @@ export interface ComprobanteVenta {
   estado: string; cae: string | null; caeVencimiento: string | null; ultimoError: string | null; version: number; saldo?: string | null; numeroReservado: number | null;
   puntoVentaId: string; fechaServicioDesde: string | null; fechaServicioHasta: string | null; fechaVencimientoPago: string | null;
   comprobanteAsociadoId: string | null; aplicarAAsociado: boolean;
-  tercero?: { razonSocial: string }; renglones?: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; neto: string; iva: string }[];
+  tercero?: { razonSocial: string }; renglones?: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; neto: string; iva: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null }[];
   ivas?: { alicuota: string; base: string; importe: string }[];
 }
 export interface MovPendiente { id: string; origenTipo: string; origenId: string; descripcion: string; fecha: string; fechaVencimiento: string; monedaCodigo: string; importe: string; saldo: string; saldoPesos: string }

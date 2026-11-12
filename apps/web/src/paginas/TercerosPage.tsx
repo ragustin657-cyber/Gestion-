@@ -26,6 +26,7 @@ const CAMPOS_GENERALES: CampoAbm[] = [
   { nombre: 'cuit', etiqueta: 'CUIT / DNI', tipo: 'texto', requerido: true, ayuda: 'CUIT con dígito verificador, DNI de 7 u 8 dígitos o, en Otro, un texto libre' },
   { nombre: 'condicionIva', etiqueta: 'Condición frente al IVA', tipo: 'select', requerido: true, opciones: condiciones },
   { nombre: 'diasPago', etiqueta: 'Días de pago', tipo: 'numero' },
+  { nombre: 'listaPreciosId', etiqueta: 'Lista de precios', tipo: 'select', ayuda: 'Para clientes: sin lista se usa la lista por defecto' },
   { nombre: 'esProveedor', etiqueta: 'Es proveedor', tipo: 'booleano' },
   { nombre: 'esCliente', etiqueta: 'Es cliente', tipo: 'booleano' },
   { nombre: 'domicilio', etiqueta: 'Domicilio', tipo: 'texto' },
@@ -100,6 +101,7 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
   const detalle = useQuery({ queryKey: ['/terceros', id], queryFn: () => api<Tercero>(`/terceros/${id}`), enabled: !!id });
   const regimenes = useQuery({ queryKey: ['/pagos/config/regimenes', 'ficha'], queryFn: () => api<{ codigo: string; descripcion: string }[]>('/pagos/config/regimenes').catch(() => []) });
   const CAMPOS_IMPUESTOS = camposImpuestos(regimenes.data ?? []);
+  const listas = (useQuery({ queryKey: ['/ventas/listas', 'tercero'], queryFn: () => api<{ id: string; nombre: string }[]>('/ventas/listas').catch(() => []) }).data ?? []).map((l) => ({ value: l.id, label: l.nombre }));
   const refrescar = () => qc.invalidateQueries({ queryKey: ['/terceros'] });
   const t = detalle.data ?? null;
   if (id && !t) return null;
@@ -111,9 +113,9 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
       </Tabs.List>
       <Tabs.Panel value="general">
         <FormAbm
-          campos={CAMPOS_GENERALES}
+          campos={CAMPOS_GENERALES.map((c) => (c.nombre === 'listaPreciosId' ? { ...c, opciones: listas } : c))}
           valoresIniciales={t ? { ...valores(t, CAMPOS_GENERALES), cuit: t.tipoDocumento === 'CUIT' ? formatearCuit(t.cuit) : t.cuit } : { esProveedor: true, activo: true, condicionIva: 'RESPONSABLE_INSCRIPTO', tipoDocumento: 'CUIT', diasPago: 30 }}
-          onEnviar={(v) => (t ? api(`/terceros/${t.id}`, { metodo: 'PATCH', body: v }) : api('/terceros', { metodo: 'POST', body: v }))}
+          onEnviar={(v) => { const b = { ...v, listaPreciosId: v.listaPreciosId || null }; return t ? api(`/terceros/${t.id}`, { metodo: 'PATCH', body: b }) : api('/terceros', { metodo: 'POST', body: b }); }}
           onExito={() => {
             notifications.show({ color: 'green', message: 'Guardado correctamente' });
             void refrescar();

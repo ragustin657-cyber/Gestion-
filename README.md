@@ -196,6 +196,18 @@ Stock por depósito con costo promedio ponderado móvil (uno por artículo para 
 
 Fuera de alcance: lotes, series, vencimientos, producción, remitos, reservas, listas de precios y costo por depósito.
 
+## Ventas completas (Entrega 11)
+
+Circuito comercial previo a la factura: presupuesto → pedido → remito → factura, con precios desde listas.
+
+- **Listas de precios** (Maestros → Listas de precios): varias listas en pesos o dólares, una por defecto; cada cliente puede tener la suya. Precios netos por artículo, editables, importables desde Excel/CSV (código y precio), con **aumento masivo** por porcentaje y redondeo (vista previa) e historial de cambios. El precio de la lista se sugiere al cargar un artículo en pedidos y facturas (convertido si la moneda difiere).
+- **Pedidos de venta** (Registraciones → Ventas → Pedido de venta): nacen como *Presupuesto* (editable, con PDF para enviar) y al confirmarlos pasan a *Pedido*; avisan si falta stock. Se cierran (lo pendiente se cancela) o se anulan si no tienen entregas.
+- **Remitos** (Registraciones → Ventas → Remito): entregan lo pendiente de uno o varios pedidos del cliente (o renglones sueltos). Descuentan stock y registran el costo de lo vendido; PDF sin precios, original y duplicado. Se anulan mientras no estén facturados.
+- **Factura desde remitos y pedidos:** en el comprobante de venta, *Agregar desde remitos y pedidos* trae lo pendiente de facturar del cliente. La factura de un remito no vuelve a mover stock; desde el pedido se facturan servicios. Lo facturado se registra recién al autorizar la factura.
+- **Consultas → Ventas:** pedidos (pendiente de entregar y de facturar) y remitos (pendiente de facturar).
+
+Fuera de alcance: listas derivadas, precio desde el costo, comisiones, descuentos por cantidad, reservas de stock, COT de ARBA y remitos de devolución.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

@@ -57,6 +57,17 @@ export class VentasStock {
       const x = r.get(m.articuloId) ?? { cantidad: cero, importe: cero };
       r.set(m.articuloId, { cantidad: x.cantidad.plus(new D(m.cantidad).neg()), importe: x.importe.plus(new D(m.importe).neg()) });
     }
+    // Renglones facturados desde remitos: la mercadería salió con el remito, a su costo
+    const desdeRemitos = await tx.comprobanteVentaRenglon.findMany({ where: { comprobanteId: asociadoId, remitoRenglonId: { not: null }, articuloId: { not: null } } });
+    if (desdeRemitos.length) {
+      const salidas = await tx.movimientoStock.findMany({ where: { origenTipo: 'REMITO', tipo: 'VENTA', anulaAId: null, origenRenglonId: { in: desdeRemitos.map((x) => x.remitoRenglonId!) } } });
+      for (const ren of desdeRemitos) {
+        const m = salidas.find((x) => x.origenRenglonId === ren.remitoRenglonId);
+        if (!m) continue;
+        const x = r.get(ren.articuloId!) ?? { cantidad: cero, importe: cero };
+        r.set(ren.articuloId!, { cantidad: x.cantidad.plus(ren.cantidad), importe: x.importe.plus(new D(ren.cantidad).times(m.costoUnitario)) });
+      }
+    }
     const devuelto = new Map<string, Dec>();
     for (const nc of ncs) for (const ren of nc.renglones) if (ren.articuloId) devuelto.set(ren.articuloId, (devuelto.get(ren.articuloId) ?? cero).plus(ren.cantidad));
     return { vendido: r, devuelto };
