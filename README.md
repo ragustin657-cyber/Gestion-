@@ -235,6 +235,12 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Flujo de fondos proyectado** (Tesorería → *Flujo de fondos*): parte del saldo de bancos y cajas (los dólares a la cotización del día) y proyecta, por día, semana o mes, los cheques en cartera y en tránsito, las transferencias a acreditar y las **cobranzas** por vencimiento de las facturas de clientes, menos los cheques propios diferidos, las OP aprobadas y los **pagos a proveedores** por vencimiento (sin contar dos veces lo que ya está en una OP). Lo vencido va al primer período en líneas propias, y la casilla *Incluir vencidos* decide si suma al saldo. Alerta en el primer período con saldo negativo, gráfico, detalle de cada período, Excel y PDF.
 - **Antigüedad de saldos a una fecha:** el saldo de cada comprobante se reconstruye a la fecha de corte con las aplicaciones de cobros y pagos, así que al elegir un mes pasado se ve lo que realmente se debía ese día. Lo usan el informe de antigüedad, las tarjetas de vencidos del tablero y la antigüedad de deuda de Compras, que coinciden entre sí.
 
+## Presupuesto contra real (Entrega 16)
+
+- **Presupuestos** (Informes de gestión → *Presupuestos*): varios por ejercicio, con nombre (por ejemplo "Original" y "Revisado junio"); uno vigente, que usa el tablero. Se cargan por cuenta de resultados y, si se quiere, por centro de costo, mes a mes, en una grilla con totales y resultado. Ayudas: repartir un total anual en partes iguales, traer el real del ejercicio anterior con un % de ajuste, copiar otro presupuesto e importar/exportar Excel (una importación con errores no graba nada y lista las líneas a corregir).
+- **Presupuesto contra real** (Informes de gestión): por cuenta, por rubro o por centro de costo, en el rango de meses que se elija; presupuesto, real del Mayor (sin ajuste por inflación, refundición ni cierre), desvío en importe y en %, en verde si es favorable y en rojo si no; lo gastado sin presupuesto aparece marcado. Totales de ingresos, egresos y resultado, gráfico mensual, Excel y PDF.
+- **Tablero:** tarjeta "Resultado contra presupuesto" con el vigente del ejercicio.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
