@@ -2,7 +2,9 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { fechaQuery } from '../compras/consultas/consultas.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
-import { coeficientes } from './calculo';
+import { coeficientes, rotacion } from './calculo';
+import { antiguedad } from './fuentes/cuentas';
+import { valorStock } from './fuentes/stock';
 import { RenglonVendido, renglonesVendidos } from './fuentes/ventas';
 
 type Dec = Prisma.Decimal;
@@ -80,6 +82,29 @@ export class InformesService {
     const { _ventas, _margen, _costo, ...totales } = resumir(rs);
     void _ventas; void _margen; void _costo;
     return { filas: this.agrupar(rs, por), totales, ...(aviso ? { aviso } : {}) };
+  }
+
+  async antiguedad(q: { tipo?: string; fecha?: string }) {
+    if (q.tipo !== 'clientes' && q.tipo !== 'proveedores') throw new BadRequestException('Tipo inválido: use clientes o proveedores');
+    return antiguedad(this.tenant.db, q.tipo, fechaQuery(q.fecha, true)!);
+  }
+
+  async rotacion(q: { desde?: string; hasta?: string }) {
+    const db = this.tenant.db;
+    const { desde, hasta } = this.periodo(q);
+    const dias = Math.round((hasta.getTime() - desde.getTime()) / 86400000) + 1;
+    const [inicial, final, rs] = await Promise.all([valorStock(db, desde, false), valorStock(db, hasta), renglonesVendidos(db, desde, hasta)]);
+    const costo = new Map<string, Dec>();
+    for (const r of rs) if (r.articuloId && r.costo !== null) costo.set(r.articuloId, (costo.get(r.articuloId) ?? cero).plus(r.costo));
+    const ids = [...new Set([...inicial.keys(), ...final.keys(), ...costo.keys()])];
+    const arts = await db.articulo.findMany({ where: { id: { in: ids }, controlaStock: true }, orderBy: { codigo: 'asc' } });
+    let ti = cero, tf = cero, tc = cero;
+    const filas = arts.map((a) => {
+      const si = inicial.get(a.id) ?? cero, sf = final.get(a.id) ?? cero, cv = costo.get(a.id) ?? cero;
+      ti = ti.plus(si); tf = tf.plus(sf); tc = tc.plus(cv);
+      return { articuloId: a.id, codigo: a.codigo, descripcion: a.descripcion, stockInicial: si.toFixed(2), stockFinal: sf.toFixed(2), costoVendido: cv.toFixed(2), ...rotacion(cv, si, sf, dias) };
+    }).filter((f) => Number(f.stockInicial) || Number(f.stockFinal) || Number(f.costoVendido));
+    return { filas, totales: { stockInicial: ti.toFixed(2), stockFinal: tf.toFixed(2), costoVendido: tc.toFixed(2), ...rotacion(tc, ti, tf, dias) } };
   }
 
   async margenes(q: { desde?: string; hasta?: string; agrupar?: string; reexpresar?: string }) {
