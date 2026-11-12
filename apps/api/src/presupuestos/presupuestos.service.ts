@@ -29,6 +29,10 @@ export function mesesDelEjercicio(e: Pick<Ejercicio, 'desde' | 'hasta'>): string
 export class PresupuestosService {
   constructor(private readonly tenant: TenantPrisma, private readonly cls: ClsService) {}
 
+  async razonSocial() {
+    return (await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } })).razonSocial;
+  }
+
   async presupuesto(tx: TxEmpresa, id: string, paraModificar = false) {
     const p = await tx.presupuesto.findUnique({ where: { id } });
     if (!p) throw new NotFoundException('Presupuesto inexistente');

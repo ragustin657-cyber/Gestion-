@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { CargaPresupuestoService } from './carga.service';
+import { ComparacionService } from './comparacion.service';
+import { Columna, tablaPdf, tablaXlsx } from '../contabilidad/consultas/exportar';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { DatosLinea, DatosPresupuesto, esquemaLinea, esquemaModificacion, esquemaPresupuesto } from './dto';
@@ -12,7 +14,7 @@ const esquemaRepartir = z.object({ cuentaContableId: z.string().uuid(), centroCo
 
 @Controller('presupuestos')
 export class PresupuestosController {
-  constructor(private readonly presupuestos: PresupuestosService, private readonly carga: CargaPresupuestoService) {}
+  constructor(private readonly presupuestos: PresupuestosService, private readonly carga: CargaPresupuestoService, private readonly comparacion: ComparacionService) {}
 
   @Get()
   @RequierePermiso('presupuesto.ver')
@@ -66,6 +68,30 @@ export class PresupuestosController {
   @RequierePermiso('presupuesto.editar')
   desdeReal(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ ajustePct: z.number().min(-100).max(10000).default(0) }))) d: { ajustePct: number }) {
     return this.carga.desdeReal(id, d.ajustePct);
+  }
+
+  @Get(':id/comparacion')
+  @RequierePermiso('presupuesto.ver')
+  async comparar(@Param('id', ParseUUIDPipe) id: string, @Query() q: { desde?: string; hasta?: string; agrupar?: string; centroCostoId?: string; formato?: string }, @Res({ passthrough: true }) res: Response) {
+    const r = await this.comparacion.comparar(id, q);
+    if (!q.formato) return r;
+    const imp = (titulo: string): Columna => ({ titulo, ancho: 95, importe: true });
+    const columnas: Columna[] = [{ titulo: 'Concepto', ancho: 230 }, imp('Presupuesto'), imp('Real'), imp('Desvío'), { titulo: 'Desvío %', ancho: 70, importe: true }];
+    const t = r.totales;
+    const filas = [...r.filas.map((f) => [`${f.nombre}${f.sinPresupuesto ? ' (sin presupuestar)' : ''}`, f.presupuesto, f.real, f.desvio, f.desvioPct]),
+      ...[['Ingresos', t.ingresos], ['Egresos', t.egresos], ['Resultado', t.resultado]].map(([n, x]) => { const v = x as typeof t.ingresos; return [n as string, v.presupuesto, v.real, v.desvio, v.desvioPct]; })];
+    const titulo = `Presupuesto contra real - ${r.presupuesto.nombre}`.replace(/[*?:\\/\[\]]/g, "-");
+    const subtitulo = `${r.desde.split('-').reverse().join('/')} a ${r.hasta.split('-').reverse().join('/')}`;
+    const nombre = `presupuesto-real-${r.desde}-${r.hasta}`;
+    if (q.formato === 'xlsx') {
+      res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${nombre}.xlsx"` });
+      return new StreamableFile(await tablaXlsx(titulo, subtitulo, columnas, filas));
+    }
+    if (q.formato === 'pdf') {
+      res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${nombre}.pdf"` });
+      return new StreamableFile(await tablaPdf(await this.presupuestos.razonSocial(), titulo, subtitulo, columnas, filas));
+    }
+    throw new BadRequestException('Formato inválido: use xlsx o pdf');
   }
 
   @Get(':id/exportar')
