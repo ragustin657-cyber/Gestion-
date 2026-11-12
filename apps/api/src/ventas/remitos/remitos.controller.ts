@@ -59,7 +59,7 @@ export class PendientesFacturarController {
       remitos: await this.remitos.pendientesFacturar(terceroId),
       pedidos: pedidos.flatMap((p) => p.renglones
         .filter((r) => Number(r.pendienteFacturar) > 0 && !(r.articuloId && conStock.has(r.articuloId)))
-        .map((r) => ({ pedidoRenglonId: r.id, pedidoId: p.id, numero: `Pedido ${p.numero}`, articuloId: r.articuloId, descripcion: r.descripcion, cantidad: r.cantidad.toString(), pendiente: r.pendienteFacturar, precioUnitario: r.precioUnitario.toString(), alicuota: r.alicuota }))),
+        .map((r) => ({ pedidoRenglonId: r.id, pedidoId: p.id, numero: `Pedido ${p.numero}`, articuloId: r.articuloId, descripcion: r.descripcion, cantidad: r.cantidad.toString(), pendiente: r.pendienteFacturar, precioUnitario: r.precioUnitario.toString(), alicuota: r.alicuota, monedaPedido: p.monedaCodigo, cotizacionPedido: p.cotizacion.toString() }))),
     };
   }
 }

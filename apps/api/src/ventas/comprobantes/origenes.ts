@@ -22,6 +22,7 @@ export class OrigenesVenta {
     const prIds = c.renglones.map((r) => (r.origen === 'PEDIDO' || (!r.remitoRenglonId && r.pedidoRenglonId) ? r.pedidoRenglonId : null)).filter((x): x is string => !!x);
     const rrs = await tx.remitoRenglon.findMany({ where: { id: { in: rrIds } }, include: { remito: true } });
     const prs = await tx.pedidoVentaRenglon.findMany({ where: { id: { in: prIds } }, include: { pedido: true } });
+    const pedidosDeRemitos = await tx.pedidoVentaRenglon.findMany({ where: { id: { in: rrs.map((x) => x.pedidoRenglonId).filter((x): x is string => !!x) } } });
     const conStock = new Set((await tx.articulo.findMany({ where: { id: { in: prs.map((p) => p.articuloId).filter((x): x is string => !!x) }, controlaStock: true } })).map((a) => a.id));
     const sumas = new Map<string, Dec>();
     const out = c.renglones.map((r) => {
@@ -34,6 +35,13 @@ export class OrigenesVenta {
         const pendiente = new D(rr.cantidad).minus(rr.cantidadFacturada);
         const cant = sumas.get(`R:${rr.id}`)!;
         if (cant.gt(pendiente)) throw new BadRequestException(`La cantidad a facturar (${cant.toString()}) supera lo pendiente del remito (${pendiente.toString()})`);
+        if (rr.pedidoRenglonId) {
+          const pr = pedidosDeRemitos.find((x) => x.id === rr.pedidoRenglonId)!;
+          sumas.set(`P:${pr.id}`, (sumas.get(`P:${pr.id}`) ?? new D(0)).plus(r.cantidad));
+          const pendP = new D(pr.cantidad).minus(pr.cantidadFacturada);
+          const cantP = sumas.get(`P:${pr.id}`)!;
+          if (cantP.gt(pendP)) throw new BadRequestException(`La cantidad a facturar (${cantP.toString()}) supera lo pendiente del pedido (${pendP.toString()})`);
+        }
         return { articuloId: rr.articuloId, descripcion: rr.descripcion, remitoRenglonId: rr.id, pedidoRenglonId: rr.pedidoRenglonId };
       }
       if (r.origen === 'PEDIDO' || r.pedidoRenglonId) {

@@ -3,10 +3,13 @@ import ExcelJS from 'exceljs';
 
 export interface FilaImportada { codigo: string; precio: string }
 
+/** Formato argentino: punto de miles y coma decimal ("1.234,50"); también "2.500" (miles) y "2.5" (decimal). Ambiguos: null. */
 const numero = (t: string): string | null => {
   let s = t.trim().replace(/\s/g, '');
-  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
-  if (!/^\d+(\.\d+)?$/.test(s) || Number(s) <= 0) return null;
+  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/^\d+,\d+$/.test(s)) s = s.replace(',', '.');
+  else if (!/^\d+(\.\d+)?$/.test(s)) return null;
+  if (Number(s) <= 0) return null;
   return s;
 };
 
@@ -27,9 +30,9 @@ export async function leerPrecios(contenido: Buffer, nombre: string): Promise<Fi
   }
   const r: FilaImportada[] = [];
   const vistos = new Set<string>();
-  filas.forEach(([codigo = '', precio = ''], i) => {
+  filas.forEach(([codigo = '', precio = '', ...resto], i) => {
     if (!codigo.trim() && !precio.trim()) return;
-    const p = numero(precio);
+    const p = resto.some((x) => x.trim()) ? null : numero(precio);
     if (i === 0 && p === null && !/\d/.test(precio)) return; // encabezado
     if (!p) throw new BadRequestException(`Línea ${i + 1}: precio inválido`);
     const c = codigo.trim();

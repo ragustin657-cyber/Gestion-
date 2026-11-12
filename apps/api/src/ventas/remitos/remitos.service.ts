@@ -61,6 +61,9 @@ export class RemitosService {
 
       // 1. Renglones de pedido: bloqueo y tope de entrega
       const prIds = d.renglones.map((r) => r.pedidoRenglonId).filter((x): x is string => !!x);
+      // Orden de bloqueo: pedido y luego sus renglones (como anular y cerrar el pedido)
+      const pedidosIds = [...new Set((await tx.pedidoVentaRenglon.findMany({ where: { id: { in: prIds } }, select: { pedidoId: true } })).map((x) => x.pedidoId))];
+      await bloquear(tx, 'PedidoVenta', empresaId, pedidosIds);
       await bloquear(tx, 'PedidoVentaRenglon', empresaId, prIds);
       const prs = await tx.pedidoVentaRenglon.findMany({ where: { id: { in: prIds } }, include: { pedido: true } });
       const pedidas = new Map<string, Dec>();
@@ -124,6 +127,11 @@ export class RemitosService {
       const r = await this.obtener(id, tx);
       if (r.estado === 'ANULADO') throw new ConflictException('El remito ya está anulado');
       if (r.renglones.some((x) => new D(x.cantidadFacturada).gt(0))) throw new BadRequestException('El remito tiene renglones facturados');
+      // Una factura que ya pidió el CAE sobre este remito no puede quedar sobre un remito anulado
+      const enEmision = await tx.comprobanteVenta.count({
+        where: { estado: { not: 'AUTORIZADO' }, OR: [{ emisionEnCurso: { not: null } }, { numeroReservado: { not: null } }], renglones: { some: { remitoRenglonId: { in: r.renglones.map((x) => x.id) } } } },
+      });
+      if (enEmision) throw new BadRequestException('El remito tiene una factura en emisión: espere a que termine');
       const prIds = r.renglones.map((x) => x.pedidoRenglonId).filter((x): x is string => !!x);
       await bloquear(tx, 'PedidoVentaRenglon', this.tenant.empresaId, prIds);
       const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
@@ -142,7 +150,12 @@ export class RemitosService {
   /** Renglones de remitos confirmados con cantidad pendiente de facturar. */
   async pendientesFacturar(terceroId?: string) {
     const rs = await this.tenant.db.remitoRenglon.findMany({ where: { remito: { estado: 'CONFIRMADO', terceroId: terceroId || undefined } }, include: { remito: true }, orderBy: [{ remito: { numero: 'asc' } }, { orden: 'asc' }] });
+    const prs = new Map((await this.tenant.db.pedidoVentaRenglon.findMany({ where: { id: { in: rs.map((r) => r.pedidoRenglonId).filter((x): x is string => !!x) } }, include: { pedido: true } })).map((p) => [p.id, p]));
     return rs.filter((r) => new D(r.cantidad).gt(r.cantidadFacturada)).map((r) => ({
+      ...(r.pedidoRenglonId && prs.get(r.pedidoRenglonId) ? (() => {
+        const p = prs.get(r.pedidoRenglonId!)!;
+        return { precioPedido: new D(p.precioUnitario).toString(), alicuotaPedido: p.alicuota, monedaPedido: p.pedido.monedaCodigo, cotizacionPedido: new D(p.pedido.cotizacion).toString() };
+      })() : { precioPedido: null, alicuotaPedido: null, monedaPedido: null, cotizacionPedido: null }),
       remitoRenglonId: r.id, remitoId: r.remitoId, numero: numeroRemito(r.remito.puntoVenta, r.remito.numero), fecha: r.remito.fecha, pedidoRenglonId: r.pedidoRenglonId,
       articuloId: r.articuloId, descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), pendiente: new D(r.cantidad).minus(r.cantidadFacturada).toString(),
     }));

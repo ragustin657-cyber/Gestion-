@@ -27,3 +27,17 @@ export async function precioSugerido(q: { terceroId: string | null; articuloId: 
     return null;
   }
 }
+
+/** Precio de un pedido en la moneda de la factura: con la cotización de la factura, o la del pedido si no hay. */
+export function convertirPrecio(precio: string, de: string, a: string, cotizacionFactura: string, cotizacionPedido: string): string {
+  const p = Number(precio);
+  if (de === a) return String(p);
+  const cot = Number(String(cotizacionFactura).replace(',', '.')) || Number(cotizacionPedido) || 1;
+  const r = de === 'USD' ? p * cot : p / cot;
+  return String(Number(r.toFixed(2)));
+}
+
+/** Cuerpo del aumento: toda la lista o solo los artículos que muestra el filtro. */
+export function cuerpoAumento(porcentaje: number, redondeo: Redondeo, alcance: 'todos' | 'filtrados', filtrados: string[]) {
+  return alcance === 'filtrados' ? { porcentaje, redondeo, articuloIds: filtrados } : { porcentaje, redondeo };
+}

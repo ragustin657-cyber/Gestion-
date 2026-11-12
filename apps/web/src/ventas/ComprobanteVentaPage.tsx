@@ -8,7 +8,7 @@ import { formatoMoneda, hoy } from '../compras/formato';
 import { accionesComprobante, NOMBRE_TIPO, numero, numeroVenta, TIPOS_VENTA, useClientes, useEmpresa, useOperacionVentas, usePuntosVenta, type ComprobanteVenta, type TipoVenta } from './comun';
 import { EstadoEmision } from './EstadoEmision';
 import { TablaPendientes, type Pendiente } from './PedidosRemitosPages';
-import { precioSugerido } from './precios';
+import { convertirPrecio, precioSugerido } from './precios';
 import { alicuotaDe, GrillaVenta, renglonVacio, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
 
 const sumarDias = (f: string, d: number) => {
@@ -16,6 +16,16 @@ const sumarDias = (f: string, d: number) => {
   x.setUTCDate(x.getUTCDate() + d);
   return x.toISOString().slice(0, 10);
 };
+
+/** Renglón editable a partir de un comprobante guardado, conservando su origen (remito o pedido). */
+export function renglonDesdeComprobante(r: { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null }): RenglonVentaEditable {
+  const origen = r.remitoRenglonId ? 'REMITO' : r.pedidoRenglonId ? 'PEDIDO' : 'DIRECTO';
+  return {
+    articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota,
+    origen, remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null,
+    ...(origen === 'DIRECTO' ? {} : { etiqueta: origen === 'REMITO' ? 'Desde remito' : 'Desde pedido' }),
+  };
+}
 
 export function ComprobanteVentaPage() {
   const empresa = useEmpresa();
@@ -45,7 +55,7 @@ export function ComprobanteVentaPage() {
   const [seleccionPend, setSeleccionPend] = useState<Record<string, string>>({});
   const pendientesQ = useQuery({
     queryKey: ['/ventas/pendientes-facturar', terceroId],
-    queryFn: () => api<{ remitos: { remitoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string }[]; pedidos: { pedidoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioUnitario: string; alicuota: string }[] }>('/ventas/pendientes-facturar', { query: { terceroId } }),
+    queryFn: () => api<{ remitos: { remitoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioPedido: string | null; alicuotaPedido: string | null; monedaPedido: string | null; cotizacionPedido: string | null }[]; pedidos: { pedidoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioUnitario: string; alicuota: string; monedaPedido: string; cotizacionPedido: string }[] }>('/ventas/pendientes-facturar', { query: { terceroId } }),
     enabled: selectorPendientes && !!terceroId,
   }).data;
   const pendientesFacturar: Pendiente[] = [
@@ -58,12 +68,15 @@ export function ComprobanteVentaPage() {
       const rem = pendientesQ?.remitos.find((x) => x.remitoRenglonId === id);
       if (rem) {
         const art = articulos.find((a) => a.value === rem.articuloId);
-        const precio = rem.articuloId ? await precioSugerido({ terceroId, articuloId: rem.articuloId, monedaCodigo: moneda, cotizacion }) : null;
-        nuevos.push({ origen: 'REMITO', remitoRenglonId: id, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant, precioUnitario: precio ? String(Number(precio)) : '', alicuota: art ? String(Number(art.alicuotaIva)) : '21' });
+        // Precio y alícuota acordados en el pedido (convertidos a la moneda de la factura); sin pedido, el de la lista
+        const precio = rem.precioPedido
+          ? convertirPrecio(rem.precioPedido, rem.monedaPedido!, moneda, cotizacion, rem.cotizacionPedido!)
+          : rem.articuloId ? await precioSugerido({ terceroId, articuloId: rem.articuloId, monedaCodigo: moneda, cotizacion }) : null;
+        nuevos.push({ origen: 'REMITO', remitoRenglonId: id, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant, precioUnitario: precio ? String(Number(precio)) : '', alicuota: rem.alicuotaPedido ?? (art ? String(Number(art.alicuotaIva)) : '21') });
         continue;
       }
       const ped = pendientesQ?.pedidos.find((x) => x.pedidoRenglonId === id);
-      if (ped) nuevos.push({ origen: 'PEDIDO', pedidoRenglonId: id, etiqueta: ped.numero, articuloId: ped.articuloId, descripcion: ped.descripcion, cantidad: cant, precioUnitario: String(Number(ped.precioUnitario)), alicuota: ped.alicuota });
+      if (ped) nuevos.push({ origen: 'PEDIDO', pedidoRenglonId: id, etiqueta: ped.numero, articuloId: ped.articuloId, descripcion: ped.descripcion, cantidad: cant, precioUnitario: convertirPrecio(ped.precioUnitario, ped.monedaPedido, moneda, cotizacion, ped.cotizacionPedido), alicuota: ped.alicuota });
     }
     setRenglones([...renglones.filter((r) => r.descripcion), ...nuevos]);
     setSeleccionPend({});
@@ -83,7 +96,7 @@ export function ComprobanteVentaPage() {
       setActual(c); setTipo(c.tipo); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setFecha(f(c.fecha)); setFechaVencimiento(f(c.fechaVencimiento));
       setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
       setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(c.depositoId ?? null); setDevuelveMercaderia(!!c.devuelveMercaderia);
-      setRenglones((c.renglones ?? []).map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota })));
+      setRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
     }).catch(() => op.setError('No se pudo cargar el comprobante'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idEditar]);

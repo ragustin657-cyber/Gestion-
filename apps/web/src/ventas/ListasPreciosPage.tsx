@@ -6,7 +6,7 @@ import { api, subirArchivo } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda } from '../compras/formato';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
-import { REDONDEOS, vistaPreviaAumento, type Redondeo } from './precios';
+import { cuerpoAumento, REDONDEOS, vistaPreviaAumento, type Redondeo } from './precios';
 
 interface Lista { id: string; nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean }
 interface Precio { articuloId: string; codigo: string; descripcion: string; precio: string; actualizadoEn: string }
@@ -44,7 +44,7 @@ export function ListasPreciosPage() {
   const articulos = useQuery({ queryKey: ['/articulos', 'precios'], queryFn: () => api<{ items: { id: string; codigo: string; descripcion: string }[] }>('/articulos', { query: { porPagina: 500 } }), enabled: editable }).data?.items ?? [];
   const [nueva, setNueva] = useState<{ nombre: string; monedaCodigo: string; porDefecto: boolean } | null>(null);
   const [agregar, setAgregar] = useState<{ articuloId: string | null; precio: string | number }>({ articuloId: null, precio: '' });
-  const [aumento, setAumento] = useState<{ porcentaje: string | number; redondeo: Redondeo } | null>(null);
+  const [aumento, setAumento] = useState<{ porcentaje: string | number; redondeo: Redondeo; alcance: 'todos' | 'filtrados' } | null>(null);
   const [historial, setHistorial] = useState<Precio | null>(null);
   const hist = useQuery({ queryKey: ['/ventas/listas/historial', listaId, historial?.articuloId], queryFn: () => api<{ id: string; motivo: string; precioAnterior: string | null; precioNuevo: string | null; fecha: string; usuario: string }[]>(`/ventas/listas/${listaId}/historial`, { query: { articuloId: historial!.articuloId } }), enabled: !!historial });
   const refrescar = () => void qc.invalidateQueries({ predicate: (x) => String(x.queryKey[0]).startsWith('/ventas/listas') });
@@ -64,7 +64,7 @@ export function ListasPreciosPage() {
         <Select label="Lista" w={260} data={(listas.data ?? []).map((l) => ({ value: l.id, label: `${l.nombre} (${l.monedaCodigo})${l.porDefecto ? ' · por defecto' : ''}${l.activa ? '' : ' · inactiva'}` }))} value={listaId} onChange={setListaId} />
         <TextInput label="Buscar" w={220} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
         {editable && lista && <>
-          <Button variant="default" onClick={() => setAumento({ porcentaje: '', redondeo: '1' })}>Aumentar precios</Button>
+          <Button variant="default" onClick={() => setAumento({ porcentaje: '', redondeo: '1', alcance: q.trim() ? 'filtrados' : 'todos' })}>Aumentar precios</Button>
           <FileButton accept=".csv,.xlsx,text/csv" onChange={async (f) => { if (f && (await op.ejecutar(() => subirArchivo<{ creados: number; actualizados: number }>(`/ventas/listas/${listaId}/importar`, {}, f), (x) => `Creados: ${x.creados} · Actualizados: ${x.actualizados}`))) refrescar(); }}>
             {(props) => <Button variant="default" {...props}>Importar</Button>}
           </FileButton>
@@ -105,8 +105,12 @@ export function ListasPreciosPage() {
               <Table.Tbody>{vistaPreviaAumento(precios.data ?? [], Number(aumento.porcentaje), aumento.redondeo).map((x) => <Table.Tr key={x.codigo}><Table.Td>{x.codigo}</Table.Td><Table.Td>{formatoMoneda(x.antes, moneda)}</Table.Td><Table.Td>{formatoMoneda(x.despues, moneda)}</Table.Td></Table.Tr>)}</Table.Tbody>
             </Table>
           )}
-          <Text size="xs" c="dimmed">Se aplica a todos los artículos de la lista ({precios.data?.length ?? 0}).</Text>
-          <Button disabled={!Number(aumento.porcentaje)} onClick={async () => { if (await op.ejecutar(() => api<{ actualizados: number }>(`/ventas/listas/${listaId}/aumento`, { metodo: 'POST', body: { porcentaje: Number(aumento.porcentaje), redondeo: aumento.redondeo } }), (x) => `${x.actualizados} precios actualizados`)) { setAumento(null); refrescar(); } }}>Aplicar</Button>
+          {q.trim()
+            ? <Select label="Alcance" allowDeselect={false} value={aumento.alcance} onChange={(v) => setAumento({ ...aumento, alcance: (v ?? 'todos') as 'todos' | 'filtrados' })}
+                data={[{ value: 'filtrados', label: `Solo los artículos filtrados (${precios.data?.length ?? 0})` }, { value: 'todos', label: 'Toda la lista' }]} />
+            : <Text size="xs" c="dimmed">Se aplica a todos los artículos de la lista ({precios.data?.length ?? 0}).</Text>}
+          {aumento.alcance === 'todos' && q.trim() && <Text size="xs" c="orange">La vista previa muestra solo los artículos filtrados; el aumento se aplica a toda la lista.</Text>}
+          <Button disabled={!Number(aumento.porcentaje)} onClick={async () => { if (await op.ejecutar(() => api<{ actualizados: number }>(`/ventas/listas/${listaId}/aumento`, { metodo: 'POST', body: cuerpoAumento(Number(aumento.porcentaje), aumento.redondeo, q.trim() ? aumento.alcance : 'todos', (precios.data ?? []).map((p) => p.articuloId)) }), (x) => `${x.actualizados} precios actualizados`)) { setAumento(null); refrescar(); } }}>Aplicar</Button>
         </Stack>}
       </Modal>
       <Modal opened={!!historial} onClose={() => setHistorial(null)} title={`Historial de ${historial?.codigo ?? ''}`}>
