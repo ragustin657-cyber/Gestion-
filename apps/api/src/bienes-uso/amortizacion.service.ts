@@ -13,6 +13,11 @@ const mmaaaa = (m: Mes) => `${m.slice(5, 7)}/${m.slice(0, 4)}`;
 const finDeMes = (m: Mes) => { const [a, mm] = m.split('-').map(Number); return new Date(Date.UTC(a, mm, 0)); };
 const inicioDeMes = (m: Mes) => new Date(`${m}-01T00:00:00Z`);
 
+/** Serializa amortizaciones, bajas y ventas de bienes de la empresa (hasta el fin de la transacción). */
+export async function bloquearBienes(tx: TxEmpresa, empresaId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`amortizacion:${empresaId}`}))`;
+}
+
 /** Contabilizada vigente por bien (amortizaciones de procesos vigentes). */
 async function contabilizadas(tx: TxEmpresa, bienIds: string[]): Promise<Map<string, Dec>> {
   if (!bienIds.length) return new Map();
@@ -31,9 +36,9 @@ export async function calcularAmortizacion(tx: TxEmpresa, mes: Mes, bienId?: str
 export async function faltanteCierreAmortizacion(tx: TxEmpresa, e: Ejercicio): Promise<string | null> {
   const hay = await tx.bienUso.count({ where: { fechaAlta: { lte: e.hasta }, OR: [{ fechaBaja: null }, { fechaBaja: { gte: e.desde } }] } });
   if (!hay) return null;
+  // Con la vista previa del mes de cierre en cero todo está contabilizado (aunque no haya proceso de ese mes: bienes ya amortizados o vendidos)
   const mes = mesDe(e.hasta);
-  const vigente = await tx.procesoAmortizacion.count({ where: { mes, estado: 'VIGENTE' } });
-  if (!vigente || (await calcularAmortizacion(tx, mes)).length) return `Genere la amortización de bienes de uso de ${mmaaaa(mes)}`;
+  if ((await calcularAmortizacion(tx, mes)).length) return `Genere la amortización de bienes de uso de ${mmaaaa(mes)}`;
   return null;
 }
 
@@ -73,11 +78,14 @@ export class AmortizacionService {
   generar(mesQ: string | undefined) {
     const mes = this.validarMes(mesQ);
     return this.tenant.transaccion(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`amortizacion:${this.tenant.empresaId}`}))`;
+      await bloquearBienes(tx, this.tenant.empresaId);
       const ultimo = await tx.procesoAmortizacion.findFirst({ where: { estado: 'VIGENTE' }, orderBy: [{ mes: 'desc' }, { creadoEn: 'desc' }] });
       if (ultimo && ultimo.mes > mes) throw new BadRequestException(`Ya hay una amortización generada para un mes posterior: ${mmaaaa(ultimo.mes)}`);
       const items = await calcularAmortizacion(tx, mes);
       if (!items.length) throw new BadRequestException(`No hay amortizaciones para contabilizar en ${mmaaaa(mes)}`);
+      // Una venta en emisión dará de baja el bien con lo amortizado hasta hoy: no se amortiza mientras tanto
+      const enVenta = await tx.comprobanteVentaRenglon.findFirst({ where: { bienUsoId: { in: items.map((i) => i.bien.id) }, comprobante: { emisionEnCurso: { not: null }, estado: { not: 'AUTORIZADO' } } } });
+      if (enVenta) throw new BadRequestException(`El bien N° ${items.find((i) => i.bien.id === enVenta.bienUsoId)!.bien.numero} se está vendiendo (comprobante en emisión): espere a que termine`);
       const grupos = new Map<string, { gasto: string; amort: string; origen: Mes; importe: Dec }>();
       for (const i of items) {
         const origen = mesDe(i.bien.fechaAlta);
@@ -101,7 +109,7 @@ export class AmortizacionService {
 
   anular(id: string) {
     return this.tenant.transaccion(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`amortizacion:${this.tenant.empresaId}`}))`;
+      await bloquearBienes(tx, this.tenant.empresaId);
       const p = await tx.procesoAmortizacion.findUnique({ where: { id } });
       if (!p) throw new NotFoundException('Amortización inexistente');
       if (p.estado !== 'VIGENTE') throw new BadRequestException('La amortización ya está anulada');

@@ -3,7 +3,7 @@ import { BienUso, MotivoBajaBienUso, Prisma, RubroBienUso } from '@prisma/client
 import { AsientosService, RenglonAsiento } from '../contabilidad/asientos/asientos.service';
 import { ConfigComprasService } from '../compras/config/config-compras.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
-import { AmortizacionService } from './amortizacion.service';
+import { AmortizacionService, bloquearBienes } from './amortizacion.service';
 import { BienesService } from './bienes.service';
 import { mesDe, sumarMeses } from './calculo';
 
@@ -22,6 +22,7 @@ export class BajasService {
 
   /** Reglas de baja (spec §5): activo, fecha ≥ alta, amortizado hasta el mes anterior y sin amortizaciones posteriores. */
   async validarBaja(tx: TxEmpresa, bienId: string, fecha: Date): Promise<BienUso & { rubro: RubroBienUso }> {
+    await bloquearBienes(tx, this.tenant.empresaId);
     const b = await tx.bienUso.findUnique({ where: { id: bienId }, include: { rubro: true } });
     if (!b) throw new NotFoundException('Bien de uso inexistente');
     if (b.estado === 'BAJA') throw new BadRequestException('El bien ya está dado de baja');
@@ -86,9 +87,11 @@ export class BajasService {
   async alAutorizarVenta(tx: TxEmpresa, fecha: Date, renglones: { id: string; bienUsoId: string | null }[]) {
     const conBien = renglones.filter((r) => r.bienUsoId);
     if (!conBien.length) return;
+    await bloquearBienes(tx, this.tenant.empresaId);
     const cuenta = await this.cuentas.cuenta(tx, 'RESULTADO_VENTA_BIENES_USO');
     for (const r of conBien) {
       const b = await tx.bienUso.findUniqueOrThrow({ where: { id: r.bienUsoId! }, include: { rubro: true } });
+      if (b.estado === 'BAJA') continue; // nada puede fallar después de la autorización de ARCA
       await this.registrarBaja(tx, b, fecha, 'VENTA', cuenta, r.id);
     }
   }

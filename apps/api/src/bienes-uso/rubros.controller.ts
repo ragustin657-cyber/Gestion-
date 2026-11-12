@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
-import { RequierePermiso } from '../auth/requiere-permiso.decorator';
+import { RequiereAlguno, RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { DatosRubro, esquemaRubro } from './dto';
 import { RubrosService } from './rubros.service';
@@ -9,7 +9,7 @@ export class RubrosController {
   constructor(private readonly rubros: RubrosService) {}
 
   @Get()
-  @RequierePermiso('bienes.ver')
+  @RequiereAlguno('bienes.ver', 'bienes.gestionar', 'fc.crear')
   listar() {
     return this.rubros.listar();
   }

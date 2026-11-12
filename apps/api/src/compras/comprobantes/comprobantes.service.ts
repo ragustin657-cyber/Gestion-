@@ -229,6 +229,8 @@ export class ComprobantesService {
       for (const [i, r] of renglones.entries()) {
         const rubro = await this.rubros.rubroDeCuenta(tx, r.cuentaContableId);
         if (!rubro) continue;
+        // Desde recepción u OC (cuenta tomada del artículo) el bien toma la descripción del renglón y la vida útil del rubro
+        if (!d.renglones[i].bien && d.renglones[i].origen !== 'DIRECTO') d.renglones[i].bien = { descripcion: d.renglones[i].descripcion };
         if (!d.renglones[i].bien) throw new BadRequestException(`Indique el bien de uso del renglón ${i + 1}`);
         rubrosRenglon.set(i, rubro);
       }
@@ -342,7 +344,9 @@ export class ComprobantesService {
 
       const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
       await this.stock.bloquearArticulos(tx, c.renglones.map((r) => r.articuloId));
-      const contra = c.asientoId ? await this.asientos.contraasiento(tx, c.asientoId, hoy, `Anulación: ${motivo}`) : null;
+      // Con bienes de uso, la anulación lleva la fecha de origen de la factura (el ajuste por inflación la neutraliza)
+      const conBienes = await tx.bienUso.count({ where: { comprobanteCompraRenglonId: { in: c.renglones.map((r) => r.id) } } });
+      const contra = c.asientoId ? await this.asientos.contraasiento(tx, c.asientoId, hoy, `Anulación: ${motivo}`, conBienes ? c.fechaContable : undefined) : null;
       await tx.comprobanteCompra.update({ where: { id }, data: { asientoAnulacionId: contra?.id ?? null } });
       if (mov) await tx.movimientoCuentaCorriente.update({ where: { id: mov.id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });
 

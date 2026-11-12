@@ -103,7 +103,8 @@ export class AsientosService {
   }
 
   /** Asiento inverso del indicado (debe ↔ haber), vinculado por anulaAId. */
-  async contraasiento(tx: TxEmpresa, asientoId: string, fecha: Date, descripcion: string): Promise<{ id: string; numero: number }> {
+  /** `fechaOrigen`: para los renglones que no la tienen (anulaciones que el ajuste por inflación debe reexpresar desde el origen). */
+  async contraasiento(tx: TxEmpresa, asientoId: string, fecha: Date, descripcion: string, fechaOrigen?: Date): Promise<{ id: string; numero: number }> {
     const orig = await tx.asiento.findUnique({ where: { id: asientoId }, include: { renglones: true } });
     if (!orig) throw new BadRequestException('Asiento original inexistente');
     if (await tx.asiento.count({ where: { anulaAId: orig.id } })) throw new BadRequestException('El asiento ya fue anulado');
@@ -113,7 +114,7 @@ export class AsientosService {
         fecha, descripcion, origenTipo: orig.origenTipo, origenId: orig.origenId, tipo: orig.tipo === 'MANUAL' || orig.tipo === 'AJUSTE_INFLACION' ? orig.tipo : 'AUTOMATICO',
         renglones: orig.renglones.map((r) => ({
           cuentaContableId: r.cuentaContableId, centroCostoId: r.centroCostoId,
-          debe: r.haber.toString(), haber: r.debe.toString(), detalle: r.detalle ?? undefined, fechaOrigen: r.fechaOrigen,
+          debe: r.haber.toString(), haber: r.debe.toString(), detalle: r.detalle ?? undefined, fechaOrigen: r.fechaOrigen ?? fechaOrigen ?? null,
         })),
       },
       orig.id,

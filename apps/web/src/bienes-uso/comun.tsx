@@ -15,7 +15,7 @@ export const MOTIVOS: Record<string, string> = { DESUSO: 'Desuso', SINIESTRO: 'S
 /** Rubros (vacío si el usuario no puede verlos). */
 export function useRubros() {
   const { puede } = useAuth();
-  return useQuery({ queryKey: ['/bienes-uso/rubros'], queryFn: () => api<Rubro[]>('/bienes-uso/rubros'), enabled: puede('bienes.ver') || puede('bienes.gestionar') });
+  return useQuery({ queryKey: ['/bienes-uso/rubros'], queryFn: () => api<Rubro[]>('/bienes-uso/rubros'), enabled: puede('bienes.ver') || puede('bienes.gestionar') || puede('fc.crear') });
 }
 
 /** Datos del bien en un renglón de factura cuya cuenta es la de un rubro. */

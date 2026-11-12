@@ -145,9 +145,14 @@ export class BienesService {
       if (cambia) {
         if (b.estado === 'BAJA') throw new BadRequestException('El bien está dado de baja');
         if (await this.tieneAmortizaciones(tx, id)) throw new BadRequestException('El bien ya tiene amortizaciones: anúlelas para modificarlo');
-        if (b.origen !== 'INICIAL' && (valores.fechaAlta || valores.valorOrigen !== undefined || valores.rubroId))
+        // El rubro nunca cambia (el saldo quedaría en la cuenta del otro rubro); fecha y valor solo en la carga inicial
+        if ((valores.rubroId && valores.rubroId !== b.rubroId) || (b.origen !== 'INICIAL' && (valores.fechaAlta || valores.valorOrigen !== undefined)))
           throw new BadRequestException('La fecha, el valor y el rubro salen de la factura o del asiento de alta');
-        this.validarValores(new D(valores.valorOrigen ?? b.valorOrigen), new D(valores.valorResidual ?? b.valorResidual));
+        const origen = new D(valores.valorOrigen ?? b.valorOrigen), residual = new D(valores.valorResidual ?? b.valorResidual);
+        this.validarValores(origen, residual);
+        if (b.amortizacionInicial.gt(origen.minus(residual))) throw new BadRequestException('La amortización acumulada no puede superar el valor amortizable');
+        if (b.fechaAmortizacionInicial && mesDe(b.fechaAmortizacionInicial) < mesDe(valores.fechaAlta ?? b.fechaAlta))
+          throw new BadRequestException('La fecha de la amortización acumulada no puede ser anterior al alta');
       }
       await tx.bienUso.update({ where: { id }, data: { ...(descripcion ? { descripcion } : {}), ...valores } });
       return this.obtener(id, tx);
@@ -160,7 +165,7 @@ export class BienesService {
       if (!b) throw new NotFoundException('Bien de uso inexistente');
       if (b.origen === 'FACTURA') throw new BadRequestException('Un bien dado de alta por factura se elimina anulando la factura');
       if (b.estado === 'BAJA' || (await this.tieneAmortizaciones(tx, id))) throw new BadRequestException('El bien ya tiene amortizaciones o baja: anúlelas primero');
-      if (b.asientoAltaId) await this.asientos.contraasiento(tx, b.asientoAltaId, hoy(), `Eliminación del bien de uso N° ${b.numero}`);
+      if (b.asientoAltaId) await this.asientos.contraasiento(tx, b.asientoAltaId, hoy(), `Eliminación del bien de uso N° ${b.numero}`, b.fechaAlta);
       await tx.bienUso.delete({ where: { id } });
       return { ok: true };
     });
