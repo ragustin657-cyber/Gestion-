@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { esAlicuotaIva } from '@gestion/shared';
 import { zFecha } from '../../compras/comun';
 
-const zAlicuota = z.union([
+export const zAlicuota = z.union([
   z.number().refine(esAlicuotaIva, 'Alícuota de IVA inválida'),
   z.enum(['NO_GRAVADO', 'EXENTO']),
 ]);

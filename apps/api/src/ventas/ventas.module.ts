@@ -1,3 +1,5 @@
+import { PedidosController } from './pedidos/pedidos.controller';
+import { PedidosService } from './pedidos/pedidos.service';
 import { PreciosController } from './precios/precios.controller';
 import { PreciosService } from './precios/precios.service';
 import { Module } from '@nestjs/common';
@@ -15,8 +17,8 @@ import { DatosVentasController } from './consultas/datos-ventas.controller';
 
 @Module({
   imports: [ArcaModule],
-  controllers: [PreciosController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController],
-  providers: [PreciosService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService],
+  controllers: [PreciosController, PedidosController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController],
+  providers: [PreciosService, PedidosService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}
