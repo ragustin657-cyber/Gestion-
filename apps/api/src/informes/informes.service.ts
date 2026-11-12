@@ -1,3 +1,6 @@
+import { ClsService } from 'nestjs-cls';
+import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
+import { ComparacionService } from '../presupuestos/comparacion.service';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { Prisma } from '@prisma/client';
@@ -34,7 +37,22 @@ export function resumir(rs: RenglonVendido[]) {
 
 @Injectable()
 export class InformesService {
-  constructor(private readonly tenant: TenantPrisma) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly comparacion: ComparacionService, private readonly cls: ClsService) {}
+
+  /** Tarjeta "Resultado contra presupuesto": vigente del ejercicio que contiene desde, meses recortados al ejercicio (spec E16 §5). */
+  private async tarjetaPresupuesto(desde: Date, hasta: Date) {
+    const ctx = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO);
+    if (!ctx.superadmin && !ctx.permisos.includes('presupuesto.ver')) return null;
+    const db = this.tenant.db;
+    const ej = await db.ejercicio.findFirst({ where: { desde: { lte: desde }, hasta: { gte: desde } } });
+    if (!ej) return null;
+    const p = await db.presupuesto.findFirst({ where: { ejercicioId: ej.id, vigente: true } });
+    if (!p) return null;
+    const fin = hasta > ej.hasta ? ej.hasta : hasta;
+    const r = await this.comparacion.resultado(db, p.id, desde.toISOString().slice(0, 7), fin.toISOString().slice(0, 7));
+    const desvio = r.real.minus(r.presupuestado);
+    return { nombre: p.nombre, resultadoPresupuestado: r.presupuestado.toFixed(2), resultadoReal: r.real.toFixed(2), desvioPct: r.presupuestado.isZero() ? null : desvio.div(r.presupuestado.abs()).times(100).toFixed(2) };
+  }
 
   /** Período validado (spec §4). */
   periodo(q: { desde?: string; hasta?: string }) {
@@ -96,6 +114,7 @@ export class InformesService {
         cobranzasVencidas: { valor: vencido(clientes.totales) },
         deudaVencida: { valor: vencido(proveedores.totales) },
         stock: { valor: [...stock.values()].reduce((acc, v) => acc.plus(v), cero).toFixed(2) },
+        presupuesto: await this.tarjetaPresupuesto(desde, hastaPedido),
       },
       ventasPorMes: meses.map((mes) => {
         const f = porMes.get(mes);
