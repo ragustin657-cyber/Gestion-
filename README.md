@@ -208,6 +208,12 @@ Circuito comercial previo a la factura: presupuesto → pedido → remito → fa
 
 Fuera de alcance: listas derivadas, precio desde el costo, comisiones, descuentos por cantidad, reservas de stock, COT de ARBA y remitos de devolución.
 
+## Pulido (Entrega 12)
+
+Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y clientes; importaciones de índices y precios más tolerantes (separador de miles, comillas, fórmulas de Excel, número de línea exacto); costos de compra que nunca dejan valor negativo ni centavos en Mercadería recibida a facturar; valuación de stock con el ajuste por inflación aparte; PDF de pedidos con encabezado en cada página y presupuesto B con IVA incluido.
+
+> **Para empresas migradas desde antes de la Entrega 9:** los conceptos RECPAM, Resultados no asignados y Costo de mercaderías vendidas se asociaron por código. Si su plan usa esos códigos para otras cuentas, revise la asociación en Administración → Configuración de compras (cuentas por concepto).
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

@@ -84,7 +84,7 @@ export function PedidoVentaPage() {
         <Select label="Depósito" w={180} clearable data={depositos} value={depositoId} onChange={setDepositoId} disabled={!editable} />
       </Group>
       <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos}
-        sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion })} />
+        sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
       <TextInput label="Observaciones" mt="md" value={observaciones} onChange={(e) => setObservaciones(e.currentTarget.value)} disabled={!editable} />
       {op.alerta}
       {avisos.map((a) => <Alert key={a} color="yellow" mt="sm">{a}</Alert>)}
