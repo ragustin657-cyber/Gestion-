@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CondicionIva, Prisma } from '@prisma/client';
 import { TODOS_LOS_PERMISOS } from '@gestion/shared';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -6,7 +6,6 @@ import { PlanCuentasService } from '../contabilidad/plan-cuentas/plan-cuentas.se
 import { cargarConfigCuentas } from '../compras/config/conceptos';
 import { cargarConfigPagos } from '../pagos/config/valores-iniciales';
 import { cargarReglasIniciales } from '../conciliacion/reglas-iniciales';
-import { BadRequestException } from '@nestjs/common';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { crearEjercicio, rangoEjercicio } from '../contabilidad/periodos/ejercicios';
 import { PrismaService } from '../prisma/prisma.service';
@@ -76,6 +75,13 @@ export class EmpresasService {
 
   puntosVenta() {
     return this.tenant.db.puntoVenta.findMany({ orderBy: { numero: 'asc' } });
+  }
+
+  async modificarPuntoVenta(id: string, d: { depositoId: string | null }) {
+    const db = this.tenant.db;
+    if (!(await db.puntoVenta.findUnique({ where: { id } }))) throw new NotFoundException('Punto de venta no encontrado');
+    if (d.depositoId && !(await db.deposito.findUnique({ where: { id: d.depositoId } }))) throw new BadRequestException('Depósito inexistente');
+    return db.puntoVenta.update({ where: { id }, data: { depositoId: d.depositoId } });
   }
 
   crearPuntoVenta(d: { numero: number; descripcion?: string | null; electronico?: boolean; sucursalId?: string | null }) {

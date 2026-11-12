@@ -1,8 +1,9 @@
 import { ALICUOTAS_IVA } from '@gestion/shared';
 import { estado, Maestro, siNo } from '../abm/Maestro';
 import { useCuentasImputables } from '../abm/opciones';
+import { formatoMoneda } from '../compras/formato';
 
-interface Articulo { id: string; codigo: string; descripcion: string; unidad: string; alicuotaIva: string; esServicio: boolean; activo: boolean }
+interface Articulo { id: string; codigo: string; descripcion: string; unidad: string; alicuotaIva: string; esServicio: boolean; activo: boolean; controlaStock: boolean; stockCantidad: string; costoPromedio: string }
 
 export function ArticulosPage() {
   const cuentas = useCuentasImputables();
@@ -15,6 +16,7 @@ export function ArticulosPage() {
     { nombre: 'cuentaCompraId', etiqueta: 'Cuenta contable de compra', tipo: 'select' as const, opciones: cuentas },
     { nombre: 'cuentaVentaId', etiqueta: 'Cuenta contable de venta', tipo: 'select' as const, opciones: cuentas },
     { nombre: 'esServicio', etiqueta: 'Es un servicio', tipo: 'booleano' as const },
+    { nombre: 'controlaStock', etiqueta: 'Controla stock', tipo: 'booleano' as const, ayuda: 'Las compras van a Mercaderías y las ventas descuentan stock y registran su costo' },
     { nombre: 'activo', etiqueta: 'Activo', tipo: 'booleano' as const },
   ];
   return (
@@ -32,6 +34,8 @@ export function ArticulosPage() {
           { campo: 'unidad', titulo: 'Unidad' },
           { campo: 'alicuotaIva', titulo: 'IVA', render: (a) => `${Number(a.alicuotaIva).toLocaleString('es-AR')} %` },
           { campo: 'esServicio', titulo: 'Servicio', render: (a) => siNo(a.esServicio) },
+          { campo: 'stockCantidad', titulo: 'Stock', render: (a) => (a.controlaStock ? Number(a.stockCantidad).toLocaleString('es-AR') : '—') },
+          { campo: 'costoPromedio', titulo: 'Costo promedio', render: (a) => (a.controlaStock ? formatoMoneda(a.costoPromedio) : '—') },
           { campo: 'activo', titulo: 'Estado', render: (a) => estado(a.activo) },
         ],
       }}

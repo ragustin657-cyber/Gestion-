@@ -178,6 +178,24 @@ RT 6 / RT 54, método directo: las cuentas no monetarias se reexpresan movimient
 
 Fuera de alcance: ajuste impositivo (Ganancias), segregación de componentes financieros, valores corrientes y método indirecto.
 
+## Stock (Entrega 10)
+
+Stock por depósito con costo promedio ponderado móvil (uno por artículo para toda la empresa) y su contabilización automática.
+
+- **Artículos:** la casilla *Controla stock* activa el control. Los servicios no controlan stock.
+- **Compras:**
+  - el **informe de recepción** entra la mercadería al depósito al precio de la OC: Mercaderías / Mercadería recibida a facturar;
+  - la **factura del proveedor** cancela ese pasivo; la diferencia de precio ajusta el costo (o va al costo de lo vendido si la mercadería ya se vendió);
+  - una factura **sin recepción** pide depósito y entra al precio facturado;
+  - las notas de crédito y débito de compra ajustan el costo.
+- **Ventas:** la factura sale del depósito del punto de venta (o el elegido); al emitir se registra Costo de mercaderías vendidas / Mercaderías. La nota de crédito *con devolución de mercadería* la reingresa al costo con que salió.
+- **Stock negativo** (Administración → Configuración de stock): *Bloquear* (por defecto) o *Permitir con aviso*.
+- **Registraciones → Stock:** transferencia entre depósitos, inventario físico (sobrantes y faltantes), inventario inicial (con o sin asiento) y salida manual. Todo se anula con movimientos inversos y contraasiento.
+- **Consultas → Stock:** existencias por depósito, kardex con saldos de cantidad y valor, valuación a una fecha con el control contra el Mayor de Mercaderías (pantalla, Excel y PDF).
+- La cuenta Mercaderías (1.1.05.001) es no monetaria: se reexpresa en el ajuste por inflación.
+
+Fuera de alcance: lotes, series, vencimientos, producción, remitos, reservas, listas de precios y costo por depósito.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

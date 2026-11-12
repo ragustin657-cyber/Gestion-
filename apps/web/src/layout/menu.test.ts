@@ -66,4 +66,12 @@ describe('menú del administrador general', () => {
     expect(todas(filtrarMenu(MENU, ['contabilidad.cerrar'], true))).toContain('Índices de inflación');
     expect(todas(filtrarMenu(MENU, ['contabilidad.cerrar']))).toContain('Ajuste por inflación');
   });
+
+  it('Stock según permisos', () => {
+    const todas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => [n.titulo, ...todas(n.hijos ?? [])]);
+    expect(todas(filtrarMenu(MENU, ['stock.ver']))).toContain('Existencias');
+    expect(todas(filtrarMenu(MENU, ['stock.ver']))).not.toContain('Inventario físico');
+    expect(todas(filtrarMenu(MENU, ['stock.operar']))).toContain('Inventario físico');
+    expect(todas(filtrarMenu(MENU, []))).not.toContain('Existencias');
+  });
 });

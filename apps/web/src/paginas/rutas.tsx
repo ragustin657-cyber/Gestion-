@@ -34,6 +34,12 @@ import { ConfigArcaPage } from '../ventas/ConfigArcaPage';
 import { ComprobantesVentaPage, CuentaCorrienteClientesPage, RecibosPage, SaldosClientesPage } from '../ventas/ConsultasVentasPages';
 import { ReciboPage } from '../ventas/ReciboPage';
 import { ConfigImpuestosPage } from '../impuestos/ConfigImpuestosPage';
+import { ConfigStockPage } from '../stock/ConfigStockPage';
+import { DocumentoStockPage } from '../stock/DocumentoStockPage';
+import { DocumentosStockPage } from '../stock/DocumentosStockPage';
+import { ExistenciasPage } from '../stock/ExistenciasPage';
+import { KardexPage } from '../stock/KardexPage';
+import { ValuacionPage } from '../stock/ValuacionPage';
 import { AjusteInflacionPage } from '../contabilidad/ajuste-inflacion/AjusteInflacionPage';
 import { ConfigAjustePage } from '../contabilidad/ajuste-inflacion/ConfigAjustePage';
 import { IndicesInflacionPage } from '../contabilidad/ajuste-inflacion/IndicesInflacionPage';
@@ -137,6 +143,15 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/impuestos/presentaciones', elemento: <PresentacionesPage /> },
   { ruta: '/admin/impuestos', elemento: <ConfigImpuestosPage /> },
   { ruta: '/admin/indices-inflacion', elemento: <IndicesInflacionPage /> },
+  { ruta: '/admin/stock', elemento: <ConfigStockPage /> },
+  { ruta: '/stock/transferencia', elemento: <DocumentoStockPage key="t" tipo="TRANSFERENCIA" /> },
+  { ruta: '/stock/inventario', elemento: <DocumentoStockPage key="i" tipo="INVENTARIO" /> },
+  { ruta: '/stock/inicial', elemento: <DocumentoStockPage key="n" tipo="INICIAL" /> },
+  { ruta: '/stock/salida', elemento: <DocumentoStockPage key="s" tipo="SALIDA" /> },
+  { ruta: '/stock/documentos', elemento: <DocumentosStockPage /> },
+  { ruta: '/stock/existencias', elemento: <ExistenciasPage /> },
+  { ruta: '/stock/kardex', elemento: <KardexPage /> },
+  { ruta: '/stock/valuacion', elemento: <ValuacionPage /> },
   { ruta: '/admin/ajuste-inflacion', elemento: <ConfigAjustePage /> },
   { ruta: '/contabilidad/ajuste-inflacion', elemento: <AjusteInflacionPage /> },
 ];

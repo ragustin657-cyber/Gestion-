@@ -17,6 +17,7 @@ export const esquemaComprobante = z
     cotizacion: z.number().positive().nullish(),
     totalDeclarado: z.number({ required_error: 'Ingrese el total del comprobante' }).min(0),
     comprobanteAsociadoId: z.string().uuid().nullish(),
+    depositoId: z.string().uuid('Valor inválido').nullish(),
     percepcionIva: zImporte,
     impuestosInternos: zImporte,
     noGravado: zImporte,

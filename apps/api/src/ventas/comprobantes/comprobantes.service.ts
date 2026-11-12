@@ -6,6 +6,7 @@ import { fechaAR } from '../../compras/comun';
 import { importeAR, pdfVenta } from '../pdf/pdf-venta';
 import { importesConIva } from '../pdf/importes-b';
 import { ClsService } from 'nestjs-cls';
+import { VentasStock } from '../../stock/ventas-stock';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { bloquear, MODIFICADO } from '../../compras/comun';
 import { ConfigComprasService } from '../../compras/config/config-compras.service';
@@ -33,6 +34,7 @@ export class ComprobantesVentaService {
     private readonly cuentas: ConfigComprasService,
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
+    private readonly stock: VentasStock,
   ) {}
 
   obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -101,8 +103,12 @@ export class ComprobantesVentaService {
         neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, cuentaContableId: articulos.find((a) => a.id === r.articuloId)?.cuentaVentaId ?? ventas,
       };
     });
+    const depositoId = d.depositoId ?? pv.depositoId ?? null;
+    const advertencias = await this.stock.controlar(tx, { id, tipo: d.tipo, depositoId, devuelveMercaderia: d.devuelveMercaderia, comprobanteAsociadoId: d.comprobanteAsociadoId ?? null, renglones: d.renglones.map((r) => ({ articuloId: r.articuloId ?? null, cantidad: r.cantidad })) });
     return {
+      advertencias,
       datos: {
+        depositoId, devuelveMercaderia: d.devuelveMercaderia,
         tipo: d.tipo, letra, puntoVentaId: pv.id, puntoVenta: pv.numero, terceroId: d.terceroId, fecha: d.fecha, fechaVencimiento: d.fechaVencimiento, concepto: d.concepto,
         fechaServicioDesde: d.concepto === 'PRODUCTOS' ? null : d.fechaServicioDesde, fechaServicioHasta: d.concepto === 'PRODUCTOS' ? null : d.fechaServicioHasta,
         fechaVencimientoPago: d.concepto === 'PRODUCTOS' ? null : d.fechaVencimientoPago,
@@ -123,7 +129,7 @@ export class ComprobantesVentaService {
         data: { ...p.datos, numeroInterno, creadoPor: usuario, renglones: { create: p.renglones }, ivas: { create: p.ivas } } as Prisma.ComprobanteVentaUncheckedCreateInput,
       });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: c.id, accion: 'CREAR', datos: { numeroInterno, tipo: c.tipo, letra: c.letra, total: c.total } });
-      return this.obtener(c.id, tx);
+      return { ...(await this.obtener(c.id, tx)), advertencias: p.advertencias };
     });
   }
 

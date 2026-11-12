@@ -19,12 +19,12 @@ export const DEMO = {
 
 const ROLES: Record<string, Permiso[]> = {
   Administrador: TODOS_LOS_PERMISOS,
-  Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear'],
+  Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear', 'stock.ver'],
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
-  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar'],
-  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver'],
+  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar', 'stock.ver', 'stock.operar'],
+  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver'],
 };
 
 /** Proveedores demo: razón social, CUIT y régimen de Ganancias (null: sin retención). */
@@ -129,7 +129,7 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     const gastos = await cuenta('5.2.01');
     const ventas = await cuenta('4.1.01');
     for (const [cod, descripcion, unidad, alicuotaIva, esServicio] of ARTICULOS)
-      await tx.articulo.create({ data: { empresaId: e, codigo: cod, descripcion, unidad, alicuotaIva, esServicio, cuentaCompraId: gastos, cuentaVentaId: ventas } });
+      await tx.articulo.create({ data: { empresaId: e, codigo: cod, descripcion, unidad, alicuotaIva, esServicio, cuentaCompraId: gastos, cuentaVentaId: ventas, controlaStock: cod === 'LAM-LED' } });
 
     const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
     await tx.cotizacion.create({ data: { empresaId: e, monedaCodigo: 'USD', fecha: hoy, valor: 1450 } });
@@ -145,7 +145,8 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     await tx.caja.create({ data: { empresaId: e, sucursalId: rosario.id, nombre: 'Caja Rosario', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });
 
     await tx.centroCosto.createMany({ data: [{ empresaId: e, codigo: 'ADM', nombre: 'Administración' }, { empresaId: e, codigo: 'COM', nombre: 'Comercial' }] });
-    await tx.deposito.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Depósito central', direccion: 'Av. Corrientes 1234, CABA' } });
+    const deposito = await tx.deposito.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Depósito central', direccion: 'Av. Corrientes 1234, CABA' } });
+    await tx.puntoVenta.updateMany({ where: { empresaId: e }, data: { depositoId: deposito.id } });
   }, { timeout: 30000 });
   return 'creada';
 }

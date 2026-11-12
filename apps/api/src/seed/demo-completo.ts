@@ -106,7 +106,8 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
     // 4. Parcialmente recibida
     const lamp = await crearOC('Distribuidora Andina S.A.', 'LAM-LED', 100, 3500);
     const lampOk = await ordenes.confirmar(lamp.id, lamp.version);
-    await recepciones.crear({ terceroId: lampOk.terceroId, fecha, remitoNumero: '00003-00004521', renglones: [{ ordenCompraRenglonId: lampOk.renglones[0].id, cantidad: 60 }] });
+    const depositoCentral = await prisma.deposito.findFirstOrThrow({ where: { empresaId: empresa.id, codigo: 'CEN' } });
+    await recepciones.crear({ terceroId: lampOk.terceroId, fecha, depositoId: depositoCentral.id, remitoNumero: '00003-00004521', renglones: [{ ordenCompraRenglonId: lampOk.renglones[0].id, cantidad: 60 }] });
     // 5. Cumplida, recibida y facturada
     const resmas = await crearOC('Papelera del Plata S.R.L.', 'RES-A4', 100, 6500);
     const resmasOk = await ordenes.confirmar(resmas.id, resmas.version);
@@ -200,7 +201,7 @@ export async function sembrarCompleto(app: INestApplicationContext): Promise<'cr
     const soporte = await art('SRV-SOPORTE');
     const fv = await app.get(ComprobantesVentaService).crear({
       terceroId: norte, puntoVentaId: pv.id, tipo: 'FACTURA', concepto: 'SERVICIOS', fecha, fechaVencimiento: enDias(15), fechaServicioDesde: inicioMes, fechaServicioHasta: finMes,
-      fechaVencimientoPago: enDias(15), monedaCodigo: 'ARS', aplicarAAsociado: true, emitir: false,
+      fechaVencimientoPago: enDias(15), monedaCodigo: 'ARS', aplicarAAsociado: true, devuelveMercaderia: false, emitir: false,
       renglones: [{ articuloId: soporte.id, descripcion: 'Soporte técnico mensual', cantidad: 1, precioUnitario: 250000, alicuota: 21 }],
     });
     await app.get(EmisionService).emitir(fv.id);

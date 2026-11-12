@@ -15,6 +15,7 @@ const esquema = z.object({
   cuentaVentaId: z.string().uuid().optional().nullable(),
   esServicio: z.boolean().optional(),
   activo: z.boolean().optional(),
+  controlaStock: z.boolean().optional(),
 });
 
 @Controller('articulos')

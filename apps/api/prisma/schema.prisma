@@ -50,6 +50,7 @@ model PuntoVenta {
   descripcion String?
   electronico Boolean @default(true)
   sucursalId  String? @db.Uuid
+  depositoId  String? @db.Uuid
   empresa     Empresa @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, numero])
@@ -204,6 +205,11 @@ model Articulo {
   cuentaVentaId  String? @db.Uuid
   esServicio     Boolean @default(false)
   activo         Boolean @default(true)
+  /// Stock (Entrega 10): lo mantiene el motor de stock
+  controlaStock  Boolean @default(false)
+  stockCantidad  Decimal @default(0) @db.Decimal(18, 4)
+  stockValor     Decimal @default(0) @db.Decimal(18, 2)
+  costoPromedio  Decimal @default(0) @db.Decimal(18, 6)
 
   @@unique([empresaId, codigo])
 }
@@ -437,6 +443,8 @@ model InformeRecepcion {
   observaciones   String?
   estado          EstadoIR                  @default(CONFIRMADO)
   motivoAnulacion String?
+  asientoId          String?                @db.Uuid
+  asientoAnulacionId String?                @db.Uuid
   creadoPor       String
   creadoEn        DateTime                  @default(now())
   tercero         Tercero                   @relation(fields: [terceroId], references: [id])
@@ -500,6 +508,7 @@ model ComprobanteCompra {
   estado                EstadoComprobante                 @default(CONFIRMADO)
   comprobanteAsociadoId String?                           @db.Uuid
   asientoId             String?                           @db.Uuid
+  depositoId         String?   @db.Uuid
   asientoAnulacionId    String?                           @db.Uuid
   aceptoDiferencias     Boolean                           @default(false)
   motivoAnulacion       String?
@@ -1435,6 +1444,8 @@ model ComprobanteVenta {
   ultimoError           String?
   intentos              Int                       @default(0)
   comprobanteAsociadoId String?                   @db.Uuid
+  depositoId            String?                   @db.Uuid
+  devuelveMercaderia    Boolean                   @default(false)
   aplicarAAsociado      Boolean                   @default(true)
   asientoId             String?                   @db.Uuid
   creadoPor             String
@@ -1615,4 +1626,105 @@ model AnticuacionApertura {
   importe          Decimal @db.Decimal(18, 2)
 
   @@unique([empresaId, cuentaContableId, anio, mes])
+}
+
+enum TipoMovimientoStock {
+  RECEPCION
+  COMPRA
+  AJUSTE_COSTO
+  VENTA
+  DEVOLUCION_VENTA
+  TRANSFERENCIA
+  INVENTARIO
+  INICIAL
+  SALIDA_MANUAL
+  REGULARIZACION
+}
+
+enum TipoDocumentoStock {
+  TRANSFERENCIA
+  INVENTARIO
+  INICIAL
+  SALIDA
+}
+
+enum EstadoDocumentoStock {
+  CONFIRMADO
+  ANULADO
+}
+
+enum ModoStockNegativo {
+  BLOQUEAR
+  AVISAR
+}
+
+model SaldoStock {
+  id         String  @id @default(uuid()) @db.Uuid
+  empresaId  String  @db.Uuid
+  articuloId String  @db.Uuid
+  depositoId String  @db.Uuid
+  cantidad   Decimal @default(0) @db.Decimal(18, 4)
+
+  @@unique([empresaId, articuloId, depositoId])
+}
+
+/// Kardex: fuente de verdad del stock. Cantidad e importe con signo (positivo = entrada).
+model MovimientoStock {
+  id              String              @id @default(uuid()) @db.Uuid
+  empresaId       String              @db.Uuid
+  fecha           DateTime            @db.Date
+  articuloId      String              @db.Uuid
+  depositoId      String?             @db.Uuid
+  tipo            TipoMovimientoStock
+  cantidad        Decimal             @db.Decimal(18, 4)
+  costoUnitario   Decimal             @db.Decimal(18, 6)
+  importe         Decimal             @db.Decimal(18, 2)
+  origenTipo      String
+  origenId        String
+  origenRenglonId String?
+  anulaAId        String?             @db.Uuid
+  creadoPor       String
+  creadoEn        DateTime            @default(now())
+
+  @@index([empresaId, articuloId, creadoEn])
+  @@index([empresaId, origenTipo, origenId])
+}
+
+model DocumentoStock {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  empresaId          String                  @db.Uuid
+  numero             Int
+  tipo               TipoDocumentoStock
+  fecha              DateTime                @db.Date
+  depositoId         String                  @db.Uuid
+  depositoDestinoId  String?                 @db.Uuid
+  cuentaContableId   String?                 @db.Uuid
+  conAsiento         Boolean                 @default(true)
+  observaciones      String?
+  estado             EstadoDocumentoStock    @default(CONFIRMADO)
+  motivoAnulacion    String?
+  asientoId          String?                 @db.Uuid
+  asientoAnulacionId String?                 @db.Uuid
+  creadoPor          String
+  creadoEn           DateTime                @default(now())
+  renglones          DocumentoStockRenglon[]
+
+  @@unique([empresaId, numero])
+}
+
+model DocumentoStockRenglon {
+  id              String         @id @default(uuid()) @db.Uuid
+  empresaId       String         @db.Uuid
+  documentoId     String         @db.Uuid
+  articuloId      String         @db.Uuid
+  cantidad        Decimal        @db.Decimal(18, 4)
+  costoUnitario   Decimal?       @db.Decimal(18, 6)
+  cantidadContada Decimal?       @db.Decimal(18, 4)
+  documento       DocumentoStock @relation(fields: [documentoId], references: [id])
+}
+
+model ConfigStock {
+  id            String            @id @default(uuid()) @db.Uuid
+  empresaId     String            @unique @db.Uuid
+  stockNegativo ModoStockNegativo @default(BLOQUEAR)
 }
