@@ -1,3 +1,4 @@
+import { FlujoService } from '../finanzas/flujo.service';
 import { Global, Module } from '@nestjs/common';
 import { CarteraService } from './operaciones/cartera.service';
 import { ConsultasTesoreriaController } from './operaciones/consultas.controller';
@@ -19,7 +20,7 @@ import { IngresosService } from './operaciones/ingresos.service';
 @Global()
 @Module({
   controllers: [IngresosController, BancosCajasController, ChequesController, DepositosController, TrasladosController, ConsultasTesoreriaController],
-  providers: [CarteraService, IngresosService, BancosService, CajasService, ChequesPropiosService, RechazosService, DepositosService, AcreditacionesService, TrasladosService, ConsultasTesoreriaService],
+  providers: [CarteraService, IngresosService, BancosService, CajasService, ChequesPropiosService, RechazosService, DepositosService, AcreditacionesService, TrasladosService, ConsultasTesoreriaService, FlujoService],
   exports: [CarteraService, ConsultasTesoreriaService, BancosService, IngresosService],
 })
 export class TesoreriaOperacionesModule {}

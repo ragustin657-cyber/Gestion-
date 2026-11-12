@@ -230,6 +230,11 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Inflación:** los asientos de amortización y de baja llevan la fecha de alta del bien, y el ajuste por inflación los reexpresa desde ese mes.
 - **Planilla de bienes de uso** (Consultas → Contabilidad General): por rubro, valores de origen y amortizaciones al inicio, altas, bajas, del ejercicio y al cierre, con el control contra el Mayor; en moneda de cierre opcional; Excel y PDF.
 
+## Finanzas (Entrega 15)
+
+- **Flujo de fondos proyectado** (Tesorería → *Flujo de fondos*): parte del saldo de bancos y cajas (los dólares a la cotización del día) y proyecta, por día, semana o mes, los cheques en cartera y en tránsito, las transferencias a acreditar y las **cobranzas** por vencimiento de las facturas de clientes, menos los cheques propios diferidos, las OP aprobadas y los **pagos a proveedores** por vencimiento (sin contar dos veces lo que ya está en una OP). Lo vencido va al primer período en líneas propias, y la casilla *Incluir vencidos* decide si suma al saldo. Alerta en el primer período con saldo negativo, gráfico, detalle de cada período, Excel y PDF.
+- **Antigüedad de saldos a una fecha:** el saldo de cada comprobante se reconstruye a la fecha de corte con las aplicaciones de cobros y pagos, así que al elegir un mes pasado se ve lo que realmente se debía ese día. Lo usan el informe de antigüedad, las tarjetas de vencidos del tablero y la antigüedad de deuda de Compras, que coinciden entre sí.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

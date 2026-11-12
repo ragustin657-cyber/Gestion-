@@ -187,44 +187,4 @@ export class ConsultasTesoreriaService {
     return { saldoInicial: saldoInicial.toString(), movimientos, saldoFinal: saldo.toString() };
   }
 
-  /**
-   * Flujo de fondos proyectado en pesos, por día, durante N días desde hoy:
-   * saldo bancario actual (incluye lo depositado) + cheques en cartera y en tránsito + transferencias pendientes
-   * − cheques propios diferidos no debitados − OP aprobadas. Lo vencido se proyecta a hoy.
-   */
-  async flujo(diasTexto?: string) {
-    const dias = Number(diasTexto ?? 30);
-    if (!Number.isInteger(dias) || dias < 1 || dias > 365) throw new BadRequestException('La cantidad de días debe estar entre 1 y 365');
-    const db = this.tenant.db;
-    const inicio = hoy();
-    const conBancos = !this.alcance.sucursalUsuario();
-    const dia = (f: Date) => Math.max(0, Math.round((f.getTime() - inicio.getTime()) / 86400000));
-    const ingresos = Array.from({ length: dias }, () => new D(0));
-    const egresos = Array.from({ length: dias }, () => new D(0));
-    const sumar = (v: Dec[], f: Date, importe: Dec) => {
-      const i = dia(f);
-      if (i < dias) v[i] = v[i].plus(importe);
-    };
-
-    let saldo = new D(0);
-    if (conBancos)
-      for (const c of await db.cuentaBancaria.findMany({ where: { activa: true, monedaCodigo: 'ARS' } })) saldo = saldo.plus(await saldoBanco(db, c.id, inicio));
-    const cheques = await db.chequeTercero.findMany({
-      // Los depositados ya están en el saldo bancario (el depósito registra el ingreso al banco)
-      where: { AND: [{ estado: { in: ['EN_CARTERA', 'EN_TRANSITO'] }, monedaCodigo: 'ARS' }, await this.visibilidadCheques(db)] },
-    });
-    for (const c of cheques) sumar(ingresos, c.fechaPago, c.importe);
-    if (conBancos) {
-      for (const t of await db.transferenciaRecibida.findMany({ where: { estado: 'PENDIENTE', monedaCodigo: 'ARS' } })) sumar(ingresos, inicio, t.importe);
-      for (const c of await db.chequePropio.findMany({ where: { estado: 'EMITIDO', monedaCodigo: 'ARS' } }))
-        if (c.fechaPago > c.fechaEmision) sumar(egresos, c.fechaPago, c.importe);
-      for (const op of await db.ordenPago.findMany({ where: { estado: 'APROBADA' } })) sumar(egresos, inicio, op.netoPagar);
-    }
-    return ingresos.map((ing, i) => {
-      saldo = saldo.plus(ing).minus(egresos[i]);
-      const f = new Date(inicio);
-      f.setUTCDate(f.getUTCDate() + i);
-      return { fecha: iso(f), ingresos: ing.toString(), egresos: egresos[i].toString(), saldo: saldo.toString() };
-    });
-  }
 }

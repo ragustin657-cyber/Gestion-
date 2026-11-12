@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { ORIGENES_CLIENTE } from '../../compras/comun';
+import { saldosAFecha } from '../../finanzas/saldos';
 import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { Tramo, TRAMOS, tramoDe } from '../calculo';
 
@@ -10,10 +10,8 @@ export interface FilaAntiguedad { terceroId: string; nombre: string; aVencer: st
 
 /** Saldos pendientes por tramo de vencimiento (spec §2): saldo actual de movimientos no anulados con fecha ≤ corte; negativos a favor. */
 export async function antiguedad(tx: TxEmpresa, tipo: 'clientes' | 'proveedores', corte: Date): Promise<{ filas: FilaAntiguedad[]; totales: Omit<FilaAntiguedad, 'terceroId' | 'nombre'> }> {
-  const movs = await tx.movimientoCuentaCorriente.findMany({
-    where: { anulado: false, fecha: { lte: corte }, origenTipo: tipo === 'clientes' ? { in: ORIGENES_CLIENTE } : { notIn: ORIGENES_CLIENTE }, NOT: { saldoPesos: 0 } },
-    select: { terceroId: true, fechaVencimiento: true, saldoPesos: true },
-  });
+  // Saldo de cada comprobante a la fecha de corte (no el actual): spec E15 §3
+  const movs = await saldosAFecha(tx, tipo, corte);
   const terceros = new Map((await tx.tercero.findMany({ where: { id: { in: [...new Set(movs.map((m) => m.terceroId))] } }, select: { id: true, razonSocial: true } })).map((t) => [t.id, t.razonSocial]));
   const vacio = () => ({ aVencer: new D(0), d1_30: new D(0), d31_60: new D(0), d61_90: new D(0), mas90: new D(0), aFavor: new D(0) }) as Record<Tramo | 'aFavor', Dec>;
   const porTercero = new Map<string, Record<Tramo | 'aFavor', Dec>>();
