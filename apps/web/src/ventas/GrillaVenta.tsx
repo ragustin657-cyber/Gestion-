@@ -4,7 +4,11 @@ import { calcularVenta, letraVenta, type AlicuotaVenta, type CondicionIva, type 
 import { formatoMoneda } from '../compras/formato';
 import { NOMBRE_TIPO, numero, type TipoVenta } from './comun';
 
-export interface RenglonVentaEditable { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string }
+export interface RenglonVentaEditable {
+  articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string;
+  /** Renglones que vienen de un remito o de un pedido (factura). */
+  origen?: 'DIRECTO' | 'REMITO' | 'PEDIDO'; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; etiqueta?: string;
+}
 export interface ArticuloVenta { value: string; label: string; descripcion: string; alicuotaIva: string }
 
 export const ALICUOTAS_VENTA = [
@@ -32,8 +36,10 @@ export function TituloComprobante({ tipo, empresa, cliente, letra }: { tipo: Tip
   return <Title order={4}>{`${NOMBRE_TIPO[tipo]} ${l ?? ''}`.trim()}</Title>;
 }
 
-export function GrillaVenta({ renglones, onChange, letra, moneda, articulos }: {
+export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio }: {
   renglones: RenglonVentaEditable[]; onChange: (r: RenglonVentaEditable[]) => void; letra: LetraVenta; moneda: string; articulos: ArticuloVenta[];
+  /** Precio de la lista del cliente para el artículo elegido. */
+  sugerirPrecio?: (articuloId: string) => Promise<string | null>;
 }) {
   const cambiar = (i: number, c: Partial<RenglonVentaEditable>) => onChange(renglones.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const t = totalesVenta(renglones, letra);
@@ -48,11 +54,15 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos }: {
               const neto = numero(r.cantidad) * numero(r.precioUnitario);
               return (
                 <Table.Tr key={i}>
-                  <Table.Td><Select size="xs" w={180} aria-label="Artículo" searchable clearable placeholder="Texto libre" data={articulos} value={r.articuloId}
-                    onChange={(v) => {
+                  <Table.Td>{r.etiqueta ? <Text size="xs" fw={600}>{r.etiqueta}</Text> : <Select size="xs" w={180} aria-label="Artículo" searchable clearable placeholder="Texto libre" data={articulos} value={r.articuloId}
+                    onChange={async (v) => {
                       const a = articulos.find((x) => x.value === v);
-                      cambiar(i, a ? { articuloId: v, descripcion: a.descripcion, alicuota: String(Number(a.alicuotaIva)) } : { articuloId: null });
-                    }} /></Table.Td>
+                      if (!a) return cambiar(i, { articuloId: null });
+                      const base = { articuloId: v, descripcion: a.descripcion, alicuota: String(Number(a.alicuotaIva)) };
+                      cambiar(i, base);
+                      const precio = sugerirPrecio && v ? await sugerirPrecio(v) : null;
+                      if (precio) onChange(renglones.map((x, j) => (j === i ? { ...x, ...base, precioUnitario: String(Number(precio)) } : x)));
+                    }} />}</Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Descripción" value={r.descripcion} onChange={(e) => cambiar(i, { descripcion: e.currentTarget.value })} /></Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Cantidad" inputMode="decimal" value={r.cantidad} onChange={(e) => cambiar(i, { cantidad: e.currentTarget.value })} /></Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Precio unitario" inputMode="decimal" value={r.precioUnitario} onChange={(e) => cambiar(i, { precioUnitario: e.currentTarget.value })} /></Table.Td>

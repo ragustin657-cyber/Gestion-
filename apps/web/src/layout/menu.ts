@@ -34,6 +34,8 @@ export const MENU: NodoMenu[] = [
       {
         titulo: 'Ventas y Cuentas a Cobrar',
         hijos: [
+          { titulo: 'Pedido de venta', ruta: '/ventas/pedido', permiso: 'pedido.gestionar' },
+          { titulo: 'Remito', ruta: '/ventas/remito', permiso: 'pedido.gestionar' },
           { titulo: 'Comprobante de venta', ruta: '/ventas/comprobante', permiso: 'venta.emitir' },
           { titulo: 'Recibo', ruta: '/ventas/recibo', permiso: 'cobro.registrar' },
           { titulo: 'Aplicación de cobros', ruta: '/ventas/aplicacion', permiso: 'cobro.registrar' },
@@ -109,6 +111,8 @@ export const MENU: NodoMenu[] = [
       {
         titulo: 'Ventas y Cuentas a Cobrar',
         hijos: [
+          { titulo: 'Pedidos', ruta: '/ventas/pedidos', permiso: 'venta.ver' },
+          { titulo: 'Remitos', ruta: '/ventas/remitos', permiso: 'venta.ver' },
           { titulo: 'Comprobantes de venta', ruta: '/ventas/comprobantes', permiso: 'venta.ver' },
           { titulo: 'Recibos', ruta: '/ventas/recibos', permiso: 'venta.ver' },
           { titulo: 'Cuenta corriente de clientes', ruta: '/ventas/cuenta-corriente', permiso: 'venta.ver' },
@@ -162,6 +166,7 @@ export const MENU: NodoMenu[] = [
     hijos: [
       { titulo: 'Proveedores y clientes', ruta: '/maestros/terceros', permiso: 'tercero.ver' },
       { titulo: 'Artículos', ruta: '/maestros/articulos', permiso: 'articulo.ver' },
+      { titulo: 'Listas de precios', ruta: '/maestros/listas-precios', permiso: 'precios.editar' },
       { titulo: 'Plan de cuentas', ruta: '/maestros/plan-cuentas', permiso: 'plancuentas.ver' },
       { titulo: 'Monedas y cotizaciones', ruta: '/maestros/monedas', permiso: 'moneda.editar' },
       { titulo: 'Bancos y cajas', ruta: '/maestros/tesoreria', permiso: 'tesoreria.maestros.editar' },

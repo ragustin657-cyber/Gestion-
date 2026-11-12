@@ -1,4 +1,4 @@
-import { Button, Checkbox, Group, Paper, Select, Stack, TextInput, Title, Alert } from '@mantine/core';
+import { Button, Checkbox, Group, Modal, Paper, Select, Stack, TextInput, Title, Alert } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -7,6 +7,8 @@ import { api, ErrorApi } from '../api/cliente';
 import { formatoMoneda, hoy } from '../compras/formato';
 import { accionesComprobante, NOMBRE_TIPO, numero, numeroVenta, TIPOS_VENTA, useClientes, useEmpresa, useOperacionVentas, usePuntosVenta, type ComprobanteVenta, type TipoVenta } from './comun';
 import { EstadoEmision } from './EstadoEmision';
+import { TablaPendientes, type Pendiente } from './PedidosRemitosPages';
+import { precioSugerido } from './precios';
 import { alicuotaDe, GrillaVenta, renglonVacio, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
 
 const sumarDias = (f: string, d: number) => {
@@ -39,6 +41,34 @@ export function ComprobanteVentaPage() {
   const [depositoId, setDepositoId] = useState<string | null>(null);
   const [devuelveMercaderia, setDevuelveMercaderia] = useState(false);
   const [avisosStock, setAvisosStock] = useState<string[]>([]);
+  const [selectorPendientes, setSelectorPendientes] = useState(false);
+  const [seleccionPend, setSeleccionPend] = useState<Record<string, string>>({});
+  const pendientesQ = useQuery({
+    queryKey: ['/ventas/pendientes-facturar', terceroId],
+    queryFn: () => api<{ remitos: { remitoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string }[]; pedidos: { pedidoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioUnitario: string; alicuota: string }[] }>('/ventas/pendientes-facturar', { query: { terceroId } }),
+    enabled: selectorPendientes && !!terceroId,
+  }).data;
+  const pendientesFacturar: Pendiente[] = [
+    ...(pendientesQ?.remitos ?? []).map((r) => ({ id: r.remitoRenglonId, origen: 'REMITO' as const, numero: r.numero, descripcion: r.descripcion, pendiente: String(Number(r.pendiente)) })),
+    ...(pendientesQ?.pedidos ?? []).map((r) => ({ id: r.pedidoRenglonId, origen: 'PEDIDO' as const, numero: r.numero, descripcion: r.descripcion, pendiente: String(Number(r.pendiente)) })),
+  ];
+  async function agregarPendientes() {
+    const nuevos: RenglonVentaEditable[] = [];
+    for (const [id, cant] of Object.entries(seleccionPend)) {
+      const rem = pendientesQ?.remitos.find((x) => x.remitoRenglonId === id);
+      if (rem) {
+        const art = articulos.find((a) => a.value === rem.articuloId);
+        const precio = rem.articuloId ? await precioSugerido({ terceroId, articuloId: rem.articuloId, monedaCodigo: moneda, cotizacion }) : null;
+        nuevos.push({ origen: 'REMITO', remitoRenglonId: id, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant, precioUnitario: precio ? String(Number(precio)) : '', alicuota: art ? String(Number(art.alicuotaIva)) : '21' });
+        continue;
+      }
+      const ped = pendientesQ?.pedidos.find((x) => x.pedidoRenglonId === id);
+      if (ped) nuevos.push({ origen: 'PEDIDO', pedidoRenglonId: id, etiqueta: ped.numero, articuloId: ped.articuloId, descripcion: ped.descripcion, cantidad: cant, precioUnitario: String(Number(ped.precioUnitario)), alicuota: ped.alicuota });
+    }
+    setRenglones([...renglones.filter((r) => r.descripcion), ...nuevos]);
+    setSeleccionPend({});
+    setSelectorPendientes(false);
+  }
   const depositos = (useQuery({ queryKey: ['/depositos', 'ventas'], queryFn: () => api<{ id: string; nombre: string }[]>('/depositos') }).data ?? []).map((d) => ({ value: d.id, label: d.nombre }));
   const [renglones, setRenglones] = useState<RenglonVentaEditable[]>([renglonVacio()]);
   const [actual, setActual] = useState<ComprobanteVenta | null>(null);
@@ -78,7 +108,7 @@ export function ComprobanteVentaPage() {
     monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null,
     comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado,
     depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
-    renglones: renglones.map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
+    renglones: renglones.map((r) => ({ origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, articuloId: r.articuloId, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
   });
 
   async function recargar(id: string) {
@@ -157,7 +187,13 @@ export function ComprobanteVentaPage() {
         )}
 
         <Title order={5} mt="lg" mb="xs">Renglones</Title>
-        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} />
+        {editable && tipo === 'FACTURA' && terceroId && <Group><Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button></Group>}
+        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos}
+          sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion })} />
+        <Modal opened={selectorPendientes} onClose={() => setSelectorPendientes(false)} title="Remitos y pedidos pendientes de facturar" size="xl">
+          <TablaPendientes pendientes={pendientesFacturar} seleccion={seleccionPend} onChange={setSeleccionPend} />
+          <Group mt="md"><Button disabled={!Object.keys(seleccionPend).length} onClick={() => void agregarPendientes()}>Agregar</Button></Group>
+        </Modal>
 
         {op.error && <Alert color="red" mt="sm">{op.error}</Alert>}
         {actual && <Stack mt="sm"><EstadoEmision comprobante={actual} enviando={op.enviando} onReintentar={() => void emitirActual(actual.id)} /></Stack>}
