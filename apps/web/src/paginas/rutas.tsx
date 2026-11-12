@@ -62,6 +62,8 @@ import { AmortizacionPage } from '../bienes-uso/AmortizacionPage';
 import { BienesPage, FichaBienPage } from '../bienes-uso/BienesPage';
 import { PlanillaBienesPage } from '../bienes-uso/PlanillaBienesPage';
 import { RubrosPage } from '../bienes-uso/RubrosPage';
+import { ComparacionPage } from '../presupuestos/ComparacionPage';
+import { EditorPresupuestoPage, PresupuestosPage } from '../presupuestos/PresupuestosPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -176,6 +178,9 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/contabilidad/amortizacion', elemento: <AmortizacionPage /> },
   { ruta: '/contabilidad/planilla-bienes', elemento: <PlanillaBienesPage /> },
   { ruta: '/informes/tablero', elemento: <TableroPage /> },
+  { ruta: '/informes/presupuestos', elemento: <PresupuestosPage /> },
+  { ruta: '/informes/presupuestos/:id', elemento: <EditorPresupuestoPage /> },
+  { ruta: '/informes/presupuesto-real', elemento: <ComparacionPage /> },
   { ruta: '/informes/ventas', elemento: <VentasInformePage /> },
   { ruta: '/informes/margenes', elemento: <MargenesPage /> },
   { ruta: '/informes/antiguedad', elemento: <AntiguedadPage /> },

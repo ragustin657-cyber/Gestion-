@@ -172,6 +172,8 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Márgenes', ruta: '/informes/margenes', permiso: 'informes.ver' },
       { titulo: 'Antigüedad de saldos', ruta: '/informes/antiguedad', permiso: 'informes.ver' },
       { titulo: 'Rotación de stock', ruta: '/informes/rotacion', permiso: 'informes.ver' },
+      { titulo: 'Presupuestos', ruta: '/informes/presupuestos', permiso: 'presupuesto.ver' },
+      { titulo: 'Presupuesto contra real', ruta: '/informes/presupuesto-real', permiso: 'presupuesto.ver' },
     ],
   },
   {
