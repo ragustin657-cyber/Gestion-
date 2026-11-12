@@ -9,7 +9,7 @@ import { NumeracionService } from '../../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { cotizacion, D } from '../../tesoreria/operaciones/tesoreria-comun';
 import type { DatosPedido } from './dto';
-import { pdfDocumento } from './pdf-pedido';
+import { pdfDocumento, renglonesPdf } from './pdf-pedido';
 
 const MODIFICADO = 'El pedido fue modificado por otro usuario: actualice la pantalla';
 const fAR = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10).split('-').reverse().join('/') : null);
@@ -37,7 +37,7 @@ export class PedidosService {
     const estado = estados.includes(q.estado as EstadoPedido) ? (q.estado as EstadoPedido) : undefined;
     const ps = await this.tenant.db.pedidoVenta.findMany({
       where: { terceroId: q.terceroId || undefined, estado, ...(q.pendientes ? { estado: { in: q.pendientes === 'facturar' ? ['CONFIRMADO', 'PARCIALMENTE_ENTREGADO', 'ENTREGADO'] : ['CONFIRMADO', 'PARCIALMENTE_ENTREGADO'] } } : {}) },
-      include: { renglones: { orderBy: { orden: 'asc' } } }, orderBy: [{ fecha: 'desc' }, { numero: 'desc' }], take: 300,
+      include: { renglones: { orderBy: { orden: 'asc' } } }, orderBy: [{ fecha: 'desc' }, { numero: 'desc' }], take: q.pendientes ? undefined : 300,
     });
     const terceros = new Map((await this.tenant.db.tercero.findMany({ where: { id: { in: ps.map((p) => p.terceroId) } } })).map((t) => [t.id, t.razonSocial]));
     return ps.map((p) => ({ ...p, cliente: terceros.get(p.terceroId) ?? '', renglones: p.renglones.map(conPendientes) }))
@@ -56,6 +56,7 @@ export class PedidosService {
       throw new BadRequestException((e as Error).message);
     }
     if (d.depositoId && !(await tx.deposito.findUnique({ where: { id: d.depositoId } }))) throw new BadRequestException('Depósito inexistente');
+    if (d.listaPreciosId && !(await tx.listaPrecios.findUnique({ where: { id: d.listaPreciosId } }))) throw new BadRequestException('Lista de precios inexistente');
     const ids = d.renglones.map((r) => r.articuloId).filter((x): x is string => !!x);
     if (ids.length && (await tx.articulo.count({ where: { id: { in: ids } } })) !== new Set(ids).size) throw new BadRequestException('Artículo inexistente');
     const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
@@ -116,13 +117,15 @@ export class PedidosService {
     if (p.estado !== 'PRESUPUESTO') throw new BadRequestException('Solo se confirma un presupuesto');
     await tx.pedidoVenta.update({ where: { id }, data: { estado: 'CONFIRMADO', version: { increment: 1 } } });
     const advertencias: string[] = [];
-    if (p.depositoId) {
-      const deposito = await tx.deposito.findUniqueOrThrow({ where: { id: p.depositoId } });
+    // Sin depósito en el pedido, el del primer punto de venta que tenga uno
+    const depositoId = p.depositoId ?? (await tx.puntoVenta.findFirst({ where: { depositoId: { not: null } }, orderBy: { numero: 'asc' } }))?.depositoId ?? null;
+    if (depositoId) {
+      const deposito = await tx.deposito.findUniqueOrThrow({ where: { id: depositoId } });
       const cant = new Map<string, Prisma.Decimal>();
       for (const r of p.renglones) if (r.articuloId) cant.set(r.articuloId, (cant.get(r.articuloId) ?? new D(0)).plus(r.cantidad));
       const arts = await tx.articulo.findMany({ where: { id: { in: [...cant.keys()] }, controlaStock: true }, orderBy: { codigo: 'asc' } });
       for (const a of arts) {
-        const saldo = new D((await tx.saldoStock.findFirst({ where: { articuloId: a.id, depositoId: p.depositoId } }))?.cantidad ?? 0);
+        const saldo = new D((await tx.saldoStock.findFirst({ where: { articuloId: a.id, depositoId } }))?.cantidad ?? 0);
         if (saldo.lt(cant.get(a.id)!)) advertencias.push(`Stock disponible de ${a.codigo} en ${deposito.nombre}: ${saldo.toString()}, el pedido pide ${cant.get(a.id)!.toString()}`);
       }
     }
@@ -176,7 +179,7 @@ export class PedidosService {
     const contenido = await pdfDocumento({
       titulo, numero: String(p.numero).padStart(8, '0'), empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), domicilio: empresa.domicilio },
       cliente: { razonSocial: cliente.razonSocial, cuit: cliente.cuit }, fecha: fAR(p.fecha)!, validoHasta: fAR(p.validoHasta), moneda: p.monedaCodigo,
-      renglones: p.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), precioUnitario: new D(r.precioUnitario).toString(), importe: new D(r.neto).toString() })),
+      renglones: renglonesPdf(p.letra, p.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), precioUnitario: new D(r.precioUnitario).toString(), neto: new D(r.neto).toString(), iva: new D(r.iva).toString() }))),
       totales: { neto: new D(p.netoGravado).plus(p.noGravado).plus(p.exento).toString(), iva: p.iva.toString(), total: p.total.toString() }, observaciones: p.observaciones,
     });
     return { nombre: `${titulo.toLowerCase().replace(/ /g, '-')}-${p.numero}.pdf`, contenido };

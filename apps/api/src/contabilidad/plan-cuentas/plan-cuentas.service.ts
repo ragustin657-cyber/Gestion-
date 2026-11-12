@@ -98,6 +98,10 @@ export class PlanCuentasService {
       const monetaria = d.monetaria ?? actual.monetaria;
       const cuentaAjusteId = d.cuentaAjusteId === undefined ? actual.cuentaAjusteId : d.cuentaAjusteId;
       if (cuentaAjusteId && monetaria) throw new BadRequestException('Solo las cuentas no monetarias tienen cuenta de ajuste');
+      if (monetaria && !actual.monetaria) {
+        const ajustada = await tx.cuentaContable.findFirst({ where: { cuentaAjusteId: id } });
+        if (ajustada) throw new BadRequestException(`La cuenta ajusta a la cuenta ${ajustada.codigo}: no puede ser monetaria`);
+      }
       if (d.cuentaAjusteId) await this.validarCuentaAjuste(tx, id, d.cuentaAjusteId);
       if (d.imputable) {
         const hijos = await tx.cuentaContable.count({ where: { padreId: id } });
@@ -118,6 +122,8 @@ export class PlanCuentasService {
     if (otra) throw new BadRequestException(`La cuenta de ajuste ya ajusta a la cuenta ${otra.codigo}`);
     const esAjusteDeOtra = await tx.cuentaContable.count({ where: { cuentaAjusteId: id } });
     if (a.cuentaAjusteId || esAjusteDeOtra) throw new BadRequestException('Una cuenta de ajuste no puede tener a su vez cuenta de ajuste');
+    const cuenta = await tx.cuentaContable.findUniqueOrThrow({ where: { id } });
+    if (a.tipo !== cuenta.tipo) throw new BadRequestException('La cuenta de ajuste debe ser del mismo tipo que la cuenta');
   }
 
   /** Verifica que la cuenta exista en la empresa y sea imputable (para usar desde otros módulos). */

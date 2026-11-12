@@ -61,7 +61,7 @@ export class ConsultasStockService {
     // Con filtro de depósito, los movimientos de solo importe no cuentan
     const where = { articuloId: q.articuloId, ...(depositoId ? { depositoId } : {}) };
     const previo = desde ? await db.movimientoStock.aggregate({ where: { ...where, fecha: { lt: desde } }, _sum: { cantidad: true, importe: true } }) : null;
-    const movs = await db.movimientoStock.findMany({ where: { ...where, fecha: { gte: desde, lte: hasta } }, orderBy: [{ creadoEn: 'asc' }, { id: 'asc' }] });
+    const movs = await db.movimientoStock.findMany({ where: { ...where, fecha: { gte: desde, lte: hasta } }, orderBy: [{ fecha: 'asc' }, { creadoEn: 'asc' }, { id: 'asc' }] });
     const docs = await this.documentos(db, movs);
     let cantidad: Dec = new D(previo?._sum.cantidad ?? 0);
     let valor: Dec = new D(previo?._sum.importe ?? 0);
@@ -92,14 +92,19 @@ export class ConsultasStockService {
       .sort((a, b) => a.codigo.localeCompare(b.codigo));
     const total = filas.reduce((s, f) => s.plus(f.valor), cero);
     let mayor = cero;
+    let ajusteInflacion = cero;
     try {
       const ej = await ejercicioDe(db, fecha);
       const merc = await this.conceptos.cuenta(db, 'MERCADERIAS');
+      // El ajuste por inflación reexpresa Mercaderías en el Mayor pero no en el kardex: se muestra aparte.
+      // Se toma todo lo acumulado (también lo de ejercicios anteriores, que llega con la apertura) y sus anulaciones.
       const s = (await saldosPorCuenta(db, { ejercicioId: ej.id, hasta: fecha, excluirTipos: ['CIERRE'] })).get(merc);
-      mayor = s ? s.debe.minus(s.haber) : cero;
+      const aj = await db.asientoRenglon.aggregate({ where: { cuentaContableId: merc, asiento: { fecha: { lte: fecha }, origenTipo: 'AJUSTE_INFLACION' } }, _sum: { debe: true, haber: true } });
+      ajusteInflacion = new D(aj._sum.debe ?? 0).minus(aj._sum.haber ?? 0);
+      mayor = (s ? s.debe.minus(s.haber) : cero).minus(ajusteInflacion);
     } catch (e) {
       if (!(e instanceof BadRequestException)) throw e;
     }
-    return { fecha: fecha.toISOString().slice(0, 10), filas, total: total.toFixed(2), mayor: mayor.toFixed(2), control: total.minus(mayor).toFixed(2) };
+    return { fecha: fecha.toISOString().slice(0, 10), filas, total: total.toFixed(2), mayor: mayor.toFixed(2), control: total.minus(mayor).toFixed(2), ajusteInflacion: ajusteInflacion.toFixed(2) };
   }
 }

@@ -13,8 +13,19 @@ export interface CuentaAnticuacion { cuentaContableId: string; codigo: string; n
 interface Config { primerEjercicioId: string | null; asientoAperturaId: string | null; anticuacion: CuentaAnticuacion[] }
 const CLAVE = ['/contabilidad/ajuste-inflacion/config'];
 
+/** Tramo nuevo: el mes anterior al inicio del ejercicio, con lo que falta anticuar. */
+export function tramoPorDefecto(desdeEjercicio: string, resto: number): TramoAnticuacion {
+  const [anio, mes] = desdeEjercicio.slice(0, 7).split('-').map(Number);
+  return mes === 1 ? { anio: anio - 1, mes: 12, importe: resto.toFixed(2) } : { anio, mes: mes - 1, importe: resto.toFixed(2) };
+}
+
+/** Tramos a enviar: sin importes vacíos ni en cero. */
+export function tramosParaEnviar(cuentas: CuentaAnticuacion[]) {
+  return cuentas.map((c) => ({ cuentaContableId: c.cuentaContableId, tramos: c.tramos.filter((t) => t.importe !== '' && Number(t.importe) !== 0).map((t) => ({ anio: t.anio, mes: t.mes, importe: Number(t.importe) })) }));
+}
+
 /** Tramos de anticuación por cuenta, con lo que falta anticuar a la vista. */
-export function GrillaAnticuacion({ cuentas, onChange }: { cuentas: CuentaAnticuacion[]; onChange: (c: CuentaAnticuacion[]) => void }) {
+export function GrillaAnticuacion({ cuentas, onChange, desdeEjercicio }: { cuentas: CuentaAnticuacion[]; onChange: (c: CuentaAnticuacion[]) => void; desdeEjercicio?: string }) {
   const cambiar = (i: number, tramos: TramoAnticuacion[]) => onChange(cuentas.map((c, j) => (j === i ? { ...c, tramos } : c)));
   return (
     <Stack gap="sm">
@@ -38,7 +49,7 @@ export function GrillaAnticuacion({ cuentas, onChange }: { cuentas: CuentaAnticu
             ))}
             <Group justify="space-between" mt="xs">
               <Button size="compact-xs" variant="subtle" leftSection={<IconPlus size={12} />}
-                onClick={() => cambiar(i, [...c.tramos, { anio: new Date().getFullYear() - 1, mes: 12, importe: resto.toFixed(2) }])}>Agregar tramo</Button>
+                onClick={() => cambiar(i, [...c.tramos, desdeEjercicio ? tramoPorDefecto(desdeEjercicio, resto) : { anio: new Date().getFullYear() - 1, mes: 12, importe: resto.toFixed(2) }])}>Agregar tramo</Button>
               <Text size="sm" c={Math.abs(resto) > 0.004 ? 'orange' : 'dimmed'}>Sin anticuar: {formatoMoneda(resto)}</Text>
             </Group>
           </Paper>
@@ -75,7 +86,7 @@ export function ConfigAjustePage() {
       metodo: 'PUT',
       body: {
         primerEjercicioId: ejercicioId, asientoAperturaId: asientoId,
-        anticuacion: cuentas.map((c) => ({ cuentaContableId: c.cuentaContableId, tramos: c.tramos.map((t) => ({ anio: t.anio, mes: t.mes, importe: Number(t.importe) })) })),
+        anticuacion: tramosParaEnviar(cuentas),
       },
     }), () => 'Configuración guardada');
     if (r) void qc.invalidateQueries({ queryKey: CLAVE });
@@ -85,13 +96,14 @@ export function ConfigAjustePage() {
       <Title order={3} mb="md">Configuración del ajuste por inflación</Title>
       {errorConsulta(q.error)}
       <Group align="flex-end" mb="md">
-        <Select label="Primer ejercicio ajustado" w={260} data={ejercicios.map((e) => ({ value: e.id, label: `Ejercicio ${e.numero} (${e.desde.slice(0, 4)})` }))} value={ejercicioId} onChange={setEjercicioId} />
+        <Select label="Primer ejercicio ajustado" w={260} data={ejercicios.map((e) => ({ value: e.id, label: `Ejercicio ${e.numero} (${e.desde.slice(0, 4)})` }))} value={ejercicioId}
+          onChange={(v) => { setEjercicioId(v); if (v !== q.data?.primerEjercicioId) { setCuentas([]); setAsientoId(null); } else if (q.data) { setCuentas(q.data.anticuacion); setAsientoId(q.data.asientoAperturaId); } }} />
         <Select label="Asiento de apertura (opcional)" w={340} clearable placeholder="Asientos de apertura del sistema"
           data={asientos.map((a) => ({ value: a.id, label: `N° ${a.numero} — ${a.descripcion}` }))} value={asientoId} onChange={setAsientoId} />
       </Group>
       <Text size="sm" c="dimmed" mb="sm">Anticuación de la apertura: el mes en que se originó cada parte del saldo inicial (por ejemplo, la fecha de cada aporte de capital). Lo no anticuado se toma al inicio del ejercicio.</Text>
       {q.data?.primerEjercicioId && q.data.primerEjercicioId === ejercicioId
-        ? <GrillaAnticuacion cuentas={cuentas} onChange={setCuentas} />
+        ? <GrillaAnticuacion cuentas={cuentas} onChange={setCuentas} desdeEjercicio={desde} />
         : <Text size="sm" c="dimmed">Guarde el primer ejercicio para ver las cuentas a anticuar.</Text>}
       {op.alerta}
       <Group mt="md"><Button loading={op.enviando} disabled={!ejercicioId} onClick={() => void guardar()}>Guardar</Button></Group>

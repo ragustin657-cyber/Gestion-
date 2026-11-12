@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { ConfigAjusteInflacion, Ejercicio } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
+import { bloquear } from '../../compras/comun';
 import { ConfigComprasService } from '../../compras/config/config-compras.service';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
@@ -67,7 +68,9 @@ export class ConfigAjusteService {
       const ej = await tx.ejercicio.findUnique({ where: { id: d.primerEjercicioId } });
       if (!ej) throw new BadRequestException('Ejercicio inexistente');
       const actual = await this.obtener(tx);
+      if (actual) await bloquear(tx, 'ConfigAjusteInflacion', this.tenant.empresaId, [actual.id]);
       if (actual && actual.primerEjercicioId !== d.primerEjercicioId) await this.sinAjustesVigentes(tx);
+      const hayAjustes = await this.hayAjustesVigentes(tx);
       const asientoAperturaId = d.asientoAperturaId ?? null;
       if (asientoAperturaId) {
         const a = await tx.asiento.findUnique({ where: { id: asientoAperturaId } });
@@ -98,8 +101,14 @@ export class ConfigAjusteService {
         data: d.anticuacion.flatMap((a) => a.tramos.map((t) => ({ empresaId, cuentaContableId: a.cuentaContableId, anio: t.anio, mes: t.mes, importe: t.importe }))),
       });
       await this.auditoria.registrar(tx, { entidad: 'ConfigAjusteInflacion', entidadId: empresaId, accion: 'MODIFICAR', datos: d });
-      return { ok: true };
+      return { ok: true, advertencias: hayAjustes ? ['Hay ajustes generados: el próximo ajuste recalculará la diferencia'] : [] };
     });
+  }
+
+  private async hayAjustesVigentes(tx: TxEmpresa) {
+    const ajustes = await tx.asiento.findMany({ where: { origenTipo: 'AJUSTE_INFLACION', anulaAId: null }, select: { id: true } });
+    if (!ajustes.length) return false;
+    return ajustes.length > (await tx.asiento.count({ where: { anulaAId: { in: ajustes.map((a) => a.id) } } }));
   }
 
   /** Lanza si hay ajustes por inflación vigentes (no anulados). */

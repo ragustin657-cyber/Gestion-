@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { MotivoPrecio } from '@prisma/client';
+import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { conUnicidad } from '../../comun/errores';
@@ -10,7 +11,8 @@ import { aumentar, Redondeo } from './aumento';
 import { leerPrecios } from './importacion';
 
 const LISTA_DUPLICADA = 'Ya existe una lista con ese nombre';
-const hoy = () => new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`);
+const INACTIVA_DEFECTO = 'Una lista inactiva no puede ser la lista por defecto';
+const hoy = () => new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
 
 @Injectable()
 export class PreciosService {
@@ -19,6 +21,11 @@ export class PreciosService {
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
   ) {}
+
+  /** Serializa los cambios de listas de la empresa (una sola por defecto). */
+  private async bloquearListas(tx: TxEmpresa) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`listas-precios:${this.tenant.empresaId}`}))`;
+  }
 
   private usuario() {
     return this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
@@ -36,6 +43,8 @@ export class PreciosService {
 
   crearLista(d: { nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean }) {
     return conUnicidad(LISTA_DUPLICADA, () => this.tenant.transaccion(async (tx) => {
+      if (d.porDefecto && !d.activa) throw new BadRequestException(INACTIVA_DEFECTO);
+      await this.bloquearListas(tx);
       if (d.porDefecto) await tx.listaPrecios.updateMany({ data: { porDefecto: false } });
       const l = await tx.listaPrecios.create({ data: { ...d, empresaId: this.tenant.empresaId } });
       await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: l.id, accion: 'CREAR', datos: d });
@@ -45,7 +54,9 @@ export class PreciosService {
 
   modificarLista(id: string, d: { nombre?: string; monedaCodigo?: string; activa?: boolean; porDefecto?: boolean }) {
     return conUnicidad(LISTA_DUPLICADA, () => this.tenant.transaccion(async (tx) => {
+      await this.bloquearListas(tx);
       const l = await this.lista(tx, id);
+      if ((d.porDefecto ?? l.porDefecto) && !(d.activa ?? l.activa)) throw new BadRequestException(INACTIVA_DEFECTO);
       if (d.monedaCodigo && d.monedaCodigo !== l.monedaCodigo && (await tx.precioLista.count({ where: { listaId: id } })))
         throw new BadRequestException('La lista tiene precios: no se puede cambiar la moneda');
       if (d.porDefecto) await tx.listaPrecios.updateMany({ where: { id: { not: id } }, data: { porDefecto: false } });
@@ -113,13 +124,11 @@ export class PreciosService {
       await this.lista(tx, listaId);
       const arts = new Map((await tx.articulo.findMany({ where: { codigo: { in: filas.map((f) => f.codigo) } } })).map((a) => [a.codigo, a.id]));
       const existentes = new Set((await tx.precioLista.findMany({ where: { listaId } })).map((p) => p.articuloId));
-      // Número de línea: se recalcula sobre el archivo para informar el error exacto
-      const lineas = (contenido ?? Buffer.alloc(0)).toString('utf8');
       let creados = 0;
       let actualizados = 0;
       for (const f of filas) {
         const id = arts.get(f.codigo);
-        if (!id) throw new BadRequestException(`Línea ${lineaDe(lineas, f.codigo, nombre, filas.indexOf(f))}: artículo inexistente`);
+        if (!id) throw new BadRequestException(`Línea ${f.linea}: artículo inexistente`);
         const habia = existentes.has(id);
         if (await this.fijar(tx, listaId, id, new D(f.precio), 'IMPORTACION')) habia ? actualizados++ : creados++;
       }
@@ -148,12 +157,4 @@ export class PreciosService {
     }
     return { precio: precio.toFixed(2), lista: resumen };
   }
-}
-
-/** Línea (1-based) donde aparece el índice-ésimo registro con datos: para CSV, se cuentan las líneas del archivo. */
-function lineaDe(texto: string, codigo: string, nombre: string, indice: number): number {
-  if (/\.xlsx$/i.test(nombre)) return indice + 1;
-  const lineas = texto.replace(/^﻿/, '').split(/\r?\n/);
-  const i = lineas.findIndex((l) => (l.includes(';') ? l.split(';') : l.split(','))[0]?.trim() === codigo);
-  return i >= 0 ? i + 1 : indice + 1;
 }

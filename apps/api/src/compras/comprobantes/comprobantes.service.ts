@@ -134,6 +134,8 @@ export class ComprobantesService {
     });
     if (dup) throw new ConflictException(DUPLICADO);
 
+    if (d.depositoId && !(await tx.deposito.findUnique({ where: { id: d.depositoId } }))) throw new BadRequestException('Depósito inexistente');
+
     // 3. Renglones: vínculos, cuentas y datos para 3 vías
     if (esNotaCD && d.renglones.some((r) => r.origen !== 'DIRECTO'))
       throw new BadRequestException('Las notas de crédito y débito solo admiten renglones directos');

@@ -19,3 +19,17 @@ describe('parsearCsvIndices', () => {
     expect(error('Periodo;Valor\nxx;5')).toBe('Línea 2: período inválido');
   });
 });
+
+describe('parsearCsvIndices (formatos de planilla)', () => {
+  it('acepta miles, punto y coma final, comillas y encabezado después de líneas vacías', () => {
+    expect(parsearCsvIndices('\n\nPeríodo;Índice\n"2025-06";"1.234,5";\n2025-07;1.300\n')).toEqual([
+      { anio: 2025, mes: 6, valor: '1234.5' }, { anio: 2025, mes: 7, valor: '1300' },
+    ]);
+  });
+});
+
+describe('parsearCsvIndices (coma como separador)', () => {
+  it('con coma como separador, el punto es decimal', () => {
+    expect(parsearCsvIndices('2025-01,123.456')).toEqual([{ anio: 2025, mes: 1, valor: '123.456' }]);
+  });
+});

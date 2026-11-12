@@ -16,7 +16,7 @@ export const ESTADOS_VENTA: Record<string, { etiqueta: string; color: string }> 
 };
 
 export interface Cliente { id: string; razonSocial: string; condicionIva: CondicionIva; tipoDocumento: string; cuit: string; diasPago: number }
-export interface PuntoVenta { id: string; numero: number; descripcion: string | null; electronico: boolean }
+export interface PuntoVenta { id: string; numero: number; descripcion: string | null; electronico: boolean; depositoId?: string | null }
 export interface ComprobanteVenta {
   depositoId?: string | null; devuelveMercaderia?: boolean;
   id: string; tipo: TipoVenta; letra: string; puntoVenta: number; numero: number | null; terceroId: string; fecha: string; fechaVencimiento: string;

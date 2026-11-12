@@ -107,7 +107,7 @@ export class AsientosService {
     return this.generar(
       tx,
       {
-        fecha, descripcion, origenTipo: orig.origenTipo, origenId: orig.origenId, tipo: orig.tipo === 'MANUAL' ? 'MANUAL' : 'AUTOMATICO',
+        fecha, descripcion, origenTipo: orig.origenTipo, origenId: orig.origenId, tipo: orig.tipo === 'MANUAL' || orig.tipo === 'AJUSTE_INFLACION' ? orig.tipo : 'AUTOMATICO',
         renglones: orig.renglones.map((r) => ({
           cuentaContableId: r.cuentaContableId, centroCostoId: r.centroCostoId,
           debe: r.haber.toString(), haber: r.debe.toString(), detalle: r.detalle ?? undefined,

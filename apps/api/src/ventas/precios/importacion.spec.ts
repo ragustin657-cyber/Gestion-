@@ -9,4 +9,29 @@ describe('leerPrecios', () => {
     await expect(leer('A;1,234.56')).rejects.toThrow('Línea 1: precio inválido');
     await expect(leer('A,2500,50')).rejects.toThrow('Línea 1: precio inválido');
   });
+
+  it('comillas, encabezado después de líneas vacías y número de línea del archivo', async () => {
+    const r = await leer('\n\nCódigo;Precio\n"A-1";"2.500"\n\nB;10\n');
+    expect(r.map((x) => [x.codigo, x.precio, x.linea])).toEqual([['A-1', '2500', 4], ['B', '10', 6]]);
+    await expect(leer('Código;Precio\nA;1\n\nB;0')).rejects.toThrow('Línea 4: precio inválido');
+  });
+  it('xlsx con fórmulas y códigos numéricos', async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('P');
+    ws.addRow(['Código', 'Precio']);
+    ws.addRow([1001, { formula: '1000*2', result: 2000 }]);
+    const r = await leerPrecios(Buffer.from(await wb.xlsx.writeBuffer()), 'p.xlsx');
+    expect(r).toEqual([{ codigo: '1001', precio: '2000', linea: 2 }]);
+  });
+
+  it('xlsx: un resultado numérico con decimales no se toma como miles', async () => {
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('P');
+    ws.addRow(['A', { formula: '12.345*1', result: 12.345 }]);
+    ws.addRow(['B', 1234.5]);
+    const r = await leerPrecios(Buffer.from(await wb.xlsx.writeBuffer()), 'p.xlsx');
+    expect(r.map((x) => x.precio)).toEqual(['12.345', '1234.5']);
+  });
 });

@@ -80,6 +80,7 @@ export class VentasStock {
     const { arts, cant } = await this.porArticulo(tx, c.renglones);
     if (!cant.size) return [];
     if (!c.depositoId) throw new BadRequestException(SIN_DEPOSITO);
+    if (!(await tx.deposito.findUnique({ where: { id: c.depositoId } }))) throw new BadRequestException('Depósito inexistente');
     if (c.tipo === 'NOTA_CREDITO') {
       await this.limiteDevolucion(tx, c, arts, cant);
       return [];

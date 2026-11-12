@@ -17,6 +17,11 @@ const sumarDias = (f: string, d: number) => {
   return x.toISOString().slice(0, 10);
 };
 
+/** Depósito a mostrar al editar: vacío si es el del punto de venta (así cambiar de punto de venta lo actualiza). */
+export function depositoParaEditar(depositoId: string | null | undefined, depositoPuntoVenta: string | null | undefined): string | null {
+  return depositoId && depositoId !== depositoPuntoVenta ? depositoId : null;
+}
+
 /** Renglón editable a partir de un comprobante guardado, conservando su origen (remito o pedido). */
 export function renglonDesdeComprobante(r: { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null }): RenglonVentaEditable {
   const origen = r.remitoRenglonId ? 'REMITO' : r.pedidoRenglonId ? 'PEDIDO' : 'DIRECTO';
@@ -70,13 +75,13 @@ export function ComprobanteVentaPage() {
         const art = articulos.find((a) => a.value === rem.articuloId);
         // Precio y alícuota acordados en el pedido (convertidos a la moneda de la factura); sin pedido, el de la lista
         const precio = rem.precioPedido
-          ? convertirPrecio(rem.precioPedido, rem.monedaPedido!, moneda, cotizacion, rem.cotizacionPedido!)
-          : rem.articuloId ? await precioSugerido({ terceroId, articuloId: rem.articuloId, monedaCodigo: moneda, cotizacion }) : null;
+          ? convertirPrecio(rem.precioPedido, rem.monedaPedido!, moneda, cotizacion ? String(numero(cotizacion)) : '', rem.cotizacionPedido!)
+          : rem.articuloId ? await precioSugerido({ terceroId, articuloId: rem.articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' }) : null;
         nuevos.push({ origen: 'REMITO', remitoRenglonId: id, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant, precioUnitario: precio ? String(Number(precio)) : '', alicuota: rem.alicuotaPedido ?? (art ? String(Number(art.alicuotaIva)) : '21') });
         continue;
       }
       const ped = pendientesQ?.pedidos.find((x) => x.pedidoRenglonId === id);
-      if (ped) nuevos.push({ origen: 'PEDIDO', pedidoRenglonId: id, etiqueta: ped.numero, articuloId: ped.articuloId, descripcion: ped.descripcion, cantidad: cant, precioUnitario: convertirPrecio(ped.precioUnitario, ped.monedaPedido, moneda, cotizacion, ped.cotizacionPedido), alicuota: ped.alicuota });
+      if (ped) nuevos.push({ origen: 'PEDIDO', pedidoRenglonId: id, etiqueta: ped.numero, articuloId: ped.articuloId, descripcion: ped.descripcion, cantidad: cant, precioUnitario: convertirPrecio(ped.precioUnitario, ped.monedaPedido, moneda, cotizacion ? String(numero(cotizacion)) : '', ped.cotizacionPedido), alicuota: ped.alicuota });
     }
     setRenglones([...renglones.filter((r) => r.descripcion), ...nuevos]);
     setSeleccionPend({});
@@ -95,7 +100,7 @@ export function ComprobanteVentaPage() {
       const f = (x: string | null) => (x ? x.slice(0, 10) : '');
       setActual(c); setTipo(c.tipo); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setFecha(f(c.fecha)); setFechaVencimiento(f(c.fechaVencimiento));
       setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
-      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(c.depositoId ?? null); setDevuelveMercaderia(!!c.devuelveMercaderia);
+      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
       setRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
     }).catch(() => op.setError('No se pudo cargar el comprobante'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -202,7 +207,7 @@ export function ComprobanteVentaPage() {
         <Title order={5} mt="lg" mb="xs">Renglones</Title>
         {editable && tipo === 'FACTURA' && terceroId && <Group><Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button></Group>}
         <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos}
-          sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion })} />
+          sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
         <Modal opened={selectorPendientes} onClose={() => setSelectorPendientes(false)} title="Remitos y pedidos pendientes de facturar" size="xl">
           <TablaPendientes pendientes={pendientesFacturar} seleccion={seleccionPend} onChange={setSeleccionPend} />
           <Group mt="md"><Button disabled={!Object.keys(seleccionPend).length} onClick={() => void agregarPendientes()}>Agregar</Button></Group>

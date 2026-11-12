@@ -164,7 +164,7 @@ export class ComprobantesVentaService {
         data: { ...p.datos, version: { increment: 1 }, renglones: { create: p.renglones }, ivas: { create: p.ivas } } as Prisma.ComprobanteVentaUncheckedUpdateInput,
       });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { total: p.datos.total } });
-      return this.obtener(id, tx);
+      return { ...(await this.obtener(id, tx)), advertencias: p.advertencias };
     });
   }
 

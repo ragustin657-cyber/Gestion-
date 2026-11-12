@@ -84,7 +84,10 @@ export class ComprasStock {
     await bloquear(tx, 'Articulo', this.tenant.empresaId, [articuloId]);
     const a = await tx.articulo.findUniqueOrThrow({ where: { id: articuloId } });
     const stock = D.max(new D(a.stockCantidad), cero);
-    const aStock = diferencia.times(D.min(stock, cantidad)).div(cantidad).toDecimalPlaces(2);
+    let aStock = diferencia.times(D.min(stock, cantidad)).div(cantidad).toDecimalPlaces(2);
+    // Una baja de costo no puede dejar el valor negativo: lo que exceda va al costo de lo vendido
+    const valor = new D(a.stockValor);
+    if (aStock.lt(0) && valor.plus(aStock).lt(0)) aStock = D.min(valor, cero).eq(0) ? valor.neg() : cero;
     return { aStock, aCosto: diferencia.minus(aStock) };
   }
 
@@ -105,7 +108,15 @@ export class ComprasStock {
         ? await tx.movimientoStock.findFirst({ where: { origenTipo: ORIGEN_RECEPCION, origenRenglonId: r.informeRecepcionRenglonId, anulaAId: null } })
         : null;
       if (r.origen === 'RECEPCION' && recibido) {
-        const valorRecibido = cantidad.times(recibido.costoUnitario).toDecimalPlaces(2);
+        // Valor recibido de esta parte: diferencia entre lo facturado acumulado y lo anterior; la última parte toma el resto exacto
+        const ir = await tx.informeRecepcionRenglon.findUniqueOrThrow({ where: { id: r.informeRecepcionRenglonId! } });
+        const despues = new D(ir.cantidadFacturada);
+        const antes = despues.minus(cantidad);
+        const cu = new D(recibido.costoUnitario);
+        // Valor acumulado de q unidades facturadas: hasta lo recibido, el importe exacto de la recepción; lo facturado de más, a su costo
+        const rec = new D(recibido.cantidad);
+        const acumulado = (q: Dec) => (q.gte(rec) ? new D(recibido.importe).plus(q.minus(rec).times(cu).toDecimalPlaces(2)) : q.times(cu).toDecimalPlaces(2));
+        const valorRecibido = acumulado(despues).minus(acumulado(antes));
         const d = pesos.minus(valorRecibido);
         if (d.isZero()) continue;
         const { aStock, aCosto } = await this.repartir(tx, r.articuloId!, cantidad, d);

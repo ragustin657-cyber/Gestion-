@@ -1,44 +1,52 @@
 import { BadRequestException } from '@nestjs/common';
 import ExcelJS from 'exceljs';
+import { filasCsv, numeroAR } from '../../comun/csv';
 
-export interface FilaImportada { codigo: string; precio: string }
+export interface FilaImportada { codigo: string; precio: string; linea: number }
 
-/** Formato argentino: punto de miles y coma decimal ("1.234,50"); también "2.500" (miles) y "2.5" (decimal). Ambiguos: null. */
-const numero = (t: string): string | null => {
-  let s = t.trim().replace(/\s/g, '');
-  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
-  else if (/^\d+,\d+$/.test(s)) s = s.replace(',', '.');
-  else if (!/^\d+(\.\d+)?$/.test(s)) return null;
-  if (Number(s) <= 0) return null;
-  return s;
-};
+/** ¿La celda es un número (o una fórmula con resultado numérico)? */
+function esNumero(v: unknown): boolean {
+  if (typeof v === 'number') return true;
+  return typeof v === 'object' && !!v && 'result' in v && typeof (v as { result: unknown }).result === 'number';
+}
 
-/** Filas (código, precio) de un CSV (; o ,) o un XLSX. Encabezado opcional en la primera fila. Todo o nada. */
+/** Texto de una celda de Excel: el resultado de las fórmulas y los números como texto. */
+function celda(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object' && v && 'result' in v) return celda((v as { result: unknown }).result);
+  if (typeof v === 'object' && v && 'richText' in v) return (v as { richText: { text: string }[] }).richText.map((t) => t.text).join('');
+  return String(v);
+}
+
+/** Filas (código, precio, línea del archivo) de un CSV o un XLSX. Encabezado opcional en la primera fila con datos. Todo o nada. */
 export async function leerPrecios(contenido: Buffer, nombre: string): Promise<FilaImportada[]> {
-  let filas: string[][];
+  let filas: (string[] & { sep?: string; numerico?: boolean })[];
   if (/\.xlsx$/i.test(nombre)) {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(contenido as unknown as ArrayBuffer);
     filas = [];
     wb.worksheets[0]?.eachRow({ includeEmpty: true }, (row) => {
       const v = row.values as unknown[];
-      filas[row.number - 1] = [String(v[1] ?? ''), String(v[2] ?? '')];
+      filas[row.number - 1] = Object.assign([celda(v[1]).trim(), celda(v[2]).trim(), ...v.slice(3).map((x) => celda(x).trim())], { numerico: esNumero(v[2]) });
     });
-    filas = Array.from(filas, (f) => f ?? ['', '']);
+    filas = Array.from(filas, (f) => f ?? []);
   } else {
-    filas = contenido.toString('utf8').replace(/^﻿/, '').split(/\r?\n/).map((l) => (l.includes(';') ? l.split(';') : l.split(',')));
+    filas = filasCsv(contenido.toString('utf8'));
   }
   const r: FilaImportada[] = [];
   const vistos = new Set<string>();
-  filas.forEach(([codigo = '', precio = '', ...resto], i) => {
-    if (!codigo.trim() && !precio.trim()) return;
-    const p = resto.some((x) => x.trim()) ? null : numero(precio);
-    if (i === 0 && p === null && !/\d/.test(precio)) return; // encabezado
+  let primera = true;
+  filas.forEach((fila, i) => {
+    const [codigo = '', precio = '', ...resto] = fila;
+    if (!codigo && !precio) return;
+    const esPrimera = primera;
+    primera = false;
+    const p = resto.some((x) => x) ? null : numeroAR(precio, fila.numerico || fila.sep === ',');
+    if (esPrimera && p === null && !/\d/.test(precio)) return; // encabezado
     if (!p) throw new BadRequestException(`Línea ${i + 1}: precio inválido`);
-    const c = codigo.trim();
-    if (vistos.has(c)) throw new BadRequestException(`Línea ${i + 1}: artículo repetido`);
-    vistos.add(c);
-    r.push({ codigo: c, precio: p });
+    if (vistos.has(codigo)) throw new BadRequestException(`Línea ${i + 1}: artículo repetido`);
+    vistos.add(codigo);
+    r.push({ codigo, precio: p, linea: i + 1 });
   });
   return r;
 }
