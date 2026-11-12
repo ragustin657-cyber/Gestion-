@@ -1,3 +1,5 @@
+import { RemitosController } from './remitos/remitos.controller';
+import { RemitosService } from './remitos/remitos.service';
 import { PedidosController } from './pedidos/pedidos.controller';
 import { PedidosService } from './pedidos/pedidos.service';
 import { PreciosController } from './precios/precios.controller';
@@ -17,8 +19,8 @@ import { DatosVentasController } from './consultas/datos-ventas.controller';
 
 @Module({
   imports: [ArcaModule],
-  controllers: [PreciosController, PedidosController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController],
-  providers: [PreciosService, PedidosService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService],
+  controllers: [PreciosController, PedidosController, RemitosController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController],
+  providers: [PreciosService, PedidosService, RemitosService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}
