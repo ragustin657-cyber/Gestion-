@@ -23,6 +23,13 @@ describe('flujo de fondos (web)', () => {
     expect(elegidos).toEqual([{ desde: '2026-11-06', hasta: '2026-11-06', etiqueta: '06/11–08/11' }]);
   });
 
+  it('columnas de totales', () => {
+    render(<MantineProvider><TablaFlujo datos={datos('98700.00')} onPeriodo={() => {}} /></MantineProvider>);
+    expect(screen.getByRole('columnheader', { name: 'Total ingresos' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Total egresos' })).toBeInTheDocument();
+    expect(screen.getByText('$ 42.100,00')).toBeInTheDocument();
+  });
+
   it('serie del gráfico', () => {
     expect(serieFlujo(datos('98700.00').filas)).toEqual([{ periodo: '06/11–08/11', ingresos: 42100, egresos: 48400, saldo: 98700 }]);
   });

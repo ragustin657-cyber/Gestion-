@@ -29,9 +29,9 @@ export class ConsultasTesoreriaController {
   async flujo(@Query() q: ParamsFlujo & { formato?: string }, @Res({ passthrough: true }) res: Response) {
     const r = await this.flujos.flujo(q);
     if (!q.formato) return r;
-    const imp = (titulo: string): Columna => ({ titulo, ancho: 70, importe: true });
-    const columnas: Columna[] = [{ titulo: 'Período', ancho: 90 }, imp('Cheques'), imp('Transferencias'), imp('Cobranzas'), imp('Vencido a cobrar'), imp('Cheques propios'), imp('OP'), imp('Proveedores'), imp('Vencido a pagar'), imp('Saldo')];
-    const filas = [['Saldo inicial', null, null, null, null, null, null, null, null, r.saldoInicial], ...r.filas.map((f) => [f.etiqueta, f.ingresos.cheques, f.ingresos.transferencias, f.ingresos.cobranzas, f.ingresos.vencidoACobrar, f.egresos.chequesPropios, f.egresos.ordenesPago, f.egresos.proveedores, f.egresos.vencidoAPagar, f.saldo])];
+    const imp = (titulo: string): Columna => ({ titulo, ancho: 62, importe: true });
+    const columnas: Columna[] = [{ titulo: 'Período', ancho: 90 }, imp('Cheques'), imp('Transferencias'), imp('Cobranzas'), imp('Vencido a cobrar'), imp('Cheques propios'), imp('OP'), imp('Proveedores'), imp('Vencido a pagar'), imp('Total ingresos'), imp('Total egresos'), imp('Saldo')];
+    const filas = [['Saldo inicial', null, null, null, null, null, null, null, null, null, null, r.saldoInicial], ...r.filas.map((f) => [f.etiqueta, f.ingresos.cheques, f.ingresos.transferencias, f.ingresos.cobranzas, f.ingresos.vencidoACobrar, f.egresos.chequesPropios, f.egresos.ordenesPago, f.egresos.proveedores, f.egresos.vencidoAPagar, f.totalIngresos, f.totalEgresos, f.saldo])];
     const titulo = 'Flujo de fondos proyectado';
     const subtitulo = `Del ${r.desde.split('-').reverse().join('/')} al ${r.hasta.split('-').reverse().join('/')}${r.incluirVencidos ? '' : ' · sin vencidos'}`;
     if (q.formato === 'xlsx') {

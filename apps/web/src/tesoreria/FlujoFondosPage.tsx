@@ -25,18 +25,20 @@ export function TablaFlujo({ datos, onPeriodo }: { datos: Flujo; onPeriodo: (p: 
   const celda = (v: string) => (Number(v) ? formatoMoneda(v) : '—');
   return <>
     {datos.primerNegativo && <Alert color="red" mb="sm">{`El saldo queda negativo en ${datos.primerNegativo}`}</Alert>}
-    <Table.ScrollContainer minWidth={1100}>
+    <Table.ScrollContainer minWidth={1300}>
       <Table withTableBorder striped highlightOnHover>
         <Table.Thead>
-          <Table.Tr><Table.Th>Período</Table.Th>{COL_ING.map(([k, t]) => <Table.Th key={k} ta="right" c="teal">{t}</Table.Th>)}{COL_EGR.map(([k, t]) => <Table.Th key={k} ta="right" c="red">{t}</Table.Th>)}<Table.Th ta="right">Saldo</Table.Th></Table.Tr>
+          <Table.Tr><Table.Th>Período</Table.Th>{COL_ING.map(([k, t]) => <Table.Th key={k} ta="right" c="teal">{t}</Table.Th>)}{COL_EGR.map(([k, t]) => <Table.Th key={k} ta="right" c="red">{t}</Table.Th>)}<Table.Th ta="right">Total ingresos</Table.Th><Table.Th ta="right">Total egresos</Table.Th><Table.Th ta="right">Saldo</Table.Th></Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          <Table.Tr><Table.Td fw={600}>Saldo inicial</Table.Td>{[...COL_ING, ...COL_EGR].map(([k]) => <Table.Td key={k} />)}<Table.Td ta="right" fw={600}>{formatoMoneda(datos.saldoInicial)}</Table.Td></Table.Tr>
+          <Table.Tr><Table.Td fw={600}>Saldo inicial</Table.Td>{[...COL_ING, ...COL_EGR].map(([k]) => <Table.Td key={k} />)}<Table.Td /><Table.Td /><Table.Td ta="right" fw={600}>{formatoMoneda(datos.saldoInicial)}</Table.Td></Table.Tr>
           {datos.filas.map((f) => (
             <Table.Tr key={f.desde} style={{ cursor: 'pointer' }} onClick={() => onPeriodo({ desde: f.desde, hasta: f.hasta, etiqueta: f.etiqueta })}>
               <Table.Td>{f.etiqueta}</Table.Td>
               {COL_ING.map(([k]) => <Table.Td key={k} ta="right" c={k === 'vencidoACobrar' && !datos.incluirVencidos ? 'dimmed' : undefined}>{celda(f.ingresos[k])}</Table.Td>)}
               {COL_EGR.map(([k]) => <Table.Td key={k} ta="right" c={k === 'vencidoAPagar' && !datos.incluirVencidos ? 'dimmed' : undefined}>{celda(f.egresos[k])}</Table.Td>)}
+              <Table.Td ta="right">{formatoMoneda(f.totalIngresos)}</Table.Td>
+              <Table.Td ta="right">{formatoMoneda(f.totalEgresos)}</Table.Td>
               <Table.Td ta="right" fw={600} c={Number(f.saldo) < 0 ? 'red' : undefined} data-negativo={Number(f.saldo) < 0 ? 'true' : 'false'}>{formatoMoneda(f.saldo)}</Table.Td>
             </Table.Tr>
           ))}

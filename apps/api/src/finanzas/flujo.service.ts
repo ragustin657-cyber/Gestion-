@@ -69,9 +69,17 @@ export class FlujoService {
     const ops = await db.ordenPago.findMany({ where: { estado: 'APROBADA' }, include: { tercero: { select: { razonSocial: true } } } });
     for (const op of ops) items.push({ concepto: 'ordenesPago', fecha: inicio, descripcion: `OP N° ${op.numero ?? ''}`.trim(), tercero: op.tercero.razonSocial, importe: new D(op.netoPagar) });
 
-    // Cuentas corrientes: saldo pendiente hoy por vencimiento (lo imputado en OP no pagadas ya está o estará en una OP)
-    const [clientes, proveedores] = await Promise.all([saldosAFecha(db, 'clientes', inicio), saldosAFecha(db, 'proveedores', inicio)]);
-    const enOp = new Map((await db.ordenPagoImputacion.groupBy({ by: ['movimientoId'], where: { ordenPago: { estado: { in: ['BORRADOR', 'PENDIENTE_APROBACION', 'APROBADA'] } } }, _sum: { importePesos: true } })).map((g) => [g.movimientoId, new D(g._sum.importePesos ?? 0)]));
+    // Cuentas corrientes: saldo pendiente (incluidos los comprobantes con fecha futura) por vencimiento.
+    // Lo imputado en OP aprobadas ya está en "OP aprobadas": se descuenta en pesos históricos (importe × saldo en pesos / saldo)
+    const todo = new Date(Date.UTC(9999, 11, 31));
+    const [clientes, proveedores] = await Promise.all([saldosAFecha(db, 'clientes', todo), saldosAFecha(db, 'proveedores', todo)]);
+    const imputado = await db.ordenPagoImputacion.groupBy({ by: ['movimientoId'], where: { ordenPago: { estado: 'APROBADA' } }, _sum: { importe: true } });
+    const actuales = new Map((await db.movimientoCuentaCorriente.findMany({ where: { id: { in: imputado.map((g) => g.movimientoId) } }, select: { id: true, saldo: true, saldoPesos: true } })).map((m) => [m.id, m]));
+    const enOp = new Map(imputado.map((g) => {
+      const m = actuales.get(g.movimientoId);
+      const importe = new D(g._sum.importe ?? 0);
+      return [g.movimientoId, !m || new D(m.saldo).isZero() ? new D(0) : importe.eq(m.saldo) ? new D(m.saldoPesos) : importe.times(m.saldoPesos).div(m.saldo).toDecimalPlaces(2)];
+    }));
     const movs = [...clientes, ...proveedores];
     const terceros = new Map((await db.tercero.findMany({ where: { id: { in: [...new Set(movs.map((m) => m.terceroId))] } }, select: { id: true, razonSocial: true } })).map((t) => [t.id, t.razonSocial]));
     const descripciones = await this.descripciones(db, movs);
