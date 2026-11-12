@@ -15,6 +15,7 @@ export interface Tablero {
     ventas: { valor: string; anterior: string; anioAnterior: string };
     margenPct: { valor: string | null; anterior: string | null; anioAnterior: string | null };
     cobranzasVencidas: { valor: string }; deudaVencida: { valor: string }; stock: { valor: string };
+    presupuesto?: { nombre: string; resultadoPresupuestado: string; resultadoReal: string; desvioPct: string | null } | null;
   };
   ventasPorMes: MesVentas[];
   topClientes: { id: string; nombre: string; ventas: string }[];
