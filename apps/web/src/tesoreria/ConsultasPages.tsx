@@ -80,28 +80,3 @@ export function MovimientosCuentaPage() {
     </Paper>
   );
 }
-
-export function FlujoFondosPage() {
-  const [dias, setDias] = useState('30');
-  const q = useQuery({ queryKey: ['/tesoreria/flujo', dias], queryFn: () => api<{ fecha: string; ingresos: string; egresos: string; saldo: string }[]>('/tesoreria/flujo', { query: { dias } }) });
-  const conMovimiento = (q.data ?? []).filter((d, i) => i === 0 || Number(d.ingresos) || Number(d.egresos));
-  return (
-    <Paper withBorder p="md" radius="md">
-      <Title order={3} mb="md">Flujo de fondos proyectado</Title>
-      <Group><Select label="Período" w={160} allowDeselect={false} value={dias} onChange={(v) => setDias(v ?? '30')} data={[{ value: '7', label: '7 días' }, { value: '30', label: '30 días' }, { value: '60', label: '60 días' }, { value: '90', label: '90 días' }]} /></Group>
-      <Text size="xs" c="dimmed" mt={4}>En pesos: saldo bancario + cheques en cartera y depositados + transferencias pendientes − cheques propios diferidos − órdenes de pago aprobadas.</Text>
-      {errorConsulta(q.error)}
-      <Stack mt="md" gap={0}>
-        <Table withTableBorder striped>
-          <Table.Thead><Table.Tr><Table.Th>Fecha</Table.Th><Table.Th ta="right">Ingresos</Table.Th><Table.Th ta="right">Egresos</Table.Th><Table.Th ta="right">Saldo proyectado</Table.Th></Table.Tr></Table.Thead>
-          <Table.Tbody>
-            {conMovimiento.map((d) => (
-              <Table.Tr key={d.fecha}><Table.Td>{formatoFecha(d.fecha)}</Table.Td><Table.Td ta="right">{formatoMoneda(d.ingresos)}</Table.Td><Table.Td ta="right">{formatoMoneda(d.egresos)}</Table.Td>
-                <Table.Td ta="right" c={Number(d.saldo) < 0 ? 'red' : undefined}>{formatoMoneda(d.saldo)}</Table.Td></Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      </Stack>
-    </Paper>
-  );
-}
