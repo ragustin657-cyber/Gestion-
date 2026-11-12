@@ -2,7 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { fechaQuery } from '../compras/consultas/consultas.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
-import { coeficientes, rotacion } from './calculo';
+import { anioAnterior, coeficientes, periodoAnterior, rotacion, TRAMOS } from './calculo';
 import { antiguedad } from './fuentes/cuentas';
 import { valorStock } from './fuentes/stock';
 import { RenglonVendido, renglonesVendidos } from './fuentes/ventas';
@@ -48,16 +48,59 @@ export class InformesService {
   /** Renglones vendidos, reexpresados por mes si se pide y hay índices (si no, aviso y nominal). */
   async vendidos(tx: TxEmpresa, desde: Date, hasta: Date, reexpresar: boolean): Promise<{ rs: RenglonVendido[]; aviso?: string }> {
     const rs = await renglonesVendidos(tx, desde, hasta);
-    if (!reexpresar || !rs.length) return { rs };
-    const meses = [...new Set(rs.map((r) => r.mes))];
+    const r = await this.reexpresar(tx, [rs], hasta.toISOString().slice(0, 7), reexpresar);
+    return { rs: r.listas[0], ...(r.aviso ? { aviso: r.aviso } : {}) };
+  }
+
+  /** Reexpresa todas las listas a la moneda del mes base con un único juego de coeficientes; si falta algún índice, ninguna (spec §3). */
+  async reexpresar(tx: TxEmpresa, listas: RenglonVendido[][], mesHasta: string, reexpresar: boolean): Promise<{ listas: RenglonVendido[][]; aviso?: string }> {
+    const meses = [...new Set(listas.flat().map((r) => r.mes))];
+    if (!reexpresar || !meses.length) return { listas };
     const filas = await tx.indiceInflacion.findMany();
     const indices = new Map(filas.map((f) => [`${f.anio}-${String(f.mes).padStart(2, '0')}`, new D(f.valor)]));
-    const c = coeficientes(meses, indices, hasta.toISOString().slice(0, 7));
-    if ('faltan' in c) return { rs, aviso: `Faltan los índices de: ${c.faltan.join(', ')}: se muestran importes nominales` };
+    const c = coeficientes(meses, indices, mesHasta);
+    if ('faltan' in c) return { listas, aviso: `Faltan los índices de: ${c.faltan.join(', ')}: se muestran importes nominales` };
     return {
-      rs: rs.map((r) => {
+      listas: listas.map((rs) => rs.map((r) => {
         const k = c.coef.get(r.mes)!;
         return { ...r, ventas: r.ventas.times(k).toDecimalPlaces(2), costo: r.costo === null ? null : r.costo.times(k).toDecimalPlaces(2) };
+      })),
+    };
+  }
+
+  /** Tablero de dirección (spec §4). */
+  async tablero(q: { desde?: string; hasta?: string; reexpresar?: string }) {
+    const db = this.tenant.db;
+    const { desde, hasta } = this.periodo(q);
+    const ant = periodoAnterior(desde, hasta), anio = anioAnterior(desde, hasta);
+    const inicioSerie = new Date(Date.UTC(hasta.getUTCFullYear(), hasta.getUTCMonth() - 11, 1));
+    const [act, rAnt, rAnio, serie, clientes, proveedores, stock] = await Promise.all([
+      renglonesVendidos(db, desde, hasta), renglonesVendidos(db, ant.desde, ant.hasta), renglonesVendidos(db, anio.desde, anio.hasta),
+      renglonesVendidos(db, inicioSerie, hasta), antiguedad(db, 'clientes', hasta), antiguedad(db, 'proveedores', hasta), valorStock(db, hasta),
+    ]);
+    const { listas: [p, pa, py, s], aviso } = await this.reexpresar(db, [act, rAnt, rAnio, serie], hasta.toISOString().slice(0, 7), q.reexpresar === 'true');
+    const [rp, ra, ry] = [p, pa, py].map((x) => resumir(x));
+    const vencido = (t: Record<string, string>) => TRAMOS.filter((k) => k !== 'aVencer').reduce((acc, k) => acc.plus(t[k]), cero).toFixed(2);
+    const meses = Array.from({ length: 12 }, (_, i) => new Date(Date.UTC(inicioSerie.getUTCFullYear(), inicioSerie.getUTCMonth() + i, 1)).toISOString().slice(0, 7));
+    const porMes = new Map(this.agrupar(s, 'mes').map((f) => [f.clave, f]));
+    return {
+      periodo: { desde: q.desde, hasta: q.hasta },
+      ...(aviso ? { aviso } : {}),
+      indicadores: {
+        ventas: { valor: rp.ventas, anterior: ra.ventas, anioAnterior: ry.ventas },
+        margenPct: { valor: rp.margenPct, anterior: ra.margenPct, anioAnterior: ry.margenPct },
+        cobranzasVencidas: { valor: vencido(clientes.totales) },
+        deudaVencida: { valor: vencido(proveedores.totales) },
+        stock: { valor: [...stock.values()].reduce((acc, v) => acc.plus(v), cero).toFixed(2) },
+      },
+      ventasPorMes: meses.map((mes) => {
+        const f = porMes.get(mes);
+        return { mes, ventas: f?.ventas ?? '0.00', costo: f?.costo ?? '0.00', margen: f?.margen ?? '0.00' };
+      }),
+      topClientes: this.agrupar(p, 'cliente').slice(0, 10).map((f) => ({ id: f.clave, nombre: f.nombre, ventas: f.ventas })),
+      topArticulos: this.agrupar(p.filter((r) => r.articuloId), 'articulo').slice(0, 10).map((f) => {
+        const r = p.find((x) => x.articuloId === f.clave)!;
+        return { id: f.clave, codigo: r.codigo, descripcion: r.descripcion, ventas: f.ventas, margen: f.margen };
       }),
     };
   }

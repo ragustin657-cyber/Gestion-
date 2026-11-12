@@ -28,7 +28,7 @@ export async function renglonesVendidos(tx: TxEmpresa, desde: Date, hasta: Date)
   const rrIds = renglones.map((r) => r.remitoRenglonId).filter((x): x is string => !!x);
   const salidasRemito = rrIds.length ? await tx.movimientoStock.findMany({ where: { origenTipo: 'REMITO', tipo: 'VENTA', anulaAId: null, origenRenglonId: { in: rrIds } }, select: { origenRenglonId: true, costoUnitario: true } }) : [];
   const costoUnitRemito = new Map(salidasRemito.map((m) => [m.origenRenglonId!, new D(m.costoUnitario)]));
-  const arts = new Map((await tx.articulo.findMany({ where: { id: { in: [...new Set(renglones.map((r) => r.articuloId).filter((x): x is string => !!x))] } }, select: { id: true, codigo: true } })).map((a) => [a.id, a.codigo]));
+  const arts = new Map((await tx.articulo.findMany({ where: { id: { in: [...new Set(renglones.map((r) => r.articuloId).filter((x): x is string => !!x))] } }, select: { id: true, codigo: true, descripcion: true } })).map((a) => [a.id, a]));
   const r: RenglonVendido[] = [];
   for (const c of comps) {
     const signo = c.tipo === 'NOTA_CREDITO' ? -1 : 1;
@@ -39,7 +39,7 @@ export async function renglonesVendidos(tx: TxEmpresa, desde: Date, hasta: Date)
       else if (costoDirecto.has(ren.id)) costo = costoDirecto.get(ren.id)!;
       r.push({
         fecha: c.fecha, mes: c.fecha.toISOString().slice(0, 7), terceroId: c.terceroId, cliente: c.tercero.razonSocial,
-        articuloId: ren.articuloId, codigo: ren.articuloId ? (arts.get(ren.articuloId) ?? null) : null, descripcion: ren.descripcion, ventas, costo,
+        articuloId: ren.articuloId, codigo: ren.articuloId ? (arts.get(ren.articuloId)?.codigo ?? null) : null, descripcion: (ren.articuloId && arts.get(ren.articuloId)?.descripcion) || ren.descripcion, ventas, costo,
       });
     }
   }

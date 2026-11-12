@@ -44,6 +44,11 @@ export class InformesController {
       [...r.filas.map((f) => [f.nombre, f.ventas, f.costo, f.margen, f.margenPct, f.sinCosto]), ['Total', t.ventas, t.costo, t.margen, t.margenPct, t.sinCosto]]);
   }
 
+  @Get('tablero')
+  tablero(@Query() q: Q) {
+    return this.informes.tablero(q);
+  }
+
   @Get('antiguedad')
   async antiguedad(@Query() q: Q, @Res({ passthrough: true }) res: Response) {
     const r = await this.informes.antiguedad(q);
