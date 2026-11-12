@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { esquemaBienRenglon } from '../../bienes-uso/dto';
 import { zFecha, zMotivo, zRenglonBase } from '../comun';
 
 const zImporte = z.number().min(0, 'No puede ser negativo').default(0);
@@ -31,6 +32,7 @@ export const esquemaComprobante = z
           informeRecepcionRenglonId: z.string().uuid().nullish(),
           ordenCompraRenglonId: z.string().uuid().nullish(),
           cuentaContableId: z.string().uuid().nullish(),
+          bien: esquemaBienRenglon.nullish(),
         }),
       )
       .min(1, 'El comprobante debe tener al menos un renglón'),
