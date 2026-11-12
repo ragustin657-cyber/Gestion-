@@ -30,6 +30,7 @@ export const esquemaComprobanteVenta = z
         remitoRenglonId: z.string().uuid('Valor inválido').nullish(),
         pedidoRenglonId: z.string().uuid('Valor inválido').nullish(),
         articuloId: z.string().uuid('Valor inválido').nullish(),
+        bienUsoId: z.string().uuid('Valor inválido').nullish(),
         descripcion: z.string().trim().min(1, 'Campo obligatorio'),
         cantidad: z.number().gt(0, 'Debe ser mayor a cero'),
         precioUnitario: z.number().gt(0, 'Debe ser mayor a cero'),

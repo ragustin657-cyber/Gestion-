@@ -46,3 +46,6 @@ export const esquemaEdicionBien = z.object({
   valorResidual: zImporte.optional(),
 });
 export type EdicionBien = z.infer<typeof esquemaEdicionBien>;
+
+export const esquemaBaja = z.object({ fecha: zFecha, motivo: z.enum(['DESUSO', 'SINIESTRO', 'ROBO'], { message: 'Motivo inválido' }) });
+export type DatosBaja = z.infer<typeof esquemaBaja>;

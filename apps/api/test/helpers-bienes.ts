@@ -5,8 +5,9 @@ import { datosCompras, sesionConPlan } from './helpers';
 let numero = 5000;
 
 /** Empresa con plan, proveedor y atajos para bienes de uso. */
-export async function prepararBienes(app: INestApplication, prisma: PrismaService) {
-  const s = await sesionConPlan(app, prisma);
+type Base = { empresaId: string; http: Awaited<ReturnType<typeof sesionConPlan>>['http']; cuenta: (codigo: string) => Promise<string> };
+export async function prepararBienes<T extends Base = Awaited<ReturnType<typeof sesionConPlan>>>(app: INestApplication, prisma: PrismaService, base?: T) {
+  const s = (base ?? (await sesionConPlan(app, prisma))) as T;
   const { proveedorId } = await datosCompras(prisma, s.empresaId);
   const rubro = async (nombre: string) => (await prisma.rubroBienUso.findFirstOrThrow({ where: { empresaId: s.empresaId, nombre } }));
   const factura = (o: { neto: number; fecha?: string; cuenta?: string; bien?: object | null; moneda?: 'ARS' | 'USD'; cotizacion?: number }) =>

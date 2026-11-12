@@ -1,3 +1,4 @@
+import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadGatewayException, BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import type { AmbienteArca, ComprobanteVenta, PeriodoContable, Tercero } from '@prisma/client';
 import { alicuotaArca, cbteTipo, condicionIvaReceptorArca, docTipoArca, monedaArca, normalizarCuit, type AlicuotaIva, type LetraVenta } from '@gestion/shared';
@@ -38,6 +39,7 @@ export class EmisionService {
     private readonly auditoria: AuditoriaService,
     private readonly stock: VentasStock,
     private readonly origenes: OrigenesVenta,
+    private readonly bajas: BajasService,
   ) {}
 
   registrarAlAutorizar(f: AlAutorizar) {
@@ -122,6 +124,7 @@ export class EmisionService {
       // Stock: lo que impediría registrar la venta se controla antes de pedir el CAE
       const renglones = await tx.comprobanteVentaRenglon.findMany({ where: { comprobanteId: id } });
       await this.origenes.resolver(tx, { tipo: c.tipo, terceroId: c.terceroId, renglones });
+      await this.bajas.validarVenta(tx, { id, tipo: c.tipo, fecha: c.fecha }, renglones);
       await this.stock.prevalidar(tx, { id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId, renglones: renglones.filter((x) => !x.remitoRenglonId) });
       const datos = await this.datosCae(tx, c, tipoArca);
       const propietario = new Date();
@@ -202,6 +205,7 @@ export class EmisionService {
         fecha, descripcion: `${TIPO_TEXTO[c.tipo]} ${c.letra} ${numeroVenta(c.puntoVenta, numero)} - ${c.tercero.razonSocial}`, origenTipo: 'VENTA', origenId: c.id, renglones,
       });
       const final = await tx.comprobanteVenta.update({ where: { id }, data: { asientoId: asiento.id } });
+      await this.bajas.alAutorizarVenta(tx, fecha, c.renglones);
       advertencias.push(...(await this.stock.alEmitir(tx, {
         id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId,
         renglones: [...c.renglones].filter((x) => !x.remitoRenglonId).sort((a, b) => a.orden - b.orden).map((x) => ({ id: x.id, articuloId: x.articuloId, cantidad: x.cantidad })),
