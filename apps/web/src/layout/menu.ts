@@ -162,6 +162,16 @@ export const MENU: NodoMenu[] = [
     ],
   },
   {
+    titulo: 'Informes de gestión',
+    hijos: [
+      { titulo: 'Tablero de dirección', ruta: '/informes/tablero', permiso: 'informes.ver' },
+      { titulo: 'Ventas', ruta: '/informes/ventas', permiso: 'informes.ver' },
+      { titulo: 'Márgenes', ruta: '/informes/margenes', permiso: 'informes.ver' },
+      { titulo: 'Antigüedad de saldos', ruta: '/informes/antiguedad', permiso: 'informes.ver' },
+      { titulo: 'Rotación de stock', ruta: '/informes/rotacion', permiso: 'informes.ver' },
+    ],
+  },
+  {
     titulo: 'Maestros',
     hijos: [
       { titulo: 'Proveedores y clientes', ruta: '/maestros/terceros', permiso: 'tercero.ver' },

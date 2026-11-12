@@ -55,6 +55,8 @@ import { AsientoPage } from '../contabilidad/DetalleAsiento';
 import { ResultadosPage, SituacionPage } from '../contabilidad/EstadosPages';
 import { LibrosPage } from '../contabilidad/LibrosPage';
 import { PeriodosPage } from '../contabilidad/PeriodosPage';
+import { AntiguedadPage, MargenesPage, RotacionPage, VentasInformePage } from '../informes/InformesPages';
+import { TableroPage } from '../informes/TableroPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
 import { EmpresaPage } from './EmpresaPage';
@@ -163,4 +165,9 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/stock/valuacion', elemento: <ValuacionPage /> },
   { ruta: '/admin/ajuste-inflacion', elemento: <ConfigAjustePage /> },
   { ruta: '/contabilidad/ajuste-inflacion', elemento: <AjusteInflacionPage /> },
+  { ruta: '/informes/tablero', elemento: <TableroPage /> },
+  { ruta: '/informes/ventas', elemento: <VentasInformePage /> },
+  { ruta: '/informes/margenes', elemento: <MargenesPage /> },
+  { ruta: '/informes/antiguedad', elemento: <AntiguedadPage /> },
+  { ruta: '/informes/rotacion', elemento: <RotacionPage /> },
 ];

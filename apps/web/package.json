@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@gestion/shared": "workspace:*",
+    "@mantine/charts": "7.17.8",
     "@mantine/core": "^7.17.8",
     "@mantine/hooks": "^7.17.8",
     "@mantine/notifications": "^7.17.8",
@@ -18,7 +19,8 @@
     "@tanstack/react-query": "^5.106.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-router-dom": "^7.18.5"
+    "react-router-dom": "^7.18.5",
+    "recharts": "2.15.4"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
