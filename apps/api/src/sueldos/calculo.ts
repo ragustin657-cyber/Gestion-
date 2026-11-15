@@ -123,3 +123,31 @@ export function liquidarSac(e: EmpleadoCalc, conceptos: ConceptoCalc[], mejorRem
   const desc = descuentos(aplicables, sac, new D(0), renglones, []);
   return { renglones, totalRemunerativo: sac, totalNoRemunerativo: new D(0), totalDescuentos: desc, neto: sac.minus(desc), diasTrabajados: dias, antiguedadAnios: antiguedadAnios(e.fechaIngreso, fin) };
 }
+
+const ETIQUETA_TIPO: Record<ConceptoCalc['tipo'], string> = {
+  BASICO: 'Sueldo básico', ANTIGUEDAD: 'Antigüedad', PORCENTAJE: 'Porcentaje', HORAS_EXTRA: 'Horas extra', AUSENCIA: 'Ausencia', FIJO: 'Importe fijo', DESCUENTO_LEY: 'Descuento de ley',
+};
+const ETIQUETA_CLASE: Record<ConceptoCalc['clase'], string> = { REMUNERATIVO: 'Remunerativo', NO_REMUNERATIVO: 'No remunerativo', DESCUENTO: 'Descuento' };
+const CLASES_POR_TIPO: Record<ConceptoCalc['tipo'], ConceptoCalc['clase'][]> = {
+  BASICO: ['REMUNERATIVO'], ANTIGUEDAD: ['REMUNERATIVO'], HORAS_EXTRA: ['REMUNERATIVO'], AUSENCIA: ['REMUNERATIVO'],
+  PORCENTAJE: ['REMUNERATIVO', 'NO_REMUNERATIVO'], FIJO: ['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO'], DESCUENTO_LEY: ['DESCUENTO'],
+};
+
+/** Valida la clase y los parámetros de un concepto según su cálculo; devuelve el mensaje de error o null. */
+export function validarConcepto(tipo: ConceptoCalc['tipo'], clase: ConceptoCalc['clase'], p: Record<string, unknown>): string | null {
+  if (!CLASES_POR_TIPO[tipo].includes(clase)) return `El cálculo ${ETIQUETA_TIPO[tipo]} no admite la clase ${ETIQUETA_CLASE[clase]}`;
+  const numero = (k: string, requerido: boolean) => {
+    const v = p[k];
+    if (v === undefined || v === null) return requerido ? `Parámetro ${k}: debe ser un número mayor o igual a cero` : null;
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? null : `Parámetro ${k}: debe ser un número mayor o igual a cero`;
+  };
+  const opcion = (k: string, validas: string[]) => (p[k] === undefined || p[k] === null || validas.includes(String(p[k])) ? null : `Parámetro ${k} inválido`);
+  switch (tipo) {
+    case 'ANTIGUEDAD': return numero('pctPorAnio', true);
+    case 'PORCENTAJE': return numero('pct', true) ?? opcion('base', ['BASICO_MAS_ANTIGUEDAD', 'REMUNERATIVO', 'BRUTO']) ?? (p.pierdeConAusencia === undefined || typeof p.pierdeConAusencia === 'boolean' ? null : 'Parámetro pierdeConAusencia inválido');
+    case 'HORAS_EXTRA': return p.recargoPct === 50 || p.recargoPct === 100 ? null : 'Parámetro recargoPct: debe ser 50 o 100';
+    case 'FIJO': return numero('importe', false);
+    case 'DESCUENTO_LEY': return numero('pct', true) ?? opcion('base', ['REMUNERATIVO', 'REMUNERATIVO_MAS_NO_REMUNERATIVO']) ?? numero('tope', false);
+    default: return null;
+  }
+}

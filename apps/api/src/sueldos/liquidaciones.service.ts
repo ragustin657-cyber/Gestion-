@@ -4,7 +4,7 @@ import { ClsService } from 'nestjs-cls';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { NumeracionService } from '../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
-import { ConceptoCalc, liquidarMes, liquidarSac, NovedadCalc, ResultadoCalc } from './calculo';
+import { ConceptoCalc, liquidarMes, liquidarSac, NovedadCalc, ResultadoCalc, validarConcepto } from './calculo';
 import { basicosVigentes } from './maestros.service';
 
 const D = Prisma.Decimal;
@@ -59,15 +59,20 @@ export class LiquidacionesService {
   private async calcular(tx: TxEmpresa, l: Liquidacion): Promise<{ errores: { empleadoId: string; mensaje: string }[]; aviso?: string }> {
     const ini = new Date(Date.UTC(l.anio, l.tipo === 'SAC' ? (semestre(l.mes) === 1 ? 0 : 6) : l.mes - 1, 1));
     const fin = new Date(Date.UTC(l.anio, l.mes, 0));
+    const previos = new Map((await tx.reciboSueldo.findMany({ where: { liquidacionId: l.id } })).map((r) => [r.empleadoId, r]));
+    // Con fecha de egreso decide la fecha (un empleado dado de baja en el período cobra sus días aunque esté inactivo);
+    // los que ya tienen recibo numerado (liquidación reabierta) se conservan siempre.
+    const numerados = [...previos.values()].filter((r) => r.numero !== null).map((r) => r.empleadoId);
     const empleados = await tx.empleado.findMany({
-      where: { activo: true, fechaIngreso: { lte: fin }, ...(l.tipo === 'SAC' ? { OR: [{ fechaEgreso: null }, { fechaEgreso: { gte: fin } }] } : { OR: [{ fechaEgreso: null }, { fechaEgreso: { gte: ini } }] }) },
+      where: { fechaIngreso: { lte: fin }, OR: [{ activo: true, fechaEgreso: null }, { fechaEgreso: { gte: l.tipo === 'SAC' ? fin : ini } }] },
       orderBy: { legajo: 'asc' },
     });
+    // Recibos numerados de empleados que ya no corresponden (baja cargada después del cierre): quedan como se emitieron
+    const conservados = numerados.filter((id) => !empleados.some((e) => e.id === id));
     const categorias = new Map((await tx.categoria.findMany({ include: { convenio: true } })).map((c) => [c.id, c]));
     const conceptos = (await tx.concepto.findMany({ where: { activo: true } }));
     const basicos = await basicosVigentes(tx, [...new Set(empleados.map((e) => e.categoriaId))], l.anio, l.mes);
     const novedades = await tx.novedad.findMany({ where: { liquidacionId: l.id } });
-    const previos = new Map((await tx.reciboSueldo.findMany({ where: { liquidacionId: l.id } })).map((r) => [r.empleadoId, r]));
     let aviso: string | undefined;
     let mejores = new Map<string, Prisma.Decimal>();
     if (l.tipo === 'SAC') {
@@ -78,13 +83,15 @@ export class LiquidacionesService {
       for (const r of rs) if (!mejores.has(r.empleadoId) || new D(r.totalRemunerativo).gt(mejores.get(r.empleadoId)!)) mejores.set(r.empleadoId, new D(r.totalRemunerativo));
     }
     const errores: { empleadoId: string; mensaje: string }[] = [];
-    const vigentes = new Set<string>();
+    const vigentes = new Set<string>(conservados);
     for (const e of empleados) {
       const cat = categorias.get(e.categoriaId)!;
       if (!cat.activa) { errores.push({ empleadoId: e.id, mensaje: `La categoría ${cat.nombre} está inactiva` }); continue; }
       const basico = basicos.get(e.categoriaId);
       if (!basico) { errores.push({ empleadoId: e.id, mensaje: `Falta la escala de ${cat.nombre} para ${mmaaaa(l.anio, l.mes)}` }); continue; }
       const cs = conceptos.filter((c) => !c.convenioId || c.convenioId === cat.convenioId).map(aCalc);
+      const invalido = cs.map((c) => ({ c, error: validarConcepto(c.tipo, c.clase, c.parametros) })).find((x) => x.error);
+      if (invalido) { errores.push({ empleadoId: e.id, mensaje: `El concepto ${invalido.c.codigo} ${invalido.c.nombre} tiene parámetros inválidos: ${invalido.error}` }); continue; }
       const calcE = { fechaIngreso: e.fechaIngreso, fechaEgreso: e.fechaEgreso, afiliadoSindicato: e.afiliadoSindicato, basicoMensual: basico, horasMensuales: cat.convenio.horasMensuales };
       let r: ResultadoCalc;
       if (l.tipo === 'SAC') {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validarConcepto } from './calculo';
 
 const uuid = z.string().uuid('Valor inválido');
 const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida');
@@ -17,6 +18,9 @@ export const esquemaConcepto = z.object({
   clase: z.enum(['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO']),
   tipo: z.enum(['BASICO', 'ANTIGUEDAD', 'PORCENTAJE', 'HORAS_EXTRA', 'AUSENCIA', 'FIJO', 'DESCUENTO_LEY']),
   parametros: z.record(z.unknown()).default({}), orden: z.number().int(), soloAfiliados: z.boolean().default(false), activo: z.boolean().optional(),
+}).superRefine((c, ctx) => {
+  const error = validarConcepto(c.tipo, c.clase, c.parametros);
+  if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error, path: ['parametros'] });
 });
 export type DatosEmpleado = z.infer<typeof esquemaEmpleado>;
 export type DatosConcepto = z.infer<typeof esquemaConcepto>;
