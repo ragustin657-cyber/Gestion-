@@ -107,7 +107,8 @@ export class FlujoService {
     const hasta = fechaQ(q.hasta, 'hasta') ?? new Date(inicio.getTime() + 56 * DIA);
     if (hasta < inicio) throw new BadRequestException('La fecha hasta no puede ser anterior a hoy');
     const ps = periodos(inicio, hasta, agrupar);
-    if (ps.length > LIMITES[agrupar][0]) throw new BadRequestException(LIMITES[agrupar][1]);
+    const parcial = (agrupar === 'semana' && inicio.getUTCDay() !== 1) || (agrupar === 'mes' && inicio.getUTCDate() !== 1) ? 1 : 0;
+    if (ps.length - parcial > LIMITES[agrupar][0]) throw new BadRequestException(LIMITES[agrupar][1]);
     return { inicio, hasta, agrupar, ps, incluirVencidos: q.incluirVencidos !== 'false' };
   }
 

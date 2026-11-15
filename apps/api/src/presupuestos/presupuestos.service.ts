@@ -40,6 +40,8 @@ export class PresupuestosService {
     if (!p) throw new NotFoundException('Presupuesto inexistente');
     const ejercicio = await tx.ejercicio.findUniqueOrThrow({ where: { id: p.ejercicioId } });
     if (paraModificar && ejercicio.estado === 'CERRADO') throw new BadRequestException('El ejercicio está cerrado');
+    // Toda modificación (líneas, cargas masivas, importación) actualiza la fecha de modificación
+    if (paraModificar) await tx.presupuesto.update({ where: { id }, data: { actualizadoEn: new Date() } });
     return { p, ejercicio };
   }
 
@@ -157,7 +159,7 @@ export class PresupuestosService {
     }).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }) || a.centroCodigo.localeCompare(b.centroCodigo))
       .map(({ centroCodigo, ...f }) => { void centroCodigo; return f; });
     return {
-      presupuesto: p as Presupuesto, meses, lineas: filas,
+      presupuesto: p as Presupuesto, meses, ejercicioCerrado: ejercicio.estado === 'CERRADO', lineas: filas,
       totales: { porMes: Object.fromEntries([...porMes].map(([m, v]) => [m, v.toFixed(2)])), ingresos: ingresos.toFixed(2), egresos: egresos.toFixed(2), resultado: ingresos.minus(egresos).toFixed(2) },
     };
   }

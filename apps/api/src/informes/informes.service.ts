@@ -48,10 +48,14 @@ export class InformesService {
     if (!ej) return null;
     const p = await db.presupuesto.findFirst({ where: { ejercicioId: ej.id, vigente: true } });
     if (!p) return null;
-    const fin = hasta > ej.hasta ? ej.hasta : hasta;
-    const r = await this.comparacion.resultado(db, p.id, desde.toISOString().slice(0, 7), fin.toISOString().slice(0, 7));
+    // Hasta el mes de hoy como máximo (los meses futuros no tienen real) y dentro del ejercicio
+    const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
+    const fin = [hasta, ej.hasta, hoy].reduce((a, b) => (b < a ? b : a));
+    const mDesde = desde.toISOString().slice(0, 7), mHasta = fin.toISOString().slice(0, 7);
+    if (mHasta < mDesde) return null;
+    const r = await this.comparacion.resultado(db, p.id, mDesde, mHasta);
     const desvio = r.real.minus(r.presupuestado);
-    return { nombre: p.nombre, resultadoPresupuestado: r.presupuestado.toFixed(2), resultadoReal: r.real.toFixed(2), desvioPct: r.presupuestado.isZero() ? null : desvio.div(r.presupuestado.abs()).times(100).toFixed(2) };
+    return { id: p.id, nombre: p.nombre, desde: mDesde, hasta: mHasta, resultadoPresupuestado: r.presupuestado.toFixed(2), resultadoReal: r.real.toFixed(2), desvioPct: r.presupuestado.isZero() ? null : desvio.div(r.presupuestado.abs()).times(100).toFixed(2) };
   }
 
   /** Período validado (spec §4). */

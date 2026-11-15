@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
-import { RequierePermiso } from '../auth/requiere-permiso.decorator';
+import { RequiereAlguno, RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { BajasService } from './bajas.service';
 import { BienesService } from './bienes.service';
@@ -10,7 +10,7 @@ export class BienesController {
   constructor(private readonly bienes: BienesService, private readonly bajas: BajasService) {}
 
   @Get()
-  @RequierePermiso('bienes.ver')
+  @RequiereAlguno('bienes.ver', 'venta.emitir')
   listar(@Query() q: { rubroId?: string; estado?: string; q?: string }) {
     return this.bienes.listar(q);
   }

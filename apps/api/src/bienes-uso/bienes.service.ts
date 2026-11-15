@@ -1,3 +1,4 @@
+import { NumeracionService } from '../numeracion/numeracion.service';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { BienUso, Prisma } from '@prisma/client';
@@ -23,7 +24,7 @@ export function bienSalida(b: BienUso) {
 
 @Injectable()
 export class BienesService {
-  constructor(private readonly tenant: TenantPrisma, private readonly asientos: AsientosService, private readonly cls: ClsService) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly asientos: AsientosService, private readonly cls: ClsService, private readonly numeracion: NumeracionService) {}
 
   private usuario() {
     return this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
@@ -44,9 +45,9 @@ export class BienesService {
     if (valorResidual.gte(valorOrigen)) throw new BadRequestException('El valor residual debe ser menor que el valor de origen');
   }
 
-  private async siguienteNumero(tx: TxEmpresa) {
-    const u = await tx.bienUso.aggregate({ _max: { numero: true } });
-    return (u._max.numero ?? 0) + 1;
+  /** Número correlativo atómico (talonario BIEN_USO): dos altas simultáneas no chocan. */
+  private siguienteNumero(tx: TxEmpresa) {
+    return this.numeracion.siguiente(tx, 'BIEN_USO', 0);
   }
 
   /** Verifica los datos de bien de un renglón de factura (antes de crear la factura). */

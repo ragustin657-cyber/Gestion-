@@ -1,3 +1,4 @@
+import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
@@ -51,7 +52,7 @@ export class ComparacionService {
 
   private rango(ejercicio: { desde: Date; hasta: Date }, q: { desde?: string; hasta?: string }) {
     const meses = mesesDelEjercicio(ejercicio);
-    const hoy = new Date().toISOString().slice(0, 7);
+    const hoy = hoyEn(ZONA_ARGENTINA).slice(0, 7);
     const desde = q.desde || meses[0];
     const hasta = q.hasta || (meses.includes(hoy) ? hoy : meses[meses.length - 1]);
     for (const m of [desde, hasta]) {

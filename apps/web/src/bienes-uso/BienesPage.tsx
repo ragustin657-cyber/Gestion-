@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { useTodasLasCuentas } from '../contabilidad/comun';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
+import { numeroCelda } from '../presupuestos/PresupuestosPage';
 import { Bien, MOTIVOS, ORIGENES, useRubros } from './comun';
 
 const estado = (b: { estado: string; motivoBaja: string | null }) =>
@@ -89,6 +90,43 @@ export function BienesPage() {
   );
 }
 
+type BienEditable = { id: string; origen: string; descripcion: string; vidaUtilMeses: number; valorResidual: string; fechaAlta: string; valorOrigen: string };
+
+/** Edición: descripción, vida útil y residual; en la carga inicial también fecha y valor de origen (spec E17). */
+export function FormEdicionBien({ bien, conAmortizaciones = false, onGuardado }: { bien: BienEditable; conAmortizaciones?: boolean; onGuardado: () => void }) {
+  const op = useOperacion();
+  const inicial = bien.origen === 'INICIAL';
+  // Importes en formato argentino y leídos con las mismas reglas (sin multiplicar los centavos)
+  const ar = (v: string) => Number(v).toLocaleString('es-AR', { maximumFractionDigits: 2 });
+  const original = { descripcion: bien.descripcion, vidaUtilMeses: String(bien.vidaUtilMeses), valorResidual: ar(bien.valorResidual), fechaAlta: bien.fechaAlta, valorOrigen: ar(bien.valorOrigen) };
+  const [f, setF] = useState(original);
+  const guardar = async () => {
+    // Solo lo modificado: con amortizaciones la API acepta cambiar la descripción y nada más
+    const body: Record<string, unknown> = {};
+    if (f.descripcion !== original.descripcion) body.descripcion = f.descripcion;
+    if (f.vidaUtilMeses !== original.vidaUtilMeses) body.vidaUtilMeses = Number(f.vidaUtilMeses);
+    if (f.valorResidual !== original.valorResidual) body.valorResidual = numeroCelda(f.valorResidual);
+    if (inicial && f.fechaAlta !== original.fechaAlta) body.fechaAlta = f.fechaAlta;
+    if (inicial && f.valorOrigen !== original.valorOrigen) body.valorOrigen = numeroCelda(f.valorOrigen);
+    if (!Object.keys(body).length) { onGuardado(); return; }
+    if (await op.ejecutar(() => api(`/bienes-uso/${bien.id}`, { metodo: 'PUT', body }), () => 'Bien actualizado')) onGuardado();
+  };
+  return (
+    <Stack>
+      <TextInput label="Descripción" value={f.descripcion} onChange={(e) => setF({ ...f, descripcion: e.currentTarget.value })} />
+      <SimpleGrid cols={2}>
+        <TextInput label="Vida útil (meses)" inputMode="numeric" disabled={conAmortizaciones} value={f.vidaUtilMeses} onChange={(e) => setF({ ...f, vidaUtilMeses: e.currentTarget.value })} />
+        <TextInput label="Valor residual" inputMode="decimal" disabled={conAmortizaciones} value={f.valorResidual} onChange={(e) => setF({ ...f, valorResidual: e.currentTarget.value })} />
+        {inicial && <TextInput label="Fecha de alta" type="date" disabled={conAmortizaciones} value={f.fechaAlta} onChange={(e) => setF({ ...f, fechaAlta: e.currentTarget.value })} />}
+        {inicial && <TextInput label="Valor de origen" inputMode="decimal" disabled={conAmortizaciones} value={f.valorOrigen} onChange={(e) => setF({ ...f, valorOrigen: e.currentTarget.value })} />}
+      </SimpleGrid>
+      <Text size="xs" c="dimmed">Con amortizaciones contabilizadas solo se cambia la descripción.</Text>
+      {op.alerta}
+      <Group><Button loading={op.enviando} onClick={() => void guardar()}>Guardar</Button></Group>
+    </Stack>
+  );
+}
+
 interface Ficha extends Omit<Bien, 'rubro' | 'acumulada' | 'residual'> {
   rubro: { id: string; nombre: string }; amortizaciones: { mes: string; importe: string; asientoId: string }[]; amortizacionContabilizada: string; residualContable: string; asientoAltaId: string | null; asientoBajaId: string | null; amortizacionInicial: string; fechaAmortizacionInicial: string | null;
 }
@@ -99,6 +137,12 @@ export function FichaBienPage() {
   const { puede } = useAuth();
   const op = useOperacion();
   const [baja, setBaja] = useState<{ fecha: string; motivo: string } | null>(null);
+  const [editando, setEditando] = useState(false);
+  const navegar = useNavigate();
+  const eliminar = async () => {
+    if (!window.confirm('¿Eliminar el bien? Se anula su asiento de alta.')) return;
+    if (await op.ejecutar(() => api(`/bienes-uso/${id}`, { metodo: 'DELETE' }), () => 'Bien eliminado')) { refrescar(); navegar('/contabilidad/bienes'); }
+  };
   const q = useQuery({ queryKey: ['/bienes-uso', id], queryFn: () => api<Ficha>(`/bienes-uso/${id}`) });
   const refrescar = () => void qc.invalidateQueries({ predicate: (x) => String(x.queryKey[0]).startsWith('/bienes-uso') });
   const darBaja = async () => {
@@ -114,9 +158,13 @@ export function FichaBienPage() {
       {b && <>
         <Group justify="space-between" mb="md">
           <Title order={3}>{`Bien N° ${b.numero} — ${b.descripcion}`}</Title>
-          {puede('bienes.gestionar') && (b.estado === 'ACTIVO'
-            ? <Button size="xs" color="red" variant="light" onClick={() => setBaja({ fecha: hoy(), motivo: 'DESUSO' })}>Dar de baja</Button>
-            : b.motivoBaja !== 'VENTA' && <Button size="xs" variant="default" onClick={() => void anularBaja()}>Anular baja</Button>)}
+          {puede('bienes.gestionar') && <Group gap="xs">
+            {b.estado === 'ACTIVO' && <Button size="xs" variant="default" onClick={() => setEditando(true)}>Editar</Button>}
+            {b.estado === 'ACTIVO' && b.origen !== 'FACTURA' && !b.amortizaciones.length && <Button size="xs" variant="subtle" color="red" onClick={() => void eliminar()}>Eliminar</Button>}
+            {b.estado === 'ACTIVO'
+              ? <Button size="xs" color="red" variant="light" onClick={() => setBaja({ fecha: hoy(), motivo: 'DESUSO' })}>Dar de baja</Button>
+              : b.motivoBaja !== 'VENTA' && <Button size="xs" variant="default" onClick={() => void anularBaja()}>Anular baja</Button>}
+          </Group>}
         </Group>
         {op.alerta}
         <SimpleGrid cols={{ base: 2, md: 4 }} mb="md">
@@ -138,6 +186,9 @@ export function FichaBienPage() {
           </Table.Tbody>
         </Table>
       </>}
+      <Modal opened={editando} onClose={() => setEditando(false)} title="Editar bien" size="lg">
+        {editando && b && <FormEdicionBien bien={{ id: b.id, origen: b.origen, descripcion: b.descripcion, vidaUtilMeses: b.vidaUtilMeses, valorResidual: b.valorResidual, fechaAlta: b.fechaAlta, valorOrigen: b.valorOrigen }} conAmortizaciones={b.amortizaciones.length > 0} onGuardado={() => { setEditando(false); refrescar(); }} />}
+      </Modal>
       <Modal opened={!!baja} onClose={() => setBaja(null)} title="Dar de baja">
         {baja && <Stack>
           <TextInput label="Fecha" type="date" value={baja.fecha} onChange={(e) => setBaja({ ...baja, fecha: e.currentTarget.value })} />

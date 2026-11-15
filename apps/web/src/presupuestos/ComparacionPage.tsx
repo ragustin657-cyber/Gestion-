@@ -3,6 +3,7 @@ import { Badge, Button, Group, Paper, SegmentedControl, Select, Table, Text, Tex
 import { IconDownload } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api, descargar } from '../api/cliente';
 import { formatoMoneda } from '../compras/formato';
 import { useCentrosCosto } from '../contabilidad/comun';
@@ -43,9 +44,10 @@ export function TablaComparacion({ datos }: { datos: Comparacion }) {
 
 export function ComparacionPage() {
   const lista = useQuery({ queryKey: ['/presupuestos'], queryFn: () => api<PresupuestoLista[]>('/presupuestos') });
-  const [id, setId] = useState<string | null>(null);
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  const [params] = useSearchParams();
+  const [id, setId] = useState<string | null>(params.get('id'));
+  const [desde, setDesde] = useState(params.get('desde') ?? '');
+  const [hasta, setHasta] = useState(params.get('hasta') ?? '');
   const [agrupar, setAgrupar] = useState('cuenta');
   const [centro, setCentro] = useState<string | null>(null);
   const centros = useCentrosCosto();

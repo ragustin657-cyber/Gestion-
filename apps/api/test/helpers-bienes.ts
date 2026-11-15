@@ -33,5 +33,6 @@ export async function prepararBienes<T extends Base = Awaited<ReturnType<typeof 
     const rs = await prisma.asientoRenglon.findMany({ where: { empresaId: s.empresaId, cuentaContableId: await s.cuenta(codigo), ...(hasta ? { asiento: { fecha: { lte: new Date(`${hasta}T00:00:00Z`) } } } : {}) } });
     return rs.reduce((t, r) => t + Number(r.debe) - Number(r.haber), 0).toFixed(2);
   };
-  return { ...s, proveedorId, rubro, factura, facturaBien, generar, saldo };
+  const cuentaCapital = await s.cuenta('3.1.01');
+  return { ...s, proveedorId, rubro, factura, facturaBien, generar, saldo, cuentaCapital };
 }

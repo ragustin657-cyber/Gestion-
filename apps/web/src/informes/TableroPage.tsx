@@ -30,6 +30,12 @@ export function TarjetaIndicador({ titulo, valor, anterior, formato, destino }: 
   );
 }
 
+/** Enlace de una tarjeta: lleva "en moneda de hoy" al informe. */
+export const destinoTarjeta = (base: string, reexpresar: boolean) => (reexpresar ? `${base}${base.includes('?') ? '&' : '?'}reexpresar=true` : base);
+/** Enlace de la tarjeta de presupuesto con el período que muestra. */
+export const destinoPresupuesto = (d: { id?: string; desde?: string; hasta?: string }) =>
+  `/informes/presupuesto-real${d.id || d.desde ? '?' : ''}${[d.id ? `id=${d.id}` : '', d.desde && d.hasta ? `desde=${d.desde}&hasta=${d.hasta}` : ''].filter(Boolean).join('&')}`;
+
 /** Tarjeta "Resultado contra presupuesto" (spec E16 §5). */
 export function TarjetaPresupuesto({ datos, destino }: { datos: { nombre: string; resultadoPresupuestado: string; resultadoReal: string; desvioPct: string | null }; destino: string }) {
   const navegar = useNavigate();
@@ -73,12 +79,12 @@ export function TableroPage() {
       {t?.aviso && <Alert color="orange" mb="md">{t.aviso}</Alert>}
       {t && <>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: t.indicadores.presupuesto ? 3 : 5 }} mb="lg">
-          <TarjetaIndicador titulo="Ventas" valor={t.indicadores.ventas.valor} anterior={t.indicadores.ventas.anterior} formato="moneda" destino={`/informes/ventas?${p}&agrupar=mes`} />
-          <TarjetaIndicador titulo="Margen bruto" valor={t.indicadores.margenPct.valor} anterior={t.indicadores.margenPct.anterior} formato="pct" destino={`/informes/margenes?${p}`} />
+          <TarjetaIndicador titulo="Ventas" valor={t.indicadores.ventas.valor} anterior={t.indicadores.ventas.anterior} formato="moneda" destino={destinoTarjeta(`/informes/ventas?${p}&agrupar=mes`, reexpresar)} />
+          <TarjetaIndicador titulo="Margen bruto" valor={t.indicadores.margenPct.valor} anterior={t.indicadores.margenPct.anterior} formato="pct" destino={destinoTarjeta(`/informes/margenes?${p}`, reexpresar)} />
           <TarjetaIndicador titulo="Cobranzas vencidas" valor={t.indicadores.cobranzasVencidas.valor} formato="moneda" destino={`/informes/antiguedad?tipo=clientes&fecha=${rango.hasta}`} />
           <TarjetaIndicador titulo="Deuda vencida" valor={t.indicadores.deudaVencida.valor} formato="moneda" destino={`/informes/antiguedad?tipo=proveedores&fecha=${rango.hasta}`} />
           <TarjetaIndicador titulo="Stock valorizado" valor={t.indicadores.stock.valor} formato="moneda" destino={`/informes/rotacion?${p}`} />
-          {t.indicadores.presupuesto && <TarjetaPresupuesto datos={t.indicadores.presupuesto} destino="/informes/presupuesto-real" />}
+          {t.indicadores.presupuesto && <TarjetaPresupuesto datos={t.indicadores.presupuesto} destino={destinoPresupuesto(t.indicadores.presupuesto)} />}
         </SimpleGrid>
         <Text size="sm" c="dimmed" mb="xs">Año anterior: ventas {formatoMoneda(t.indicadores.ventas.anioAnterior)} · margen {pctTexto(t.indicadores.margenPct.anioAnterior)}</Text>
         <Title order={5} mb="xs">Ventas por mes</Title>
