@@ -1,4 +1,5 @@
 import type { Prisma, TipoCuenta } from '@prisma/client';
+import { cargarSueldosModelo } from '../sueldos/modelo';
 
 export interface CuentaModelo {
   codigo: string;
@@ -121,6 +122,8 @@ export async function cargarPlanModelo(tx: Prisma.TransactionClient, empresaId: 
   }
   // Vínculos de ajuste por inflación
   await tx.cuentaContable.update({ where: { id: ids.get('3.1.01')! }, data: { cuentaAjusteId: ids.get('3.1.02')! } });
+  // Sueldos: convenio de Comercio, categorías y conceptos
+  await cargarSueldosModelo(tx, empresaId);
   // Rubros de bienes de uso precargados
   for (const [nombre, origen, amort, vidaUtilMeses] of RUBROS_MODELO)
     await tx.rubroBienUso.create({ data: { empresaId, nombre, cuentaOrigenId: ids.get(origen)!, cuentaAmortizacionId: ids.get(amort)!, cuentaGastoId: ids.get('5.2.07')!, vidaUtilMeses } });

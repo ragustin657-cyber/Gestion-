@@ -14,6 +14,7 @@ import { StockModule } from './stock/stock.module';
 import { InformesModule } from './informes/informes.module';
 import { BienesUsoModule } from './bienes-uso/bienes-uso.module';
 import { PresupuestosModule } from './presupuestos/presupuestos.module';
+import { SueldosModule } from './sueldos/sueldos.module';
 import { ConciliacionModule } from './conciliacion/conciliacion.module';
 import { TesoreriaMaestrosModule } from './tesoreria/maestros/tesoreria-maestros.module';
 import { ConfigComprasModule } from './compras/config/config-compras.module';
@@ -61,6 +62,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     InformesModule,
     BienesUsoModule,
     PresupuestosModule,
+    SueldosModule,
   ],
   controllers: [SaludController],
 })

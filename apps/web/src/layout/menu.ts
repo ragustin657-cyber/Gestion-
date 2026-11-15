@@ -165,6 +165,15 @@ export const MENU: NodoMenu[] = [
     ],
   },
   {
+    titulo: 'Sueldos',
+    hijos: [
+      { titulo: 'Liquidaciones', ruta: '/sueldos/liquidaciones', permiso: 'sueldos.ver' },
+      { titulo: 'Empleados', ruta: '/sueldos/empleados', permiso: 'sueldos.ver' },
+      { titulo: 'Convenios y escalas', ruta: '/sueldos/convenios', permiso: 'sueldos.ver' },
+      { titulo: 'Conceptos', ruta: '/sueldos/conceptos', permiso: 'sueldos.ver' },
+    ],
+  },
+  {
     titulo: 'Informes de gestión',
     hijos: [
       { titulo: 'Tablero de dirección', ruta: '/informes/tablero', permiso: 'informes.ver' },

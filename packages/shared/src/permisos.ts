@@ -50,6 +50,8 @@ export const PERMISOS = {
   'bienes.gestionar': 'Gestionar bienes de uso',
   'presupuesto.ver': 'Ver presupuestos',
   'presupuesto.editar': 'Editar presupuestos',
+  'sueldos.ver': 'Ver sueldos',
+  'sueldos.liquidar': 'Liquidar sueldos',
   'informes.ver': 'Ver informes de gestión',
 } as const;
 

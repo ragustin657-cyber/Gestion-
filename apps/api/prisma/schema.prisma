@@ -146,10 +146,10 @@ model Tercero {
   comprobantesCompra ComprobanteCompra[]
   ordenesPago        OrdenPago[]
   comprobantesVenta  ComprobanteVenta[]
+  listaPreciosId     String?             @db.Uuid
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
-  listaPreciosId  String?   @db.Uuid
 }
 
 model TerceroIibb {
@@ -174,23 +174,23 @@ enum TipoCuenta {
 }
 
 model CuentaContable {
-  id        String           @id @default(uuid()) @db.Uuid
-  empresaId String           @db.Uuid
-  codigo    String
-  nombre    String
-  padreId   String?          @db.Uuid
-  imputable Boolean
-  tipo      TipoCuenta
-  activa    Boolean          @default(true)
+  id             String           @id @default(uuid()) @db.Uuid
+  empresaId      String           @db.Uuid
+  codigo         String
+  nombre         String
+  padreId        String?          @db.Uuid
+  imputable      Boolean
+  tipo           TipoCuenta
+  activa         Boolean          @default(true)
   /// Para el ajuste por inflación: las no monetarias se reexpresan.
   monetaria      Boolean          @default(true)
   /// Cuenta donde se registra el ajuste por inflación de esta (p. ej. Capital → Ajuste de capital).
   cuentaAjusteId String?          @db.Uuid
-  empresa   Empresa          @relation(fields: [empresaId], references: [id])
-  padre     CuentaContable?  @relation("Jerarquia", fields: [padreId], references: [id])
-  hijos     CuentaContable[] @relation("Jerarquia")
-  cuentaAjuste CuentaContable?  @relation("Ajuste", fields: [cuentaAjusteId], references: [id], onDelete: Restrict)
-  ajustadas    CuentaContable[] @relation("Ajuste")
+  empresa        Empresa          @relation(fields: [empresaId], references: [id])
+  padre          CuentaContable?  @relation("Jerarquia", fields: [padreId], references: [id])
+  hijos          CuentaContable[] @relation("Jerarquia")
+  cuentaAjuste   CuentaContable?  @relation("Ajuste", fields: [cuentaAjusteId], references: [id], onDelete: Restrict)
+  ajustadas      CuentaContable[] @relation("Ajuste")
 
   @@unique([empresaId, codigo])
 }
@@ -353,17 +353,17 @@ model Asiento {
 }
 
 model AsientoRenglon {
-  id               String  @id @default(uuid()) @db.Uuid
-  empresaId        String  @db.Uuid
-  asientoId        String  @db.Uuid
-  cuentaContableId String  @db.Uuid
-  centroCostoId    String? @db.Uuid
-  debe             Decimal @default(0) @db.Decimal(18, 2)
-  haber            Decimal @default(0) @db.Decimal(18, 2)
+  id               String    @id @default(uuid()) @db.Uuid
+  empresaId        String    @db.Uuid
+  asientoId        String    @db.Uuid
+  cuentaContableId String    @db.Uuid
+  centroCostoId    String?   @db.Uuid
+  debe             Decimal   @default(0) @db.Decimal(18, 2)
+  haber            Decimal   @default(0) @db.Decimal(18, 2)
   detalle          String?
   /// Fecha de origen para el ajuste por inflación (p. ej. alta del bien de uso); si falta, la del asiento
   fechaOrigen      DateTime? @db.Date
-  asiento          Asiento @relation(fields: [asientoId], references: [id])
+  asiento          Asiento   @relation(fields: [asientoId], references: [id])
 
   @@index([empresaId, cuentaContableId])
 }
@@ -436,22 +436,22 @@ enum EstadoIR {
 }
 
 model InformeRecepcion {
-  id              String                    @id @default(uuid()) @db.Uuid
-  empresaId       String                    @db.Uuid
-  numero          Int
-  terceroId       String                    @db.Uuid
-  fecha           DateTime                  @db.Date
-  depositoId      String?                   @db.Uuid
-  remitoNumero    String
-  observaciones   String?
-  estado          EstadoIR                  @default(CONFIRMADO)
-  motivoAnulacion String?
-  asientoId          String?                @db.Uuid
-  asientoAnulacionId String?                @db.Uuid
-  creadoPor       String
-  creadoEn        DateTime                  @default(now())
-  tercero         Tercero                   @relation(fields: [terceroId], references: [id])
-  renglones       InformeRecepcionRenglon[]
+  id                 String                    @id @default(uuid()) @db.Uuid
+  empresaId          String                    @db.Uuid
+  numero             Int
+  terceroId          String                    @db.Uuid
+  fecha              DateTime                  @db.Date
+  depositoId         String?                   @db.Uuid
+  remitoNumero       String
+  observaciones      String?
+  estado             EstadoIR                  @default(CONFIRMADO)
+  motivoAnulacion    String?
+  asientoId          String?                   @db.Uuid
+  asientoAnulacionId String?                   @db.Uuid
+  creadoPor          String
+  creadoEn           DateTime                  @default(now())
+  tercero            Tercero                   @relation(fields: [terceroId], references: [id])
+  renglones          InformeRecepcionRenglon[]
 
   @@unique([empresaId, numero])
   @@unique([empresaId, terceroId, remitoNumero])
@@ -511,7 +511,7 @@ model ComprobanteCompra {
   estado                EstadoComprobante                 @default(CONFIRMADO)
   comprobanteAsociadoId String?                           @db.Uuid
   asientoId             String?                           @db.Uuid
-  depositoId         String?   @db.Uuid
+  depositoId            String?                           @db.Uuid
   asientoAnulacionId    String?                           @db.Uuid
   aceptoDiferencias     Boolean                           @default(false)
   motivoAnulacion       String?
@@ -1896,14 +1896,14 @@ enum EstadoProcesoAmortizacion {
 }
 
 model RubroBienUso {
-  id                   String  @id @default(uuid()) @db.Uuid
-  empresaId            String  @db.Uuid
+  id                   String    @id @default(uuid()) @db.Uuid
+  empresaId            String    @db.Uuid
   nombre               String
-  cuentaOrigenId       String  @db.Uuid
-  cuentaAmortizacionId String  @db.Uuid
-  cuentaGastoId        String  @db.Uuid
+  cuentaOrigenId       String    @db.Uuid
+  cuentaAmortizacionId String    @db.Uuid
+  cuentaGastoId        String    @db.Uuid
   vidaUtilMeses        Int
-  activo               Boolean @default(true)
+  activo               Boolean   @default(true)
   bienes               BienUso[]
 
   @@unique([empresaId, nombre])
@@ -1991,4 +1991,196 @@ model PresupuestoImporte {
   importe          Decimal     @db.Decimal(18, 2)
 
   @@index([empresaId, presupuestoId])
+}
+
+enum ClaseConcepto {
+  REMUNERATIVO
+  NO_REMUNERATIVO
+  DESCUENTO
+}
+
+enum TipoConcepto {
+  BASICO
+  ANTIGUEDAD
+  PORCENTAJE
+  HORAS_EXTRA
+  AUSENCIA
+  FIJO
+  DESCUENTO_LEY
+}
+
+enum FormaPagoSueldo {
+  EFECTIVO
+  TRANSFERENCIA
+}
+
+enum TipoNovedad {
+  HORAS_EXTRA_50
+  HORAS_EXTRA_100
+  AUSENCIA_INJUSTIFICADA
+  IMPORTE
+}
+
+enum TipoLiquidacion {
+  MENSUAL
+  SAC
+}
+
+enum EstadoLiquidacion {
+  BORRADOR
+  CERRADA
+}
+
+model Convenio {
+  id             String      @id @default(uuid()) @db.Uuid
+  empresaId      String      @db.Uuid
+  nombre         String
+  codigo         String
+  horasMensuales Int         @default(200)
+  activo         Boolean     @default(true)
+  categorias     Categoria[]
+
+  @@unique([empresaId, codigo])
+}
+
+model Categoria {
+  id         String   @id @default(uuid()) @db.Uuid
+  empresaId  String   @db.Uuid
+  convenioId String   @db.Uuid
+  convenio   Convenio @relation(fields: [convenioId], references: [id])
+  nombre     String
+  orden      Int
+  activa     Boolean  @default(true)
+  escalas    Escala[]
+
+  @@unique([empresaId, convenioId, nombre])
+}
+
+model Escala {
+  id          String    @id @default(uuid()) @db.Uuid
+  empresaId   String    @db.Uuid
+  categoriaId String    @db.Uuid
+  categoria   Categoria @relation(fields: [categoriaId], references: [id])
+  anio        Int
+  mes         Int
+  basico      Decimal   @db.Decimal(18, 2)
+
+  @@unique([categoriaId, anio, mes])
+}
+
+model Empleado {
+  id                String          @id @default(uuid()) @db.Uuid
+  empresaId         String          @db.Uuid
+  legajo            Int
+  apellido          String
+  nombre            String
+  cuil              String
+  domicilio         String
+  fechaIngreso      DateTime        @db.Date
+  fechaEgreso       DateTime?       @db.Date
+  categoriaId       String          @db.Uuid
+  centroCostoId     String?         @db.Uuid
+  sucursalId        String?         @db.Uuid
+  afiliadoSindicato Boolean         @default(false)
+  obraSocial        String          @default("")
+  formaPago         FormaPagoSueldo @default(TRANSFERENCIA)
+  cbu               String?
+  activo            Boolean         @default(true)
+
+  @@unique([empresaId, legajo])
+  @@unique([empresaId, cuil])
+}
+
+model Concepto {
+  id            String        @id @default(uuid()) @db.Uuid
+  empresaId     String        @db.Uuid
+  convenioId    String?       @db.Uuid
+  codigo        String
+  nombre        String
+  clase         ClaseConcepto
+  tipo          TipoConcepto
+  parametros    Json          @default("{}")
+  orden         Int
+  soloAfiliados Boolean       @default(false)
+  activo        Boolean       @default(true)
+
+  @@unique([empresaId, codigo])
+}
+
+model Liquidacion {
+  id                    String            @id @default(uuid()) @db.Uuid
+  empresaId             String            @db.Uuid
+  numero                Int
+  tipo                  TipoLiquidacion
+  anio                  Int
+  mes                   Int
+  fechaPago             DateTime          @db.Date
+  estado                EstadoLiquidacion @default(BORRADOR)
+  ultimoDepositoFecha   DateTime?         @db.Date
+  ultimoDepositoBanco   String?
+  ultimoDepositoPeriodo String?
+  creadoPor             String
+  creadoEn              DateTime          @default(now())
+  cerradoPor            String?
+  cerradoEn             DateTime?
+  novedades             Novedad[]
+  recibos               ReciboSueldo[]
+
+  @@unique([empresaId, tipo, anio, mes])
+}
+
+model Novedad {
+  id            String      @id @default(uuid()) @db.Uuid
+  empresaId     String      @db.Uuid
+  liquidacionId String      @db.Uuid
+  liquidacion   Liquidacion @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  empleadoId    String      @db.Uuid
+  conceptoId    String?     @db.Uuid
+  tipo          TipoNovedad
+  cantidad      Decimal?    @db.Decimal(18, 4)
+  importe       Decimal?    @db.Decimal(18, 2)
+  detalle       String?
+
+  @@index([empresaId, liquidacionId, empleadoId])
+}
+
+model ReciboSueldo {
+  id                  String                @id @default(uuid()) @db.Uuid
+  empresaId           String                @db.Uuid
+  liquidacionId       String                @db.Uuid
+  liquidacion         Liquidacion           @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  empleadoId          String                @db.Uuid
+  numero              Int?
+  apellido            String
+  nombre              String
+  cuil                String
+  legajo              Int
+  categoria           String
+  basico              Decimal               @db.Decimal(18, 2)
+  fechaIngreso        DateTime              @db.Date
+  antiguedadAnios     Int
+  diasTrabajados      Int
+  totalRemunerativo   Decimal               @db.Decimal(18, 2)
+  totalNoRemunerativo Decimal               @db.Decimal(18, 2)
+  totalDescuentos     Decimal               @db.Decimal(18, 2)
+  neto                Decimal               @db.Decimal(18, 2)
+  renglones           ReciboSueldoRenglon[]
+
+  @@unique([liquidacionId, empleadoId])
+}
+
+model ReciboSueldoRenglon {
+  id         String        @id @default(uuid()) @db.Uuid
+  empresaId  String        @db.Uuid
+  reciboId   String        @db.Uuid
+  recibo     ReciboSueldo  @relation(fields: [reciboId], references: [id], onDelete: Cascade)
+  conceptoId String?       @db.Uuid
+  codigo     String
+  nombre     String
+  clase      ClaseConcepto
+  cantidad   Decimal?      @db.Decimal(18, 4)
+  base       Decimal?      @db.Decimal(18, 2)
+  porcentaje Decimal?      @db.Decimal(9, 4)
+  importe    Decimal       @db.Decimal(18, 2)
+  orden      Int
 }

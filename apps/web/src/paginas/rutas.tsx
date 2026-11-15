@@ -63,6 +63,11 @@ import { BienesPage, FichaBienPage } from '../bienes-uso/BienesPage';
 import { PlanillaBienesPage } from '../bienes-uso/PlanillaBienesPage';
 import { RubrosPage } from '../bienes-uso/RubrosPage';
 import { ComparacionPage } from '../presupuestos/ComparacionPage';
+import { ConceptosPage } from '../sueldos/ConceptosPage';
+import { ConveniosPage } from '../sueldos/ConveniosPage';
+import { EmpleadosPage } from '../sueldos/EmpleadosPage';
+import { LiquidacionPage } from '../sueldos/LiquidacionPage';
+import { LiquidacionesPage } from '../sueldos/LiquidacionesPage';
 import { EditorPresupuestoPage, PresupuestosPage } from '../presupuestos/PresupuestosPage';
 import { ArticulosPage } from './ArticulosPage';
 import { AuditoriaPage } from './AuditoriaPage';
@@ -181,6 +186,11 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/informes/presupuestos', elemento: <PresupuestosPage /> },
   { ruta: '/informes/presupuestos/:id', elemento: <EditorPresupuestoPage /> },
   { ruta: '/informes/presupuesto-real', elemento: <ComparacionPage /> },
+  { ruta: '/sueldos/empleados', elemento: <EmpleadosPage /> },
+  { ruta: '/sueldos/convenios', elemento: <ConveniosPage /> },
+  { ruta: '/sueldos/conceptos', elemento: <ConceptosPage /> },
+  { ruta: '/sueldos/liquidaciones', elemento: <LiquidacionesPage /> },
+  { ruta: '/sueldos/liquidaciones/:id', elemento: <LiquidacionPage /> },
   { ruta: '/informes/ventas', elemento: <VentasInformePage /> },
   { ruta: '/informes/margenes', elemento: <MargenesPage /> },
   { ruta: '/informes/antiguedad', elemento: <AntiguedadPage /> },
