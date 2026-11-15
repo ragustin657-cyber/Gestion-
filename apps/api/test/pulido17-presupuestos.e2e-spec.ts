@@ -32,7 +32,7 @@ describe('pulido 17: presupuestos, flujo e informes', () => {
     await p.linea(a.id, '4.1.01', { '2026-11': 100000, '2026-12': 100000 });
     await p.http.post(`/api/presupuestos/${a.id}/vigente`);
     const t = (await p.http.get('/api/informes/tablero?desde=2026-11-01&hasta=2026-12-31')).body.indicadores.presupuesto;
-    expect(t).toMatchObject({ resultadoPresupuestado: '100000.00', desde: '2026-11', hasta: '2026-11' });
+    expect(t).toMatchObject({ id: a.id, resultadoPresupuestado: '100000.00', desde: '2026-11', hasta: '2026-11' });
   });
 
   it('actualizadoEn en cargas masivas', async () => {

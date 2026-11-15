@@ -28,7 +28,7 @@ describe('presupuestos: tarjeta del tablero', () => {
   it('tarjeta con el vigente', async () => {
     const e = await escenario();
     await e.http.post(`/api/presupuestos/${e.a.id}/vigente`);
-    expect(await tablero(e.http)).toEqual({ nombre: 'Original 2026', resultadoPresupuestado: '700000.00', resultadoReal: '545000.00', desvioPct: '-22.14', desde: '2026-11', hasta: '2026-11' });
+    expect(await tablero(e.http)).toEqual({ nombre: 'Original 2026', resultadoPresupuestado: '700000.00', resultadoReal: '545000.00', desvioPct: '-22.14', desde: '2026-11', hasta: '2026-11', id: e.a.id });
   });
 
   it('sin vigente, sin permiso o fuera del ejercicio', async () => {

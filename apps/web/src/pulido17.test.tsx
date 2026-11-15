@@ -1,5 +1,5 @@
 import { MantineProvider } from '@mantine/core';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { FormEdicionBien } from './bienes-uso/BienesPage';
@@ -39,5 +39,32 @@ describe('pulido 17 (web)', () => {
     expect(screen.getByLabelText('Valor residual')).toBeInTheDocument();
     expect(screen.queryByLabelText('Fecha de alta')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Valor de origen')).not.toBeInTheDocument();
+  });
+});
+
+describe('pulido 17: correcciones de la revisión (web)', () => {
+  const envolverForm = (bien: Parameters<typeof FormEdicionBien>[0]['bien'], conAmortizaciones = false) =>
+    render(<MantineProvider><QueryClientProvider client={new QueryClient()}><MemoryRouter><FormEdicionBien bien={bien} conAmortizaciones={conAmortizaciones} onGuardado={() => {}} /></MemoryRouter></QueryClientProvider></MantineProvider>);
+  const bienManual = { id: 'b', origen: 'MANUAL', descripcion: 'Auto', vidaUtilMeses: 60, valorResidual: '1500.50', fechaAlta: '2026-03-15', valorOrigen: '1234567.89' };
+
+  it('guardar sin tocar los importes no los cambia y solo envía lo modificado', async () => {
+    const cuerpos: unknown[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_u: string, o: { body: string }) => { cuerpos.push(JSON.parse(o.body)); return new Response('{}', { status: 200 }); }));
+    envolverForm(bienManual);
+    expect(screen.getByLabelText('Valor residual')).toHaveValue('1.500,5');
+    fireEvent.change(screen.getByLabelText('Descripción'), { target: { value: 'Auto 2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
+    await waitFor(() => expect(cuerpos).toEqual([{ descripcion: 'Auto 2' }]));
+    vi.unstubAllGlobals();
+  });
+
+  it('con amortizaciones solo se edita la descripción', () => {
+    envolverForm(bienManual, true);
+    expect(screen.getByLabelText('Vida útil (meses)')).toBeDisabled();
+    expect(screen.getByLabelText('Valor residual')).toBeDisabled();
+  });
+
+  it('la tarjeta lleva el presupuesto', () => {
+    expect(destinoPresupuesto({ id: 'p1', desde: '2026-11', hasta: '2026-11' })).toBe('/informes/presupuesto-real?id=p1&desde=2026-11&hasta=2026-11');
   });
 });

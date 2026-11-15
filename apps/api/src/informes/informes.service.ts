@@ -55,7 +55,7 @@ export class InformesService {
     if (mHasta < mDesde) return null;
     const r = await this.comparacion.resultado(db, p.id, mDesde, mHasta);
     const desvio = r.real.minus(r.presupuestado);
-    return { nombre: p.nombre, desde: mDesde, hasta: mHasta, resultadoPresupuestado: r.presupuestado.toFixed(2), resultadoReal: r.real.toFixed(2), desvioPct: r.presupuestado.isZero() ? null : desvio.div(r.presupuestado.abs()).times(100).toFixed(2) };
+    return { id: p.id, nombre: p.nombre, desde: mDesde, hasta: mHasta, resultadoPresupuestado: r.presupuestado.toFixed(2), resultadoReal: r.real.toFixed(2), desvioPct: r.presupuestado.isZero() ? null : desvio.div(r.presupuestado.abs()).times(100).toFixed(2) };
   }
 
   /** Período validado (spec §4). */

@@ -33,7 +33,8 @@ export function TarjetaIndicador({ titulo, valor, anterior, formato, destino }: 
 /** Enlace de una tarjeta: lleva "en moneda de hoy" al informe. */
 export const destinoTarjeta = (base: string, reexpresar: boolean) => (reexpresar ? `${base}${base.includes('?') ? '&' : '?'}reexpresar=true` : base);
 /** Enlace de la tarjeta de presupuesto con el período que muestra. */
-export const destinoPresupuesto = (d: { desde?: string; hasta?: string }) => (d.desde && d.hasta ? `/informes/presupuesto-real?desde=${d.desde}&hasta=${d.hasta}` : '/informes/presupuesto-real');
+export const destinoPresupuesto = (d: { id?: string; desde?: string; hasta?: string }) =>
+  `/informes/presupuesto-real${d.id || d.desde ? '?' : ''}${[d.id ? `id=${d.id}` : '', d.desde && d.hasta ? `desde=${d.desde}&hasta=${d.hasta}` : ''].filter(Boolean).join('&')}`;
 
 /** Tarjeta "Resultado contra presupuesto" (spec E16 §5). */
 export function TarjetaPresupuesto({ datos, destino }: { datos: { nombre: string; resultadoPresupuestado: string; resultadoReal: string; desvioPct: string | null }; destino: string }) {
