@@ -127,7 +127,8 @@ export class CargaPresupuestoService {
           if (!m) continue;
           const t = f.celdas[j] ?? '';
           if (!t || /^0+([.,]0+)?$/.test(t)) continue;
-          const n = numeroAR(t, f.numerico[j] || f.sep === ',');
+          // Con coma como separador de campos el punto es decimal, salvo un importe argentino entre comillas ("1.234,50")
+          const n = numeroAR(t, f.numerico[j] || (f.sep === ',' && !t.includes(',')));
           if (n === null) return errores.push({ linea, mensaje: `Importe inválido en ${mmaaaa(m)}` });
           importes[m] = new D(n).toDecimalPlaces(2);
         }

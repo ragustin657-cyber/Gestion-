@@ -40,6 +40,8 @@ export class PresupuestosService {
     if (!p) throw new NotFoundException('Presupuesto inexistente');
     const ejercicio = await tx.ejercicio.findUniqueOrThrow({ where: { id: p.ejercicioId } });
     if (paraModificar && ejercicio.estado === 'CERRADO') throw new BadRequestException('El ejercicio está cerrado');
+    // Toda modificación (líneas, cargas masivas, importación) actualiza la fecha de modificación
+    if (paraModificar) await tx.presupuesto.update({ where: { id }, data: { actualizadoEn: new Date() } });
     return { p, ejercicio };
   }
 

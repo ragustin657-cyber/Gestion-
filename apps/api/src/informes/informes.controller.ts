@@ -40,7 +40,7 @@ export class InformesController {
     const r = await this.informes.ventas(q);
     if (!q.formato) return r;
     const t = r.totales;
-    return this.salida(q.formato, res, `ventas-${q.desde}-${q.hasta}`, `Ventas por ${q.agrupar ?? 'cliente'}`, `${fAR(q.desde)} al ${fAR(q.hasta)}${r.aviso ? ` · ${r.aviso}` : ''}`, this.columnasVentas(q.agrupar === 'articulo' ? 'Artículo' : q.agrupar === 'mes' ? 'Mes' : 'Cliente'),
+    return this.salida(q.formato, res, `ventas-${q.desde}-${q.hasta}`, `Ventas por ${q.agrupar === 'articulo' ? 'artículo' : q.agrupar === 'mes' ? 'mes' : 'cliente'}`, `${fAR(q.desde)} al ${fAR(q.hasta)}${r.aviso ? ` · ${r.aviso}` : ''}`, this.columnasVentas(q.agrupar === 'articulo' ? 'Artículo' : q.agrupar === 'mes' ? 'Mes' : 'Cliente'),
       [...r.filas.map((f) => [f.nombre, f.ventas, f.costo, f.margen, f.margenPct, f.sinCosto]), ['Total', t.ventas, t.costo, t.margen, t.margenPct, t.sinCosto]]);
   }
 

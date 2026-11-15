@@ -111,7 +111,9 @@ export async function sesionConPlan(app: INestApplication, prisma: PrismaService
   const http = conToken(app, token);
   const cuenta = async (codigo: string) =>
     (await prisma.cuentaContable.findFirstOrThrow({ where: { empresaId: e.body.id, codigo } })).id;
-  return { empresaId: e.body.id as string, http, cuenta, token };
+  /** Nuevo inicio de sesión (p. ej. después de mover el reloj de la prueba). */
+  const reingresar = async () => conToken(app, await loginComo(app, s.usuario.email, s.password, e.body.id));
+  return { empresaId: e.body.id as string, http, cuenta, token, reingresar };
 }
 
 /** Proveedor RI, artículo al 21 % y cotización USD 1000 al 2026-11-01 en la empresa indicada. */

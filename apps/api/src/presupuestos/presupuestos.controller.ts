@@ -113,6 +113,7 @@ export class PresupuestosController {
   @HttpCode(200)
   @RequierePermiso('presupuesto.editar')
   eliminarLinea(@Param('id', ParseUUIDPipe) id: string, @Query('cuentaContableId', ParseUUIDPipe) cuentaContableId: string, @Query('centroCostoId') centroCostoId?: string) {
+    if (centroCostoId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(centroCostoId)) throw new BadRequestException('Centro de costo inválido');
     return this.presupuestos.eliminarLinea(id, cuentaContableId, centroCostoId || null);
   }
 }
