@@ -1,3 +1,4 @@
+import { saldosAFecha } from '../../finanzas/saldos';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { MovimientoCuentaCorriente } from '@prisma/client';
@@ -128,7 +129,8 @@ export class ConsultasVentasService {
   async saldosClientes(fecha?: string) {
     const db = this.tenant.db;
     const corte = fechaQuery(fecha) ?? new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
-    const movs = await db.movimientoCuentaCorriente.findMany({ where: { anulado: false, origenTipo: { in: ORIGENES_CLIENTE }, NOT: { saldoPesos: 0 } } });
+    // Saldo de cada comprobante a la fecha de corte, sin los posteriores (como la antigüedad de gestión y de Compras)
+    const movs = await saldosAFecha(db, 'clientes', corte);
     const terceros = await db.tercero.findMany({ where: { id: { in: [...new Set(movs.map((m) => m.terceroId))] } }, select: { id: true, razonSocial: true } });
     type Tramos = { noVencido: Dec; d1a30: Dec; d31a60: Dec; d61a90: Dec; mas90: Dec };
     const filas = new Map<string, Tramos>();
