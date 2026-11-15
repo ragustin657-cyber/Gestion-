@@ -42,7 +42,11 @@ export class RubrosService {
 
   modificar(id: string, d: DatosRubro) {
     return this.tenant.transaccion(async (tx) => {
-      if (!(await tx.rubroBienUso.findUnique({ where: { id } }))) throw new NotFoundException('Rubro inexistente');
+      const actual = await tx.rubroBienUso.findUnique({ where: { id } });
+      if (!actual) throw new NotFoundException('Rubro inexistente');
+      // Los asientos de sus bienes (también los dados de baja) apuntan a estas cuentas
+      const cambianCuentas = actual.cuentaOrigenId !== d.cuentaOrigenId || actual.cuentaAmortizacionId !== d.cuentaAmortizacionId || actual.cuentaGastoId !== d.cuentaGastoId;
+      if (cambianCuentas && (await tx.bienUso.count({ where: { rubroId: id } }))) throw new BadRequestException('El rubro tiene bienes: no se pueden cambiar sus cuentas');
       await this.validar(tx, d, id);
       return tx.rubroBienUso.update({ where: { id }, data: d });
     });

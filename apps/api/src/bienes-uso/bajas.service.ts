@@ -35,7 +35,8 @@ export class BajasService {
   }
 
   /** Asiento de baja: amortización acumulada al debe, residual a la cuenta indicada, valor de origen al haber; fecha de origen = alta. */
-  async registrarBaja(tx: TxEmpresa, b: BienUso & { rubro: RubroBienUso }, fecha: Date, motivo: MotivoBajaBienUso, cuentaResidualId: string, comprobanteVentaRenglonId: string | null = null) {
+  /** `fechaBaja`: por defecto la del asiento; en una venta, la del comprobante (el asiento puede ir al período siguiente). */
+  async registrarBaja(tx: TxEmpresa, b: BienUso & { rubro: RubroBienUso }, fecha: Date, motivo: MotivoBajaBienUso, cuentaResidualId: string, comprobanteVentaRenglonId: string | null = null, fechaBaja: Date = fecha) {
     const acumulada = await this.bienes.amortizadoVigente(tx, b.id);
     const residual = new D(b.valorOrigen).minus(acumulada);
     const fechaOrigen = new Date(`${mesDe(b.fechaAlta)}-01T00:00:00Z`);
@@ -45,7 +46,7 @@ export class BajasService {
       { cuentaContableId: b.rubro.cuentaOrigenId, haber: new D(b.valorOrigen).toFixed(2), fechaOrigen },
     ];
     const asiento = await this.asientos.generar(tx, { fecha, descripcion: `Baja del bien de uso N° ${b.numero} - ${b.descripcion}`, origenTipo: 'BIEN_USO_BAJA', origenId: b.id, renglones });
-    return tx.bienUso.update({ where: { id: b.id }, data: { estado: 'BAJA', fechaBaja: fecha, motivoBaja: motivo, asientoBajaId: asiento.id, comprobanteVentaRenglonId } });
+    return tx.bienUso.update({ where: { id: b.id }, data: { estado: 'BAJA', fechaBaja, motivoBaja: motivo, asientoBajaId: asiento.id, comprobanteVentaRenglonId } });
   }
 
   baja(id: string, d: { fecha: Date; motivo: 'DESUSO' | 'SINIESTRO' | 'ROBO' }) {
@@ -84,7 +85,7 @@ export class BajasService {
   }
 
   /** Al autorizar la venta: baja con motivo VENTA y residual contra el resultado por venta. */
-  async alAutorizarVenta(tx: TxEmpresa, fecha: Date, renglones: { id: string; bienUsoId: string | null }[]) {
+  async alAutorizarVenta(tx: TxEmpresa, fechaAsiento: Date, fechaComprobante: Date, renglones: { id: string; bienUsoId: string | null }[]) {
     const conBien = renglones.filter((r) => r.bienUsoId);
     if (!conBien.length) return;
     await bloquearBienes(tx, this.tenant.empresaId);
@@ -92,7 +93,7 @@ export class BajasService {
     for (const r of conBien) {
       const b = await tx.bienUso.findUniqueOrThrow({ where: { id: r.bienUsoId! }, include: { rubro: true } });
       if (b.estado === 'BAJA') continue; // nada puede fallar después de la autorización de ARCA
-      await this.registrarBaja(tx, b, fecha, 'VENTA', cuenta, r.id);
+      await this.registrarBaja(tx, b, fechaAsiento, 'VENTA', cuenta, r.id, fechaComprobante);
     }
   }
 }

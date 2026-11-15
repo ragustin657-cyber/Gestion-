@@ -205,7 +205,7 @@ export class EmisionService {
         fecha, descripcion: `${TIPO_TEXTO[c.tipo]} ${c.letra} ${numeroVenta(c.puntoVenta, numero)} - ${c.tercero.razonSocial}`, origenTipo: 'VENTA', origenId: c.id, renglones,
       });
       const final = await tx.comprobanteVenta.update({ where: { id }, data: { asientoId: asiento.id } });
-      await this.bajas.alAutorizarVenta(tx, fecha, c.renglones);
+      await this.bajas.alAutorizarVenta(tx, fecha, c.fecha, c.renglones);
       advertencias.push(...(await this.stock.alEmitir(tx, {
         id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId,
         renglones: [...c.renglones].filter((x) => !x.remitoRenglonId).sort((a, b) => a.orden - b.orden).map((x) => ({ id: x.id, articuloId: x.articuloId, cantidad: x.cantidad })),
