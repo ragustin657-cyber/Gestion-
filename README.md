@@ -241,6 +241,13 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Presupuesto contra real** (Informes de gestión): por cuenta, por rubro o por centro de costo, en el rango de meses que se elija; presupuesto, real del Mayor (sin ajuste por inflación, refundición ni cierre), desvío en importe y en %, en verde si es favorable y en rojo si no; lo gastado sin presupuesto aparece marcado. Totales de ingresos, egresos y resultado, gráfico mensual, Excel y PDF.
 - **Tablero:** tarjeta "Resultado contra presupuesto" con el vigente del ejercicio.
 
+## Sueldos (Entrega 18)
+
+- **Maestros** (menú *Sueldos*): convenios con sus categorías y escalas mensuales de básicos (un mes sin escala propia usa la última anterior; se importan de CSV o Excel, y si hay errores no se graba nada); empleados con legajo automático, CUIL validado, categoría, afiliación sindical, forma de pago y fechas de ingreso y egreso; conceptos por tipo de cálculo (básico, antigüedad, porcentaje, horas extra, ausencias, importe fijo y descuentos de ley con base y tope). Cada empresa nueva trae el convenio de Comercio (CCT 130/75) con sus 21 categorías y sus conceptos habituales.
+- **Liquidación** mensual y de SAC (junio y diciembre, con la mejor remuneración del semestre de las mensuales cerradas): se calcula al crearla y se recalcula al cargar novedades (horas extra al 50 % y al 100 %, ausencias injustificadas, importes); los empleados con problemas (sin escala, categoría inactiva) aparecen con su error y la liquidación no se puede cerrar hasta corregirlos. Al cerrar, los recibos se numeran; se puede reabrir mientras no se haya usado en un SAC cerrado.
+- **Recibos** (art. 140 LCT) en PDF, original y duplicado en la misma hoja: empleador, empleado, período, conceptos por clase, neto en números y en letras, último depósito de aportes, lugar y fecha de pago y firma del empleado. En borrador llevan la marca "BORRADOR". **Resumen** de la liquidación por concepto y por empleado en Excel y PDF.
+- Permisos `sueldos.ver` y `sueldos.liquidar` (en la demo, el Contador).
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
