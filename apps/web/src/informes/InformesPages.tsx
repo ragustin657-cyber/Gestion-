@@ -68,7 +68,7 @@ function InformeVentasBase({ tipo }: { tipo: 'ventas' | 'margenes' }) {
   const opciones = tipo === 'ventas' ? [{ value: 'cliente', label: 'Cliente' }, { value: 'articulo', label: 'Artículo' }, { value: 'mes', label: 'Mes' }] : [{ value: 'articulo', label: 'Artículo' }, { value: 'cliente', label: 'Cliente' }];
   const inicial = params.get('agrupar');
   const [agrupar, setAgrupar] = useState(opciones.some((o) => o.value === inicial) ? inicial! : opciones[0].value);
-  const [reexpresar, setReexpresar] = useState(false);
+  const [reexpresar, setReexpresar] = useState(params.get('reexpresar') === 'true');
   const query = { desde, hasta, agrupar, reexpresar: String(reexpresar) };
   const q = useQuery({ queryKey: [`/informes/${tipo}`, query], queryFn: () => api<InformeVentas>(`/informes/${tipo}`, { query }), enabled: !!desde && !!hasta });
   type F = InformeVentas['filas'][number];

@@ -21,6 +21,9 @@ export function numeroCelda(t: string): number {
   return Number(s.replace(/\./g, ''));
 }
 
+/** Se edita con permiso y si el ejercicio no está cerrado. */
+export const puedeEditarPresupuesto = (permiso: boolean, g: { ejercicioCerrado?: boolean }) => permiso && !g.ejercicioCerrado;
+
 /** Celda editable: guarda al salir solo si el valor cambió. */
 function Celda({ linea, mes, valor, onGuardar }: { linea: LineaGrilla; mes: string; valor: string; onGuardar: (v: number) => void }) {
   const [texto, setTexto] = useState(mostrar(valor));
@@ -95,7 +98,7 @@ export function PresupuestosPage() {
               <Table.Td>{puede('presupuesto.editar') && <Group gap={4} justify="flex-end">
                 {!p.vigente && <Button size="xs" variant="subtle" onClick={() => void accion(`/presupuestos/${p.id}/vigente`, 'POST', 'Presupuesto marcado como vigente')}>Marcar vigente</Button>}
                 <Button size="xs" variant="subtle" onClick={() => setNuevo({ nombre: `${p.nombre} (copia)`, copiarDeId: p.id })}>Copiar</Button>
-                {!p.vigente && <Button size="xs" variant="subtle" color="red" onClick={() => void accion(`/presupuestos/${p.id}`, 'DELETE', 'Presupuesto eliminado')}>Eliminar</Button>}
+                {!p.vigente && <Button size="xs" variant="subtle" color="red" onClick={() => { if (window.confirm(`¿Eliminar el presupuesto ${p.nombre}?`)) void accion(`/presupuestos/${p.id}`, 'DELETE', 'Presupuesto eliminado'); }}>Eliminar</Button>}
               </Group>}</Table.Td>
             </Table.Tr>
           ))}
@@ -125,7 +128,7 @@ export function EditorPresupuestoPage() {
   const [errores, setErrores] = useState<{ linea: number; mensaje: string }[]>([]);
   const q = useQuery({ queryKey: ['/presupuestos/grilla', id], queryFn: () => api<Grilla>(`/presupuestos/${id}/grilla`) });
   const actualizar = (g: Grilla) => { qc.setQueryData(['/presupuestos/grilla', id], g); void qc.invalidateQueries({ queryKey: ['/presupuestos'] }); };
-  const editable = puede('presupuesto.editar');
+  const editable = puedeEditarPresupuesto(puede('presupuesto.editar'), q.data ?? {});
   const guardarLinea = async (l: { cuentaContableId: string; centroCostoId: string | null }, importes: Record<string, number>) => {
     // Solo el mes editado (parcial): un segundo guardado rápido no pisa al primero
     const r = await op.ejecutar(() => api<Grilla>(`/presupuestos/${id}/lineas`, { metodo: 'PUT', body: { cuentaContableId: l.cuentaContableId, centroCostoId: l.centroCostoId, importes, parcial: true } }), () => 'Guardado');
@@ -138,8 +141,8 @@ export function EditorPresupuestoPage() {
       const g0 = q.data!;
       const etiqueta = cuentas.find((c) => c.value === form.cuenta)?.label ?? '';
       const [codigo, ...resto] = etiqueta.split(' ');
-      if (!g0.lineas.some((l) => l.cuentaContableId === form.cuenta && l.centroCostoId === form.centro))
-        qc.setQueryData(['/presupuestos/grilla', id], { ...g0, lineas: [...g0.lineas, { cuentaContableId: form.cuenta!, codigo, nombre: resto.join(' '), tipo: codigo.startsWith('4') ? 'INGRESO' : 'EGRESO', centroCostoId: form.centro, centroCosto: centros.find((c) => c.value === form.centro)?.label ?? null, importes: Object.fromEntries(g0.meses.map((m) => [m, '0.00'])), total: '0.00' }] });
+      if (g0.lineas.some((l) => l.cuentaContableId === form.cuenta && l.centroCostoId === form.centro)) { op.setError('La línea ya está en el presupuesto'); return; }
+      qc.setQueryData(['/presupuestos/grilla', id], { ...g0, lineas: [...g0.lineas, { cuentaContableId: form.cuenta!, codigo, nombre: resto.join(' '), tipo: codigo.startsWith('4') ? 'INGRESO' : 'EGRESO', centroCostoId: form.centro, centroCosto: centros.find((c) => c.value === form.centro)?.label ?? null, importes: Object.fromEntries(g0.meses.map((m) => [m, '0.00'])), total: '0.00' }] });
       setModal(null);
       return;
     }
@@ -191,7 +194,7 @@ export function EditorPresupuestoPage() {
             <NumberInput label="Ajuste %" decimalSeparator="," value={form.ajuste} onChange={(v) => setForm({ ...form, ajuste: v })} />
           </>}
           {op.alerta}
-          <Group><Button loading={op.enviando} disabled={modal !== 'real' && !form.cuenta} onClick={() => void enviar()}>{modal === 'real' ? 'Traer' : modal === 'repartir' ? 'Repartir' : 'Agregar'}</Button></Group>
+          <Group><Button loading={op.enviando} disabled={(modal !== 'real' && !form.cuenta) || (modal === 'repartir' && !Number(form.total))} onClick={() => void enviar()}>{modal === 'real' ? 'Traer' : modal === 'repartir' ? 'Repartir' : 'Agregar'}</Button></Group>
         </Stack>
       </Modal>
     </Paper>

@@ -90,7 +90,7 @@ export function ComprobanteVentaPage() {
     setSelectorPendientes(false);
   }
   const { puede } = useAuth();
-  const bienesActivos = useQuery({ queryKey: ['/bienes-uso', 'activos'], queryFn: () => api<{ id: string; numero: number; descripcion: string }[]>('/bienes-uso', { query: { estado: 'ACTIVO' } }), enabled: puede('bienes.ver') }).data ?? [];
+  const bienesActivos = useQuery({ queryKey: ['/bienes-uso', 'activos'], queryFn: () => api<{ id: string; numero: number; descripcion: string }[]>('/bienes-uso', { query: { estado: 'ACTIVO' } }), enabled: puede('bienes.ver') || puede('venta.emitir') }).data ?? [];
   const depositos = (useQuery({ queryKey: ['/depositos', 'ventas'], queryFn: () => api<{ id: string; nombre: string }[]>('/depositos') }).data ?? []).map((d) => ({ value: d.id, label: d.nombre }));
   const [renglones, setRenglones] = useState<RenglonVentaEditable[]>([renglonVacio()]);
   const [actual, setActual] = useState<ComprobanteVenta | null>(null);
@@ -209,9 +209,9 @@ export function ComprobanteVentaPage() {
         )}
 
         <Title order={5} mt="lg" mb="xs">Renglones</Title>
-        {editable && tipo === 'FACTURA' && terceroId && <Group>
-          <Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button>
-          {puede('bienes.ver') && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
+        {editable && tipo !== 'NOTA_CREDITO' && terceroId && <Group>
+          {tipo === 'FACTURA' && <Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button>}
+          {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
             onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
         </Group>}
         <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos}

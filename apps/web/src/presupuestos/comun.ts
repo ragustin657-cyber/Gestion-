@@ -2,6 +2,8 @@ export interface LineaGrilla { cuentaContableId: string; codigo: string; nombre:
 export interface Grilla {
   presupuesto: { id: string; nombre: string; vigente: boolean; ejercicioId?: string };
   meses: string[];
+  /** El ejercicio está cerrado: el presupuesto se muestra solo para lectura. */
+  ejercicioCerrado?: boolean;
   lineas: LineaGrilla[];
   totales: { porMes: Record<string, string>; ingresos: string; egresos: string; resultado: string };
 }

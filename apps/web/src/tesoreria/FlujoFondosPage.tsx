@@ -1,3 +1,4 @@
+import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { CompositeChart } from '@mantine/charts';
 import { Alert, Button, Checkbox, Group, Modal, Paper, SegmentedControl, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconDownload } from '@tabler/icons-react';
@@ -48,11 +49,15 @@ export function TablaFlujo({ datos, onPeriodo }: { datos: Flujo; onPeriodo: (p: 
   </>;
 }
 
-const enSemanas = (n: number) => { const d = new Date(`${hoy()}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n * 7); return d.toISOString().slice(0, 10); };
+/** Hoy en Argentina (como la API), sin importar la zona horaria del navegador. */
+const hoyAR = () => hoyEn(ZONA_ARGENTINA);
+const enSemanas = (n: number) => { const d = new Date(`${hoyAR()}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n * 7); return d.toISOString().slice(0, 10); };
+/** "Hasta" por defecto según la agrupación: 4 semanas por día, 8 por semana, 26 por mes. */
+export const hastaPorDefecto = (agrupar: string) => enSemanas(agrupar === 'dia' ? 4 : agrupar === 'mes' ? 26 : 8);
 
 export function FlujoFondosPage() {
   const [agrupar, setAgrupar] = useState('semana');
-  const [hasta, setHasta] = useState(enSemanas(8));
+  const [hasta, setHasta] = useState(hastaPorDefecto('semana'));
   const [incluirVencidos, setIncluirVencidos] = useState(true);
   const [periodo, setPeriodo] = useState<Periodo | null>(null);
   const query = { hasta, agrupar, incluirVencidos: String(incluirVencidos) };
@@ -72,7 +77,7 @@ export function FlujoFondosPage() {
       </Group>
       <Group align="flex-end" mb="xs">
         <SegmentedControl data={[{ value: 'dia', label: 'Día' }, { value: 'semana', label: 'Semana' }, { value: 'mes', label: 'Mes' }]} value={agrupar}
-          onChange={(v) => { setAgrupar(v); setHasta(v === 'dia' ? enSemanas(4) : v === 'mes' ? enSemanas(26) : enSemanas(8)); }} />
+          onChange={(v) => { setAgrupar(v); setHasta(hastaPorDefecto(v)); }} />
         <TextInput label="Hasta" type="date" w={170} value={hasta} onChange={(e) => setHasta(e.currentTarget.value)} />
         <Checkbox label="Incluir vencidos" checked={incluirVencidos} onChange={(e) => setIncluirVencidos(e.currentTarget.checked)} mb={8} />
       </Group>

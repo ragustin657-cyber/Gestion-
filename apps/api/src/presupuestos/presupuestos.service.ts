@@ -159,7 +159,7 @@ export class PresupuestosService {
     }).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es', { numeric: true }) || a.centroCodigo.localeCompare(b.centroCodigo))
       .map(({ centroCodigo, ...f }) => { void centroCodigo; return f; });
     return {
-      presupuesto: p as Presupuesto, meses, lineas: filas,
+      presupuesto: p as Presupuesto, meses, ejercicioCerrado: ejercicio.estado === 'CERRADO', lineas: filas,
       totales: { porMes: Object.fromEntries([...porMes].map(([m, v]) => [m, v.toFixed(2)])), ingresos: ingresos.toFixed(2), egresos: egresos.toFixed(2), resultado: ingresos.minus(egresos).toFixed(2) },
     };
   }
