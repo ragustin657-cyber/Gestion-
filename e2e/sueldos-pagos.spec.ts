@@ -8,16 +8,16 @@ async function ingresar(page: Page, email: string, password: string) {
   await expect(page.getByText('Estás trabajando en')).toBeVisible();
 }
 
-/** Mes anterior al actual en 'AAAA-MM' (la otra prueba de sueldos usa el actual). */
-function mesAnterior(): string {
+/** Mes siguiente al actual en 'AAAA-MM' (la otra prueba de sueldos usa el actual y otras cierran los meses anteriores). */
+function mesSiguiente(): string {
   const d = new Date();
   d.setDate(1);
-  d.setMonth(d.getMonth() - 1);
+  d.setMonth(d.getMonth() + 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 test('sueldos: el contador cierra, ve el asiento, paga los netos, descarga el F.931 y paga las cargas sociales', async ({ page }) => {
-  const mes = mesAnterior();
+  const mes = mesSiguiente();
   await ingresar(page, 'contador@demo.com', 'contador1234');
   // Empleado
   await page.goto('/sueldos/empleados');
@@ -32,14 +32,14 @@ test('sueldos: el contador cierra, ve el asiento, paga los netos, descarga el F.
   await dlg.getByLabel('Código de obra social (RNOS)').fill('125000');
   await dlg.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('cell', { name: 'Ruiz, Carla' })).toBeVisible();
-  // Escala del mes anterior
+  // Escala del mes siguiente
   await page.goto('/sueldos/convenios');
   await page.getByLabel('Mes', { exact: true }).fill(mes);
   const basico = page.getByLabel('Básico Vendedor B');
   await basico.fill('1000000');
   await basico.blur();
   await expect(page.getByRole('row', { name: /Vendedor B/ }).getByText('$ 1.000.000,00')).toBeVisible();
-  // Liquidación del mes anterior, cierre y asiento
+  // Liquidación del mes siguiente, cierre y asiento
   await page.goto('/sueldos/liquidaciones');
   await page.getByRole('button', { name: 'Nueva liquidación' }).click();
   await page.getByRole('dialog').getByLabel('Mes', { exact: true }).fill(mes);
