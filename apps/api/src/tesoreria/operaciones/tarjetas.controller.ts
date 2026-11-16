@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
@@ -15,6 +15,9 @@ export class TarjetasController {
 
   @Get('tarjetas') @RequierePermiso()
   listar() { return this.t.listar(); }
+
+  @Get('cupones') @RequierePermiso('tesoreria.ver')
+  cupones(@Query() q: { tarjetaId?: string; estado?: string; desde?: string; hasta?: string }) { return this.t.cupones(q); }
 
   @Post('tarjetas') @RequierePermiso('tesoreria.maestros.editar')
   crear(@Body(new ZodValidationPipe(esquemaTarjeta)) d: DatosTarjeta) { return this.t.crear(d); }

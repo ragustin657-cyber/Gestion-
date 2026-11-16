@@ -53,13 +53,13 @@ export class RecibosService {
       if (!pv) throw new BadRequestException('Punto de venta inexistente');
       const caja = await tx.caja.findUnique({ where: { id: d.cajaId } });
       if (!caja) throw new BadRequestException('Caja inexistente');
-      const hayValores = !!d.efectivo || d.cheques.length > 0 || d.transferencias.length > 0;
+      const hayValores = !!d.efectivo || d.cheques.length > 0 || d.transferencias.length > 0 || (d.cupones ?? []).length > 0;
       if (!hayValores && !d.retenciones.length) throw new BadRequestException('Ingrese al menos un valor o una retención');
 
       const numero = await this.numeracion.siguiente(tx, 'RECIBO', pv.numero);
       const etiqueta = `Recibo ${numeroVenta(pv.numero, numero)}`;
       const valores = hayValores
-        ? await this.ingresos.crearEnTx(tx, { fecha: d.fecha, cajaId: d.cajaId, origen: 'CLIENTE', terceroId: d.terceroId, cuentaContableId: null, concepto: `${etiqueta} - ${tercero.razonSocial}`, efectivo: d.efectivo, cheques: d.cheques, transferencias: d.transferencias }, { sinAsiento: true, sinCuentaCorriente: true })
+        ? await this.ingresos.crearEnTx(tx, { fecha: d.fecha, cajaId: d.cajaId, origen: 'CLIENTE', terceroId: d.terceroId, cuentaContableId: null, concepto: `${etiqueta} - ${tercero.razonSocial}`, efectivo: d.efectivo, cheques: d.cheques, transferencias: d.transferencias, cupones: d.cupones ?? [] }, { sinAsiento: true, sinCuentaCorriente: true })
         : null;
       const totalValores = valores?.totalPesos ?? new D(0);
       const totalRetenciones = d.retenciones.reduce((s: Dec, r) => s.plus(new D(r.importe).toDecimalPlaces(2)), new D(0));

@@ -13,6 +13,7 @@ export const esquemaRecibo = z
     efectivo: esquemaIngreso.shape.efectivo,
     cheques: esquemaIngreso.shape.cheques,
     transferencias: esquemaIngreso.shape.transferencias,
+    cupones: esquemaIngreso.shape.cupones,
     retenciones: z.array(z.object({
       tipo: z.enum(['IVA', 'GANANCIAS', 'IIBB', 'SUSS']),
       jurisdiccion: z.string().regex(/^9\d\d$/, 'Jurisdicción inválida').nullish(),
@@ -28,4 +29,4 @@ export const esquemaRecibo = z
     });
   });
 
-export type DatosRecibo = z.infer<typeof esquemaRecibo>;
+export type DatosRecibo = Omit<z.infer<typeof esquemaRecibo>, 'cupones'> & { cupones?: z.infer<typeof esquemaRecibo>['cupones'] };
