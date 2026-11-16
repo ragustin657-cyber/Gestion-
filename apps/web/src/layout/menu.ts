@@ -171,6 +171,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Empleados', ruta: '/sueldos/empleados', permiso: 'sueldos.ver' },
       { titulo: 'Convenios y escalas', ruta: '/sueldos/convenios', permiso: 'sueldos.ver' },
       { titulo: 'Conceptos', ruta: '/sueldos/conceptos', permiso: 'sueldos.ver' },
+      { titulo: 'Vacaciones', ruta: '/sueldos/vacaciones', permiso: 'sueldos.ver' },
       { titulo: 'Contribuciones', ruta: '/sueldos/contribuciones', permiso: 'sueldos.ver' },
       { titulo: 'Cargas sociales', ruta: '/sueldos/cargas-sociales', permiso: 'sueldos.ver' },
     ],
