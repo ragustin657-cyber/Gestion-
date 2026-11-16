@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { antiguedadAnios, calcularContribuciones, ConceptoCalc, ContribucionCalc, diasTrabajados, EmpleadoCalc, liquidarMes, liquidarSac, validarConcepto } from './calculo';
+import { aniosIndemnizables, antiguedadAnios, antiguedadDetalle, calcularContribuciones, DatosFinal, liquidarFinal, remuneracionMesCompleto, ConceptoCalc, ContribucionCalc, diasTrabajados, EmpleadoCalc, liquidarMes, liquidarSac, validarConcepto } from './calculo';
 
 const D = (n: number) => new Prisma.Decimal(n);
 const f = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -113,6 +113,68 @@ describe('cálculo de sueldos', () => {
       expect(s.renglones.find((x) => x.codigo === '500')!.importe.toFixed(2)).toBe('55000.00');
       expect(validarConcepto('DESCUENTO_LEY', 'DESCUENTO', { pct: 11, tope: 'BASE_MAXIMA' })).toBeNull();
       expect(validarConcepto('DESCUENTO_LEY', 'DESCUENTO', { pct: 11, tope: 'OTRO' })).toBe('Parámetro tope inválido');
+    });
+  });
+
+  describe('liquidación final', () => {
+    const egreso = f('2026-11-15');
+    const d = (o: Partial<DatosFinal> = {}): DatosFinal => ({ causa: 'DESPIDO_SIN_CAUSA', fechaEgreso: egreso, preavisoOtorgado: false, mejorRemuneracion: D(1137465), mejorRemuneracionSemestre: D(1137465), topeIndemnizatorio: null, baseMaxima: null, gratificacion: D(0), ...o });
+    const fin = (o: Partial<DatosFinal> = {}, emp: Partial<EmpleadoCalc> = {}) => { const x = d(o); return liquidarFinal(empleado({ fechaEgreso: x.fechaEgreso, ...emp }), COMERCIO, [], x); };
+
+    it('final del ejemplo', () => {
+      expect(remuneracionMesCompleto(empleado(), COMERCIO, 2026, 11).toFixed(2)).toBe('1137465.00');
+      const r = fin();
+      expect(mapa(r)).toEqual({ '100': '500000.00', '110': '25000.00', '120': '43732.50', '200': '426549.38', '300': '6824790.00', '310': '2274930.00', '311': '189577.50', '320': '568732.50', '321': '47394.38',
+        '330': '835055.13', '331': '69587.93', '500': '109481.01', '510': '29858.46', '520': '29858.46', '530': '4976.41', '540': '19905.64' });
+      expect([r.totalRemunerativo.toFixed(2), r.totalNoRemunerativo.toFixed(2), r.totalDescuentos.toFixed(2), r.neto.toFixed(2), r.diasTrabajados]).toEqual(['995281.88', '10810067.44', '194079.98', '11611269.34', 15]);
+      expect(r.renglones.find((x) => x.codigo === '300')!.clase).toBe('NO_REMUNERATIVO');
+      expect(r.renglones.find((x) => x.codigo === '200')!.clase).toBe('REMUNERATIVO');
+    });
+
+    it('tope y Vizzoti', () => {
+      expect(mapa(fin({ topeIndemnizatorio: D(900000) }))['300']).toBe('5400000.00');
+      expect(mapa(fin({ topeIndemnizatorio: D(500000) }))['300']).toBe('4572609.30');
+    });
+
+    it('renuncia y despido con causa', () => {
+      for (const causa of ['RENUNCIA', 'DESPIDO_CON_CAUSA'] as const) {
+        const r = fin({ causa });
+        for (const c of ['300', '310', '311', '320', '321']) expect(mapa(r)[c]).toBeUndefined();
+        expect(r.neto.toFixed(2)).toBe('1705844.96');
+      }
+    });
+
+    it('mutuo acuerdo con gratificación', () => {
+      const r = fin({ causa: 'MUTUO_ACUERDO', gratificacion: D(1000000) });
+      expect(mapa(r)['340']).toBe('1000000.00');
+      expect(r.renglones.find((x) => x.codigo === '340')!.clase).toBe('NO_REMUNERATIVO');
+      expect(r.totalDescuentos.toFixed(2)).toBe('194079.98');
+      expect(mapa(r)['300']).toBeUndefined();
+    });
+
+    it('despido con preaviso otorgado', () => {
+      const m = mapa(fin({ preavisoOtorgado: true }));
+      for (const c of ['310', '311', '320', '321']) expect(m[c]).toBeUndefined();
+      expect(m['300']).toBe('6824790.00');
+    });
+
+    it('bordes', () => {
+      expect(mapa(fin({ fechaEgreso: f('2026-11-30') }))['320']).toBeUndefined();
+      const corto = fin({}, { fechaIngreso: f('2026-09-01') });
+      expect(aniosIndemnizables(f('2026-09-01'), egreso)).toBe(1);
+      expect(antiguedadDetalle(f('2026-09-01'), egreso)).toEqual({ anios: 0, meses: 2, dias: 14 });
+      expect(mapa(corto)['310']).toBe('568732.50');
+      expect(mapa(corto)['330']).toBe((1137465 / 25 * 14 * 76 / 365).toFixed(2));
+      const mismoDia = fin({}, { fechaIngreso: egreso });
+      expect(mismoDia.diasTrabajados).toBe(1);
+      expect(aniosIndemnizables(egreso, egreso)).toBe(1);
+      expect(mapa(mismoDia)['300']).toBe('1137465.00');
+    });
+
+    it('fracción de 3 meses', () => {
+      expect(aniosIndemnizables(f('2021-03-01'), f('2026-06-01'))).toBe(5);
+      expect(aniosIndemnizables(f('2021-03-01'), f('2026-06-02'))).toBe(6);
+      expect(antiguedadDetalle(f('2021-03-01'), egreso)).toEqual({ anios: 5, meses: 8, dias: 14 });
     });
   });
 });

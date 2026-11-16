@@ -174,3 +174,100 @@ export function calcularContribuciones(remunerativo: Dec, diasTrabajados: number
   }
   return out;
 }
+
+// ---------------------------------------------------------------- Liquidación final (Entrega 20)
+
+export type CausaEgreso = 'RENUNCIA' | 'DESPIDO_SIN_CAUSA' | 'DESPIDO_CON_CAUSA' | 'MUTUO_ACUERDO';
+export interface DatosFinal { causa: CausaEgreso; fechaEgreso: Date; preavisoOtorgado: boolean; mejorRemuneracion: Dec; mejorRemuneracionSemestre: Dec; topeIndemnizatorio: Dec | null; baseMaxima: Dec | null; gratificacion: Dec }
+
+/** Suma meses a una fecha, con el día recortado al último del mes de destino. */
+function sumarMeses(f: Date, meses: number): Date {
+  const y = f.getUTCFullYear(), m = f.getUTCMonth() + meses;
+  const ultimo = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(y, m, Math.min(f.getUTCDate(), ultimo)));
+}
+
+/** Antigüedad al egreso en años, meses y días (desde el último aniversario). */
+export function antiguedadDetalle(ingreso: Date, egreso: Date): { anios: number; meses: number; dias: number } {
+  const anios = antiguedadAnios(ingreso, egreso);
+  const aniversario = sumarMeses(ingreso, anios * 12);
+  let meses = 0;
+  while (sumarMeses(aniversario, meses + 1) <= egreso) meses++;
+  const dias = Math.round((egreso.getTime() - sumarMeses(aniversario, meses).getTime()) / DIA);
+  return { anios, meses, dias };
+}
+
+/** Años indemnizables (art. 245): completos, más uno si la fracción supera 3 meses; mínimo 1. */
+export function aniosIndemnizables(ingreso: Date, egreso: Date): number {
+  const anios = antiguedadAnios(ingreso, egreso);
+  const extra = egreso > sumarMeses(sumarMeses(ingreso, anios * 12), 3) ? 1 : 0;
+  return Math.max(1, anios + extra);
+}
+
+/** Remuneración del mes completo (sin egreso ni novedades): base de la mejor remuneración. */
+export function remuneracionMesCompleto(e: EmpleadoCalc, conceptos: ConceptoCalc[], anio: number, mes: number): Dec {
+  return liquidarMes({ ...e, fechaEgreso: null }, conceptos, [], anio, mes).totalRemunerativo;
+}
+
+/** Liquidación final (spec E20 §4): días del mes, SAC proporcional, vacaciones no gozadas y, según la causa, indemnización, preaviso e integración. */
+export function liquidarFinal(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedades: NovedadCalc[], d: DatosFinal): ResultadoCalc {
+  const eg = d.fechaEgreso;
+  const anio = eg.getUTCFullYear(), mes = eg.getUTCMonth() + 1;
+  const emp = { ...e, fechaEgreso: eg };
+  const aplica = (c: ConceptoCalc) => !c.soloAfiliados || e.afiliadoSindicato;
+  // Días del mes, sin descuentos (se calculan después con el SAC)
+  const dias = liquidarMes(emp, conceptos.filter((c) => c.clase !== 'DESCUENTO'), novedades, anio, mes);
+  const renglones = [...dias.renglones];
+  let remu = dias.totalRemunerativo;
+  const noRemuDias = dias.totalNoRemunerativo;
+  // SAC proporcional del semestre hasta el egreso
+  const sem = mes <= 6 ? 1 : 2;
+  const iniSem = new Date(Date.UTC(anio, sem === 1 ? 0 : 6, 1)), finSem = new Date(Date.UTC(anio, sem === 1 ? 6 : 12, 0));
+  const totalSem = Math.round((finSem.getTime() - iniSem.getTime()) / DIA) + 1;
+  const desdeSem = e.fechaIngreso > iniSem ? e.fechaIngreso : iniSem;
+  const diasSem = eg < desdeSem ? 0 : Math.round((eg.getTime() - desdeSem.getTime()) / DIA) + 1;
+  const sac = r2(new D(d.mejorRemuneracionSemestre).div(2).times(diasSem).div(totalSem));
+  if (!sac.isZero()) {
+    renglones.push({ conceptoId: 'SAC', codigo: '200', nombre: 'SAC proporcional', clase: 'REMUNERATIVO', cantidad: new D(diasSem), base: new D(d.mejorRemuneracionSemestre), porcentaje: new D(50), importe: sac, orden: 200 });
+    remu = remu.plus(sac);
+  }
+  // Descuentos sobre días + SAC (nunca sobre los conceptos indemnizatorios)
+  const desc = descuentos(conceptos.filter(aplica).sort((a, b) => a.orden - b.orden), remu, noRemuDias, renglones, novedades, d.baseMaxima ? new D(d.baseMaxima).times(1.5) : null);
+  // Conceptos indemnizatorios, no remunerativos
+  let noRemu = noRemuDias;
+  const agregar = (codigo: string, nombre: string, importe: Dec, extra: Partial<RenglonCalc> = {}) => {
+    const imp = r2(importe);
+    if (imp.isZero()) return imp;
+    renglones.push({ conceptoId: 'FINAL', codigo, nombre, clase: 'NO_REMUNERATIVO', cantidad: null, base: null, porcentaje: null, importe: imp, orden: Number(codigo), ...extra });
+    noRemu = noRemu.plus(imp);
+    return imp;
+  };
+  const mejor = new D(d.mejorRemuneracion);
+  const ant = antiguedadDetalle(e.fechaIngreso, eg);
+  if (d.causa === 'DESPIDO_SIN_CAUSA') {
+    let base = mejor;
+    if (d.topeIndemnizatorio && mejor.gt(d.topeIndemnizatorio)) base = D.max(new D(d.topeIndemnizatorio), r2(mejor.times(0.67)));
+    const anios = aniosIndemnizables(e.fechaIngreso, eg);
+    agregar('300', 'Indemnización por antigüedad', base.times(anios), { cantidad: new D(anios), base });
+    if (!d.preavisoOtorgado) {
+      const meses = eg <= sumarMeses(e.fechaIngreso, 3) ? new D(0.5) : ant.anios < 5 || (ant.anios === 5 && ant.meses === 0 && ant.dias === 0) ? new D(1) : new D(2);
+      const pre = agregar('310', 'Preaviso', mejor.times(meses), { cantidad: meses, base: mejor });
+      agregar('311', 'SAC sobre preaviso', pre.div(12));
+      const ultimoDia = finDeMes(anio, mes).getUTCDate();
+      const restantes = Math.min(30, ultimoDia - eg.getUTCDate());
+      if (restantes > 0) {
+        const integ = agregar('320', 'Integración mes de despido', mejor.div(30).times(restantes), { cantidad: new D(restantes), base: mejor });
+        agregar('321', 'SAC sobre integración', integ.div(12));
+      }
+    }
+  }
+  // Vacaciones no gozadas proporcionales
+  const diasVac = ant.anios < 5 ? 14 : ant.anios < 10 ? 21 : ant.anios < 20 ? 28 : 35;
+  const iniAnio = new Date(Date.UTC(anio, 0, 1));
+  const desdeAnio = e.fechaIngreso > iniAnio ? e.fechaIngreso : iniAnio;
+  const diasAnio = Math.round((eg.getTime() - desdeAnio.getTime()) / DIA) + 1;
+  const vac = agregar('330', 'Vacaciones no gozadas', mejor.div(25).times(diasVac).times(diasAnio).div(365), { cantidad: r2(new D(diasVac).times(diasAnio).div(365)), base: mejor });
+  agregar('331', 'SAC sobre vacaciones', vac.div(12));
+  if (d.causa === 'MUTUO_ACUERDO') agregar('340', 'Gratificación por cese', new D(d.gratificacion));
+  return { renglones, totalRemunerativo: remu, totalNoRemunerativo: noRemu, totalDescuentos: desc, neto: remu.plus(noRemu).minus(desc), diasTrabajados: dias.diasTrabajados, antiguedadAnios: ant.anios };
+}
