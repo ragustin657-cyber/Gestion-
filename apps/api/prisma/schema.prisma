@@ -2150,6 +2150,8 @@ model Liquidacion {
   cerradoPor            String?
   cerradoEn             DateTime?
   asientoId             String?           @db.Uuid
+  baseMaximaAportes     Decimal?          @db.Decimal(18, 2)
+  detraccion            Decimal?          @db.Decimal(18, 2)
   novedades             Novedad[]
   pagos                 PagoSueldos[]
   recibos               ReciboSueldo[]
@@ -2196,6 +2198,7 @@ model ReciboSueldo {
   totalDescuentos     Decimal                    @db.Decimal(18, 2)
   neto                Decimal                    @db.Decimal(18, 2)
   centroCostoId       String?                    @db.Uuid
+  formaPago           FormaPagoSueldo?
   renglones           ReciboSueldoRenglon[]
   contribuciones      ReciboSueldoContribucion[]
 

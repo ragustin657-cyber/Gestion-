@@ -189,7 +189,7 @@ export class LiquidacionesService {
       vigentes.add(e.id);
       const datos = {
         apellido: e.apellido, nombre: e.nombre, cuil: e.cuil, legajo: e.legajo, categoria: cat.nombre, basico, fechaIngreso: e.fechaIngreso, antiguedadAnios: r.antiguedadAnios, diasTrabajados: r.diasTrabajados,
-        totalRemunerativo: r.totalRemunerativo, totalNoRemunerativo: r.totalNoRemunerativo, totalDescuentos: r.totalDescuentos, neto: r.neto, centroCostoId: e.centroCostoId,
+        totalRemunerativo: r.totalRemunerativo, totalNoRemunerativo: r.totalNoRemunerativo, totalDescuentos: r.totalDescuentos, neto: r.neto, centroCostoId: e.centroCostoId, formaPago: e.formaPago,
       };
       const previo = previos.get(e.id);
       const recibo = previo
@@ -281,7 +281,9 @@ export class LiquidacionesService {
       const recibos = await tx.reciboSueldo.findMany({ where: { liquidacionId: id, numero: null }, orderBy: { legajo: 'asc' } });
       if (!recibos.length && !(await tx.reciboSueldo.count({ where: { liquidacionId: id } }))) throw new BadRequestException('La liquidación no tiene recibos');
       for (const r of recibos) await tx.reciboSueldo.update({ where: { id: r.id }, data: { numero: await this.numeracion.siguiente(tx, 'RECIBO_SUELDO', 0) } });
-      const cerrada = await tx.liquidacion.update({ where: { id }, data: { estado: 'CERRADA', cerradoPor: this.usuario(), cerradoEn: new Date() } });
+      // Copia de los parámetros previsionales usados (el F.931 de un mes cerrado no cambia si se editan después), E22 §2.7
+      const param = await this.contribuciones.parametros(tx, l.anio, l.mes);
+      const cerrada = await tx.liquidacion.update({ where: { id }, data: { estado: 'CERRADA', cerradoPor: this.usuario(), cerradoEn: new Date(), baseMaximaAportes: param.baseMaxima, detraccion: param.detraccion } });
       await this.contabilizacion.contabilizar(tx, cerrada);
       return this.obtener(id, tx);
     });

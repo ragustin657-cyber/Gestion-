@@ -60,9 +60,13 @@ export class F931Service {
       // Los conceptos indemnizatorios de la final (300 a 340) no se informan
       const noRem = new D(r.totalNoRemunerativo).minus(r.renglones.filter((x) => !x.conceptoId && Number(x.codigo) >= 300 && Number(x.codigo) < 400).reduce((s2, x) => s2.plus(x.importe), new D(0)));
       const sacFinal = final ? r.renglones.filter((x) => x.codigo === '200' && !x.conceptoId).reduce((s2, x) => s2.plus(x.importe), new D(0)) : new D(0);
-      const tope = param.baseMaxima ? (esSac ? param.baseMaxima.div(2) : final ? param.baseMaxima.times(1.5) : param.baseMaxima) : null;
+      // Parámetros copiados al cerrar; los vigentes solo para liquidaciones cerradas antes de la Entrega 22
+      const liq = cerradas.find((x) => x.id === r.liquidacionId)!;
+      const baseMaxima = liq.baseMaximaAportes ?? (liq.detraccion !== null ? null : param.baseMaxima);
+      const detraccion = liq.detraccion ?? param.detraccion;
+      const tope = baseMaxima ? (esSac ? baseMaxima.div(2) : final ? baseMaxima.times(1.5) : baseMaxima) : null;
       const conTope = tope ? D.min(rem, tope) : rem;
-      const det = D.min(rem, r2(esSac ? param.detraccion.div(2) : param.detraccion.times(r.diasTrabajados).div(30).plus(sacFinal.gt(0) ? param.detraccion.div(2) : 0)));
+      const det = D.min(rem, r2(esSac ? detraccion.div(2) : detraccion.times(r.diasTrabajados).div(30).plus(sacFinal.gt(0) ? detraccion.div(2) : 0)));
       d.remuneracionTotal = d.remuneracionTotal.plus(rem).plus(noRem);
       d.imponible1 = d.imponible1.plus(conTope); d.imponible4 = d.imponible4.plus(conTope); d.imponible5 = d.imponible5.plus(conTope);
       for (const k of ['imponible2', 'imponible3', 'imponible8', 'imponible9'] as const) d[k] = d[k].plus(rem);

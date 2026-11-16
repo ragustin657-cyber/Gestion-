@@ -89,12 +89,19 @@ export class PagosSueldosService {
       } });
       await registrarMovimiento(tx, this.tenant.empresaId, { fecha, tipo: 'EGRESO', cuentaBancariaId: d.cuentaBancariaId, cajaId: d.cajaId, monedaCodigo: 'ARS', importe, origenTipo: ORIGEN_PAGO_SUELDOS, origenId: pago.id });
       const a = await this.asientos.generar(tx, {
-        fecha, descripcion: `Pago de sueldos N° ${pago.numero} - ${mmaaaa(l.anio, l.mes)}${l.tipo === 'SAC' ? ' SAC' : ''}`, origenTipo: ORIGEN_PAGO_SUELDOS, origenId: pago.id,
+        fecha, descripcion: await this.descripcionPago(tx, pago.numero, l), origenTipo: ORIGEN_PAGO_SUELDOS, origenId: pago.id,
         renglones: [{ cuentaContableId: cfg.cuentaSueldosAPagarId, debe: importe.toFixed(2) }, { cuentaContableId: o.cuentaContableId, haber: importe.toFixed(2) }],
       });
       await tx.pagoSueldos.update({ where: { id: pago.id }, data: { asientoId: a.id } });
       return { id: pago.id, numero: pago.numero, importe: importe.toFixed(2) };
     });
+  }
+
+  /** "Pago de sueldos N° X - MM/AAAA[ SAC]" o, para una final, "Pago de sueldos N° X - Final MM/AAAA - Apellido, Nombre". */
+  private async descripcionPago(tx: TxEmpresa, numero: number, l: { id: string; tipo: string; anio: number; mes: number }) {
+    if (l.tipo !== 'FINAL') return `Pago de sueldos N° ${numero} - ${mmaaaa(l.anio, l.mes)}${l.tipo === 'SAC' ? ' SAC' : ''}`;
+    const r = await tx.reciboSueldo.findFirst({ where: { liquidacionId: l.id } });
+    return `Pago de sueldos N° ${numero} - Final ${mmaaaa(l.anio, l.mes)}${r ? ` - ${r.apellido}, ${r.nombre}` : ''}`;
   }
 
   anular(id: string) {

@@ -29,7 +29,7 @@ export class SalidasSueldosController {
     const formas = new Map((await this.tenant.db.empleado.findMany({ where: { id: { in: recibos.map((r) => r.empleadoId) } }, select: { id: true, formaPago: true } })).map((e) => [e.id, e.formaPago]));
     const datos: DatosRecibo[] = recibos.map((r) => ({
       empresa: { razonSocial: empresa.razonSocial, cuit: empresa.cuit, domicilio: empresa.domicilio },
-      empleado: { legajo: r.legajo, apellido: r.apellido, nombre: r.nombre, cuil: r.cuil, categoria: r.categoria, fechaIngreso: r.fechaIngreso, antiguedadAnios: r.antiguedadAnios, basico: r.basico ?? '0.00', formaPago: formas.get(r.empleadoId) ?? 'TRANSFERENCIA' },
+      empleado: { legajo: r.legajo, apellido: r.apellido, nombre: r.nombre, cuil: r.cuil, categoria: r.categoria, fechaIngreso: r.fechaIngreso, antiguedadAnios: r.antiguedadAnios, basico: r.basico ?? '0.00', formaPago: r.formaPago ?? formas.get(r.empleadoId) ?? 'TRANSFERENCIA' },
       periodo: this.periodo(liq), numero: r.numero,
       renglones: r.renglones.map((x) => ({ codigo: x.codigo, nombre: x.nombre, clase: x.clase, cantidad: x.cantidad, base: x.base, porcentaje: x.porcentaje, importe: x.importe ?? '0.00' })),
       totales: { remunerativo: r.totalRemunerativo ?? '0.00', noRemunerativo: r.totalNoRemunerativo ?? '0.00', descuentos: r.totalDescuentos ?? '0.00', neto: r.neto ?? '0.00' },
