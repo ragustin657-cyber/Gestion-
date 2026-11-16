@@ -67,6 +67,10 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('2.1.02.003', 'Retenciones IVA a depositar', P, true),
   c('2.1.02.004', 'Retenciones IIBB a depositar', P, true),
   c('2.1.02.005', 'Retenciones SUSS a depositar', P, true),
+  c('2.1.03', 'Deudas sociales', P),
+  c('2.1.03.001', 'Sueldos a pagar', P, true),
+  c('2.1.03.002', 'Cargas sociales a pagar', P, true),
+  c('2.1.03.003', 'Retenciones sindicales a pagar', P, true),
   c('3', 'Patrimonio neto', PN),
   c('3.1', 'Capital', PN),
   c('3.1.01', 'Capital social', PN, true),
@@ -95,6 +99,8 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.06', 'Faltantes de inventario', RN, true),
   c('5.2.07', 'Amortizaciones de bienes de uso', RN, true),
   c('5.2.08', 'Bajas de bienes de uso', RN, true),
+  c('5.2.09', 'Sueldos y jornales', RN, true),
+  c('5.2.10', 'Contribuciones patronales', RN, true),
 ];
 
 /** Rubros de bienes de uso del plan modelo: nombre, cuenta de origen, de amortización acumulada y vida útil en meses. */

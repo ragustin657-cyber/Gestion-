@@ -28,6 +28,8 @@ model Empresa {
   agenteRetencionGanancias Boolean  @default(false)
   agenteRetencionIva       Boolean  @default(false)
   agenteRetencionSuss      Boolean  @default(false)
+  codigoZonaSicoss         Int      @default(0)
+  tipoEmpresaSicoss        Int      @default(1)
   jurisdiccionesIibb       String[]
 
   montoAprobacionOc          Decimal      @default(0) @db.Decimal(18, 2)
@@ -2069,40 +2071,55 @@ model Escala {
 }
 
 model Empleado {
-  id                String          @id @default(uuid()) @db.Uuid
-  empresaId         String          @db.Uuid
-  legajo            Int
-  apellido          String
-  nombre            String
-  cuil              String
-  domicilio         String
-  fechaIngreso      DateTime        @db.Date
-  fechaEgreso       DateTime?       @db.Date
-  categoriaId       String          @db.Uuid
-  centroCostoId     String?         @db.Uuid
-  sucursalId        String?         @db.Uuid
-  afiliadoSindicato Boolean         @default(false)
-  obraSocial        String          @default("")
-  formaPago         FormaPagoSueldo @default(TRANSFERENCIA)
-  cbu               String?
-  activo            Boolean         @default(true)
+  id                      String          @id @default(uuid()) @db.Uuid
+  empresaId               String          @db.Uuid
+  legajo                  Int
+  apellido                String
+  nombre                  String
+  cuil                    String
+  domicilio               String
+  fechaIngreso            DateTime        @db.Date
+  fechaEgreso             DateTime?       @db.Date
+  categoriaId             String          @db.Uuid
+  centroCostoId           String?         @db.Uuid
+  sucursalId              String?         @db.Uuid
+  afiliadoSindicato       Boolean         @default(false)
+  obraSocial              String          @default("")
+  formaPago               FormaPagoSueldo @default(TRANSFERENCIA)
+  cbu                     String?
+  activo                  Boolean         @default(true)
+  // Datos para el F.931 (códigos ARCA)
+  codigoSituacion         Int             @default(1)
+  codigoCondicion         Int             @default(1)
+  codigoActividad         Int             @default(49)
+  codigoModalidad         Int             @default(8)
+  codigoZona              Int?
+  codigoObraSocial        String          @default("000000")
+  conyuge                 Boolean         @default(false)
+  cantidadHijos           Int             @default(0)
+  adherentesObraSocial    Int             @default(0)
+  trabajadorConvencionado Boolean         @default(true)
+  codigoSiniestrado       Int             @default(0)
+  regimen                 Int             @default(1)
 
   @@unique([empresaId, legajo])
   @@unique([empresaId, cuil])
 }
 
 model Concepto {
-  id            String        @id @default(uuid()) @db.Uuid
-  empresaId     String        @db.Uuid
-  convenioId    String?       @db.Uuid
-  codigo        String
-  nombre        String
-  clase         ClaseConcepto
-  tipo          TipoConcepto
-  parametros    Json          @default("{}")
-  orden         Int
-  soloAfiliados Boolean       @default(false)
-  activo        Boolean       @default(true)
+  id               String           @id @default(uuid()) @db.Uuid
+  empresaId        String           @db.Uuid
+  convenioId       String?          @db.Uuid
+  codigo           String
+  nombre           String
+  clase            ClaseConcepto
+  tipo             TipoConcepto
+  parametros       Json             @default("{}")
+  orden            Int
+  soloAfiliados    Boolean          @default(false)
+  activo           Boolean          @default(true)
+  destino          DestinoDescuento @default(OTRO)
+  cuentaContableId String?          @db.Uuid
 
   @@unique([empresaId, codigo])
 }
@@ -2123,7 +2140,9 @@ model Liquidacion {
   creadoEn              DateTime          @default(now())
   cerradoPor            String?
   cerradoEn             DateTime?
+  asientoId             String?           @db.Uuid
   novedades             Novedad[]
+  pagos                 PagoSueldos[]
   recibos               ReciboSueldo[]
 
   @@unique([empresaId, tipo, anio, mes])
@@ -2145,26 +2164,28 @@ model Novedad {
 }
 
 model ReciboSueldo {
-  id                  String                @id @default(uuid()) @db.Uuid
-  empresaId           String                @db.Uuid
-  liquidacionId       String                @db.Uuid
-  liquidacion         Liquidacion           @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
-  empleadoId          String                @db.Uuid
+  id                  String                     @id @default(uuid()) @db.Uuid
+  empresaId           String                     @db.Uuid
+  liquidacionId       String                     @db.Uuid
+  liquidacion         Liquidacion                @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  empleadoId          String                     @db.Uuid
   numero              Int?
   apellido            String
   nombre              String
   cuil                String
   legajo              Int
   categoria           String
-  basico              Decimal               @db.Decimal(18, 2)
-  fechaIngreso        DateTime              @db.Date
+  basico              Decimal                    @db.Decimal(18, 2)
+  fechaIngreso        DateTime                   @db.Date
   antiguedadAnios     Int
   diasTrabajados      Int
-  totalRemunerativo   Decimal               @db.Decimal(18, 2)
-  totalNoRemunerativo Decimal               @db.Decimal(18, 2)
-  totalDescuentos     Decimal               @db.Decimal(18, 2)
-  neto                Decimal               @db.Decimal(18, 2)
+  totalRemunerativo   Decimal                    @db.Decimal(18, 2)
+  totalNoRemunerativo Decimal                    @db.Decimal(18, 2)
+  totalDescuentos     Decimal                    @db.Decimal(18, 2)
+  neto                Decimal                    @db.Decimal(18, 2)
+  centroCostoId       String?                    @db.Uuid
   renglones           ReciboSueldoRenglon[]
+  contribuciones      ReciboSueldoContribucion[]
 
   @@unique([liquidacionId, empleadoId])
 }
@@ -2183,4 +2204,114 @@ model ReciboSueldoRenglon {
   porcentaje Decimal?      @db.Decimal(9, 4)
   importe    Decimal       @db.Decimal(18, 2)
   orden      Int
+}
+
+enum DestinoContribucion {
+  SEGURIDAD_SOCIAL
+  OBRA_SOCIAL
+  ART
+  SEGURO_VIDA
+}
+
+enum DestinoDescuento {
+  SEGURIDAD_SOCIAL
+  OBRA_SOCIAL
+  SINDICAL
+  OTRO
+}
+
+model ContribucionPatronal {
+  id               String              @id @default(uuid()) @db.Uuid
+  empresaId        String              @db.Uuid
+  codigo           String
+  nombre           String
+  destino          DestinoContribucion
+  alicuota         Decimal             @db.Decimal(9, 4)
+  importeFijo      Decimal             @default(0) @db.Decimal(18, 2)
+  aplicaDetraccion Boolean             @default(false)
+  cuentaContableId String              @db.Uuid
+  desdeAnio        Int
+  desdeMes         Int
+  activa           Boolean             @default(true)
+
+  @@unique([empresaId, codigo, desdeAnio, desdeMes])
+}
+
+model ParametroPrevisional {
+  id                String   @id @default(uuid()) @db.Uuid
+  empresaId         String   @db.Uuid
+  anio              Int
+  mes               Int
+  baseMaximaAportes Decimal? @db.Decimal(18, 2)
+  detraccion        Decimal  @default(0) @db.Decimal(18, 2)
+
+  @@unique([empresaId, anio, mes])
+}
+
+model ConfiguracionSueldos {
+  id                            String  @id @default(uuid()) @db.Uuid
+  empresaId                     String  @unique @db.Uuid
+  cuentaSueldosId               String? @db.Uuid
+  cuentaContribucionesId        String? @db.Uuid
+  cuentaSueldosAPagarId         String? @db.Uuid
+  cuentaCargasSocialesId        String? @db.Uuid
+  cuentaRetencionesSindicalesId String? @db.Uuid
+}
+
+model ReciboSueldoContribucion {
+  id               String              @id @default(uuid()) @db.Uuid
+  empresaId        String              @db.Uuid
+  reciboId         String              @db.Uuid
+  recibo           ReciboSueldo        @relation(fields: [reciboId], references: [id], onDelete: Cascade)
+  codigo           String
+  nombre           String
+  destino          DestinoContribucion
+  base             Decimal             @db.Decimal(18, 2)
+  alicuota         Decimal             @db.Decimal(9, 4)
+  importe          Decimal             @db.Decimal(18, 2)
+  cuentaContableId String              @db.Uuid
+}
+
+model PagoSueldos {
+  id               String              @id @default(uuid()) @db.Uuid
+  empresaId        String              @db.Uuid
+  numero           Int
+  liquidacionId    String              @db.Uuid
+  liquidacion      Liquidacion         @relation(fields: [liquidacionId], references: [id])
+  fecha            DateTime            @db.Date
+  cuentaBancariaId String?             @db.Uuid
+  cajaId           String?             @db.Uuid
+  importe          Decimal             @db.Decimal(18, 2)
+  anulado          Boolean             @default(false)
+  asientoId        String?             @db.Uuid
+  creadoPor        String
+  creadoEn         DateTime            @default(now())
+  recibos          PagoSueldosRecibo[]
+}
+
+model PagoSueldosRecibo {
+  id        String      @id @default(uuid()) @db.Uuid
+  empresaId String      @db.Uuid
+  pagoId    String      @db.Uuid
+  pago      PagoSueldos @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  reciboId  String      @db.Uuid
+  importe   Decimal     @db.Decimal(18, 2)
+}
+
+model PagoCargasSociales {
+  id                    String   @id @default(uuid()) @db.Uuid
+  empresaId             String   @db.Uuid
+  numero                Int
+  fecha                 DateTime @db.Date
+  cuentaContableDeudaId String   @db.Uuid
+  anio                  Int
+  mes                   Int
+  cuentaBancariaId      String?  @db.Uuid
+  cajaId                String?  @db.Uuid
+  importe               Decimal  @db.Decimal(18, 2)
+  detalle               String?
+  anulado               Boolean  @default(false)
+  asientoId             String?  @db.Uuid
+  creadoPor             String
+  creadoEn              DateTime @default(now())
 }

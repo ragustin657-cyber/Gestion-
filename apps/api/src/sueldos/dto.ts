@@ -11,6 +11,11 @@ export const esquemaEmpleado = z.object({
   fechaIngreso: fecha, fechaEgreso: fecha.nullish(), categoriaId: uuid, centroCostoId: uuid.nullish(), sucursalId: uuid.nullish(),
   afiliadoSindicato: z.boolean().default(false), obraSocial: z.string().trim().max(100).default(''), formaPago: z.enum(['EFECTIVO', 'TRANSFERENCIA']).default('TRANSFERENCIA'),
   cbu: z.string().trim().regex(/^\d{22}$/, 'CBU inválido').nullish(), activo: z.boolean().optional(),
+  codigoSituacion: z.number().int().min(0).max(99).optional(), codigoCondicion: z.number().int().min(0).max(99).optional(), codigoActividad: z.number().int().min(0).max(999).optional(),
+  codigoModalidad: z.number().int().min(0).max(999).optional(), codigoZona: z.number().int().min(0).max(99).nullish(),
+  codigoObraSocial: z.string().trim().regex(/^\d{6}$/, 'Código de obra social inválido: 6 dígitos').optional(), conyuge: z.boolean().optional(),
+  cantidadHijos: z.number().int().min(0).max(99).optional(), adherentesObraSocial: z.number().int().min(0).max(99).optional(), trabajadorConvencionado: z.boolean().optional(),
+  codigoSiniestrado: z.number().int().min(0).max(99).optional(), regimen: z.number().int().min(0).max(9).optional(),
 });
 export const esquemaEdicionEmpleado = esquemaEmpleado.partial();
 export const esquemaConcepto = z.object({
@@ -18,6 +23,7 @@ export const esquemaConcepto = z.object({
   clase: z.enum(['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO']),
   tipo: z.enum(['BASICO', 'ANTIGUEDAD', 'PORCENTAJE', 'HORAS_EXTRA', 'AUSENCIA', 'FIJO', 'DESCUENTO_LEY']),
   parametros: z.record(z.unknown()).default({}), orden: z.number().int(), soloAfiliados: z.boolean().default(false), activo: z.boolean().optional(),
+  destino: z.enum(['SEGURIDAD_SOCIAL', 'OBRA_SOCIAL', 'SINDICAL', 'OTRO']).default('OTRO'), cuentaContableId: uuid.nullish(),
 }).superRefine((c, ctx) => {
   const error = validarConcepto(c.tipo, c.clase, c.parametros);
   if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error, path: ['parametros'] });
