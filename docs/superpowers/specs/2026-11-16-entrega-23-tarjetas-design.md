@@ -205,3 +205,23 @@ El tesorero (o el administrador) cobra una factura con tarjeta, liquida los cupo
 - **Pantallas:** su distribución.
 - **Errores:** textos de errores secundarios.
 - **Rol de la demo:** a qué rol se le da el permiso nuevo, dentro de lo indicado en §2.
+
+## 9. Decisiones del builder
+
+Las tomé yo después de la revisión del diseño y se pueden corregir.
+
+1. **Cuentas por configuración, no por código.**
+   - IVA crédito fiscal, percepciones y retenciones sufridas se resuelven con la configuración de cuentas que ya usan los recibos (`IVA_CREDITO_FISCAL`, `PERCEPCION_IVA`, `PERCEPCION_IIBB` y `RETENCION_SUFRIDA_*`), así una empresa que las cambió usa las mismas para tarjetas.
+   - Se agrega el concepto `COMISIONES_TARJETA`, por defecto `5.2.12`.
+   - El error por cuenta faltante es el que ya da esa configuración.
+2. **Cuenta a cobrar copiada en el cupón.** `CuponTarjeta.cuentaContableId` se graba al cobrar. La liquidación acredita, por cupón, la cuenta copiada. Así cambiar la cuenta de la tarjeta no deja saldos colgados.
+3. **Sucursales.**
+   - El cupón guarda `sucursalId` (la del ingreso).
+   - Un usuario limitado a una sucursal ve y liquida solo los cupones de su sucursal, y el informe de costo se filtra igual.
+   - Un usuario sin restricción puede liquidar cupones de varias sucursales juntos: una liquidación suele cubrir un número de comercio.
+4. **Moneda.** Los cupones se cobran en pesos. Un cobro con cupones en una caja de otra moneda se rechaza: `Los cupones de tarjeta se cobran en pesos`.
+5. **Otras decisiones:**
+   - se admite un cobro solo con cupones;
+   - el contraasiento de la anulación lleva la fecha posterior entre hoy y la de la liquidación;
+   - no se controla la duplicación de lote o cupón (pueden repetirse entre tarjetas o días);
+   - la columna IVA del informe es la del arancel y la del costo financiero.
