@@ -16,11 +16,13 @@ import { ChequesController } from './operaciones/cheques.controller';
 import { RechazosService } from './operaciones/rechazos.service';
 import { IngresosController } from './operaciones/ingresos.controller';
 import { IngresosService } from './operaciones/ingresos.service';
+import { TarjetasController } from './operaciones/tarjetas.controller';
+import { TarjetasService } from './operaciones/tarjetas.service';
 
 @Global()
 @Module({
-  controllers: [IngresosController, BancosCajasController, ChequesController, DepositosController, TrasladosController, ConsultasTesoreriaController],
-  providers: [CarteraService, IngresosService, BancosService, CajasService, ChequesPropiosService, RechazosService, DepositosService, AcreditacionesService, TrasladosService, ConsultasTesoreriaService, FlujoService],
-  exports: [CarteraService, ConsultasTesoreriaService, BancosService, IngresosService],
+  controllers: [TarjetasController, IngresosController, BancosCajasController, ChequesController, DepositosController, TrasladosController, ConsultasTesoreriaController],
+  providers: [TarjetasService, CarteraService, IngresosService, BancosService, CajasService, ChequesPropiosService, RechazosService, DepositosService, AcreditacionesService, TrasladosService, ConsultasTesoreriaService, FlujoService],
+  exports: [TarjetasService, CarteraService, ConsultasTesoreriaService, BancosService, IngresosService],
 })
 export class TesoreriaOperacionesModule {}

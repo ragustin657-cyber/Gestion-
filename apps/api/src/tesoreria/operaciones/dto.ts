@@ -37,8 +37,10 @@ export const esquemaIngreso = z.object({
   efectivo: z.object({ importe: zImporte }).nullish(),
   cheques: z.array(esquemaChequeIngreso).default([]),
   transferencias: z.array(z.object({ cuentaBancariaId: zId, fecha: zFecha, referencia: zTextoOpcional, importe: zImporte })).default([]),
+  cupones: z.array(z.object({ tarjetaId: zId, lote: z.string().trim().max(20).nullish(), numero: z.string().trim().max(30).nullish(), cuotas: z.number().int().min(1).max(60).nullish(), importe: zImporte })).default([]),
 });
-export type DatosIngreso = z.infer<typeof esquemaIngreso>;
+/** Los cupones son opcionales para quien arma el ingreso desde código (recibos, demo). */
+export type DatosIngreso = Omit<z.infer<typeof esquemaIngreso>, 'cupones'> & { cupones?: z.infer<typeof esquemaIngreso>['cupones'] };
 
 export const esquemaTraslado = z.object({
   fecha: zFecha,

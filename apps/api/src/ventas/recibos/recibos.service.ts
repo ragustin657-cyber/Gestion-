@@ -34,7 +34,8 @@ export class RecibosService {
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
     const r = await tx.recibo.findUnique({ where: { id }, include: INCLUIR });
     if (!r) throw new NotFoundException('Recibo no encontrado');
-    const ingreso = r.ingresoId ? await tx.ingresoValores.findUnique({ where: { id: r.ingresoId }, include: { efectivo: true, cheques: true, transferencias: true } }) : null;
+    const ing = r.ingresoId ? await tx.ingresoValores.findUnique({ where: { id: r.ingresoId }, include: { efectivo: true, cheques: true, transferencias: true } }) : null;
+    const ingreso = ing ? (await this.ingresos.conCupones(tx, [ing]))[0] : null;
     const aplicaciones = await tx.aplicacionCobro.findMany({ where: { origenTipo: 'RECIBO', origenId: id } });
     const tercero = await tx.tercero.findUniqueOrThrow({ where: { id: r.terceroId } });
     return { ...r, tercero, ingreso, aplicaciones };
@@ -53,13 +54,13 @@ export class RecibosService {
       if (!pv) throw new BadRequestException('Punto de venta inexistente');
       const caja = await tx.caja.findUnique({ where: { id: d.cajaId } });
       if (!caja) throw new BadRequestException('Caja inexistente');
-      const hayValores = !!d.efectivo || d.cheques.length > 0 || d.transferencias.length > 0;
+      const hayValores = !!d.efectivo || d.cheques.length > 0 || d.transferencias.length > 0 || (d.cupones ?? []).length > 0;
       if (!hayValores && !d.retenciones.length) throw new BadRequestException('Ingrese al menos un valor o una retención');
 
       const numero = await this.numeracion.siguiente(tx, 'RECIBO', pv.numero);
       const etiqueta = `Recibo ${numeroVenta(pv.numero, numero)}`;
       const valores = hayValores
-        ? await this.ingresos.crearEnTx(tx, { fecha: d.fecha, cajaId: d.cajaId, origen: 'CLIENTE', terceroId: d.terceroId, cuentaContableId: null, concepto: `${etiqueta} - ${tercero.razonSocial}`, efectivo: d.efectivo, cheques: d.cheques, transferencias: d.transferencias }, { sinAsiento: true, sinCuentaCorriente: true })
+        ? await this.ingresos.crearEnTx(tx, { fecha: d.fecha, cajaId: d.cajaId, origen: 'CLIENTE', terceroId: d.terceroId, cuentaContableId: null, concepto: `${etiqueta} - ${tercero.razonSocial}`, efectivo: d.efectivo, cheques: d.cheques, transferencias: d.transferencias, cupones: d.cupones ?? [] }, { sinAsiento: true, sinCuentaCorriente: true })
         : null;
       const totalValores = valores?.totalPesos ?? new D(0);
       const totalRetenciones = d.retenciones.reduce((s: Dec, r) => s.plus(new D(r.importe).toDecimalPlaces(2)), new D(0));

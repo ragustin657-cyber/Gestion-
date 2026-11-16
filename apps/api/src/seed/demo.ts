@@ -21,7 +21,7 @@ const ROLES: Record<string, Permiso[]> = {
   Administrador: TODOS_LOS_PERMISOS,
   Comprador: ['tercero.ver', 'articulo.ver', 'oc.ver', 'oc.crear', 'ir.ver', 'ir.crear', 'fc.ver', 'fc.crear', 'op.ver', 'op.crear', 'stock.ver'],
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
-  Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar'],
+  Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar', 'tesoreria.tarjetas'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar', 'stock.ver', 'stock.operar', 'informes.ver', 'bienes.ver', 'bienes.gestionar', 'presupuesto.ver', 'presupuesto.editar', 'sueldos.ver', 'sueldos.liquidar'],
   Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver', 'precios.editar', 'pedido.gestionar'],
@@ -153,6 +153,9 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       data: { empresaId: e, bancoId: banco.id, numero: '1234567/8', cbu: '0110599500000001234565', alias: 'DEMO.SA.NACION', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.002') },
     });
     await tx.chequera.create({ data: { empresaId: e, cuentaBancariaId: cb.id, tipo: 'ECHEQ' } });
+    // Tarjetas de la demo (acreditan en la cuenta del Nación)
+    for (const [nombre, tipo] of [['Visa crédito', 'CREDITO'], ['Mastercard crédito', 'CREDITO'], ['Mercado Pago', 'QR']] as const)
+      await tx.tarjeta.create({ data: { empresaId: e, nombre, tipo, cuentaBancariaId: cb.id, cuentaContableId: await cuenta('1.1.02.003') } });
     const { nombre: _modelo, ...nacion } = MODELOS_FORMATO.NACION;
     await tx.formatoExtracto.create({ data: { ...nacion, empresaId: e, cuentaBancariaId: cb.id } });
     await tx.caja.create({ data: { empresaId: e, sucursalId: central.id, nombre: 'Caja principal', monedaCodigo: 'ARS', cuentaContableId: await cuenta('1.1.01.001') } });

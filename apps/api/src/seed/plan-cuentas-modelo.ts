@@ -33,6 +33,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('1.1.02', 'Créditos por ventas', A),
   c('1.1.02.001', 'Deudores por ventas', A, true),
   c('1.1.02.002', 'Cheques rechazados', A, true),
+  c('1.1.02.003', 'Tarjetas a cobrar', A, true),
   c('1.1.03', 'Créditos fiscales', A),
   c('1.1.03.001', 'IVA Crédito Fiscal', A, true),
   c('1.1.03.002', 'Percepciones IVA sufridas', A, true),
@@ -102,6 +103,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.09', 'Sueldos y jornales', RN, true),
   c('5.2.10', 'Contribuciones patronales', RN, true),
   c('5.2.11', 'Indemnizaciones', RN, true),
+  c('5.2.12', 'Comisiones de tarjetas', RN, true),
 ];
 
 /** Rubros de bienes de uso del plan modelo: nombre, cuenta de origen, de amortización acumulada y vida útil en meses. */

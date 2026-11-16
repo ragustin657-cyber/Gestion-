@@ -2387,3 +2387,92 @@ model VacacionSaldoInicial {
 
   @@unique([empleadoId, anio])
 }
+
+enum TipoTarjeta {
+  CREDITO
+  DEBITO
+  QR
+}
+
+enum EstadoCupon {
+  PENDIENTE
+  LIQUIDADO
+  ANULADO
+}
+
+enum ClaseImpuestoTarjeta {
+  RETENCION
+  PERCEPCION
+}
+
+enum TipoImpuestoTarjeta {
+  IVA
+  GANANCIAS
+  IIBB
+}
+
+model Tarjeta {
+  id               String      @id @default(uuid()) @db.Uuid
+  empresaId        String      @db.Uuid
+  nombre           String
+  tipo             TipoTarjeta
+  cuentaBancariaId String      @db.Uuid
+  cuentaContableId String      @db.Uuid
+  activa           Boolean     @default(true)
+
+  @@unique([empresaId, nombre])
+}
+
+model CuponTarjeta {
+  id               String      @id @default(uuid()) @db.Uuid
+  empresaId        String      @db.Uuid
+  tarjetaId        String      @db.Uuid
+  ingresoId        String      @db.Uuid
+  sucursalId       String      @db.Uuid
+  cuentaContableId String      @db.Uuid
+  fecha            DateTime    @db.Date
+  lote             String?
+  numero           String?
+  cuotas           Int         @default(1)
+  importe          Decimal     @db.Decimal(18, 2)
+  estado           EstadoCupon @default(PENDIENTE)
+  liquidacionId    String?     @db.Uuid
+  creadoEn         DateTime    @default(now())
+
+  @@index([empresaId, tarjetaId, estado])
+  @@index([empresaId, ingresoId])
+}
+
+model LiquidacionTarjeta {
+  id                 String                       @id @default(uuid()) @db.Uuid
+  empresaId          String                       @db.Uuid
+  numero             Int
+  tarjetaId          String                       @db.Uuid
+  fecha              DateTime                     @db.Date
+  referencia         String?
+  bruto              Decimal                      @db.Decimal(18, 2)
+  arancel            Decimal                      @db.Decimal(18, 2)
+  ivaArancel         Decimal                      @db.Decimal(18, 2)
+  costoFinanciero    Decimal                      @default(0) @db.Decimal(18, 2)
+  ivaCostoFinanciero Decimal                      @default(0) @db.Decimal(18, 2)
+  neto               Decimal                      @db.Decimal(18, 2)
+  cuentaBancariaId   String                       @db.Uuid
+  estado             EstadoDocTesoreria           @default(CONFIRMADO)
+  asientoId          String?                      @db.Uuid
+  asientoAnulacionId String?                      @db.Uuid
+  motivoAnulacion    String?
+  creadoPor          String
+  creadoEn           DateTime                     @default(now())
+  impuestos          LiquidacionTarjetaImpuesto[]
+}
+
+model LiquidacionTarjetaImpuesto {
+  id            String               @id @default(uuid()) @db.Uuid
+  empresaId     String               @db.Uuid
+  liquidacionId String               @db.Uuid
+  liquidacion   LiquidacionTarjeta   @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  clase         ClaseImpuestoTarjeta
+  tipo          TipoImpuestoTarjeta
+  jurisdiccion  String?
+  importe       Decimal              @db.Decimal(18, 2)
+}

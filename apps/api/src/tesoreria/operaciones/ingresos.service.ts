@@ -48,13 +48,20 @@ export class IngresosService {
       this.tenant.db.ingresoValores.findMany({ where, include: INCLUIR, orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }], ...paginacion(q) }),
       this.tenant.db.ingresoValores.count({ where }),
     ]);
-    return { items, total };
+    return { items: await this.conCupones(this.tenant.db, items), total };
   }
 
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
     const i = await tx.ingresoValores.findFirst({ where: { id, ...this.filtro() }, include: INCLUIR });
     if (!i) throw new NotFoundException('Ingreso no encontrado');
-    return i;
+    return (await this.conCupones(tx, [i]))[0];
+  }
+
+  /** Agrega los cupones de tarjeta de cada ingreso (no hay relación en el modelo). */
+  async conCupones<T extends { id: string }>(tx: TxEmpresa, ingresos: T[]) {
+    const cupones = ingresos.length ? await tx.cuponTarjeta.findMany({ where: { ingresoId: { in: ingresos.map((i) => i.id) } }, orderBy: [{ creadoEn: 'asc' }, { id: 'asc' }] }) : [];
+    const nombres = new Map((cupones.length ? await tx.tarjeta.findMany({ where: { id: { in: [...new Set(cupones.map((c) => c.tarjetaId))] } } }) : []).map((t) => [t.id, t.nombre]));
+    return ingresos.map((i) => ({ ...i, cupones: cupones.filter((c) => c.ingresoId === i.id).map((c) => ({ ...c, tarjeta: nombres.get(c.tarjetaId) ?? '' })) }));
   }
 
   crear(d: DatosIngreso) {
@@ -69,7 +76,9 @@ export class IngresosService {
     const empresaId = this.tenant.empresaId;
     const caja = await this.alcance.verificarCaja(tx, d.cajaId);
     if (!caja.activa) throw new BadRequestException('La caja está inactiva');
-    if (!d.efectivo && !d.cheques.length && !d.transferencias.length) throw new BadRequestException('Ingrese al menos un valor');
+    const cupones = d.cupones ?? [];
+    if (!d.efectivo && !d.cheques.length && !d.transferencias.length && !cupones.length) throw new BadRequestException('Ingrese al menos un valor');
+    if (cupones.length && caja.monedaCodigo !== 'ARS') throw new BadRequestException('Los cupones de tarjeta se cobran en pesos');
 
     let terceroId: string | null = null;
     let cuentaHaber: string;
@@ -166,6 +175,19 @@ export class IngresosService {
       }
     }
 
+    // Cupones de tarjeta: quedan a acreditar (sin movimiento de tesorería) contra la cuenta a cobrar de la tarjeta, copiada en el cupón
+    for (const c of cupones) {
+      const t = await tx.tarjeta.findUnique({ where: { id: c.tarjetaId } });
+      if (!t || !t.activa) throw new BadRequestException('Tarjeta inexistente o inactiva');
+      const importe = new D(c.importe).toDecimalPlaces(2);
+      await tx.cuponTarjeta.create({ data: {
+        empresaId, tarjetaId: t.id, ingresoId: ingreso.id, sucursalId: sucursal.id, cuentaContableId: t.cuentaContableId, fecha: d.fecha,
+        lote: c.lote ?? null, numero: c.numero ?? null, cuotas: c.cuotas ?? 1, importe,
+      } });
+      renglones.push({ cuentaContableId: t.cuentaContableId, debe: importe.toFixed(2), detalle: `Cupón ${t.nombre}${c.numero ? ` ${c.numero}` : ''}` });
+      sumar('ARS', importe, importe);
+    }
+
     const totalPesos = [...porMoneda.values()].reduce((s, m) => s.plus(m.pesos), new D(0));
     const debe = [...renglones];
     renglones.push({ cuentaContableId: cuentaHaber, haber: totalPesos.toFixed(2) });
@@ -206,11 +228,19 @@ export class IngresosService {
     await bloquear(tx, 'MovimientoCuentaCorriente', empresaId, movsCc.map((m) => m.id));
     await bloquear(tx, 'Caja', empresaId, [ing.cajaId]);
     await bloquear(tx, 'ChequeTercero', empresaId, ing.cheques.map((c) => c.id));
+    // Bloquea los cupones antes de mirar su estado: una liquidación en curso los tiene tomados
+    await bloquear(tx, 'CuponTarjeta', empresaId, ing.cupones.map((c) => c.id));
     // El efectivo del ingreso tiene que seguir en la caja
     const efectivo = ing.efectivo.reduce((s, e) => s.plus(e.importe), new D(0));
     const sinEfectivo = efectivo.gt(0) && (await saldoCaja(tx, ing.cajaId)).lt(efectivo);
     const cheques = await tx.chequeTercero.findMany({ where: { ingresoId: id } });
     const transf = await tx.transferenciaRecibida.findMany({ where: { ingresoId: id } });
+    const liquidado = await tx.cuponTarjeta.findFirst({ where: { ingresoId: id, estado: 'LIQUIDADO' } });
+    if (liquidado) {
+      const [t, l] = await Promise.all([tx.tarjeta.findUnique({ where: { id: liquidado.tarjetaId } }), liquidado.liquidacionId ? tx.liquidacionTarjeta.findUnique({ where: { id: liquidado.liquidacionId } }) : null]);
+      const cupon = liquidado.numero ? `El cupón ${liquidado.numero}` : 'El cupón';
+      throw new BadRequestException(`${cupon} de ${t?.nombre ?? 'la tarjeta'} ya está liquidado: anule primero la liquidación${l ? ` N° ${l.numero}` : ''}`);
+    }
     if (await tx.aplicacionCobro.count({ where: { creditoMovId: { in: movsCc.map((m) => m.id) }, anulada: false } }))
       throw new BadRequestException('El cobro fue aplicado a comprobantes: deshaga primero la aplicación');
     const aplicaciones = await tx.aplicacionCuentaCorriente.count({ where: { movimientoId: { in: movsCc.map((m) => m.id) }, anulada: false } });
@@ -222,6 +252,7 @@ export class IngresosService {
     const contra = ing.asientoId ? await this.asientos.contraasiento(tx, ing.asientoId, fechaAnulacion, `Anulación del ingreso de valores ${ing.numero} - ${motivo}`) : null;
     for (const c of cheques) await this.cartera.cambiarEstado(tx, c.id, 'ANULADO', { cajaId: null, claveAnulacion: c.id }, { tipo: 'ANULACION_INGRESO', id, fecha: fechaAnulacion });
     await tx.transferenciaRecibida.updateMany({ where: { ingresoId: id }, data: { estado: 'ANULADA' } });
+    await tx.cuponTarjeta.updateMany({ where: { ingresoId: id, estado: 'PENDIENTE' }, data: { estado: 'ANULADO' } });
     await anularMovimientos(tx, 'INGRESO', id);
     await tx.movimientoCuentaCorriente.updateMany({ where: { origenTipo: 'COBRO', origenId: id }, data: { anulado: true, saldo: 0, saldoPesos: 0 } });
     await tx.ingresoValores.update({ where: { id }, data: { estado: 'ANULADO', asientoAnulacionId: contra?.id ?? null, motivoAnulacion: motivo } });

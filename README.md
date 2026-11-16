@@ -267,6 +267,18 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Saldo por año:** corresponden 14, 21, 28 o 35 días según la antigüedad al 31/12 (o 1 cada 20 trabajados si es menos de medio año), con saldo inicial editable para lo que se traía de antes.
 - **Liquidación mensual:** los períodos que empiezan en el mes se pagan con *150 Vacaciones* (÷ 25) y *151 Descuento días de vacaciones* (÷ 30): la diferencia es el plus vacacional. La liquidación final paga como no gozados solo los días pendientes. En el F.931 van al campo Vacaciones.
 
+## Cobros con tarjeta (Entrega 23)
+
+- **Maestro de tarjetas** (*Maestros → Tarjetas*): crédito, débito o QR. Cada tarjeta indica la cuenta bancaria en pesos donde se acredita y usa la cuenta contable 1.1.02.003 "Tarjetas a cobrar".
+- **Cobro:** el recibo y el ingreso de valores admiten cupones (tarjeta, lote, número, cuotas e importe). Cada cupón debita "Tarjetas a cobrar" y queda pendiente. No mueve el banco.
+- **Liquidación** (*Tesorería → Liquidaciones de tarjetas*, permiso `tesoreria.tarjetas`):
+  - se tildan los cupones pendientes y se cargan el arancel, el costo financiero, sus IVA, las retenciones y percepciones sufridas y el neto acreditado;
+  - la liquidación solo se confirma si cierra al centavo;
+  - el neto ingresa al banco; las comisiones van a 5.2.12 "Comisiones de tarjetas" y el IVA a crédito fiscal;
+  - anular la liquidación devuelve los cupones a pendientes (si el movimiento bancario está conciliado, primero hay que deshacer la conciliación).
+- **Consultas:** cupones por tarjeta y estado, con los días de antigüedad, y costo por tarjeta en un período (comisiones sobre bruto y descuento total).
+- Un cobro con un cupón liquidado no se puede anular sin anular antes la liquidación.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
