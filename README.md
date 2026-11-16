@@ -255,6 +255,12 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Pagos:** pago de netos desde una cuenta bancaria o caja (todos o los elegidos, sin pagar dos veces un recibo) y pago de cargas sociales y retenciones contra lo pendiente del mes (Sueldos → *Cargas sociales*, con el detalle del F.931). Se pueden anular.
 - **F.931:** archivo de importación de SICOSS del mes (mensual y SAC juntos), con los códigos ARCA de cada empleado (situación, condición, actividad, modalidad, zona, obra social, cónyuge e hijos). El diseño de registro (versión 42, 499 caracteres por línea) está en `apps/api/src/sueldos/f931-diseno.ts`; conviene verificarlo contra el manual oficial de ARCA antes de presentar.
 
+## Liquidación final (Entrega 20)
+
+- **Dar de baja** desde la ficha del empleado: causa (renuncia, despido sin causa, despido con causa o mutuo acuerdo), fecha de egreso, preaviso otorgado y gratificación (mutuo acuerdo). Crea una liquidación **Final** solo para ese empleado; la mensual del mes deja de incluirlo y sus novedades pasan a la final. No se puede dar de baja a quien ya está en una mensual o un SAC cerrados posteriores (hay que reabrirlos).
+- **Cálculo:** días trabajados del mes, SAC proporcional y vacaciones no gozadas con su SAC; en el despido sin causa, además, indemnización por antigüedad (art. 245, con el tope del convenio por vigencia y piso del 67 %), preaviso e integración del mes, cada uno con su SAC. La mejor remuneración sale de los recibos del último año (o del mes completo) y se puede corregir a mano. Los conceptos indemnizatorios no llevan aportes ni contribuciones y no van al F.931.
+- **Cierre, pago y recibo** como cualquier liquidación: asiento con fecha de egreso y la cuenta *Indemnizaciones*, pago desde banco o caja y recibo "Liquidación final".
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

@@ -10,9 +10,11 @@ export default defineConfig({
   use: { baseURL: WEB, headless: true, launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {} },
   // La conciliación cierra el mes de la cuenta demo: corre al final, cuando las demás pruebas ya registraron sus movimientos
   projects: [
-    { name: 'general', testIgnore: /(conciliacion|tesoreria)\.spec\.ts/ },
+    { name: 'general', testIgnore: /(conciliacion|tesoreria|sueldos-final)\.spec\.ts/ },
+    // La baja crea un empleado que no debe quedar en las mensuales que cierran las pruebas de sueldos: corre después de ellas
+    { name: 'sueldos-final', testMatch: /sueldos-final\.spec\.ts/, dependencies: ['general'] },
     // Tesorería compara el saldo del banco demo antes y después: corre sola, sin pagos en paralelo sobre la misma cuenta
-    { name: 'tesoreria', testMatch: /tesoreria\.spec\.ts/, dependencies: ['general'] },
+    { name: 'tesoreria', testMatch: /tesoreria\.spec\.ts/, dependencies: ['sueldos-final'] },
     { name: 'conciliacion', testMatch: /conciliacion\.spec\.ts/, dependencies: ['tesoreria'] },
   ],
   webServer: [
