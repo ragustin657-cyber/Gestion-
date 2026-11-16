@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { AsientosModule } from '../contabilidad/asientos/asientos.module';
+import { ContabilizacionService } from './contabilizacion.service';
 import { ContribucionesController } from './contribuciones.controller';
 import { ContribucionesService } from './contribuciones.service';
 import { LiquidacionesController } from './liquidaciones.controller';
@@ -8,8 +10,9 @@ import { MaestrosSueldosService } from './maestros.service';
 import { SalidasSueldosController } from './salidas.controller';
 
 @Module({
+  imports: [AsientosModule],
   controllers: [ContribucionesController, MaestrosSueldosController, LiquidacionesController, SalidasSueldosController],
-  providers: [ContribucionesService, MaestrosSueldosService, LiquidacionesService],
+  providers: [ContabilizacionService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
   exports: [ContribucionesService, MaestrosSueldosService, LiquidacionesService],
 })
 export class SueldosModule {}

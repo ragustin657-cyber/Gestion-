@@ -34,6 +34,9 @@ export class LiquidacionesController {
   @Post(':id/cerrar') @RequierePermiso('sueldos.liquidar')
   cerrar(@Param('id', ParseUUIDPipe) id: string) { return this.l.cerrar(id); }
 
+  @Post(':id/contabilizar') @RequierePermiso('sueldos.liquidar')
+  contabilizar(@Param('id', ParseUUIDPipe) id: string) { return this.l.contabilizar(id); }
+
   @Post(':id/reabrir') @RequierePermiso('sueldos.liquidar')
   reabrir(@Param('id', ParseUUIDPipe) id: string) { return this.l.reabrir(id); }
 

@@ -6,6 +6,8 @@ import { NumeracionService } from '../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { ConceptoCalc, liquidarMes, liquidarSac, NovedadCalc, ResultadoCalc, validarConcepto } from './calculo';
 import { basicosVigentes } from './maestros.service';
+import { ContabilizacionService } from './contabilizacion.service';
+import { ContribucionesService } from './contribuciones.service';
 
 const D = Prisma.Decimal;
 const mmaaaa = (anio: number, mes: number) => `${String(mes).padStart(2, '0')}/${anio}`;
@@ -20,7 +22,7 @@ const aCalc = (c: Concepto): ConceptoCalc => ({ id: c.id, codigo: c.codigo, nomb
 
 @Injectable()
 export class LiquidacionesService {
-  constructor(private readonly tenant: TenantPrisma, private readonly numeracion: NumeracionService, private readonly cls: ClsService) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly numeracion: NumeracionService, private readonly cls: ClsService, private readonly contabilizacion: ContabilizacionService, private readonly contribuciones: ContribucionesService) {}
 
   private usuario() {
     return this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
@@ -73,7 +75,8 @@ export class LiquidacionesService {
     const conceptos = (await tx.concepto.findMany({ where: { activo: true } }));
     const basicos = await basicosVigentes(tx, [...new Set(empleados.map((e) => e.categoriaId))], l.anio, l.mes);
     const novedades = await tx.novedad.findMany({ where: { liquidacionId: l.id } });
-    let aviso: string | undefined;
+    const param = await this.contribuciones.parametros(tx, l.anio, l.mes);
+    let aviso: string | undefined = param.aviso;
     let mejores = new Map<string, Prisma.Decimal>();
     if (l.tipo === 'SAC') {
       const cerradas = await this.mensualesCerradas(tx, l.anio, semestre(l.mes));
@@ -97,15 +100,15 @@ export class LiquidacionesService {
       if (l.tipo === 'SAC') {
         const mejor = mejores.get(e.id);
         if (!mejor) continue; // sin sueldos cerrados en el semestre
-        r = liquidarSac(calcE, cs, mejor, l.anio, semestre(l.mes));
+        r = liquidarSac(calcE, cs, mejor, l.anio, semestre(l.mes), param.baseMaxima);
       } else {
         const nov: NovedadCalc[] = novedades.filter((n) => n.empleadoId === e.id).map((n) => ({ tipo: n.tipo, conceptoId: n.conceptoId, cantidad: n.cantidad ? new D(n.cantidad) : null, importe: n.importe ? new D(n.importe) : null }));
-        r = liquidarMes(calcE, cs, nov, l.anio, l.mes);
+        r = liquidarMes(calcE, cs, nov, l.anio, l.mes, param.baseMaxima);
       }
       vigentes.add(e.id);
       const datos = {
         apellido: e.apellido, nombre: e.nombre, cuil: e.cuil, legajo: e.legajo, categoria: cat.nombre, basico, fechaIngreso: e.fechaIngreso, antiguedadAnios: r.antiguedadAnios, diasTrabajados: r.diasTrabajados,
-        totalRemunerativo: r.totalRemunerativo, totalNoRemunerativo: r.totalNoRemunerativo, totalDescuentos: r.totalDescuentos, neto: r.neto,
+        totalRemunerativo: r.totalRemunerativo, totalNoRemunerativo: r.totalNoRemunerativo, totalDescuentos: r.totalDescuentos, neto: r.neto, centroCostoId: e.centroCostoId,
       };
       const previo = previos.get(e.id);
       const recibo = previo
@@ -136,6 +139,8 @@ export class LiquidacionesService {
         renglones: r.renglones.map((x) => ({ ...x, importe: f2(x.importe), base: f2(x.base), cantidad: x.cantidad === null ? null : new D(x.cantidad).toString(), porcentaje: x.porcentaje === null ? null : new D(x.porcentaje).toString() })),
         novedades: novedades.filter((n) => n.empleadoId === r.empleadoId).map((n) => ({ ...n, cantidad: n.cantidad === null ? null : Number(n.cantidad), importe: n.importe === null ? null : Number(n.importe) })),
       })),
+      asiento: l.asientoId ? await tx.asiento.findUnique({ where: { id: l.asientoId }, select: { id: true, numero: true } }) : null,
+      contribuciones: await this.contabilizacion.resumen(tx, await this.liquidacion(tx, id)),
       totales: { remunerativo: tot.remunerativo.toFixed(2), noRemunerativo: tot.noRemunerativo.toFixed(2), descuentos: tot.descuentos.toFixed(2), neto: tot.neto.toFixed(2) },
     };
   }
@@ -175,7 +180,8 @@ export class LiquidacionesService {
       const recibos = await tx.reciboSueldo.findMany({ where: { liquidacionId: id, numero: null }, orderBy: { legajo: 'asc' } });
       if (!recibos.length && !(await tx.reciboSueldo.count({ where: { liquidacionId: id } }))) throw new BadRequestException('La liquidación no tiene recibos');
       for (const r of recibos) await tx.reciboSueldo.update({ where: { id: r.id }, data: { numero: await this.numeracion.siguiente(tx, 'RECIBO_SUELDO', 0) } });
-      await tx.liquidacion.update({ where: { id }, data: { estado: 'CERRADA', cerradoPor: this.usuario(), cerradoEn: new Date() } });
+      const cerrada = await tx.liquidacion.update({ where: { id }, data: { estado: 'CERRADA', cerradoPor: this.usuario(), cerradoEn: new Date() } });
+      await this.contabilizacion.contabilizar(tx, cerrada);
       return this.obtener(id, tx);
     });
   }
@@ -188,7 +194,18 @@ export class LiquidacionesService {
         const sac = await tx.liquidacion.findFirst({ where: { tipo: 'SAC', anio: l.anio, mes: semestre(l.mes) === 1 ? 6 : 12, estado: 'CERRADA' } });
         if (sac) throw new BadRequestException(`La liquidación se usó en el SAC de ${mmaaaa(sac.anio, sac.mes)}: reábralo primero`);
       }
+      await this.contabilizacion.anular(tx, l);
       await tx.liquidacion.update({ where: { id }, data: { estado: 'BORRADOR', cerradoPor: null, cerradoEn: null } });
+      return this.obtener(id, tx);
+    });
+  }
+
+  /** Genera el asiento de una liquidación cerrada que no lo tiene (cerradas antes de la Entrega 19). */
+  contabilizar(id: string) {
+    return this.tenant.transaccion(async (tx) => {
+      const l = await this.liquidacion(tx, id);
+      if (l.estado !== 'CERRADA') throw new BadRequestException('La liquidación no está cerrada');
+      await this.contabilizacion.contabilizar(tx, l);
       return this.obtener(id, tx);
     });
   }
