@@ -161,10 +161,11 @@ export interface ContribucionResultado { codigo: string; nombre: string; destino
  * Contribuciones patronales de un recibo (spec E19 §2): base = remunerativo, menos la detracción (proporcional a los días
  * en el mensual, 50 % en el SAC) si corresponde; importe = base × alícuota + fijo (el fijo solo en el mensual). Omite los 0.
  */
-export function calcularContribuciones(remunerativo: Dec, diasTrabajados: number, tipo: 'MENSUAL' | 'SAC' | 'FINAL', contribuciones: ContribucionCalc[], detraccion: Dec): ContribucionResultado[] {
+export function calcularContribuciones(remunerativo: Dec, diasTrabajados: number, tipo: 'MENSUAL' | 'SAC' | 'FINAL', contribuciones: ContribucionCalc[], detraccion: Dec, sac: Dec = new D(0)): ContribucionResultado[] {
   if (tipo !== 'SAC' && diasTrabajados <= 0) return [];
   const rem = D.max(new D(remunerativo), 0);
-  const det = r2(tipo === 'SAC' ? new D(detraccion).div(2) : new D(detraccion).times(diasTrabajados).div(30));
+  // Final: proporcional a los días del mes, más el 50 % si incluye SAC (spec E20 §9.6); nunca más que el remunerativo
+  const det = D.min(rem, r2(tipo === 'SAC' ? new D(detraccion).div(2) : new D(detraccion).times(diasTrabajados).div(30).plus(tipo === 'FINAL' && new D(sac).gt(0) ? new D(detraccion).div(2) : 0)));
   const out: ContribucionResultado[] = [];
   for (const c of contribuciones) {
     const base = c.aplicaDetraccion ? D.max(rem.minus(det), 0) : rem;

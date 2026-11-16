@@ -19,18 +19,22 @@ export class F931Service {
     if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) throw new BadRequestException('Mes inválido');
     const db = this.tenant.db;
     const liqs = await db.liquidacion.findMany({ where: { anio, mes } });
-    const mensual = liqs.find((l) => l.tipo === 'MENSUAL' && l.estado === 'CERRADA');
+    const mensualExistente = liqs.find((l) => l.tipo === 'MENSUAL');
+    const mensual = mensualExistente?.estado === 'CERRADA' ? mensualExistente : undefined;
     const sac = liqs.find((l) => l.tipo === 'SAC' && l.estado === 'CERRADA');
-    if (sac && !mensual) throw new BadRequestException(`La liquidación mensual de ${mmaaaa(anio, mes)} no está cerrada`);
-    if (!mensual) throw new BadRequestException(`No hay liquidaciones cerradas de ${mmaaaa(anio, mes)}`);
-    const cerradas = [mensual, ...(sac ? [sac] : [])];
+    const finales = liqs.filter((l) => l.tipo === 'FINAL' && l.estado === 'CERRADA');
+    // §9.4 (E20): una mensual del mes sin cerrar, o un SAC cerrado sin mensual, bloquean el archivo
+    if ((mensualExistente && !mensual) || (sac && !mensual)) throw new BadRequestException(`La liquidación mensual de ${mmaaaa(anio, mes)} no está cerrada`);
+    if (!mensual && !finales.length) throw new BadRequestException(`No hay liquidaciones cerradas de ${mmaaaa(anio, mes)}`);
+    const cerradas = [...(mensual ? [mensual] : []), ...(sac ? [sac] : []), ...finales];
+    const esFinal = new Set(finales.map((l) => l.id));
     const [empresa, param, vigentes] = await Promise.all([
       db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } }), this.contribuciones.parametros(db, anio, mes), this.contribuciones.vigentes(db, anio, mes),
     ]);
     const recibos = await db.reciboSueldo.findMany({ where: { liquidacionId: { in: cerradas.map((l) => l.id) } }, include: { renglones: true } });
     const empleados = new Map((await db.empleado.findMany({ where: { id: { in: recibos.map((r) => r.empleadoId) } } })).map((e) => [e.id, e]));
     const conceptos = new Map((await db.concepto.findMany()).map((c) => [c.id, c]));
-    const novedades = await db.novedad.findMany({ where: { liquidacionId: mensual.id, tipo: { in: ['HORAS_EXTRA_50', 'HORAS_EXTRA_100'] } } });
+    const novedades = await db.novedad.findMany({ where: { liquidacionId: { in: [...(mensual ? [mensual.id] : []), ...finales.map((l) => l.id)] }, tipo: { in: ['HORAS_EXTRA_50', 'HORAS_EXTRA_100'] } } });
     const scvo = vigentes.some((c) => c.codigo === 'SCVO' && c.importeFijo.gt(0));
     const ini = new Date(Date.UTC(anio, mes - 1, 1));
     const cero = () => new D(0);
@@ -51,16 +55,20 @@ export class F931Service {
         };
         porEmpleado.set(e.id, d);
       }
+      const final = esFinal.has(r.liquidacionId);
       const rem = D.max(new D(r.totalRemunerativo), 0);
-      const tope = param.baseMaxima ? (esSac ? param.baseMaxima.div(2) : param.baseMaxima) : null;
+      // Los conceptos indemnizatorios de la final (300 a 340) no se informan
+      const noRem = new D(r.totalNoRemunerativo).minus(r.renglones.filter((x) => !x.conceptoId && Number(x.codigo) >= 300 && Number(x.codigo) < 400).reduce((s2, x) => s2.plus(x.importe), new D(0)));
+      const sacFinal = final ? r.renglones.filter((x) => x.codigo === '200' && !x.conceptoId).reduce((s2, x) => s2.plus(x.importe), new D(0)) : new D(0);
+      const tope = param.baseMaxima ? (esSac ? param.baseMaxima.div(2) : final ? param.baseMaxima.times(1.5) : param.baseMaxima) : null;
       const conTope = tope ? D.min(rem, tope) : rem;
-      const det = D.min(rem, r2(esSac ? param.detraccion.div(2) : param.detraccion.times(r.diasTrabajados).div(30)));
-      d.remuneracionTotal = d.remuneracionTotal.plus(rem).plus(r.totalNoRemunerativo);
+      const det = D.min(rem, r2(esSac ? param.detraccion.div(2) : param.detraccion.times(r.diasTrabajados).div(30).plus(sacFinal.gt(0) ? param.detraccion.div(2) : 0)));
+      d.remuneracionTotal = d.remuneracionTotal.plus(rem).plus(noRem);
       d.imponible1 = d.imponible1.plus(conTope); d.imponible4 = d.imponible4.plus(conTope); d.imponible5 = d.imponible5.plus(conTope);
       for (const k of ['imponible2', 'imponible3', 'imponible8', 'imponible9'] as const) d[k] = d[k].plus(rem);
       d.imponible11 = d.imponible11.plus(rem.minus(det));
       d.detraccion = d.detraccion.plus(det);
-      d.noRemunerativo = d.noRemunerativo.plus(r.totalNoRemunerativo);
+      d.noRemunerativo = d.noRemunerativo.plus(noRem);
       if (!esSac) d.diasTrabajados = r.diasTrabajados;
       for (const x of r.renglones.filter((y) => y.clase === 'REMUNERATIVO')) {
         if (x.codigo === '200' && !x.conceptoId) { d.sac = d.sac.plus(x.importe); continue; }

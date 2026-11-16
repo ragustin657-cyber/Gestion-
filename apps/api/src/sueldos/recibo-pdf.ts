@@ -13,6 +13,8 @@ export interface DatosRecibo {
   deposito: { fecha: string | null; banco: string | null; periodo: string | null };
   fechaPago: string;
   borrador: boolean;
+  /** Liquidación final: causa y fecha de egreso. */
+  final?: { causa: string; fechaEgreso: string } | null;
 }
 
 const ddmmaaaa = (f: string) => f.split('-').reverse().join('/');
@@ -46,13 +48,13 @@ function copia(doc: PDFKit.PDFDocument, r: DatosRecibo, rotulo: string, y0: numb
   doc.fillColor('black').font('Helvetica-Bold').fontSize(7).text(rotulo, 30, y0, { width: ancho, align: 'right' });
   doc.fontSize(11).text(r.empresa.razonSocial, 30, y0 + 8, { width: 330 });
   doc.font('Helvetica').fontSize(7.5).text(`CUIT ${formatearCuit(r.empresa.cuit)}${r.empresa.domicilio ? ` · ${r.empresa.domicilio}` : ''}`, 30, y0 + 22, { width: 330 });
-  doc.font('Helvetica-Bold').fontSize(10).text('RECIBO DE HABERES', 360, y0 + 8, { width: 205, align: 'right' });
+  doc.font('Helvetica-Bold').fontSize(10).text(r.final ? 'LIQUIDACIÓN FINAL' : 'RECIBO DE HABERES', 360, y0 + 8, { width: 205, align: 'right' });
   doc.font('Helvetica').fontSize(7.5).text(`${r.numero ? `N° ${r.numero} · ` : ''}Período: ${r.periodo}`, 360, y0 + 22, { width: 205, align: 'right' });
   doc.moveTo(30, y0 + 34).lineTo(565, y0 + 34).stroke();
   const e = r.empleado;
   doc.fontSize(7.5)
     .text(`Legajo ${e.legajo} · ${e.apellido}, ${e.nombre} · CUIL ${formatearCuit(e.cuil)}`, 30, y0 + 38, { width: ancho })
-    .text(`Categoría: ${e.categoria} · Ingreso: ${ddmmaaaa(e.fechaIngreso)} · Antigüedad: ${e.antiguedadAnios} años · Básico: ${importeAR(e.basico)}`, 30, y0 + 48, { width: ancho });
+    .text(`Categoría: ${e.categoria} · Ingreso: ${ddmmaaaa(e.fechaIngreso)}${r.final ? ` · Egreso: ${ddmmaaaa(r.final.fechaEgreso)} · Causa: ${r.final.causa}` : ''} · Antigüedad: ${e.antiguedadAnios} años · Básico: ${importeAR(e.basico)}`, 30, y0 + 48, { width: ancho });
   // Tabla de conceptos
   const cols = [30, 70, 250, 325, 405, 485];
   const anchos = [40, 180, 75, 80, 80, 80];
