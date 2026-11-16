@@ -261,6 +261,12 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Cálculo:** días trabajados del mes, SAC proporcional y vacaciones no gozadas con su SAC; en el despido sin causa, además, indemnización por antigüedad (art. 245, con el tope del convenio por vigencia y piso del 67 %), preaviso e integración del mes, cada uno con su SAC. La mejor remuneración sale de los recibos del último año (o del mes completo) y se puede corregir a mano. Los conceptos indemnizatorios no llevan aportes ni contribuciones y no van al F.931.
 - **Cierre, pago y recibo** como cualquier liquidación: asiento con fecha de egreso y la cuenta *Indemnizaciones*, pago desde banco o caja y recibo "Liquidación final".
 
+## Vacaciones (Entrega 21)
+
+- **Registro de períodos** (Sueldos → *Vacaciones*): empleado, desde, hasta (días corridos) y año al que corresponden. Avisa si se excede el saldo o si empieza fuera del 1/10 al 30/4, y no deja superponer períodos. Un período pagado en una liquidación cerrada no se edita hasta reabrirla; los de meses ya cerrados se cargan como "liquidados fuera del sistema".
+- **Saldo por año:** corresponden 14, 21, 28 o 35 días según la antigüedad al 31/12 (o 1 cada 20 trabajados si es menos de medio año), con saldo inicial editable para lo que se traía de antes.
+- **Liquidación mensual:** los períodos que empiezan en el mes se pagan con *150 Vacaciones* (÷ 25) y *151 Descuento días de vacaciones* (÷ 30): la diferencia es el plus vacacional. La liquidación final paga como no gozados solo los días pendientes. En el F.931 van al campo Vacaciones.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
