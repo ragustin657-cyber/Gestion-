@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { aniosIndemnizables, antiguedadAnios, antiguedadDetalle, calcularContribuciones, DatosFinal, liquidarFinal, remuneracionMesCompleto, ConceptoCalc, ContribucionCalc, diasTrabajados, EmpleadoCalc, liquidarMes, liquidarSac, validarConcepto } from './calculo';
+import { diasVacacionesCorresponden, aniosIndemnizables, antiguedadAnios, antiguedadDetalle, calcularContribuciones, DatosFinal, liquidarFinal, remuneracionMesCompleto, ConceptoCalc, ContribucionCalc, diasTrabajados, EmpleadoCalc, liquidarMes, liquidarSac, validarConcepto } from './calculo';
 
 const D = (n: number) => new Prisma.Decimal(n);
 const f = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -175,6 +175,53 @@ describe('cálculo de sueldos', () => {
       expect(aniosIndemnizables(f('2021-03-01'), f('2026-06-01'))).toBe(5);
       expect(aniosIndemnizables(f('2021-03-01'), f('2026-06-02'))).toBe(6);
       expect(antiguedadDetalle(f('2021-03-01'), egreso)).toEqual({ anios: 5, meses: 8, dias: 14 });
+    });
+  });
+
+  describe('vacaciones', () => {
+    const VAC = [...COMERCIO, c('150', 'Vacaciones', 'REMUNERATIVO', 'VACACIONES', { divisor: 25 }), c('151', 'Descuento días de vacaciones', 'REMUNERATIVO', 'VACACIONES', { divisor: 30, descuenta: true })];
+
+    it('vacaciones en la mensual', () => {
+      const r = liquidarMes(empleado(), VAC, [], 2026, 11, null, [{ periodoId: 'p1', dias: 14 }]);
+      const m = mapa(r);
+      expect([m['150'], m['151'], m['120']]).toEqual(['588000.00', '-490000.00', '87465.00']);
+      expect([r.totalRemunerativo.toFixed(2), r.totalDescuentos.toFixed(2), r.neto.toFixed(2)]).toEqual(['1235465.00', '240915.68', '994549.32']);
+      expect(r.renglones.find((x) => x.codigo === '150')!.vacacionPeriodoId).toBe('p1');
+    });
+
+    it('dos períodos en el mes', () => {
+      const r = liquidarMes(empleado(), VAC, [], 2026, 11, null, [{ periodoId: 'a', dias: 5 }, { periodoId: 'b', dias: 9 }]);
+      expect(r.renglones.filter((x) => x.codigo === '150').map((x) => x.importe.toFixed(2))).toEqual(['210000.00', '378000.00']);
+      expect(r.renglones.filter((x) => x.codigo === '151')).toHaveLength(2);
+    });
+
+    it('sin conceptos de vacaciones no liquida', () => {
+      const r = liquidarMes(empleado(), COMERCIO, [], 2026, 11, null, [{ periodoId: 'p1', dias: 14 }]);
+      expect(r.renglones.some((x) => x.codigo === '150' || x.codigo === '151')).toBe(false);
+    });
+
+    it('días que corresponden', () => {
+      expect(diasVacacionesCorresponden(f('2021-03-01'), null, 2025)).toBe(14);
+      expect(diasVacacionesCorresponden(f('2021-03-01'), null, 2026)).toBe(21);
+      expect(diasVacacionesCorresponden(f('2016-01-01'), null, 2026)).toBe(28);
+      expect(diasVacacionesCorresponden(f('2000-01-01'), null, 2026)).toBe(35);
+      expect(diasVacacionesCorresponden(f('2026-09-01'), null, 2026)).toBe(6);
+      expect(diasVacacionesCorresponden(f('2027-01-10'), null, 2026)).toBe(0);
+      expect(diasVacacionesCorresponden(f('2021-03-01'), f('2026-03-31'), 2026)).toBe(4);
+    });
+
+    it('final con vacaciones tomadas', () => {
+      const x = { causa: 'DESPIDO_SIN_CAUSA' as const, fechaEgreso: f('2026-11-15'), preavisoOtorgado: false, mejorRemuneracion: D(1137465), mejorRemuneracionSemestre: D(1137465), topeIndemnizatorio: null, baseMaxima: null, gratificacion: D(0) };
+      const fin = (o: Record<string, unknown>) => mapa(liquidarFinal(empleado({ fechaEgreso: x.fechaEgreso }), COMERCIO, [], { ...x, ...o }));
+      expect([fin({ diasVacacionesTomadosAnio: 14 })['330'], fin({ diasVacacionesTomadosAnio: 14 })['331']]).toEqual(['198074.73', '16506.23']);
+      expect(fin({})['330']).toBe('835055.13');
+      const esperado = new Prisma.Decimal(1137465).div(25).times(new Prisma.Decimal(21).times(319).div(365).plus(10)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toFixed(2);
+      expect(fin({ diasVacacionesPendientesAnteriores: 10 })['330']).toBe(esperado);
+    });
+
+    it('validar concepto de vacaciones', () => {
+      expect(validarConcepto('VACACIONES', 'REMUNERATIVO', { divisor: 25 })).toBeNull();
+      expect(validarConcepto('VACACIONES', 'DESCUENTO', { divisor: 25 })).toBe('El cálculo Vacaciones no admite la clase Descuento');
     });
   });
 });
