@@ -224,4 +224,9 @@ describe('cálculo de sueldos', () => {
       expect(validarConcepto('VACACIONES', 'DESCUENTO', { divisor: 25 })).toBe('El cálculo Vacaciones no admite la clase Descuento');
     });
   });
+
+  it('ingreso un 29/02', () => {
+    expect(antiguedadDetalle(f('2024-02-29'), f('2025-03-01'))).toEqual({ anios: 1, meses: 0, dias: 0 });
+    expect(aniosIndemnizables(f('2024-02-29'), f('2025-06-01'))).toBe(1);
+  });
 });

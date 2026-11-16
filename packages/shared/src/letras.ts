@@ -25,7 +25,7 @@ function entero(n: number): string {
   const miles = Math.floor((n % 1_000_000) / 1000);
   const resto = n % 1000;
   const partes: string[] = [];
-  if (millones) partes.push(millones === 1 ? 'un millón' : `${entero(millones).replace(/uno$/, 'un').replace(/veintiuno$/, 'veintiún')} millones`);
+  if (millones) partes.push(millones === 1 ? 'un millón' : `${entero(millones).replace(/veintiuno$/, 'veintiún').replace(/uno$/, 'un')} millones`);
   if (miles) partes.push(miles === 1 ? 'mil' : `${hasta999(miles, true)} mil`);
   if (resto) partes.push(hasta999(resto, false));
   return partes.join(' ');
@@ -33,7 +33,8 @@ function entero(n: number): string {
 
 /** Importe en letras para recibos: `pesos novecientos cuarenta y un mil dieciséis con 82/100`. */
 export function montoEnLetras(importe: string): string {
-  const [ent, dec = ''] = importe.replace('-', '').split('.');
+  const negativo = importe.trim().startsWith('-');
+  const [ent, dec = ''] = importe.trim().replace('-', '').split('.');
   const centavos = (dec + '00').slice(0, 2);
-  return `pesos ${entero(Number(ent))} con ${centavos}/100`;
+  return `${negativo && (Number(ent) || Number(centavos)) ? 'menos ' : ''}pesos ${entero(Number(ent))} con ${centavos}/100`;
 }

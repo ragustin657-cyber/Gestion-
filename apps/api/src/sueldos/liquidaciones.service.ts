@@ -4,7 +4,7 @@ import { ClsService } from 'nestjs-cls';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { NumeracionService } from '../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
-import { ConceptoCalc, diasVacacionesCorresponden, liquidarFinal, liquidarMes, liquidarSac, NovedadCalc, remuneracionMesCompleto, ResultadoCalc, validarConcepto } from './calculo';
+import { ConceptoCalc, diasTrabajados, diasVacacionesCorresponden, liquidarFinal, liquidarMes, liquidarSac, NovedadCalc, remuneracionMesCompleto, ResultadoCalc, validarConcepto } from './calculo';
 import { basicosVigentes, topeVigente } from './maestros.service';
 import { ContabilizacionService } from './contabilizacion.service';
 import { ContribucionesService } from './contribuciones.service';
@@ -189,7 +189,7 @@ export class LiquidacionesService {
       vigentes.add(e.id);
       const datos = {
         apellido: e.apellido, nombre: e.nombre, cuil: e.cuil, legajo: e.legajo, categoria: cat.nombre, basico, fechaIngreso: e.fechaIngreso, antiguedadAnios: r.antiguedadAnios, diasTrabajados: r.diasTrabajados,
-        totalRemunerativo: r.totalRemunerativo, totalNoRemunerativo: r.totalNoRemunerativo, totalDescuentos: r.totalDescuentos, neto: r.neto, centroCostoId: e.centroCostoId,
+        totalRemunerativo: r.totalRemunerativo, totalNoRemunerativo: r.totalNoRemunerativo, totalDescuentos: r.totalDescuentos, neto: r.neto, centroCostoId: e.centroCostoId, formaPago: e.formaPago,
       };
       const previo = previos.get(e.id);
       const recibo = previo
@@ -219,12 +219,13 @@ export class LiquidacionesService {
       ...l, fechaPago: l.fechaPago.toISOString().slice(0, 10), ultimoDepositoFecha: l.ultimoDepositoFecha?.toISOString().slice(0, 10) ?? null,
       errores, ...(avisos.length ? { aviso: avisos.join(". ") } : {}),
       recibos: recibos.map((r) => ({
-        ...r, pagado: pagados.has(r.id), fechaIngreso: r.fechaIngreso.toISOString().slice(0, 10), basico: f2(r.basico), totalRemunerativo: f2(r.totalRemunerativo), totalNoRemunerativo: f2(r.totalNoRemunerativo), totalDescuentos: f2(r.totalDescuentos), neto: f2(r.neto),
+        ...r, pagado: pagados.has(r.id), sinNeto: !new D(r.neto).gt(0), fechaIngreso: r.fechaIngreso.toISOString().slice(0, 10), basico: f2(r.basico), totalRemunerativo: f2(r.totalRemunerativo), totalNoRemunerativo: f2(r.totalNoRemunerativo), totalDescuentos: f2(r.totalDescuentos), neto: f2(r.neto),
         renglones: r.renglones.map((x) => ({ ...x, importe: f2(x.importe), base: f2(x.base), cantidad: x.cantidad === null ? null : new D(x.cantidad).toString(), porcentaje: x.porcentaje === null ? null : new D(x.porcentaje).toString() })),
         novedades: novedades.filter((n) => n.empleadoId === r.empleadoId).map((n) => ({ ...n, cantidad: n.cantidad === null ? null : Number(n.cantidad), importe: n.importe === null ? null : Number(n.importe) })),
       })),
       pagos: await this.pagos.pagosDeLiquidacion(tx, id),
-      pendientePago: recibos.filter((r) => !pagados.has(r.id)).reduce((s, r) => s.plus(r.neto), new D(0)).toFixed(2),
+      // Los recibos sin neto a pagar (≤ 0) no quedan pendientes (E22 §2.1)
+      pendientePago: recibos.filter((r) => !pagados.has(r.id) && new D(r.neto).gt(0)).reduce((s, r) => s.plus(r.neto), new D(0)).toFixed(2),
       egreso: await this.egresoSalida(tx, id),
       asiento: l.asientoId ? await tx.asiento.findUnique({ where: { id: l.asientoId }, select: { id: true, numero: true } }) : null,
       contribuciones: await this.contabilizacion.resumen(tx, await this.liquidacion(tx, id)),
@@ -235,14 +236,26 @@ export class LiquidacionesService {
   /** Errores y aviso del borrador sin grabar (se recalculan en una transacción que se descarta). */
   private async estadoBorrador(tx: TxEmpresa, l: Liquidacion) {
     // El cálculo es idempotente: recalcular al consultar mantiene el borrador al día (escalas o empleados nuevos)
-    return this.tenant.db === tx ? this.tenant.transaccion((t) => this.calcular(t, l)) : this.calcular(tx, l);
+    // Dos consultas simultáneas se serializan con el bloqueo de la liquidación (E22 §2.5); si se cerró mientras tanto, no se toca
+    const recalcular = async (t: TxEmpresa) => {
+      await this.bloquear(t, l.id);
+      const actual = await t.liquidacion.findUniqueOrThrow({ where: { id: l.id } });
+      return actual.estado === 'BORRADOR' ? this.calcular(t, actual) : { errores: [], aviso: undefined };
+    };
+    return this.tenant.db === tx ? this.tenant.transaccion(recalcular) : recalcular(tx);
   }
 
   guardarNovedades(id: string, empleadoId: string, novedades: NovedadEntrada[]) {
     return this.tenant.transaccion(async (tx) => {
       const l = await this.liquidacion(tx, id, true);
       if (l.tipo === 'SAC') throw new BadRequestException('El SAC no tiene novedades');
-      if (!(await tx.empleado.findUnique({ where: { id: empleadoId } }))) throw new BadRequestException('Empleado inexistente');
+      const emp = await tx.empleado.findUnique({ where: { id: empleadoId } });
+      if (!emp) throw new BadRequestException('Empleado inexistente');
+      if (l.tipo === 'FINAL' && (await tx.egresoEmpleado.findUnique({ where: { liquidacionId: id } }))?.empleadoId !== empleadoId) throw new BadRequestException('La liquidación final es de otro empleado');
+      // Las ausencias no pueden superar los días trabajados del mes (E22 §2.2)
+      const ausencias = novedades.filter((n) => n.tipo === 'AUSENCIA_INJUSTIFICADA').reduce((t, n) => t + (n.cantidad ?? 0), 0);
+      const trabajados = diasTrabajados(emp.fechaIngreso, emp.fechaEgreso, l.anio, l.mes);
+      if (ausencias > trabajados) throw new BadRequestException(`Las ausencias (${ausencias} días) superan los días trabajados del mes (${trabajados})`);
       await tx.novedad.deleteMany({ where: { liquidacionId: id, empleadoId } });
       const data = novedades.filter((n) => (n.cantidad ?? 0) || (n.importe ?? 0)).map((n) => ({ empresaId: this.tenant.empresaId, liquidacionId: id, empleadoId, tipo: n.tipo, conceptoId: n.conceptoId ?? null, cantidad: n.cantidad ?? null, importe: n.importe ?? null, detalle: n.detalle ?? null }));
       if (data.length) await tx.novedad.createMany({ data });
@@ -268,7 +281,9 @@ export class LiquidacionesService {
       const recibos = await tx.reciboSueldo.findMany({ where: { liquidacionId: id, numero: null }, orderBy: { legajo: 'asc' } });
       if (!recibos.length && !(await tx.reciboSueldo.count({ where: { liquidacionId: id } }))) throw new BadRequestException('La liquidación no tiene recibos');
       for (const r of recibos) await tx.reciboSueldo.update({ where: { id: r.id }, data: { numero: await this.numeracion.siguiente(tx, 'RECIBO_SUELDO', 0) } });
-      const cerrada = await tx.liquidacion.update({ where: { id }, data: { estado: 'CERRADA', cerradoPor: this.usuario(), cerradoEn: new Date() } });
+      // Copia de los parámetros previsionales usados (el F.931 de un mes cerrado no cambia si se editan después), E22 §2.7
+      const param = await this.contribuciones.parametros(tx, l.anio, l.mes);
+      const cerrada = await tx.liquidacion.update({ where: { id }, data: { estado: 'CERRADA', cerradoPor: this.usuario(), cerradoEn: new Date(), baseMaximaAportes: param.baseMaxima, detraccion: param.detraccion } });
       await this.contabilizacion.contabilizar(tx, cerrada);
       return this.obtener(id, tx);
     });
@@ -312,9 +327,12 @@ export class LiquidacionesService {
 
   eliminar(id: string) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx, id);
       const l = await this.liquidacion(tx, id);
       if (l.estado !== 'BORRADOR') throw new BadRequestException('Solo se elimina una liquidación en borrador');
       const eg = l.tipo === 'FINAL' ? await tx.egresoEmpleado.findUnique({ where: { liquidacionId: id } }) : null;
+      if (eg && (await tx.liquidacion.count({ where: { tipo: 'MENSUAL', anio: l.anio, mes: l.mes, estado: 'CERRADA' } })))
+        throw new BadRequestException(`La liquidación mensual de ${mmaaaa(l.anio, l.mes)} ya está cerrada: el empleado quedaría sin recibo de ese mes. Reábrala antes de eliminar la final`);
       await tx.liquidacion.delete({ where: { id } });
       if (eg) {
         // El empleado vuelve a estar activo y sin egreso; la mensual en borrador del mes lo vuelve a incluir

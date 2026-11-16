@@ -178,13 +178,29 @@ export class MaestrosSueldosService {
     return this.tenant.db.concepto.findMany({ orderBy: [{ orden: 'asc' }, { codigo: 'asc' }] });
   }
 
+  private async validarCuentaConcepto(cuentaContableId: string | null | undefined) {
+    if (!cuentaContableId) return;
+    const c = await this.tenant.db.cuentaContable.findUnique({ where: { id: cuentaContableId } });
+    if (!c || !c.imputable || !c.activa) throw new BadRequestException('Cuenta contable inválida: debe ser imputable y activa');
+  }
+
+  /** Avisos de configuración de los conceptos (E22 §2.16). */
+  async avisosConceptos(): Promise<string[]> {
+    const vac = await this.tenant.db.concepto.findMany({ where: { tipo: 'VACACIONES', activo: true } });
+    const pago = vac.some((c) => (c.parametros as Record<string, unknown>)?.descuenta !== true);
+    const descuento = vac.some((c) => (c.parametros as Record<string, unknown>)?.descuenta === true);
+    return pago && descuento ? [] : ['Faltan los conceptos de vacaciones (pago y descuento): las vacaciones no se liquidan'];
+  }
+
   async crearConcepto(d: DatosConcepto) {
     if (await this.tenant.db.concepto.findFirst({ where: { codigo: d.codigo } })) throw new BadRequestException(`Ya existe el concepto ${d.codigo}`);
+    await this.validarCuentaConcepto(d.cuentaContableId);
     return this.tenant.db.concepto.create({ data: { ...d, parametros: d.parametros as Prisma.InputJsonValue, empresaId: this.tenant.empresaId } });
   }
 
   async modificarConcepto(id: string, d: DatosConcepto) {
     if (!(await this.tenant.db.concepto.findUnique({ where: { id } }))) throw new NotFoundException('Concepto inexistente');
+    await this.validarCuentaConcepto(d.cuentaContableId);
     return this.tenant.db.concepto.update({ where: { id }, data: { ...d, parametros: d.parametros as Prisma.InputJsonValue } });
   }
 }

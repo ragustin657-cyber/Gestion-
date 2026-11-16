@@ -51,6 +51,9 @@ export class MaestrosSueldosController {
   @Put('empleados/:id') @RequierePermiso('sueldos.liquidar')
   modificarEmpleado(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaEdicionEmpleado)) d: Partial<DatosEmpleado>) { return this.m.modificarEmpleado(id, d); }
 
+  @Get('conceptos/avisos') @RequierePermiso('sueldos.ver')
+  avisosConceptos() { return this.m.avisosConceptos(); }
+
   @Get('conceptos') @RequierePermiso('sueldos.ver')
   conceptos() { return this.m.conceptos(); }
 

@@ -8,7 +8,7 @@ import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { errorConsulta, opcionesCajas, opcionesCuentas, useCajas, useCuentasBancarias, useOperacion } from '../tesoreria/comun';
 import { PanelPagos } from './PanelPagos';
 import { DialogoBaja, TarjetaEgreso } from './DialogoBaja';
-import { DESTINOS_CONTRIBUCION, DestinoContribucion, formatoCuil, LiquidacionDetalle, Novedad, periodoLiquidacion, Recibo } from './comun';
+import { DESTINOS_CONTRIBUCION, DestinoContribucion, formatoCuil, useConceptos, LiquidacionDetalle, Novedad, periodoLiquidacion, Recibo } from './comun';
 
 const cantidad = (x: Recibo['renglones'][number]) =>
   x.porcentaje !== null && x.base !== null ? `${formatoMoneda(x.base)} × ${Number(x.porcentaje).toLocaleString('es-AR')} %` : x.cantidad !== null ? Number(x.cantidad).toLocaleString('es-AR') : '';
@@ -45,20 +45,37 @@ const CAMPOS: { tipo: Novedad['tipo']; etiqueta: string; importe?: boolean }[] =
 ];
 
 /** Novedades del mes de un empleado: horas extra y ausencias. */
-export function PanelNovedades({ novedades, onCambiar, deshabilitado }: { novedades: Novedad[]; onCambiar: (n: Novedad[]) => void; deshabilitado?: boolean }) {
+export function PanelNovedades({ novedades, onCambiar, deshabilitado, conceptosFijos = [] }: { novedades: Novedad[]; onCambiar: (n: Novedad[]) => void; deshabilitado?: boolean; conceptosFijos?: { id: string; codigo: string; nombre: string }[] }) {
   const inicial = () => Object.fromEntries(CAMPOS.map((c) => [c.tipo, novedades.find((n) => n.tipo === c.tipo)?.cantidad ?? 0])) as Record<string, number>;
+  const inicialImportes = () => Object.fromEntries(conceptosFijos.map((c) => [c.id, novedades.find((n) => n.tipo === 'IMPORTE' && n.conceptoId === c.id)?.importe ?? 0])) as Record<string, number>;
   const [valores, setValores] = useState(inicial);
-  useEffect(() => setValores(inicial()), [JSON.stringify(novedades)]); // eslint-disable-line react-hooks/exhaustive-deps
-  const otras = novedades.filter((n) => !CAMPOS.some((c) => c.tipo === n.tipo));
-  const guardar = () => onCambiar([...CAMPOS.filter((c) => Number(valores[c.tipo]) > 0).map((c) => ({ tipo: c.tipo, cantidad: Number(valores[c.tipo]) })), ...otras]);
+  const [importes, setImportes] = useState(inicialImportes);
+  useEffect(() => { setValores(inicial()); setImportes(inicialImportes()); }, [JSON.stringify(novedades), conceptosFijos.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Se conservan las novedades de importe de conceptos que no se muestran (p. ej. inactivos)
+  const otras = novedades.filter((n) => !CAMPOS.some((c) => c.tipo === n.tipo) && !(n.tipo === 'IMPORTE' && conceptosFijos.some((c) => c.id === n.conceptoId)));
+  const guardar = () => onCambiar([
+    ...CAMPOS.filter((c) => Number(valores[c.tipo]) > 0).map((c) => ({ tipo: c.tipo, cantidad: Number(valores[c.tipo]) })),
+    ...conceptosFijos.filter((c) => Number(importes[c.id]) > 0).map((c) => ({ tipo: 'IMPORTE' as const, conceptoId: c.id, importe: Number(importes[c.id]) })),
+    ...otras,
+  ]);
   return (
-    <Group align="flex-end">
-      {CAMPOS.map((c) => (
-        <NumberInput key={c.tipo} label={c.etiqueta} min={0} decimalScale={2} decimalSeparator="," w={190} disabled={deshabilitado}
-          value={valores[c.tipo] || ''} onChange={(v) => setValores((x) => ({ ...x, [c.tipo]: Number(v) || 0 }))} />
-      ))}
-      <Button variant="light" onClick={guardar} disabled={deshabilitado}>Guardar novedades</Button>
-    </Group>
+    <Stack gap="xs">
+      <Group align="flex-end">
+        {CAMPOS.map((c) => (
+          <NumberInput key={c.tipo} label={c.etiqueta} min={0} decimalScale={2} decimalSeparator="," w={190} disabled={deshabilitado}
+            value={valores[c.tipo] || ''} onChange={(v) => setValores((x) => ({ ...x, [c.tipo]: Number(v) || 0 }))} />
+        ))}
+      </Group>
+      {conceptosFijos.length > 0 && (
+        <Group align="flex-end">
+          {conceptosFijos.map((c) => (
+            <NumberInput key={c.id} label={`${c.codigo} ${c.nombre}`} min={0} decimalScale={2} decimalSeparator="," thousandSeparator="." w={190} disabled={deshabilitado}
+              value={importes[c.id] || ''} onChange={(v) => setImportes((x) => ({ ...x, [c.id]: Number(v) || 0 }))} />
+          ))}
+        </Group>
+      )}
+      <Group justify="flex-end"><Button variant="light" onClick={guardar} disabled={deshabilitado}>Guardar novedades</Button></Group>
+    </Stack>
   );
 }
 
@@ -112,6 +129,7 @@ export function LiquidacionPage() {
   const [elegido, setElegido] = useState<string | null>(null);
   const [deposito, setDeposito] = useState<{ fecha: string; banco: string; periodo: string } | null>(null);
   const [editarEgreso, setEditarEgreso] = useState(false);
+  const conceptosFijos = (useConceptos().data ?? []).filter((c) => c.tipo === 'FIJO' && c.activo).map((c) => ({ id: c.id, codigo: c.codigo, nombre: c.nombre }));
   const [pago, setPago] = useState<{ reciboIds: string[]; fecha: string; origen: string | null } | null>(null);
   const bancos = useCuentasBancarias().filter((c) => c.monedaCodigo === 'ARS');
   const cajas = useCajas().filter((c) => c.monedaCodigo === 'ARS');
@@ -121,7 +139,7 @@ export function LiquidacionPage() {
   const liquidar = puede('sueldos.liquidar');
   const accion = async (fn: () => Promise<unknown>, mensaje: string) => {
     const r = await op.ejecutar(fn, () => mensaje);
-    if (r) { qc.setQueryData(clave, r); void qc.invalidateQueries({ queryKey: ['/sueldos/liquidaciones'] }); }
+    if (r) { qc.setQueryData(clave, r); void qc.invalidateQueries({ queryKey: ['/sueldos/liquidaciones'] }); void qc.invalidateQueries({ queryKey: ['/sueldos/cargas-sociales'] }); }
     return r;
   };
   if (!l) return <Paper withBorder p="md">{errorConsulta(q.error) ?? 'Cargando…'}</Paper>;
@@ -182,7 +200,7 @@ export function LiquidacionPage() {
         </Tabs.Panel>
         {l.estado === 'CERRADA' && (
           <Tabs.Panel value="pagos" pt="sm">
-            <PanelPagos recibos={l.recibos} deshabilitado={!liquidar || !l.asiento} onPagar={(ids) => setPago({ reciboIds: ids, fecha: hoy(), origen: null })} />
+            <PanelPagos recibos={l.recibos} pagados={l.pagos?.length ?? 0} deshabilitado={!liquidar || !l.asiento} onPagar={(ids) => setPago({ reciboIds: ids, fecha: hoy(), origen: null })} />
             <Title order={5} mt="md" mb="xs">Pagos registrados</Title>
             <Table withTableBorder striped>
               <Table.Thead><Table.Tr><Table.Th>N°</Table.Th><Table.Th>Fecha</Table.Th><Table.Th>Desde</Table.Th><Table.Th ta="right">Empleados</Table.Th><Table.Th ta="right">Importe</Table.Th><Table.Th>Estado</Table.Th><Table.Th /></Table.Tr></Table.Thead>
@@ -219,7 +237,7 @@ export function LiquidacionPage() {
           <Stack>
             <Text size="sm">CUIL {formatoCuil(recibo.cuil)} · {recibo.categoria} · Ingreso {formatoFecha(recibo.fechaIngreso)} · Antigüedad {recibo.antiguedadAnios} años · Días trabajados {recibo.diasTrabajados}</Text>
             {l.tipo === 'MENSUAL' && (
-              <PanelNovedades novedades={recibo.novedades} deshabilitado={!liquidar || l.estado === 'CERRADA'}
+              <PanelNovedades novedades={recibo.novedades} conceptosFijos={conceptosFijos} deshabilitado={!liquidar || l.estado === 'CERRADA'}
                 onCambiar={(n) => accion(() => api(`/sueldos/liquidaciones/${id}/novedades`, { metodo: 'PUT', body: { empleadoId: recibo.empleadoId, novedades: n } }), 'Novedades guardadas')} />
             )}
             <TablaRecibo recibo={recibo} />

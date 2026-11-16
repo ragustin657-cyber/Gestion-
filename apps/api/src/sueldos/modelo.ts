@@ -38,6 +38,8 @@ export async function cargarSueldosModelo(tx: Prisma.TransactionClient, empresaI
     cuentaCargasSocialesId: await cuenta('2.1.03.002'), cuentaRetencionesSindicalesId: await cuenta('2.1.03.003'), cuentaIndemnizacionesId: await cuenta('5.2.11'), anioInicioVacaciones: new Date().getUTCFullYear(),
   } });
   await tx.concepto.createMany({ data: CONCEPTOS_COMERCIO.map((c) => ({
+    // Presentismo, FAECYS y sindicato son de Comercio: no se aplican a otros convenios (E22 §2.8)
+    convenioId: ['120', '530', '540'].includes(c.codigo) ? conv.id : null,
     empresaId, codigo: c.codigo, nombre: c.nombre, clase: c.clase, tipo: c.tipo, parametros: c.parametros as Prisma.InputJsonValue, orden: Number(c.codigo), soloAfiliados: !!c.soloAfiliados,
     destino: c.destino ?? 'OTRO', cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : null,
   })) });

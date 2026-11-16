@@ -58,7 +58,8 @@ export class VacacionesService {
     const e = await db.empleado.findUnique({ where: { id: empleadoId } });
     if (!e) throw new NotFoundException('Empleado inexistente');
     const periodos = await this.periodosSalida(db, { empleadoId });
-    const anios = [...new Set([...periodos.map((p) => p.anio), new Date().getUTCFullYear()])].sort();
+    const iniciales = await db.vacacionSaldoInicial.findMany({ where: { empleadoId }, select: { anio: true } });
+    const anios = [...new Set([...periodos.map((p) => p.anio), ...iniciales.map((x) => x.anio), new Date().getUTCFullYear()])].sort();
     const saldos = [];
     for (const anio of anios) saldos.push({ anio, ...(await this.saldoAnio(db, e, anio)) });
     return { saldos, periodos };
@@ -77,7 +78,13 @@ export class VacacionesService {
     if (sup) throw new BadRequestException(`El período se superpone con otro del empleado (${ddmmaaaa(sup.desde)} al ${ddmmaaaa(sup.hasta)})`);
     if (!d.liquidadoAfuera) {
       const anio = desde.getUTCFullYear(), mes = desde.getUTCMonth() + 1;
-      if (await tx.liquidacion.count({ where: { tipo: 'MENSUAL', anio, mes, estado: 'CERRADA' } }))
+      // Bloquea la mensual y la final del empleado del mes de inicio: un cierre en curso termina antes de validar (E22 §2.4)
+      const delMes = await tx.liquidacion.findMany({ where: { anio, mes, OR: [{ tipo: 'MENSUAL' }, { tipo: 'FINAL', egreso: { empleadoId: e.id } }] }, select: { id: true } });
+      if (delMes.length) await tx.$queryRawUnsafe(`SELECT id FROM "Liquidacion" WHERE id = ANY($1::uuid[]) AND "empresaId" = $2::uuid ORDER BY id FOR UPDATE`, delMes.map((x) => x.id).sort(), this.tenant.empresaId);
+      const final = await tx.liquidacion.findFirst({ where: { anio, mes, tipo: 'FINAL', egreso: { empleadoId: e.id } } });
+      if (final?.estado === 'CERRADA') throw new BadRequestException(`La liquidación final de ${mmaaaa(anio, mes)} ya está cerrada: marque el período como liquidado fuera del sistema o reábrala`);
+      // Con la final en borrador la paga la final, aunque la mensual del mes esté cerrada (E22 §2.12)
+      if (!final && (await tx.liquidacion.count({ where: { tipo: 'MENSUAL', anio, mes, estado: 'CERRADA' } })))
         throw new BadRequestException(`La liquidación mensual de ${mmaaaa(anio, mes)} ya está cerrada: marque el período como liquidado fuera del sistema o reabra la liquidación`);
     }
     const dias = Math.round((hasta.getTime() - desde.getTime()) / DIA) + 1;
@@ -101,6 +108,9 @@ export class VacacionesService {
   private async noLiquidado(tx: TxEmpresa, id: string) {
     const p = await tx.vacacionPeriodo.findUnique({ where: { id } });
     if (!p) throw new NotFoundException('Período inexistente');
+    const anio = p.desde.getUTCFullYear(), mes = p.desde.getUTCMonth() + 1;
+    const delMes = await tx.liquidacion.findMany({ where: { anio, mes, OR: [{ tipo: 'MENSUAL' }, { tipo: 'FINAL', egreso: { empleadoId: p.empleadoId } }] }, select: { id: true } });
+    if (delMes.length) await tx.$queryRawUnsafe(`SELECT id FROM "Liquidacion" WHERE id = ANY($1::uuid[]) AND "empresaId" = $2::uuid ORDER BY id FOR UPDATE`, delMes.map((x) => x.id).sort(), this.tenant.empresaId);
     const l = await this.liquidadoEn(tx, id);
     if (l) throw new BadRequestException(`El período ya se pagó en la liquidación ${l.tipo === 'FINAL' ? 'final' : 'mensual'} de ${mmaaaa(l.anio, l.mes)}: reábrala para modificarlo`);
     return p;
@@ -145,6 +155,8 @@ export class VacacionesService {
     return this.tenant.transaccion(async (tx) => {
       const e = await tx.empleado.findUnique({ where: { id: d.empleadoId } });
       if (!e) throw new BadRequestException('Empleado inexistente');
+      if (d.anio < e.fechaIngreso.getUTCFullYear()) throw new BadRequestException('El año es anterior al ingreso del empleado');
+      await tx.$queryRawUnsafe(`SELECT id FROM "Empleado" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, e.id, this.tenant.empresaId);
       const actual = await tx.vacacionSaldoInicial.findFirst({ where: { empleadoId: e.id, anio: d.anio } });
       if (d.dias === null) { if (actual) await tx.vacacionSaldoInicial.delete({ where: { id: actual.id } }); }
       else if (actual) await tx.vacacionSaldoInicial.update({ where: { id: actual.id }, data: { dias: d.dias } });

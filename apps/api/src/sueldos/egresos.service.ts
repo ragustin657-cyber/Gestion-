@@ -70,6 +70,7 @@ export class EgresosService {
 
   modificar(liquidacionId: string, d: DatosEgreso) {
     return this.tenant.transaccion(async (tx) => {
+      await tx.$queryRawUnsafe(`SELECT id FROM "Liquidacion" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, liquidacionId, this.tenant.empresaId);
       const l = await tx.liquidacion.findUnique({ where: { id: liquidacionId } });
       const eg = await tx.egresoEmpleado.findUnique({ where: { liquidacionId } });
       if (!l || !eg) throw new NotFoundException('Liquidación final inexistente');
