@@ -99,9 +99,11 @@ export class LiquidacionesService {
       const tomados = periodos.filter((p) => p.anio === a).reduce((t, p) => t + p.dias, 0);
       pendientesAnteriores += Math.max(0, corresponden - tomados);
     }
-    // Tomados del año del egreso, recortados al egreso
+    // Tomados del año del egreso: los que empiezan en el mes del egreso se pagan en la final hasta el egreso (recortados);
+    // los anteriores ya se pagaron enteros (en su mensual o fuera del sistema) y cuentan enteros
+    const iniMesEgreso = new Date(Date.UTC(anio, egreso.getUTCMonth(), 1));
     const tomadosAnio = periodos.filter((p) => p.anio === anio && p.desde <= egreso)
-      .reduce((t, p) => t + Math.round(((p.hasta < egreso ? p.hasta : egreso).getTime() - p.desde.getTime()) / 86400000) + 1, 0);
+      .reduce((t, p) => t + (p.desde >= iniMesEgreso ? Math.round(((p.hasta < egreso ? p.hasta : egreso).getTime() - p.desde.getTime()) / 86400000) + 1 : p.dias), 0);
     return { diasVacacionesPendientesAnteriores: pendientesAnteriores, diasVacacionesTomadosAnio: tomadosAnio, saldoInicialAnio: saldosIniciales.find((x) => x.anio === anio)?.dias ?? null };
   }
 

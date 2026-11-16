@@ -35,3 +35,12 @@ describe('vacaciones (web)', () => {
     expect(titulos(filtrarMenu(MENU, ['sueldos.ver']))).toContain('Vacaciones');
   });
 });
+
+describe('guardar con avisos', () => {
+  it('después de crear con avisos, el siguiente guardado edita el mismo período', async () => {
+    const { siguienteEstadoPeriodo } = await import('./VacacionesPage');
+    expect(siguienteEstadoPeriodo({}, { id: 'p1', avisos: ['Supera el saldo de 2026 (quedan 7 días)'] }, { anio: 2026, desde: '2026-12-01', hasta: '2026-12-10', liquidadoAfuera: false }))
+      .toEqual({ id: 'p1', inicial: { anio: 2026, desde: '2026-12-01', hasta: '2026-12-10', liquidadoAfuera: false } });
+    expect(siguienteEstadoPeriodo({}, { id: 'p1', avisos: [] }, { anio: 2026, desde: '2026-12-01', hasta: '2026-12-10', liquidadoAfuera: false })).toBeNull();
+  });
+});

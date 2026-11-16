@@ -53,6 +53,13 @@ export function DialogoPeriodo({ empleado, anio, inicial, avisos, onGuardar, env
   );
 }
 
+/** Tras guardar: con avisos, el diálogo queda editando el período guardado (un nuevo guardado no crea otro); sin avisos, se cierra. */
+export function siguienteEstadoPeriodo(_actual: { id?: string }, r: { id: string; avisos: string[] }, d: Omit<DatosPeriodo, 'empleadoId'> & { empleadoId?: string }) {
+  if (!r.avisos.length) return null;
+  const { empleadoId: _e, ...inicial } = d;
+  return { id: r.id, inicial };
+}
+
 export function VacacionesPage() {
   const { puede } = useAuth();
   const qc = useQueryClient();
@@ -67,7 +74,7 @@ export function VacacionesPage() {
   const refrescar = () => void qc.invalidateQueries({ predicate: (x) => String(x.queryKey[0]).startsWith('/sueldos') });
   const guardar = async (d: DatosPeriodo) => {
     const r = await op.ejecutar(() => api<{ id: string; avisos: string[] }>(periodo?.id ? `/sueldos/vacaciones/${periodo.id}` : '/sueldos/vacaciones', { metodo: periodo?.id ? 'PUT' : 'POST', body: d }), () => 'Período guardado');
-    if (r) { refrescar(); if (r.avisos.length) setAvisos(r.avisos); else setPeriodo(null); }
+    if (r) { refrescar(); setAvisos(r.avisos); setPeriodo(siguienteEstadoPeriodo(periodo ?? {}, r, d)); }
   };
   const [saldoInicial, setSaldoInicial] = useState<number | ''>('');
   return (

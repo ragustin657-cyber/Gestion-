@@ -80,6 +80,9 @@ export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedade
         // Vacaciones (divisor 25) y descuento de sus días (divisor 30, negativo) con básico + antigüedad del mes completo
         const divisor = num(p, 'divisor');
         if (divisor.lte(0)) return undefined;
+        // Solo con el pago y el descuento activos: uno sin el otro descontaría días sin pagarlos (o pagaría de más)
+        const vac = conceptos.filter((x) => x.tipo === 'VACACIONES');
+        if (!vac.some((x) => x.parametros.descuenta === true) || !vac.some((x) => x.parametros.descuenta !== true)) return undefined;
         const signo = p.descuenta === true ? -1 : 1;
         for (const v of vacaciones) agregar(c, new D(e.basicoMensual).plus(antigCompleta).div(divisor).times(v.dias).times(signo), { cantidad: new D(v.dias), vacacionPeriodoId: v.periodoId });
         return undefined;
