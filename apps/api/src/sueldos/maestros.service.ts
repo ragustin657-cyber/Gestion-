@@ -19,6 +19,12 @@ export async function basicosVigentes(tx: TxEmpresa, categoriaIds: string[], ani
   return r;
 }
 
+/** Tope indemnizatorio del convenio vigente en el período (la vigencia más reciente ≤ período). */
+export async function topeVigente(tx: TxEmpresa, convenioId: string, anio: number, mes: number): Promise<Prisma.Decimal | null> {
+  const t = await tx.topeIndemnizatorio.findFirst({ where: { convenioId, OR: [{ desdeAnio: { lt: anio } }, { desdeAnio: anio, desdeMes: { lte: mes } }] }, orderBy: [{ desdeAnio: 'desc' }, { desdeMes: 'desc' }] });
+  return t?.importe ?? null;
+}
+
 export const empleadoSalida = (e: Empleado) => ({ ...e, fechaIngreso: dia(e.fechaIngreso), fechaEgreso: dia(e.fechaEgreso) });
 
 @Injectable()
@@ -49,11 +55,7 @@ export class MaestrosSueldosService {
   }
 
   /** Categorías del convenio con su básico vigente en el mes (null si no hay escala). */
-  /** Tope indemnizatorio del convenio vigente en el período (la vigencia más reciente ≤ período). */
-  async topeVigente(tx: TxEmpresa, convenioId: string, anio: number, mes: number): Promise<Prisma.Decimal | null> {
-    const t = await tx.topeIndemnizatorio.findFirst({ where: { convenioId, OR: [{ desdeAnio: { lt: anio } }, { desdeAnio: anio, desdeMes: { lte: mes } }] }, orderBy: [{ desdeAnio: 'desc' }, { desdeMes: 'desc' }] });
-    return t?.importe ?? null;
-  }
+  topeVigente(tx: TxEmpresa, convenioId: string, anio: number, mes: number) { return topeVigente(tx, convenioId, anio, mes); }
 
   async topes(convenioId: string | undefined, anio?: number, mes?: number) {
     if (!convenioId) throw new BadRequestException('Indique el convenio');
@@ -166,6 +168,8 @@ export class MaestrosSueldosService {
       const actual = await tx.empleado.findUnique({ where: { id } });
       if (!actual) throw new NotFoundException('Empleado inexistente');
       await this.validarEmpleado(tx, { fechaIngreso: dia(actual.fechaIngreso)!, ...d }, id);
+      if (d.fechaEgreso !== undefined && (d.fechaEgreso ?? null) !== dia(actual.fechaEgreso) && (await tx.egresoEmpleado.count({ where: { empleadoId: id } })))
+        throw new BadRequestException('La fecha de egreso se cambia desde la liquidación final');
       return empleadoSalida(await tx.empleado.update({ where: { id }, data: this.datos(d) as Prisma.EmpleadoUncheckedUpdateInput }));
     });
   }
