@@ -154,6 +154,9 @@ export class PagosSueldosService {
 
   pagarCargas(d: Origen & { anio: number; mes: number; cuentaContableDeudaId: string; importe: number; fecha: string; detalle?: string | null }) {
     return this.tenant.transaccion(async (tx) => {
+      // Mismo orden que reabrir (liquidación y después configuración) para no trabarse entre sí
+      const delMes = (await tx.liquidacion.findMany({ where: { anio: d.anio, mes: d.mes }, select: { id: true } })).map((x) => x.id).sort();
+      if (delMes.length) await tx.$queryRawUnsafe(`SELECT id FROM "Liquidacion" WHERE id = ANY($1::uuid[]) AND "empresaId" = $2::uuid ORDER BY id FOR UPDATE`, delMes, this.tenant.empresaId);
       await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
       const fila = (await this.cargasSociales(d.anio, d.mes, tx)).find((f) => f.cuentaContableId === d.cuentaContableDeudaId);
       if (!fila) throw new BadRequestException('La cuenta no es una deuda de sueldos del período');

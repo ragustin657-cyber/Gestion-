@@ -236,7 +236,13 @@ export class LiquidacionesService {
   /** Errores y aviso del borrador sin grabar (se recalculan en una transacción que se descarta). */
   private async estadoBorrador(tx: TxEmpresa, l: Liquidacion) {
     // El cálculo es idempotente: recalcular al consultar mantiene el borrador al día (escalas o empleados nuevos)
-    return this.tenant.db === tx ? this.tenant.transaccion((t) => this.calcular(t, l)) : this.calcular(tx, l);
+    // Dos consultas simultáneas se serializan con el bloqueo de la liquidación (E22 §2.5); si se cerró mientras tanto, no se toca
+    const recalcular = async (t: TxEmpresa) => {
+      await this.bloquear(t, l.id);
+      const actual = await t.liquidacion.findUniqueOrThrow({ where: { id: l.id } });
+      return actual.estado === 'BORRADOR' ? this.calcular(t, actual) : { errores: [], aviso: undefined };
+    };
+    return this.tenant.db === tx ? this.tenant.transaccion(recalcular) : recalcular(tx);
   }
 
   guardarNovedades(id: string, empleadoId: string, novedades: NovedadEntrada[]) {
@@ -319,9 +325,12 @@ export class LiquidacionesService {
 
   eliminar(id: string) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx, id);
       const l = await this.liquidacion(tx, id);
       if (l.estado !== 'BORRADOR') throw new BadRequestException('Solo se elimina una liquidación en borrador');
       const eg = l.tipo === 'FINAL' ? await tx.egresoEmpleado.findUnique({ where: { liquidacionId: id } }) : null;
+      if (eg && (await tx.liquidacion.count({ where: { tipo: 'MENSUAL', anio: l.anio, mes: l.mes, estado: 'CERRADA' } })))
+        throw new BadRequestException(`La liquidación mensual de ${mmaaaa(l.anio, l.mes)} ya está cerrada: el empleado quedaría sin recibo de ese mes. Reábrala antes de eliminar la final`);
       await tx.liquidacion.delete({ where: { id } });
       if (eg) {
         // El empleado vuelve a estar activo y sin egreso; la mensual en borrador del mes lo vuelve a incluir
