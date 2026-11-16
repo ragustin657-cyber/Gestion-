@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { antiguedadAnios, ConceptoCalc, diasTrabajados, EmpleadoCalc, liquidarMes, liquidarSac } from './calculo';
+import { antiguedadAnios, calcularContribuciones, ConceptoCalc, ContribucionCalc, diasTrabajados, EmpleadoCalc, liquidarMes, liquidarSac, validarConcepto } from './calculo';
 
 const D = (n: number) => new Prisma.Decimal(n);
 const f = (s: string) => new Date(`${s}T00:00:00Z`);
@@ -68,5 +68,51 @@ describe('cálculo de sueldos', () => {
     expect(liquidarSac(empleado(), COMERCIO, D(1168965), 2026, 2).renglones[0]).toMatchObject({ codigo: '200' });
     expect(liquidarSac(empleado(), COMERCIO, D(1168965), 2026, 2).renglones[0].importe.toFixed(2)).toBe('584482.50');
     expect(liquidarSac(empleado({ fechaIngreso: f('2026-10-01') }), COMERCIO, D(1168965), 2026, 2).renglones[0].importe.toFixed(2)).toBe('292241.25');
+  });
+
+  describe('contribuciones', () => {
+    const k = (codigo: string, destino: ContribucionCalc['destino'], alicuota: number, importeFijo: number, aplicaDetraccion: boolean): ContribucionCalc =>
+      ({ codigo, nombre: codigo, destino, alicuota: D(alicuota), importeFijo: D(importeFijo), aplicaDetraccion, cuentaContableId: 'cta' });
+    const PRECARGA = [k('SIPA', 'SEGURIDAD_SOCIAL', 10.77, 0, true), k('PAMI', 'SEGURIDAD_SOCIAL', 1.59, 0, true), k('FNE', 'SEGURIDAD_SOCIAL', 0.94, 0, true), k('AAFF', 'SEGURIDAD_SOCIAL', 4.7, 0, true),
+      k('OS', 'OBRA_SOCIAL', 6, 0, false), k('ART', 'ART', 2.5, 1500, false), k('SCVO', 'SEGURO_VIDA', 0, 1000, false)];
+    const m = (r: ReturnType<typeof calcularContribuciones>) => Object.fromEntries(r.map((x) => [x.codigo, x.importe.toFixed(2)]));
+    const det = new Prisma.Decimal('7003.68');
+
+    it('contribuciones del ejemplo', () => {
+      const r = calcularContribuciones(new Prisma.Decimal('1168965.00'), 30, 'MENSUAL', PRECARGA, det);
+      expect(m(r)).toEqual({ SIPA: '125143.23', PAMI: '18475.18', FNE: '10922.44', AAFF: '54612.18', OS: '70137.90', ART: '30724.13', SCVO: '1000.00' });
+      expect(r.reduce((s, x) => s.plus(x.importe), D(0)).toFixed(2)).toBe('311015.06');
+      expect(r[0].base.toFixed(2)).toBe('1161961.32');
+    });
+
+    it('mes parcial y SAC', () => {
+      const p = calcularContribuciones(new Prisma.Decimal('500000.00'), 15, 'MENSUAL', PRECARGA, det);
+      expect(p[0].base.toFixed(2)).toBe('496498.16');
+      expect(m(p).ART).toBe('14000.00');
+      expect(m(p).SCVO).toBe('1000.00');
+      const s = calcularContribuciones(new Prisma.Decimal('584482.50'), 184, 'SAC', PRECARGA, det);
+      expect(s[0].base.toFixed(2)).toBe('580980.66');
+      expect(m(s).SCVO).toBeUndefined();
+      expect(m(s).ART).toBe('14612.06');
+    });
+
+    it('sin días y detracción mayor que la base', () => {
+      expect(calcularContribuciones(new Prisma.Decimal('1000.00'), 0, 'MENSUAL', PRECARGA, det)).toEqual([]);
+      const r = calcularContribuciones(new Prisma.Decimal('5000.00'), 30, 'MENSUAL', PRECARGA, det);
+      expect(m(r).SIPA).toBeUndefined();
+      expect(m(r).OS).toBe('300.00');
+      expect(r.every((x) => x.base.gte(0))).toBe(true);
+    });
+
+    it('tope BASE_MAXIMA', () => {
+      const conTope = COMERCIO.map((x) => (x.codigo === '500' ? { ...x, parametros: { pct: 11, tope: 'BASE_MAXIMA' } } : x));
+      const r = liquidarMes(empleado(), conTope, [{ tipo: 'HORAS_EXTRA_50', cantidad: D(4) }], 2026, 11, D(1000000));
+      expect(mapa(r)['500']).toBe('110000.00');
+      expect(mapa(liquidarMes(empleado(), conTope, [{ tipo: 'HORAS_EXTRA_50', cantidad: D(4) }], 2026, 11, null))['500']).toBe('128586.15');
+      const s = liquidarSac(empleado(), conTope, D(1168965), 2026, 2, D(1000000));
+      expect(s.renglones.find((x) => x.codigo === '500')!.importe.toFixed(2)).toBe('55000.00');
+      expect(validarConcepto('DESCUENTO_LEY', 'DESCUENTO', { pct: 11, tope: 'BASE_MAXIMA' })).toBeNull();
+      expect(validarConcepto('DESCUENTO_LEY', 'DESCUENTO', { pct: 11, tope: 'OTRO' })).toBe('Parámetro tope inválido');
+    });
   });
 });
