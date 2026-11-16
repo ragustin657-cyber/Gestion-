@@ -132,10 +132,12 @@ export class LiquidacionesService {
     const recibos = await tx.reciboSueldo.findMany({ where: { liquidacionId: id }, include: { renglones: { orderBy: { orden: 'asc' } } }, orderBy: { legajo: 'asc' } });
     const novedades = await tx.novedad.findMany({ where: { liquidacionId: id } });
     const pagados = await this.pagos.recibosPagados(tx, id);
+    const sinObraSocial = (await tx.empleado.findMany({ where: { id: { in: recibos.map((r) => r.empleadoId) }, codigoObraSocial: '000000' }, select: { legajo: true }, orderBy: { legajo: 'asc' } })).map((e) => e.legajo);
+    const avisos = [aviso, ...sinObraSocial.map((n) => `Falta el código de obra social de ${n}`)].filter(Boolean);
     const tot = recibos.reduce((s, r) => ({ remunerativo: s.remunerativo.plus(r.totalRemunerativo), noRemunerativo: s.noRemunerativo.plus(r.totalNoRemunerativo), descuentos: s.descuentos.plus(r.totalDescuentos), neto: s.neto.plus(r.neto) }), { remunerativo: new D(0), noRemunerativo: new D(0), descuentos: new D(0), neto: new D(0) });
     return {
       ...l, fechaPago: l.fechaPago.toISOString().slice(0, 10), ultimoDepositoFecha: l.ultimoDepositoFecha?.toISOString().slice(0, 10) ?? null,
-      errores, ...(aviso ? { aviso } : {}),
+      errores, ...(avisos.length ? { aviso: avisos.join(". ") } : {}),
       recibos: recibos.map((r) => ({
         ...r, pagado: pagados.has(r.id), fechaIngreso: r.fechaIngreso.toISOString().slice(0, 10), basico: f2(r.basico), totalRemunerativo: f2(r.totalRemunerativo), totalNoRemunerativo: f2(r.totalNoRemunerativo), totalDescuentos: f2(r.totalDescuentos), neto: f2(r.neto),
         renglones: r.renglones.map((x) => ({ ...x, importe: f2(x.importe), base: f2(x.base), cantidad: x.cantidad === null ? null : new D(x.cantidad).toString(), porcentaje: x.porcentaje === null ? null : new D(x.porcentaje).toString() })),
