@@ -58,7 +58,7 @@ describe('sueldos: F.931', () => {
   });
 
   it('nombre con tildes y obra social faltante', async () => {
-    const x = await escenario({ apellido: 'Muñoz Peña', nombre: 'José' });
+    const x = await escenario({ apellido: 'Muñoz Peña', nombre: 'José', codigoObraSocial: '000000' });
     const l = await x.crear('MENSUAL', 2026, 11);
     expect((await x.http.get(`/api/sueldos/liquidaciones/${l.id}`)).body.aviso).toContain('Falta el código de obra social de 1');
     await x.cerrar(l.id);

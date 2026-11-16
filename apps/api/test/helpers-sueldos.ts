@@ -16,7 +16,7 @@ export async function prepararSueldos(app: INestApplication, prisma: PrismaServi
     const cuils = ['20-17254359-7', '27-28033514-8', '20-12345678-6', '20-30110222-5'];
     const r = await s.http.post('/api/sueldos/empleados', {
       apellido: 'Pérez', nombre: `Juan ${++n}`, cuil: cuils[(n - 1) % cuils.length], domicilio: 'San Martín 100', fechaIngreso: '2021-03-01',
-      categoriaId: (await categoria(String(d.categoria ?? 'Vendedor B'))).id, afiliadoSindicato: true, obraSocial: 'OSECAC', formaPago: 'TRANSFERENCIA', ...d,
+      categoriaId: (await categoria(String(d.categoria ?? 'Vendedor B'))).id, afiliadoSindicato: true, obraSocial: 'OSECAC', codigoObraSocial: '125000', formaPago: 'TRANSFERENCIA', ...d,
     });
     if (r.status !== 201) throw new Error(`empleado: ${JSON.stringify(r.body)}`);
     return r.body as { id: string; legajo: number };
