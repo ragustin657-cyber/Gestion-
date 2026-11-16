@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
+import { bloquear } from '../compras/comun';
 import { AsientosService } from '../contabilidad/asientos/asientos.service';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { NumeracionService } from '../numeracion/numeracion.service';
@@ -37,7 +38,10 @@ export class PagosSueldosService {
     const c = await tx.caja.findUnique({ where: { id: o.cajaId! } });
     if (!c || !c.activa) throw new BadRequestException('Caja inexistente');
     if (c.monedaCodigo !== 'ARS') throw new BadRequestException('La caja debe ser en pesos');
-    if (importe.gt(await saldoCaja(tx, c.id, fecha))) throw new BadRequestException(SALDO_INSUFICIENTE);
+    // Como el resto de Tesorería: caja bloqueada y saldo suficiente a la fecha del pago y hoy (un pago con fecha anterior no la deja en negativo)
+    await bloquear(tx, 'Caja', this.tenant.empresaId, [c.id]);
+    const saldo = D.min(await saldoCaja(tx, c.id, fecha), await saldoCaja(tx, c.id));
+    if (importe.gt(saldo)) throw new BadRequestException(SALDO_INSUFICIENTE);
     return { cuentaContableId: c.cuentaContableId };
   }
 
@@ -95,6 +99,7 @@ export class PagosSueldosService {
 
   anular(id: string) {
     return this.tenant.transaccion(async (tx) => {
+      await tx.$queryRawUnsafe(`SELECT id FROM "PagoSueldos" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, id, this.tenant.empresaId);
       const p = await tx.pagoSueldos.findUnique({ where: { id } });
       if (!p) throw new NotFoundException('Pago inexistente');
       if (p.anulado) throw new BadRequestException('El pago ya está anulado');
@@ -178,6 +183,7 @@ export class PagosSueldosService {
 
   anularCargas(id: string) {
     return this.tenant.transaccion(async (tx) => {
+      await tx.$queryRawUnsafe(`SELECT id FROM "PagoCargasSociales" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, id, this.tenant.empresaId);
       const p = await tx.pagoCargasSociales.findUnique({ where: { id } });
       if (!p) throw new NotFoundException('Pago inexistente');
       if (p.anulado) throw new BadRequestException('El pago ya está anulado');

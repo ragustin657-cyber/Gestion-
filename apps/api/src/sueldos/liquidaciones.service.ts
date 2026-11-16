@@ -34,6 +34,11 @@ export class LiquidacionesService {
     return ls.map(({ recibos, ...l }) => ({ ...l, fechaPago: l.fechaPago.toISOString().slice(0, 10), empleados: recibos.length, totalNeto: recibos.reduce((s, r) => s.plus(r.neto), new D(0)).toFixed(2) }));
   }
 
+  /** Bloquea la liquidación hasta el fin de la transacción (serializa cerrar, reabrir, contabilizar y pagar). */
+  private async bloquear(tx: TxEmpresa, id: string) {
+    await tx.$queryRawUnsafe(`SELECT id FROM "Liquidacion" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, id, this.tenant.empresaId);
+  }
+
   private async liquidacion(tx: TxEmpresa, id: string, paraModificar = false) {
     const l = await tx.liquidacion.findUnique({ where: { id } });
     if (!l) throw new NotFoundException('Liquidación inexistente');
@@ -180,6 +185,7 @@ export class LiquidacionesService {
 
   cerrar(id: string) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx, id);
       const l = await this.liquidacion(tx, id, true);
       const { errores } = await this.calcular(tx, l);
       if (errores.length) throw new BadRequestException('Corrija los errores antes de cerrar la liquidación');
@@ -194,6 +200,8 @@ export class LiquidacionesService {
 
   reabrir(id: string) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx, id);
+      await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
       const l = await this.liquidacion(tx, id);
       if (l.estado !== 'CERRADA') throw new BadRequestException('La liquidación no está cerrada');
       if (l.tipo === 'MENSUAL') {
@@ -210,6 +218,7 @@ export class LiquidacionesService {
   /** Genera el asiento de una liquidación cerrada que no lo tiene (cerradas antes de la Entrega 19). */
   contabilizar(id: string) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx, id);
       const l = await this.liquidacion(tx, id);
       if (l.estado !== 'CERRADA') throw new BadRequestException('La liquidación no está cerrada');
       await this.contabilizacion.contabilizar(tx, l);

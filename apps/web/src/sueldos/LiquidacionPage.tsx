@@ -62,7 +62,7 @@ export function PanelNovedades({ novedades, onCambiar, deshabilitado }: { noveda
 }
 
 /** Empleados de la liquidación con sus totales, errores y el botón de cierre (deshabilitado con errores). */
-export function TablaLiquidacion({ datos, onElegir, onCerrar, puedeLiquidar = true }: { datos: LiquidacionDetalle; onElegir: (r: Recibo) => void; onCerrar?: () => void; puedeLiquidar?: boolean }) {
+export function TablaLiquidacion({ datos, onElegir, onCerrar, puedeLiquidar = true, enviando = false }: { datos: LiquidacionDetalle; onElegir: (r: Recibo) => void; onCerrar?: () => void; puedeLiquidar?: boolean; enviando?: boolean }) {
   const borrador = datos.estado === 'BORRADOR';
   return (
     <Stack>
@@ -93,7 +93,7 @@ export function TablaLiquidacion({ datos, onElegir, onCerrar, puedeLiquidar = tr
       </Table>
       {borrador && puedeLiquidar && (
         <Group justify="flex-end">
-          <Button onClick={onCerrar} disabled={datos.errores.length > 0 || !datos.recibos.length}>Cerrar liquidación</Button>
+          <Button onClick={onCerrar} loading={enviando} disabled={datos.errores.length > 0 || !datos.recibos.length}>Cerrar liquidación</Button>
         </Group>
       )}
     </Stack>
@@ -137,9 +137,9 @@ export function LiquidacionPage() {
           <Button variant="light" size="xs" onClick={() => bajar(`/sueldos/liquidaciones/${id}/recibos.pdf`, {}, `recibos-${nombre}.pdf`)}>Recibos PDF</Button>
           <Button variant="light" size="xs" onClick={() => bajar(`/sueldos/liquidaciones/${id}/resumen`, { formato: 'xlsx' }, `resumen-sueldos-${nombre}.xlsx`)}>Resumen Excel</Button>
           <Button variant="light" size="xs" onClick={() => bajar(`/sueldos/liquidaciones/${id}/resumen`, { formato: 'pdf' }, `resumen-sueldos-${nombre}.pdf`)}>Resumen PDF</Button>
-          {liquidar && l.estado === 'BORRADOR' && <Button variant="light" size="xs" onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/recalcular`, { metodo: 'POST' }), 'Liquidación recalculada')}>Recalcular</Button>}
+          {liquidar && l.estado === 'BORRADOR' && <Button variant="light" size="xs" loading={op.enviando} onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/recalcular`, { metodo: 'POST' }), 'Liquidación recalculada')}>Recalcular</Button>}
           {liquidar && <Button variant="light" size="xs" onClick={() => setDeposito({ fecha: l.ultimoDepositoFecha ?? '', banco: l.ultimoDepositoBanco ?? '', periodo: l.ultimoDepositoPeriodo ?? '' })}>Último depósito</Button>}
-          {liquidar && l.estado === 'CERRADA' && <Button variant="light" color="orange" size="xs" onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/reabrir`, { metodo: 'POST' }), 'Liquidación reabierta')}>Reabrir</Button>}
+          {liquidar && l.estado === 'CERRADA' && <Button variant="light" color="orange" size="xs" loading={op.enviando} onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/reabrir`, { metodo: 'POST' }), 'Liquidación reabierta')}>Reabrir</Button>}
         </Group>
       </Group>
       <Text size="sm" c="dimmed" mb="sm">
@@ -157,7 +157,7 @@ export function LiquidacionPage() {
       {l.estado === 'CERRADA' && (
         <Group mb="sm">
           {l.asiento ? <Text size="sm">Asiento N° <Text span fw={600} c="blue" style={{ cursor: 'pointer' }} onClick={() => navegar(`/contabilidad/asientos/${l.asiento!.id}`)}>{l.asiento.numero}</Text></Text>
-            : liquidar && <Button size="xs" variant="light" onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/contabilizar`, { metodo: 'POST' }), 'Liquidación contabilizada')}>Contabilizar</Button>}
+            : liquidar && <Button size="xs" variant="light" loading={op.enviando} onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/contabilizar`, { metodo: 'POST' }), 'Liquidación contabilizada')}>Contabilizar</Button>}
           <Button size="xs" variant="light" onClick={() => bajar('/sueldos/f931', { anio: String(l.anio), mes: String(l.mes) }, `F931-${l.anio}${String(l.mes).padStart(2, '0')}.txt`)}>Descargar F.931</Button>
         </Group>
       )}
@@ -167,7 +167,7 @@ export function LiquidacionPage() {
           {l.estado === 'CERRADA' && <Tabs.Tab value="pagos">Pagos{l.pendientePago && Number(l.pendientePago) > 0 ? ` (pendiente ${formatoMoneda(l.pendientePago)})` : ''}</Tabs.Tab>}
         </Tabs.List>
         <Tabs.Panel value="recibos" pt="sm">
-          <TablaLiquidacion datos={l} puedeLiquidar={liquidar} onElegir={(r) => setElegido(r.empleadoId)} onCerrar={() => accion(() => api(`/sueldos/liquidaciones/${id}/cerrar`, { metodo: 'POST' }), 'Liquidación cerrada')} />
+          <TablaLiquidacion datos={l} puedeLiquidar={liquidar} enviando={op.enviando} onElegir={(r) => setElegido(r.empleadoId)} onCerrar={() => accion(() => api(`/sueldos/liquidaciones/${id}/cerrar`, { metodo: 'POST' }), 'Liquidación cerrada')} />
         </Tabs.Panel>
         {l.estado === 'CERRADA' && (
           <Tabs.Panel value="pagos" pt="sm">
@@ -180,7 +180,7 @@ export function LiquidacionPage() {
                   <Table.Tr key={p.id}>
                     <Table.Td>{p.numero}</Table.Td><Table.Td>{formatoFecha(p.fecha)}</Table.Td><Table.Td>{p.cuenta}</Table.Td><Table.Td ta="right">{p.empleados}</Table.Td><Table.Td ta="right">{formatoMoneda(p.importe)}</Table.Td>
                     <Table.Td>{p.anulado ? <Badge color="gray" variant="light">Anulado</Badge> : <Badge color="green" variant="light">Vigente</Badge>}</Table.Td>
-                    <Table.Td>{liquidar && !p.anulado && <Button size="compact-xs" variant="subtle" color="red" onClick={() => accion(async () => { await api(`/sueldos/pagos/${p.id}/anular`, { metodo: 'POST' }); return api(`/sueldos/liquidaciones/${id}`); }, 'Pago anulado')}>Anular</Button>}</Table.Td>
+                    <Table.Td>{liquidar && !p.anulado && <Button size="compact-xs" variant="subtle" color="red" disabled={op.enviando} onClick={() => accion(async () => { await api(`/sueldos/pagos/${p.id}/anular`, { metodo: 'POST' }); return api(`/sueldos/liquidaciones/${id}`); }, 'Pago anulado')}>Anular</Button>}</Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

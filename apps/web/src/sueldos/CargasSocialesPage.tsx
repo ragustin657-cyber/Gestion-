@@ -70,7 +70,7 @@ export function CargasSocialesPage() {
             <Table.Tr key={p.id}>
               <Table.Td>{p.numero}</Table.Td><Table.Td>{formatoFecha(p.fecha)}</Table.Td><Table.Td>{nombreCuenta(p.cuentaContableDeudaId)}</Table.Td><Table.Td ta="right">{formatoMoneda(p.importe)}</Table.Td>
               <Table.Td>{p.anulado ? <Badge color="gray" variant="light">Anulado</Badge> : <Badge color="green" variant="light">Vigente</Badge>}</Table.Td>
-              <Table.Td>{editable && !p.anulado && <Button size="compact-xs" variant="subtle" color="red" onClick={async () => { if (await op.ejecutar(() => api(`/sueldos/cargas-sociales/pagos/${p.id}/anular`, { metodo: 'POST' }), () => 'Pago anulado')) refrescar(); }}>Anular</Button>}</Table.Td>
+              <Table.Td>{editable && !p.anulado && <Button size="compact-xs" variant="subtle" color="red" disabled={op.enviando} onClick={async () => { if (await op.ejecutar(() => api(`/sueldos/cargas-sociales/pagos/${p.id}/anular`, { metodo: 'POST' }), () => 'Pago anulado')) refrescar(); }}>Anular</Button>}</Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>
