@@ -315,6 +315,12 @@ apps/web          frontend React + Mantine
 e2e               pruebas Playwright
 ```
 
+## Notas para migraciones
+
+- **Índice único parcial `Liquidacion_mensual_sac_unica`:** garantiza una sola liquidación mensual y una de SAC por mes. Prisma no lo modela, así que `prisma migrate diff` propone borrarlo: quitá ese `DROP INDEX` a mano antes de aplicar una migración nueva.
+- **Migraciones de datos que crean cuentas:** verificá el nombre y el tipo de la cuenta padre (no solo el código), porque los planes de cuentas propios pueden usar el mismo código para otra cosa.
+- **Enums de Postgres:** un valor nuevo no se puede usar en la misma migración que lo agrega; los datos van en una migración aparte.
+
 ## Reglas para nuevos módulos
 
 1. **Datos por empresa:** todo modelo de negocio lleva `empresaId`. Se agrega a `apps/api/src/prisma/modelos-empresa.ts`, y los servicios usan siempre `TenantPrisma.db` o `TenantPrisma.transaccion`, nunca `PrismaService`. Así el filtro por empresa es automático.

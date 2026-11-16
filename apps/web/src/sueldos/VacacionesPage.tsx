@@ -6,9 +6,9 @@ import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, hoy } from '../compras/formato';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
 
-export interface PeriodoVacaciones { id: string; empleadoId: string; anio: number; desde: string; hasta: string; dias: number; liquidadoAfuera: boolean; liquidado: boolean }
+export interface PeriodoVacaciones { id: string; empleadoId: string; anio: number; desde: string; hasta: string; dias: number; liquidadoAfuera: boolean; liquidado: boolean; observaciones?: string | null }
 export interface FilaSaldoVacaciones { empleadoId: string; legajo: number; nombre: string; corresponden: number; saldoInicial: number | null; tomados: number; pendientes: number; periodos: PeriodoVacaciones[] }
-export interface DatosPeriodo { empleadoId: string; anio: number; desde: string; hasta: string; liquidadoAfuera: boolean }
+export interface DatosPeriodo { empleadoId: string; anio: number; desde: string; hasta: string; liquidadoAfuera: boolean; observaciones?: string }
 
 const diasEntre = (desde: string, hasta: string) => (desde && hasta && hasta >= desde ? Math.round((Date.parse(`${hasta}T00:00:00Z`) - Date.parse(`${desde}T00:00:00Z`)) / 86400000) + 1 : 0);
 
@@ -46,9 +46,10 @@ export function DialogoPeriodo({ empleado, anio, inicial, avisos, onGuardar, env
         <NumberInput label="Vacaciones del año" value={d.anio} onChange={(v) => setD({ ...d, anio: Number(v) || anio })} />
       </Group>
       <Text fw={600}>{dias} días</Text>
+      <TextInput label="Observaciones" value={d.observaciones ?? ''} onChange={(e) => setD({ ...d, observaciones: e.currentTarget.value })} />
       <Checkbox label="Liquidado fuera del sistema (no se paga en la mensual)" checked={d.liquidadoAfuera} onChange={(e) => setD({ ...d, liquidadoAfuera: e.currentTarget.checked })} />
       {avisos?.map((a) => <Alert key={a} color="yellow">{a}</Alert>)}
-      <Group justify="flex-end"><Button onClick={() => onGuardar(d)} disabled={!dias} loading={enviando}>Guardar</Button></Group>
+      <Group justify="flex-end"><Button onClick={() => onGuardar({ ...d, observaciones: d.observaciones?.trim() || undefined })} disabled={!dias} loading={enviando}>Guardar</Button></Group>
     </Stack>
   );
 }
@@ -104,8 +105,8 @@ export function VacacionesPage() {
                     <Table.Td>{p.liquidado ? 'Pagado' : p.liquidadoAfuera ? 'Liquidado fuera del sistema' : 'Pendiente de pago'}</Table.Td>
                     <Table.Td>{editable && !p.liquidado && (
                       <Group gap={4}>
-                        <Button size="compact-xs" variant="subtle" onClick={() => { setAvisos([]); setPeriodo({ id: p.id, inicial: { anio: p.anio, desde: p.desde, hasta: p.hasta, liquidadoAfuera: p.liquidadoAfuera } }); }}>Editar</Button>
-                        <Button size="compact-xs" variant="subtle" color="red" disabled={op.enviando} onClick={async () => { if (await op.ejecutar(() => api(`/sueldos/vacaciones/${p.id}`, { metodo: 'DELETE' }), () => 'Período eliminado')) refrescar(); }}>Eliminar</Button>
+                        <Button size="compact-xs" variant="subtle" onClick={() => { setAvisos([]); setPeriodo({ id: p.id, inicial: { anio: p.anio, desde: p.desde, hasta: p.hasta, liquidadoAfuera: p.liquidadoAfuera, observaciones: p.observaciones ?? undefined } }); }}>Editar</Button>
+                        <Button size="compact-xs" variant="subtle" color="red" disabled={op.enviando} onClick={async () => { if (!window.confirm(`¿Eliminar el período del ${formatoFecha(p.desde).slice(0, 5)} al ${formatoFecha(p.hasta).slice(0, 5)}?`)) return; if (await op.ejecutar(() => api(`/sueldos/vacaciones/${p.id}`, { metodo: 'DELETE' }), () => 'Período eliminado')) refrescar(); }}>Eliminar</Button>
                       </Group>
                     )}</Table.Td>
                   </Table.Tr>

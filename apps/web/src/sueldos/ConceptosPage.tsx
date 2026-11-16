@@ -1,5 +1,5 @@
-import { Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Textarea, TextInput, Title } from '@mantine/core';
-import { useQueryClient } from '@tanstack/react-query';
+import { Alert, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Textarea, TextInput, Title } from '@mantine/core';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
@@ -18,6 +18,7 @@ export function ConceptosPage() {
   const qc = useQueryClient();
   const op = useOperacion();
   const conceptos = useConceptos();
+  const avisos = useQuery({ queryKey: ['/sueldos/conceptos/avisos'], queryFn: () => api<string[]>('/sueldos/conceptos/avisos') });
   const cuentas = useCuentasImputables();
   const editable = puede('sueldos.liquidar');
   const [form, setForm] = useState<Form | null>(null);
@@ -28,7 +29,7 @@ export function ConceptosPage() {
     try { parametros = JSON.parse(form.parametros || '{}'); } catch { op.setError('Parámetros inválidos: deben estar en formato JSON'); return; }
     const { id, ...d } = form;
     const r = await op.ejecutar(() => api(id ? `/sueldos/conceptos/${id}` : '/sueldos/conceptos', { metodo: id ? 'PUT' : 'POST', body: { ...d, parametros } }), () => 'Concepto guardado');
-    if (r) { setForm(null); void qc.invalidateQueries({ queryKey: ['/sueldos/conceptos'] }); }
+    if (r) { setForm(null); void qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('/sueldos/conceptos') }); }
   };
   return (
     <Paper withBorder p="md" radius="md">
@@ -36,6 +37,7 @@ export function ConceptosPage() {
         <Title order={3}>Conceptos de liquidación</Title>
         {editable && <Button size="xs" onClick={() => setForm({ ...vacio })}>Nuevo concepto</Button>}
       </Group>
+      {(avisos.data ?? []).map((a) => <Alert key={a} color="yellow" mb="sm">{a}</Alert>)}
       {errorConsulta(conceptos.error)}
       <Table withTableBorder striped highlightOnHover>
         <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Concepto</Table.Th><Table.Th>Clase</Table.Th><Table.Th>Cálculo</Table.Th><Table.Th>Parámetros</Table.Th><Table.Th>Estado</Table.Th></Table.Tr></Table.Thead>

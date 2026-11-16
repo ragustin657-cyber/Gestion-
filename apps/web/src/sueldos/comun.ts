@@ -13,7 +13,7 @@ export interface Novedad { tipo: 'HORAS_EXTRA_50' | 'HORAS_EXTRA_100' | 'AUSENCI
 export interface RenglonRecibo { codigo: string; nombre: string; clase: Clase; cantidad: string | null; base: string | null; porcentaje: string | null; importe: string; orden: number }
 export interface Recibo {
   id: string; empleadoId: string; numero: number | null; legajo: number; apellido: string; nombre: string; cuil: string; categoria: string; basico: string; fechaIngreso: string;
-  antiguedadAnios: number; diasTrabajados: number; totalRemunerativo: string; totalNoRemunerativo: string; totalDescuentos: string; neto: string; renglones: RenglonRecibo[]; novedades: Novedad[]; pagado?: boolean;
+  antiguedadAnios: number; diasTrabajados: number; totalRemunerativo: string; totalNoRemunerativo: string; totalDescuentos: string; neto: string; renglones: RenglonRecibo[]; novedades: Novedad[]; pagado?: boolean; sinNeto?: boolean;
 }
 export interface LiquidacionLista { empleado?: { legajo: number; apellido: string; nombre: string } | null; id: string; numero: number; tipo: 'MENSUAL' | 'SAC' | 'FINAL'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA'; empleados: number; totalNeto: string }
 export interface LiquidacionDetalle {
