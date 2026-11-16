@@ -11,7 +11,7 @@ const esquemaContribucion = z.object({
   desdeAnio: z.number().int().min(2000).max(2100), desdeMes: z.number().int().min(1).max(12), activa: z.boolean().optional(),
 });
 const esquemaParametros = z.object({ anio: z.number().int().min(2000).max(2100), mes: z.number().int().min(1).max(12), baseMaximaAportes: z.number().positive().nullable(), detraccion: z.number().min(0) });
-const esquemaConfiguracion = z.object({ cuentaSueldosId: uuid, cuentaContribucionesId: uuid, cuentaSueldosAPagarId: uuid, cuentaCargasSocialesId: uuid, cuentaRetencionesSindicalesId: uuid });
+const esquemaConfiguracion = z.object({ cuentaSueldosId: uuid, cuentaContribucionesId: uuid, cuentaSueldosAPagarId: uuid, cuentaCargasSocialesId: uuid, cuentaRetencionesSindicalesId: uuid, cuentaIndemnizacionesId: uuid.nullish() });
 
 @Controller('sueldos')
 export class ContribucionesController {

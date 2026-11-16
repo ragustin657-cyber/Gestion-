@@ -101,6 +101,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.08', 'Bajas de bienes de uso', RN, true),
   c('5.2.09', 'Sueldos y jornales', RN, true),
   c('5.2.10', 'Contribuciones patronales', RN, true),
+  c('5.2.11', 'Indemnizaciones', RN, true),
 ];
 
 /** Rubros de bienes de uso del plan modelo: nombre, cuenta de origen, de amortización acumulada y vida útil en meses. */

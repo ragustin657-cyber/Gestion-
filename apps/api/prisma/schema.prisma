@@ -2026,6 +2026,14 @@ enum TipoNovedad {
 enum TipoLiquidacion {
   MENSUAL
   SAC
+  FINAL
+}
+
+enum CausaEgreso {
+  RENUNCIA
+  DESPIDO_SIN_CAUSA
+  DESPIDO_CON_CAUSA
+  MUTUO_ACUERDO
 }
 
 enum EstadoLiquidacion {
@@ -2145,7 +2153,10 @@ model Liquidacion {
   pagos                 PagoSueldos[]
   recibos               ReciboSueldo[]
 
-  @@unique([empresaId, tipo, anio, mes])
+  egreso EgresoEmpleado?
+
+  // Único (empresa, tipo, año, mes) solo para MENSUAL y SAC: índice parcial en la migración 20261119090000
+  @@index([empresaId, tipo, anio, mes])
 }
 
 model Novedad {
@@ -2256,6 +2267,7 @@ model ConfiguracionSueldos {
   cuentaSueldosAPagarId         String? @db.Uuid
   cuentaCargasSocialesId        String? @db.Uuid
   cuentaRetencionesSindicalesId String? @db.Uuid
+  cuentaIndemnizacionesId       String? @db.Uuid
 }
 
 model ReciboSueldoContribucion {
@@ -2314,4 +2326,32 @@ model PagoCargasSociales {
   asientoId             String?  @db.Uuid
   creadoPor             String
   creadoEn              DateTime @default(now())
+}
+
+model EgresoEmpleado {
+  id                String      @id @default(uuid()) @db.Uuid
+  empresaId         String      @db.Uuid
+  liquidacionId     String      @unique @db.Uuid
+  liquidacion       Liquidacion @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  empleadoId        String      @db.Uuid
+  causa             CausaEgreso
+  fechaEgreso       DateTime    @db.Date
+  preavisoOtorgado  Boolean     @default(false)
+  mejorRemuneracion Decimal?    @db.Decimal(18, 2)
+  gratificacion     Decimal     @default(0) @db.Decimal(18, 2)
+  creadoPor         String
+  creadoEn          DateTime    @default(now())
+
+  @@index([empresaId, empleadoId])
+}
+
+model TopeIndemnizatorio {
+  id         String  @id @default(uuid()) @db.Uuid
+  empresaId  String  @db.Uuid
+  convenioId String  @db.Uuid
+  desdeAnio  Int
+  desdeMes   Int
+  importe    Decimal @db.Decimal(18, 2)
+
+  @@unique([convenioId, desdeAnio, desdeMes])
 }

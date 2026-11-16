@@ -161,14 +161,14 @@ export interface ContribucionResultado { codigo: string; nombre: string; destino
  * Contribuciones patronales de un recibo (spec E19 §2): base = remunerativo, menos la detracción (proporcional a los días
  * en el mensual, 50 % en el SAC) si corresponde; importe = base × alícuota + fijo (el fijo solo en el mensual). Omite los 0.
  */
-export function calcularContribuciones(remunerativo: Dec, diasTrabajados: number, tipo: 'MENSUAL' | 'SAC', contribuciones: ContribucionCalc[], detraccion: Dec): ContribucionResultado[] {
-  if (tipo === 'MENSUAL' && diasTrabajados <= 0) return [];
+export function calcularContribuciones(remunerativo: Dec, diasTrabajados: number, tipo: 'MENSUAL' | 'SAC' | 'FINAL', contribuciones: ContribucionCalc[], detraccion: Dec): ContribucionResultado[] {
+  if (tipo !== 'SAC' && diasTrabajados <= 0) return [];
   const rem = D.max(new D(remunerativo), 0);
   const det = r2(tipo === 'SAC' ? new D(detraccion).div(2) : new D(detraccion).times(diasTrabajados).div(30));
   const out: ContribucionResultado[] = [];
   for (const c of contribuciones) {
     const base = c.aplicaDetraccion ? D.max(rem.minus(det), 0) : rem;
-    const importe = r2(base.times(c.alicuota).div(100)).plus(tipo === 'MENSUAL' ? c.importeFijo : 0);
+    const importe = r2(base.times(c.alicuota).div(100)).plus(tipo !== 'SAC' ? c.importeFijo : 0);
     if (importe.isZero()) continue;
     out.push({ codigo: c.codigo, nombre: c.nombre, destino: c.destino, base, alicuota: new D(c.alicuota), importe: r2(importe), cuentaContableId: c.cuentaContableId });
   }
