@@ -201,6 +201,8 @@ export interface DatosFinal {
 /** Suma meses a una fecha, con el día recortado al último del mes de destino. */
 function sumarMeses(f: Date, meses: number): Date {
   const y = f.getUTCFullYear(), m = f.getUTCMonth() + meses;
+  // Un 29/02 que cae en febrero de un año no bisiesto pasa al 1/3, igual que el aniversario de antiguedadAnios
+  if (f.getUTCMonth() === 1 && f.getUTCDate() === 29) return new Date(Date.UTC(y, m, 29));
   const ultimo = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
   return new Date(Date.UTC(y, m, Math.min(f.getUTCDate(), ultimo)));
 }
