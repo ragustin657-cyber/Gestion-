@@ -370,3 +370,26 @@ El contador cierra la liquidación, ve el asiento, paga los netos desde el banco
 - **Errores:** textos de errores secundarios.
 - **Orden de las pruebas.**
 - **Contraste del F.931:** comparar el diseño del F.931 con el manual oficial (§5).
+
+## 9. Decisiones del builder
+
+Las tomé yo después de la revisión del diseño y se pueden corregir.
+
+1. **Reabrir con cargas sociales pagadas.**
+   - Reabrir una liquidación también se bloquea si hay pagos de cargas sociales vigentes de su mes: `Hay pagos de cargas sociales de MM/AAAA: anúlelos antes de reabrir`.
+   - Así lo pendiente nunca queda negativo. Si igual diera negativo (por ejemplo, por un asiento manual), se muestra en rojo y no se puede pagar.
+2. **A qué va cada descuento.**
+   - Los conceptos `DESCUENTO` llevan `destino`: `SEGURIDAD_SOCIAL | OBRA_SOCIAL | SINDICAL | OTRO`, default `OTRO`. Se elige en la pantalla de conceptos.
+   - La precarga y la migración ponen: 500 y 510 en `SEGURIDAD_SOCIAL`, 520 en `OBRA_SOCIAL`, 530 y 540 en `SINDICAL`.
+   - **Cuenta por defecto según destino** (cuando el concepto no tiene `cuentaContableId`):
+     - `SEGURIDAD_SOCIAL` y `OBRA_SOCIAL` → Cargas sociales a pagar;
+     - `SINDICAL` → Retenciones sindicales a pagar;
+     - `OTRO` → Cargas sociales a pagar.
+   - El detalle F.931 de la pantalla de cargas sociales usa estos destinos.
+3. **Mensual y SAC del mismo mes en el F.931.**
+   - Los topes de base máxima se aplican por separado: el mensual con la base máxima y el SAC con la mitad, y se suman los importes ya topeados.
+   - Si el SAC del mes está cerrado y la mensual no: 400 `La liquidación mensual de MM/AAAA no está cerrada`.
+   - Una mensual cerrada sin SAC (diciembre antes de liquidar el aguinaldo) genera el archivo normalmente.
+4. **Centro de costo del asiento.**
+   - `ReciboSueldo` guarda una copia del `centroCostoId` del empleado al calcular, como el resto de sus datos. El asiento usa esa copia.
+   - La migración completa los recibos existentes con el centro actual del empleado.
