@@ -1,3 +1,4 @@
+import { CostoTarjetasPage, CuponesTarjetasPage, LiquidacionesTarjetaPage, TarjetasMaestroPage } from '../tesoreria/TarjetasPages';
 import { ReactNode } from 'react';
 import { ConfigComprasPage } from '../compras/ConfigComprasPage';
 import { AntiguedadDeudaPage } from '../compras/consultas/AntiguedadDeudaPage';
@@ -90,6 +91,10 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/maestros/plan-cuentas', elemento: <PlanCuentasPage /> },
   { ruta: '/maestros/monedas', elemento: <MonedasPage /> },
   { ruta: '/maestros/tesoreria', elemento: <TesoreriaPage /> },
+  { ruta: '/maestros/tarjetas', elemento: <TarjetasMaestroPage /> },
+  { ruta: '/tesoreria/tarjetas/cupones', elemento: <CuponesTarjetasPage /> },
+  { ruta: '/tesoreria/tarjetas/liquidaciones', elemento: <LiquidacionesTarjetaPage /> },
+  { ruta: '/tesoreria/tarjetas/costo', elemento: <CostoTarjetasPage /> },
   { ruta: '/maestros/organizacion', elemento: <OrganizacionPage /> },
   { ruta: '/admin/empresa', elemento: <EmpresaPage /> },
   { ruta: '/admin/usuarios', elemento: <UsuariosPage /> },

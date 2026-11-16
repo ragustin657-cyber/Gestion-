@@ -1,3 +1,4 @@
+import { RenglonesCupones, cuponesParaApi, totalCupones, useTarjetas, type CuponEditable } from './TarjetasPages';
 import { ActionIcon, Alert, Button, Group, Modal, Paper, ScrollArea, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
@@ -41,13 +42,15 @@ export function IngresoValoresPage() {
   const [efectivo, setEfectivo] = useState('');
   const [cheques, setCheques] = useState<ChequeEditable[]>([]);
   const [transfs, setTransfs] = useState<TransfEditable[]>([]);
+  const [cupones, setCupones] = useState<CuponEditable[]>([]);
+  const tarjetas = useTarjetas();
   const [confirmando, setConfirmando] = useState(false);
   const [anulando, setAnulando] = useState<Ingreso | null>(null);
   const [motivo, setMotivo] = useState('');
 
   const caja = cajas.find((c) => c.id === cajaId);
   const moneda = caja?.monedaCodigo ?? 'ARS';
-  const total = (numero(efectivo) || 0) + cheques.reduce((s, c) => s + (numero(c.importe) || 0), 0) + transfs.reduce((s, t) => s + (numero(t.importe) || 0), 0);
+  const total = (numero(efectivo) || 0) + cheques.reduce((s, c) => s + (numero(c.importe) || 0), 0) + transfs.reduce((s, t) => s + (numero(t.importe) || 0), 0) + totalCupones(cupones);
   const vencidos = cheques.filter((c) => vencido(c.fechaPago));
   const cambiarCheque = (i: number, c: Partial<ChequeEditable>) => setCheques(cheques.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const cambiarTransf = (i: number, c: Partial<TransfEditable>) => setTransfs(transfs.map((x, j) => (j === i ? { ...x, ...c } : x)));
@@ -62,6 +65,7 @@ export function IngresoValoresPage() {
           efectivo: efectivo ? { importe: numero(efectivo) } : null,
           cheques: cheques.map((c) => ({ ...c, libradorCuit: c.libradorCuit || null, importe: numero(c.importe) })),
           transferencias: transfs.map((t) => ({ ...t, referencia: t.referencia || null, importe: numero(t.importe) })),
+          cupones: cuponesParaApi(cupones),
         },
       }),
       (x) => `Ingreso ${x.numero} registrado${x.advertencias.length ? ` (${x.advertencias.join('; ')})` : ''}`,
@@ -70,6 +74,7 @@ export function IngresoValoresPage() {
       setEfectivo('');
       setCheques([]);
       setTransfs([]);
+      setCupones([]);
     }
   }
 
@@ -126,6 +131,8 @@ export function IngresoValoresPage() {
             <ActionIcon variant="subtle" color="red" aria-label="Quitar transferencia" onClick={() => setTransfs(transfs.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon>
           </Group>
         ))}
+
+        {moneda === 'ARS' && <RenglonesCupones tarjetas={tarjetas} cupones={cupones} onCambiar={setCupones} />}
 
         <Group justify="space-between" mt="lg">
           <Text fw={700} data-testid="total-ingreso">Total {formatoMoneda(total, moneda)}</Text>

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api/cliente';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
+import { RenglonesCupones, cuponesParaApi, totalCupones, useTarjetas, type CuponEditable } from '../tesoreria/TarjetasPages';
 import { opcionesCajas, opcionesCuentas, useCajas, useCuentasBancarias } from '../tesoreria/comun';
 import { numero, numeroVenta, useClientes, useOperacionVentas, usePuntosVenta, type MovPendiente } from './comun';
 
@@ -39,6 +40,8 @@ export function ReciboPage() {
   const [cheques, setCheques] = useState<ChequeEditable[]>([]);
   const [transfs, setTransfs] = useState<TransfEditable[]>([]);
   const [retenciones, setRetenciones] = useState<RetencionEditable[]>([]);
+  const [cupones, setCupones] = useState<CuponEditable[]>([]);
+  const tarjetas = useTarjetas();
   const [aplicar, setAplicar] = useState<Record<string, string>>({});
   const [ultimo, setUltimo] = useState<{ numero: number; puntoVenta: number } | null>(null);
 
@@ -48,7 +51,7 @@ export function ReciboPage() {
     enabled: !!terceroId,
   }).data;
   const debitos = (pendientes?.debitos ?? []).filter((d) => d.origenTipo === 'VENTA');
-  const total = n0(efectivo) + cheques.reduce((s, c) => s + n0(c.importe), 0) + transfs.reduce((s, t) => s + n0(t.importe), 0) + retenciones.reduce((s, r) => s + n0(r.importe), 0);
+  const total = n0(efectivo) + cheques.reduce((s, c) => s + n0(c.importe), 0) + transfs.reduce((s, t) => s + n0(t.importe), 0) + retenciones.reduce((s, r) => s + n0(r.importe), 0) + totalCupones(cupones);
   const aplicado = Object.values(aplicar).reduce((s, v) => s + n0(v), 0);
   const cambiar = <T,>(xs: T[], set: (v: T[]) => void, i: number, c: Partial<T>) => set(xs.map((x, j) => (j === i ? { ...x, ...c } : x)));
 
@@ -60,13 +63,14 @@ export function ReciboPage() {
         efectivo: efectivo ? { importe: numero(efectivo) } : null,
         cheques: cheques.map((c) => ({ ...c, libradorCuit: c.libradorCuit || null, importe: numero(c.importe) })),
         transferencias: transfs.map((t) => ({ ...t, referencia: t.referencia || null, importe: numero(t.importe) })),
+        cupones: cuponesParaApi(cupones),
         retenciones: retenciones.map((r) => ({ ...r, jurisdiccion: r.tipo === 'IIBB' ? r.jurisdiccion : null, importe: numero(r.importe) })),
         aplicaciones: Object.entries(aplicar).filter(([, v]) => n0(v) > 0).map(([id, v]) => ({ comprobanteId: debitos.find((d) => d.id === id)!.origenId, importe: numero(v) })),
       },
     }), (x) => `Recibo ${numeroVenta(x.puntoVenta, x.numero)} registrado${x.advertencias.length ? ` (${x.advertencias.join('; ')})` : ''}`);
     if (r) {
       setUltimo(r);
-      setEfectivo(''); setCheques([]); setTransfs([]); setRetenciones([]); setAplicar({});
+      setEfectivo(''); setCheques([]); setTransfs([]); setRetenciones([]); setCupones([]); setAplicar({});
     }
   }
 
@@ -112,6 +116,8 @@ export function ReciboPage() {
             <ActionIcon variant="subtle" color="red" aria-label="Quitar transferencia" onClick={() => setTransfs(transfs.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon>
           </Group>
         ))}
+
+        <RenglonesCupones tarjetas={tarjetas} cupones={cupones} onCambiar={setCupones} />
 
         <Group justify="space-between" mt="lg"><Title order={5}>Retenciones sufridas</Title>
           <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setRetenciones([...retenciones, { tipo: 'IIBB', jurisdiccion: '901', numeroCertificado: '', fecha, importe: '' }])}>Agregar retención</Button></Group>
