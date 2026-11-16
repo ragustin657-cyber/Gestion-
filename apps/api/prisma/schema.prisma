@@ -2009,6 +2009,7 @@ enum TipoConcepto {
   AUSENCIA
   FIJO
   DESCUENTO_LEY
+  VACACIONES
 }
 
 enum FormaPagoSueldo {
@@ -2202,19 +2203,20 @@ model ReciboSueldo {
 }
 
 model ReciboSueldoRenglon {
-  id         String        @id @default(uuid()) @db.Uuid
-  empresaId  String        @db.Uuid
-  reciboId   String        @db.Uuid
-  recibo     ReciboSueldo  @relation(fields: [reciboId], references: [id], onDelete: Cascade)
-  conceptoId String?       @db.Uuid
-  codigo     String
-  nombre     String
-  clase      ClaseConcepto
-  cantidad   Decimal?      @db.Decimal(18, 4)
-  base       Decimal?      @db.Decimal(18, 2)
-  porcentaje Decimal?      @db.Decimal(9, 4)
-  importe    Decimal       @db.Decimal(18, 2)
-  orden      Int
+  id                String        @id @default(uuid()) @db.Uuid
+  empresaId         String        @db.Uuid
+  reciboId          String        @db.Uuid
+  recibo            ReciboSueldo  @relation(fields: [reciboId], references: [id], onDelete: Cascade)
+  conceptoId        String?       @db.Uuid
+  codigo            String
+  nombre            String
+  clase             ClaseConcepto
+  cantidad          Decimal?      @db.Decimal(18, 4)
+  base              Decimal?      @db.Decimal(18, 2)
+  porcentaje        Decimal?      @db.Decimal(9, 4)
+  importe           Decimal       @db.Decimal(18, 2)
+  orden             Int
+  vacacionPeriodoId String?       @db.Uuid
 }
 
 enum DestinoContribucion {
@@ -2268,6 +2270,7 @@ model ConfiguracionSueldos {
   cuentaCargasSocialesId        String? @db.Uuid
   cuentaRetencionesSindicalesId String? @db.Uuid
   cuentaIndemnizacionesId       String? @db.Uuid
+  anioInicioVacaciones          Int     @default(2026)
 }
 
 model ReciboSueldoContribucion {
@@ -2354,4 +2357,30 @@ model TopeIndemnizatorio {
   importe    Decimal @db.Decimal(18, 2)
 
   @@unique([convenioId, desdeAnio, desdeMes])
+}
+
+model VacacionPeriodo {
+  id              String   @id @default(uuid()) @db.Uuid
+  empresaId       String   @db.Uuid
+  empleadoId      String   @db.Uuid
+  anio            Int
+  desde           DateTime @db.Date
+  hasta           DateTime @db.Date
+  dias            Int
+  liquidadoAfuera Boolean  @default(false)
+  observaciones   String?
+  creadoPor       String
+  creadoEn        DateTime @default(now())
+
+  @@index([empresaId, empleadoId])
+}
+
+model VacacionSaldoInicial {
+  id         String @id @default(uuid()) @db.Uuid
+  empresaId  String @db.Uuid
+  empleadoId String @db.Uuid
+  anio       Int
+  dias       Int
+
+  @@unique([empleadoId, anio])
 }
