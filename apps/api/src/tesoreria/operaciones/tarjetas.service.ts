@@ -36,12 +36,12 @@ export class TarjetasService {
     return this.tenant.db.tarjeta.findMany({ orderBy: { nombre: 'asc' } });
   }
 
-  private async validar(tx: TxEmpresa, d: DatosTarjeta, id?: string) {
+  private async validar(tx: TxEmpresa, d: DatosTarjeta, id?: string, cuentaActual?: string) {
     const cb = await tx.cuentaBancaria.findUnique({ where: { id: d.cuentaBancariaId } });
     if (!cb) throw new BadRequestException('Cuenta bancaria inexistente');
     if (cb.monedaCodigo !== 'ARS') throw new BadRequestException('La cuenta bancaria debe ser en pesos');
     if (await tx.tarjeta.findFirst({ where: { nombre: d.nombre, id: id ? { not: id } : undefined } })) throw new BadRequestException(`Ya existe la tarjeta ${d.nombre}`);
-    const cuentaContableId = d.cuentaContableId ?? (await this.config.cuenta(tx, 'TARJETAS_A_COBRAR'));
+    const cuentaContableId = d.cuentaContableId ?? cuentaActual ?? (await this.config.cuenta(tx, 'TARJETAS_A_COBRAR'));
     const c = await tx.cuentaContable.findUnique({ where: { id: cuentaContableId } });
     if (!c || !c.imputable || !c.activa) throw new BadRequestException('Cuenta contable inválida: debe ser imputable y activa');
     return cuentaContableId;
@@ -56,8 +56,10 @@ export class TarjetasService {
 
   modificar(id: string, d: DatosTarjeta) {
     return this.tenant.transaccion(async (tx) => {
-      if (!(await tx.tarjeta.findUnique({ where: { id } }))) throw new NotFoundException('Tarjeta inexistente');
-      const cuentaContableId = await this.validar(tx, d, id);
+      const actual = await tx.tarjeta.findUnique({ where: { id } });
+      if (!actual) throw new NotFoundException('Tarjeta inexistente');
+      // Sin cuenta en el pedido se conserva la que tenía (no se vuelve a la de la configuración)
+      const cuentaContableId = await this.validar(tx, d, id, actual.cuentaContableId);
       return tx.tarjeta.update({ where: { id }, data: { nombre: d.nombre, tipo: d.tipo, cuentaBancariaId: d.cuentaBancariaId, cuentaContableId, activa: d.activa ?? true } });
     });
   }
@@ -155,7 +157,7 @@ export class TarjetasService {
     return this.tenant.transaccion(async (tx) => {
       await tx.$queryRawUnsafe(`SELECT id FROM "LiquidacionTarjeta" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, id, this.tenant.empresaId);
       const l = await tx.liquidacionTarjeta.findUnique({ where: { id } });
-      if (!l) throw new NotFoundException('Liquidación inexistente');
+      if (!l || !(await this.visible(tx, [id])).has(id)) throw new NotFoundException('Liquidación inexistente');
       if (l.estado === 'ANULADO') throw new BadRequestException('La liquidación ya está anulada');
       if (await tx.movimientoTesoreria.count({ where: { origenTipo: ORIGEN_LIQUIDACION_TARJETA, origenId: id, vinculoId: { not: null } } }))
         throw new BadRequestException('El movimiento bancario está conciliado: deshaga la conciliación antes de anular');
@@ -169,9 +171,21 @@ export class TarjetasService {
     });
   }
 
+  /**
+   * Liquidaciones que ve el usuario (spec §9.3): sin alcance de sucursal, todas; con alcance, las que tienen cupones
+   * de su sucursal y ninguno de otra. Una anulada ya no tiene cupones vinculados y solo la ven los usuarios sin alcance.
+   */
+  private async visible(tx: TxEmpresa, ids: string[]): Promise<Set<string>> {
+    const sucursalId = this.alcance.sucursalUsuario();
+    if (!sucursalId) return new Set(ids);
+    const cupones = ids.length ? await tx.cuponTarjeta.findMany({ where: { liquidacionId: { in: ids } }, select: { liquidacionId: true, sucursalId: true } }) : [];
+    const ajenas = new Set(cupones.filter((c) => c.sucursalId !== sucursalId).map((c) => c.liquidacionId!));
+    return new Set(cupones.filter((c) => c.sucursalId === sucursalId && !ajenas.has(c.liquidacionId!)).map((c) => c.liquidacionId!));
+  }
+
   async obtenerLiquidacion(id: string, tx: TxEmpresa = this.tenant.db) {
     const l = await tx.liquidacionTarjeta.findUnique({ where: { id }, include: { impuestos: true } });
-    if (!l) throw new NotFoundException('Liquidación inexistente');
+    if (!l || !(await this.visible(tx, [id])).has(id)) throw new NotFoundException('Liquidación inexistente');
     const cupones = await tx.cuponTarjeta.findMany({ where: { OR: [{ liquidacionId: id }] }, orderBy: { fecha: 'asc' } });
     const tarjeta = await tx.tarjeta.findUnique({ where: { id: l.tarjetaId } });
     const f = (x: Dec) => x.toFixed(2);
@@ -189,7 +203,12 @@ export class TarjetasService {
       orderBy: [{ fecha: 'desc' }, { numero: 'desc' }],
     });
     const tarjetas = new Map((await this.tenant.db.tarjeta.findMany()).map((t) => [t.id, t.nombre]));
-    return ls.map((l) => ({ id: l.id, numero: l.numero, fecha: l.fecha.toISOString().slice(0, 10), tarjeta: tarjetas.get(l.tarjetaId) ?? '', bruto: l.bruto.toFixed(2), neto: l.neto.toFixed(2), estado: l.estado, referencia: l.referencia }));
+    const ver = await this.visible(this.tenant.db, ls.map((l) => l.id));
+    return ls.filter((l) => ver.has(l.id)).map((l) => ({ id: l.id, numero: l.numero, fecha: l.fecha.toISOString().slice(0, 10), tarjeta: tarjetas.get(l.tarjetaId) ?? '', bruto: l.bruto.toFixed(2), neto: l.neto.toFixed(2), estado: l.estado, referencia: l.referencia }));
+  }
+
+  async razonSocial() {
+    return (await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } })).razonSocial;
   }
 
   /** Costo de cobrar con cada tarjeta en el período (spec §5). */
@@ -197,8 +216,9 @@ export class TarjetasService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(desde ?? '') || !/^\d{4}-\d{2}-\d{2}$/.test(hasta ?? '')) throw new BadRequestException('Indique el período (desde y hasta)');
     const ls = await this.tenant.db.liquidacionTarjeta.findMany({ where: { estado: 'CONFIRMADO', fecha: { gte: aFecha(desde), lte: aFecha(hasta) } }, include: { impuestos: true } });
     const tarjetas = new Map((await this.tenant.db.tarjeta.findMany()).map((t) => [t.id, t.nombre]));
+    const ver = await this.visible(this.tenant.db, ls.map((l) => l.id));
     const por = new Map<string, { bruto: Dec; comisiones: Dec; iva: Dec; impuestos: Dec; neto: Dec }>();
-    for (const l of ls) {
+    for (const l of ls.filter((x) => ver.has(x.id))) {
       const t = por.get(l.tarjetaId) ?? { bruto: new D(0), comisiones: new D(0), iva: new D(0), impuestos: new D(0), neto: new D(0) };
       t.bruto = t.bruto.plus(l.bruto); t.comisiones = t.comisiones.plus(l.arancel).plus(l.costoFinanciero); t.iva = t.iva.plus(l.ivaArancel).plus(l.ivaCostoFinanciero);
       t.impuestos = t.impuestos.plus(l.impuestos.reduce((s2, i) => s2.plus(i.importe), new D(0))); t.neto = t.neto.plus(l.neto);

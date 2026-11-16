@@ -42,3 +42,11 @@ describe('tarjetas (web)', () => {
     expect(titulos(filtrarMenu(MENU, ['tesoreria.ver']))).toContain('Cupones de tarjetas');
   });
 });
+
+import { totalIngreso } from './IngresoValoresPage';
+
+describe('revisión: total del ingreso', () => {
+  it('suma los cupones', () => {
+    expect(totalIngreso({ efectivo: [{ importe: '100' }], cheques: [], transferencias: [], cupones: [{ importe: '5000' }] } as never)).toBe(5100);
+  });
+});

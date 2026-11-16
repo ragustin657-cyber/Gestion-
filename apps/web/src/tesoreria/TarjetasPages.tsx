@@ -1,8 +1,8 @@
 import { ActionIcon, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
-import { IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconDownload, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api } from '../api/cliente';
+import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { errorConsulta, numero, opcionesCuentas, useCuentasBancarias, useOperacion } from './comun';
@@ -200,6 +200,8 @@ export function CostoTarjetasPage() {
         <Group>
           <TextInput type="date" aria-label="Desde" value={desde} onChange={(e) => setDesde(e.currentTarget.value)} />
           <TextInput type="date" aria-label="Hasta" value={hasta} onChange={(e) => setHasta(e.currentTarget.value)} />
+          <Button variant="light" size="xs" leftSection={<IconDownload size={14} />} onClick={() => void descargar('/tesoreria/tarjetas/costo', { desde, hasta, formato: 'xlsx' }, `costo-tarjetas-${desde}-${hasta}.xlsx`)}>Excel</Button>
+          <Button variant="light" size="xs" leftSection={<IconDownload size={14} />} onClick={() => void descargar('/tesoreria/tarjetas/costo', { desde, hasta, formato: 'pdf' }, `costo-tarjetas-${desde}-${hasta}.pdf`)}>PDF</Button>
         </Group>
       </Group>
       {errorConsulta(q.error)}

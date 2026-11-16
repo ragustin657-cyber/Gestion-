@@ -127,4 +127,56 @@ describe('tarjetas: liquidaciones', () => {
     expect((await x.liquidar({}, u.http)).status).toBe(403);
     expect((await u.http.get('/api/tesoreria/liquidaciones-tarjeta')).status).toBe(200);
   });
+
+  it('revisión: anular un ingreso mientras se liquida no deja cupones liquidados sin respaldo', async () => {
+    const x = await escenario();
+    let anular: Promise<{ status: number }> | null = null;
+    await prisma.$transaction(async (tx) => {
+      // Simula una liquidación en curso: los cupones quedan LIQUIDADO sin confirmar
+      await tx.cuponTarjeta.updateMany({ where: { ingresoId: x.ing.id }, data: { estado: 'LIQUIDADO' } });
+      anular = Promise.resolve(x.http.post(`/api/tesoreria/ingresos/${x.ing.id}/anular`, { motivo: 'Error' }).then((r) => r));
+      await new Promise((r) => setTimeout(r, 800));
+    }, { timeout: 10000 });
+    const r = await anular!;
+    expect(r.status).toBe(400);
+    expect((await prisma.ingresoValores.findUniqueOrThrow({ where: { id: x.ing.id } })).estado).not.toBe('ANULADO');
+  });
+
+  it('revisión: modificar la tarjeta sin cuenta conserva la cuenta a cobrar', async () => {
+    const x = await escenario();
+    const propia = await x.cuenta('1.1.02.001');
+    await x.http.put(`/api/tesoreria/tarjetas/${x.visa.id}`, { nombre: 'Visa crédito', tipo: 'CREDITO', cuentaBancariaId: x.ars.id, cuentaContableId: propia });
+    expect((await x.http.put(`/api/tesoreria/tarjetas/${x.visa.id}`, { nombre: 'Visa', tipo: 'CREDITO', cuentaBancariaId: x.ars.id, activa: true })).status).toBe(200);
+    expect((await prisma.tarjeta.findUniqueOrThrow({ where: { id: x.visa.id } })).cuentaContableId).toBe(propia);
+  });
+
+  it('revisión: un usuario de otra sucursal no ve, ni anula, ni cuenta en el costo las liquidaciones ajenas', async () => {
+    const x = await escenario();
+    const l = (await x.liquidar()).body as { id: string };
+    const ros = await x.usuario(['tesoreria.ver', 'tesoreria.operar', 'tesoreria.tarjetas'], x.ros.id);
+    expect((await ros.get('/api/tesoreria/liquidaciones-tarjeta')).body).toEqual([]);
+    expect((await ros.get('/api/tesoreria/tarjetas/costo?desde=2026-11-01&hasta=2026-11-30')).body).toEqual([]);
+    expect((await ros.get(`/api/tesoreria/liquidaciones-tarjeta/${l.id}`)).status).toBe(404);
+    const an = await ros.post(`/api/tesoreria/liquidaciones-tarjeta/${l.id}/anular`, { motivo: 'x' });
+    expect(an.status).toBe(404);
+    expect((await x.http.get('/api/tesoreria/liquidaciones-tarjeta')).body).toHaveLength(1);
+  });
+
+  it('revisión: costo por tarjeta en Excel y PDF', async () => {
+    const x = await escenario();
+    await x.liquidar();
+    const xl = await x.http.get('/api/tesoreria/tarjetas/costo?desde=2026-11-01&hasta=2026-11-30&formato=xlsx');
+    expect([xl.status, xl.headers['content-type']]).toEqual([200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+    const pdf = await x.http.get('/api/tesoreria/tarjetas/costo?desde=2026-11-01&hasta=2026-11-30&formato=pdf');
+    expect([pdf.status, pdf.headers['content-type']]).toEqual([200, 'application/pdf']);
+  });
+
+  it('revisión: el ingreso trae sus cupones', async () => {
+    const x = await escenario();
+    const i = await x.http.get(`/api/tesoreria/ingresos/${x.ing.id}`);
+    expect(i.body.cupones.map((c: { importe: string }) => Number(c.importe))).toEqual([100000, 50000]);
+    const lista = await x.http.get('/api/tesoreria/ingresos');
+    const fila = lista.body.items.find((y: { id: string }) => y.id === x.ing.id);
+    expect(fila.cupones).toHaveLength(2);
+  });
 });

@@ -34,7 +34,8 @@ export class RecibosService {
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
     const r = await tx.recibo.findUnique({ where: { id }, include: INCLUIR });
     if (!r) throw new NotFoundException('Recibo no encontrado');
-    const ingreso = r.ingresoId ? await tx.ingresoValores.findUnique({ where: { id: r.ingresoId }, include: { efectivo: true, cheques: true, transferencias: true } }) : null;
+    const ing = r.ingresoId ? await tx.ingresoValores.findUnique({ where: { id: r.ingresoId }, include: { efectivo: true, cheques: true, transferencias: true } }) : null;
+    const ingreso = ing ? (await this.ingresos.conCupones(tx, [ing]))[0] : null;
     const aplicaciones = await tx.aplicacionCobro.findMany({ where: { origenTipo: 'RECIBO', origenId: id } });
     const tercero = await tx.tercero.findUniqueOrThrow({ where: { id: r.terceroId } });
     return { ...r, tercero, ingreso, aplicaciones };

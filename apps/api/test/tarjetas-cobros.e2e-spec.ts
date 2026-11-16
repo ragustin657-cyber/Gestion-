@@ -48,6 +48,8 @@ describe('tarjetas: cobros', () => {
     const cupones = await prisma.cuponTarjeta.findMany({ where: { empresaId: x.empresaId }, orderBy: { importe: 'desc' } });
     expect(cupones.map((c) => [c.importe.toFixed(2), c.estado, c.cuotas])).toEqual([['1000.00', 'PENDIENTE', 3], ['210.00', 'PENDIENTE', 1]]);
     expect((await x.movDe(x.fc.id)).saldo.toString()).toBe('0');
+    const det = await x.http.get(`/api/ventas/recibos/${r.body.id}`);
+    expect(det.body.ingreso.cupones.map((c: { importe: string; tarjeta: string }) => [Number(c.importe), c.tarjeta])).toEqual([[1000, 'Visa crédito'], [210, 'Visa crédito']]);
   });
 
   it('recibo mixto', async () => {

@@ -11,7 +11,7 @@ import { numero, opcionesCajas, opcionesCuentas, useCajas, useCuentasBancarias, 
 
 interface ChequeEditable { tipo: string; banco: string; numero: string; libradorNombre: string; libradorCuit: string; fechaEmision: string; fechaPago: string; importe: string }
 interface TransfEditable { cuentaBancariaId: string | null; fecha: string; referencia: string; importe: string }
-interface Ingreso { id: string; numero: number; fecha: string; concepto: string; estado: string; efectivo: { importe: string }[]; cheques: { importe: string }[]; transferencias: { importe: string }[] }
+interface Ingreso { id: string; numero: number; fecha: string; concepto: string; estado: string; efectivo: { importe: string }[]; cheques: { importe: string }[]; transferencias: { importe: string }[]; cupones?: { importe: string }[] }
 
 const chequeVacio = (): ChequeEditable => ({ tipo: 'FISICO', banco: '', numero: '', libradorNombre: '', libradorCuit: '', fechaEmision: hoy(), fechaPago: hoy(), importe: '' });
 const vencido = (fechaPago: string) => {
@@ -19,7 +19,7 @@ const vencido = (fechaPago: string) => {
   limite.setUTCDate(limite.getUTCDate() - 30);
   return !!fechaPago && new Date(`${fechaPago}T00:00:00Z`) < limite;
 };
-const totalIngreso = (i: Ingreso) => [...i.efectivo, ...i.cheques, ...i.transferencias].reduce((s, x) => s + Number(x.importe), 0);
+export const totalIngreso = (i: Ingreso) => [...i.efectivo, ...i.cheques, ...i.transferencias, ...(i.cupones ?? [])].reduce((s, x) => s + Number(x.importe), 0);
 
 export function IngresoValoresPage() {
   const { puede } = useAuth();

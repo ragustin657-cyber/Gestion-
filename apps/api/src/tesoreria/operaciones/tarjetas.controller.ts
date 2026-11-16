@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
+import { tablaPdf, tablaXlsx } from '../../contabilidad/consultas/exportar';
 import { z } from 'zod';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
@@ -28,7 +30,28 @@ export class TarjetasController {
   cupones(@Query() q: { tarjetaId?: string; estado?: string; desde?: string; hasta?: string }) { return this.t.cupones(q); }
 
   @Get('tarjetas/costo') @RequierePermiso('tesoreria.ver')
-  costo(@Query('desde') desde: string, @Query('hasta') hasta: string) { return this.t.costo(desde, hasta); }
+  async costo(@Query('desde') desde: string, @Query('hasta') hasta: string, @Query('formato') formato: string | undefined, @Res({ passthrough: true }) res: Response) {
+    const filas = await this.t.costo(desde, hasta);
+    if (!formato) return filas;
+    const fAR = (s: string) => s.split('-').reverse().join('/');
+    const columnas = [{ titulo: 'Tarjeta', ancho: 160 }, { titulo: 'Bruto', ancho: 90, importe: true }, { titulo: 'Comisiones', ancho: 90, importe: true }, { titulo: 'IVA', ancho: 80, importe: true },
+      { titulo: 'Ret. y percep.', ancho: 90, importe: true }, { titulo: 'Neto', ancho: 90, importe: true }, { titulo: 'Costo %', ancho: 60, importe: true }, { titulo: 'Desc. total %', ancho: 70, importe: true }];
+    const datos = filas.map((f) => [f.tarjeta, f.bruto, f.comisiones, f.iva, f.impuestos, f.neto, f.costoPct, f.descuentoTotalPct]);
+    const titulo = 'Costo por tarjeta';
+    const subtitulo = `${fAR(desde)} al ${fAR(hasta)}`;
+    const nombre = `costo-tarjetas-${desde}-${hasta}`;
+    if (formato === 'xlsx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${nombre}.xlsx"`);
+      return new StreamableFile(await tablaXlsx(titulo, subtitulo, columnas, datos));
+    }
+    if (formato === 'pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${nombre}.pdf"`);
+      return new StreamableFile(await tablaPdf(await this.t.razonSocial(), titulo, subtitulo, columnas, datos));
+    }
+    throw new BadRequestException('Formato inválido: use xlsx o pdf');
+  }
 
   @Get('liquidaciones-tarjeta') @RequierePermiso('tesoreria.ver')
   liquidaciones(@Query() q: { tarjetaId?: string; desde?: string; hasta?: string }) { return this.t.liquidaciones(q); }

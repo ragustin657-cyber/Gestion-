@@ -48,13 +48,20 @@ export class IngresosService {
       this.tenant.db.ingresoValores.findMany({ where, include: INCLUIR, orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }], ...paginacion(q) }),
       this.tenant.db.ingresoValores.count({ where }),
     ]);
-    return { items, total };
+    return { items: await this.conCupones(this.tenant.db, items), total };
   }
 
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
     const i = await tx.ingresoValores.findFirst({ where: { id, ...this.filtro() }, include: INCLUIR });
     if (!i) throw new NotFoundException('Ingreso no encontrado');
-    return i;
+    return (await this.conCupones(tx, [i]))[0];
+  }
+
+  /** Agrega los cupones de tarjeta de cada ingreso (no hay relación en el modelo). */
+  async conCupones<T extends { id: string }>(tx: TxEmpresa, ingresos: T[]) {
+    const cupones = ingresos.length ? await tx.cuponTarjeta.findMany({ where: { ingresoId: { in: ingresos.map((i) => i.id) } }, orderBy: [{ creadoEn: 'asc' }, { id: 'asc' }] }) : [];
+    const nombres = new Map((cupones.length ? await tx.tarjeta.findMany({ where: { id: { in: [...new Set(cupones.map((c) => c.tarjetaId))] } } }) : []).map((t) => [t.id, t.nombre]));
+    return ingresos.map((i) => ({ ...i, cupones: cupones.filter((c) => c.ingresoId === i.id).map((c) => ({ ...c, tarjeta: nombres.get(c.tarjetaId) ?? '' })) }));
   }
 
   crear(d: DatosIngreso) {
@@ -221,6 +228,8 @@ export class IngresosService {
     await bloquear(tx, 'MovimientoCuentaCorriente', empresaId, movsCc.map((m) => m.id));
     await bloquear(tx, 'Caja', empresaId, [ing.cajaId]);
     await bloquear(tx, 'ChequeTercero', empresaId, ing.cheques.map((c) => c.id));
+    // Bloquea los cupones antes de mirar su estado: una liquidación en curso los tiene tomados
+    await bloquear(tx, 'CuponTarjeta', empresaId, ing.cupones.map((c) => c.id));
     // El efectivo del ingreso tiene que seguir en la caja
     const efectivo = ing.efectivo.reduce((s, e) => s.plus(e.importe), new D(0));
     const sinEfectivo = efectivo.gt(0) && (await saldoCaja(tx, ing.cajaId)).lt(efectivo);
@@ -228,8 +237,9 @@ export class IngresosService {
     const transf = await tx.transferenciaRecibida.findMany({ where: { ingresoId: id } });
     const liquidado = await tx.cuponTarjeta.findFirst({ where: { ingresoId: id, estado: 'LIQUIDADO' } });
     if (liquidado) {
-      const [t, l] = await Promise.all([tx.tarjeta.findUnique({ where: { id: liquidado.tarjetaId } }), tx.liquidacionTarjeta.findUnique({ where: { id: liquidado.liquidacionId! } })]);
-      throw new BadRequestException(`El cupón ${liquidado.numero ?? ''} de ${t?.nombre ?? 'la tarjeta'} ya está liquidado: anule primero la liquidación N° ${l?.numero ?? ''}`.replace('cupón  de', 'cupón de'));
+      const [t, l] = await Promise.all([tx.tarjeta.findUnique({ where: { id: liquidado.tarjetaId } }), liquidado.liquidacionId ? tx.liquidacionTarjeta.findUnique({ where: { id: liquidado.liquidacionId } }) : null]);
+      const cupon = liquidado.numero ? `El cupón ${liquidado.numero}` : 'El cupón';
+      throw new BadRequestException(`${cupon} de ${t?.nombre ?? 'la tarjeta'} ya está liquidado: anule primero la liquidación${l ? ` N° ${l.numero}` : ''}`);
     }
     if (await tx.aplicacionCobro.count({ where: { creditoMovId: { in: movsCc.map((m) => m.id) }, anulada: false } }))
       throw new BadRequestException('El cobro fue aplicado a comprobantes: deshaga primero la aplicación');
