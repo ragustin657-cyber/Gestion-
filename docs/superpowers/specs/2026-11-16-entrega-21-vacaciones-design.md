@@ -144,7 +144,7 @@ días = Σ pendientes de los años anteriores al del egreso (desde anioInicioVac
 
 Sin períodos registrados, el resultado de la Entrega 20 no cambia: los años anteriores a 2026 no cuentan y en el año no hay tomados.
 
-**Ejemplo:** el despido del 15/11/2026 de la Entrega 20, con 14 días tomados en 2026.
+**Ejemplo:** el despido del 15/11/2026 de la Entrega 20, con 14 días tomados en 2026 (por ejemplo, del 01/10 al 14/10, pagados en la mensual de octubre).
 - Días: `max(0, 21 × 319/365 − 14)` = 4,3534.
 - Importe: `1.137.465 ÷ 25 × 4,3534...` = 198.074,73.
 - El 331 da 16.506,23.
@@ -200,3 +200,21 @@ Sin períodos registrados, el resultado de la Entrega 20 no cambia: los años an
 - **Pantallas:** su distribución.
 - **Errores:** textos de errores secundarios.
 - **Avisos:** cómo se muestran en la web.
+
+## 11. Decisiones del builder
+
+Las tomé yo después de la revisión del diseño y se pueden corregir.
+
+1. **Vacaciones y egreso.**
+   - Con fecha de egreso cargada, un período no puede terminar después del egreso: `El período termina después del egreso del empleado (dd/mm/aaaa)`.
+   - Dar de baja con períodos que empiezan después del egreso: 400 `El empleado tiene vacaciones registradas después del egreso: modifíquelas antes de darlo de baja`.
+   - Un período que empieza en el mes del egreso se liquida en la final (150 y 151) y cuenta como tomado.
+   - Un período pagado en una final cerrada también está liquidado y no se edita.
+   - Crear, modificar o borrar un período recalcula la liquidación en borrador de su mes de inicio, mensual o final, que incluya al empleado.
+2. **Período que empieza en un mes ya cerrado.** El período lleva `liquidadoAfuera Boolean` (default false).
+   - Si la mensual de su mes de inicio ya está cerrada y no se marcó, se rechaza: `La liquidación mensual de MM/AAAA ya está cerrada: marque el período como liquidado fuera del sistema o reabra la liquidación`.
+   - Marcado, cuenta como tomado, nunca se liquida (tampoco si se reabre ese mes) y se puede editar.
+   - Sirve para cargar vacaciones de antes del sistema o pagadas a mano.
+3. **Mejor remuneración.**
+   - Para la base indemnizatoria (art. 245, preaviso, integración y vacaciones no gozadas de la final, es decir la "mejor remuneración normal y habitual del último año"), cada recibo cerrado se toma sin la diferencia neta de vacaciones (150 + 151).
+   - Para el SAC (mensual y proporcional de la final), sí se incluye.
