@@ -73,6 +73,8 @@ export class F931Service {
       for (const x of r.renglones.filter((y) => y.clase === 'REMUNERATIVO')) {
         if (x.codigo === '200' && !x.conceptoId) { d.sac = d.sac.plus(x.importe); continue; }
         const tipo = x.conceptoId ? conceptos.get(x.conceptoId)?.tipo : undefined;
+        // Vacaciones (E21): el 150 va al campo 40; el descuento de días (151, negativo) resta en sueldo + adicionales
+        if (tipo === 'VACACIONES') { if (new D(x.importe).gt(0)) d.vacaciones = (d.vacaciones ?? new D(0)).plus(x.importe); else d.sueldoAdicionales = d.sueldoAdicionales.plus(x.importe); continue; }
         if (tipo === 'HORAS_EXTRA') d.horasExtrasImporte = d.horasExtrasImporte.plus(x.importe);
         else if (tipo && TIPOS_SUELDO.includes(tipo)) d.sueldoAdicionales = d.sueldoAdicionales.plus(x.importe);
       }

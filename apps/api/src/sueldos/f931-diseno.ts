@@ -9,7 +9,7 @@ export interface DatosF931 {
   codigoZona: number; codigoModalidad: number; codigoObraSocial: string; adherentes: number; codigoSiniestrado: number; regimen: number; diaInicioRevista: number;
   convencionado: boolean; localidad: string; tipoEmpresa: number; scvo: boolean;
   remuneracionTotal: Dec; imponible1: Dec; imponible2: Dec; imponible3: Dec; imponible4: Dec; imponible5: Dec; imponible8: Dec; imponible9: Dec; imponible11: Dec;
-  sueldoAdicionales: Dec; sac: Dec; horasExtrasImporte: Dec; noRemunerativo: Dec; detraccion: Dec; diasTrabajados: number; horasExtras: number;
+  sueldoAdicionales: Dec; sac: Dec; horasExtrasImporte: Dec; noRemunerativo: Dec; detraccion: Dec; diasTrabajados: number; horasExtras: number; vacaciones?: Dec;
 }
 
 export interface CampoF931 { numero: number; nombre: string; largo: number; tipo: 'N' | 'C' | 'I'; valor: (d: DatosF931) => string | number | Dec }
@@ -56,7 +56,7 @@ const campos: [string, number, CampoF931['tipo'], CampoF931['valor']][] = [
   ['SAC', 12, 'I', (d) => d.sac],
   ['Horas extras', 12, 'I', (d) => d.horasExtrasImporte],
   ['Zona desfavorable', 12, 'I', cero],
-  ['Vacaciones', 12, 'I', cero],
+  ['Vacaciones', 12, 'I', (d) => d.vacaciones ?? 0],
   ['Cantidad de días trabajados', 9, 'I', (d) => d.diasTrabajados],
   ['Remuneración imponible 5', 12, 'I', (d) => d.imponible5],
   ['Trabajador convencionado', 1, 'N', (d) => b(d.convencionado)],

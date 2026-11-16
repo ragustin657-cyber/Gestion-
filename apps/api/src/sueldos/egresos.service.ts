@@ -45,6 +45,8 @@ export class EgresosService {
         .filter((l) => l.anio * 12 + l.mes >= idx).map((l) => l.id).sort();
       if (afectadas.length) await tx.$queryRawUnsafe(`SELECT id FROM "Liquidacion" WHERE id = ANY($1::uuid[]) AND "empresaId" = $2::uuid ORDER BY id FOR UPDATE`, afectadas, this.tenant.empresaId);
       await this.validarDobleCobro(tx, e.id, fecha);
+      if (await tx.vacacionPeriodo.count({ where: { empleadoId: e.id, desde: { gt: fecha } } }))
+        throw new BadRequestException('El empleado tiene vacaciones registradas después del egreso: modifíquelas antes de darlo de baja');
       const anio = fecha.getUTCFullYear(), mes = fecha.getUTCMonth() + 1;
       await tx.empleado.update({ where: { id: e.id }, data: { fechaEgreso: fecha, activo: false } });
       const l = await tx.liquidacion.create({ data: {
