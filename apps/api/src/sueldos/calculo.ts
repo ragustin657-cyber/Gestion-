@@ -35,7 +35,7 @@ export function diasTrabajados(ingreso: Date, egreso: Date | null, anio: number,
 const num = (p: Record<string, unknown>, k: string) => new D(Number(p[k] ?? 0));
 
 /** Liquida un empleado en un mes (spec §4, §11). */
-export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedades: NovedadCalc[], anio: number, mes: number): ResultadoCalc {
+export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedades: NovedadCalc[], anio: number, mes: number, baseMaxima: Dec | null = null): ResultadoCalc {
   const dias = diasTrabajados(e.fechaIngreso, e.fechaEgreso, anio, mes);
   const anios = antiguedadAnios(e.fechaIngreso, finDeMes(anio, mes));
   const cant = (t: NovedadCalc['tipo']) => novedades.filter((n) => n.tipo === t).reduce((s, n) => s.plus(n.cantidad ?? 0), new D(0));
@@ -85,19 +85,20 @@ export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedade
   // Remunerativos (en orden), luego no remunerativos
   for (const c of ordenados) if (aplica(c) && c.clase === 'REMUNERATIVO') calcular(c);
   for (const c of ordenados) if (aplica(c) && c.clase === 'NO_REMUNERATIVO') calcular(c);
-  let desc = descuentos(ordenados.filter(aplica), remu, noRemu, renglones, novedades);
+  const desc = descuentos(ordenados.filter(aplica), remu, noRemu, renglones, novedades, baseMaxima);
   return { renglones, totalRemunerativo: remu, totalNoRemunerativo: noRemu, totalDescuentos: desc, neto: remu.plus(noRemu).minus(desc), diasTrabajados: dias, antiguedadAnios: anios };
 }
 
 /** Descuentos sobre el remunerativo (o remunerativo + no remunerativo), con tope de base opcional. */
-function descuentos(conceptos: ConceptoCalc[], remu: Dec, noRemu: Dec, renglones: RenglonCalc[], novedades: NovedadCalc[]): Dec {
+function descuentos(conceptos: ConceptoCalc[], remu: Dec, noRemu: Dec, renglones: RenglonCalc[], novedades: NovedadCalc[], baseMaxima: Dec | null): Dec {
   let total = new D(0);
   for (const c of conceptos.filter((x) => x.clase === 'DESCUENTO')) {
     let importe: Dec;
     let base: Dec | null = null;
     if (c.tipo === 'DESCUENTO_LEY') {
       base = c.parametros.base === 'REMUNERATIVO_MAS_NO_REMUNERATIVO' ? remu.plus(noRemu) : remu;
-      if (c.parametros.tope) base = D.min(base, new D(Number(c.parametros.tope)));
+      if (c.parametros.tope === 'BASE_MAXIMA') { if (baseMaxima) base = D.min(base, baseMaxima); }
+      else if (typeof c.parametros.tope === 'number' && c.parametros.tope > 0) base = D.min(base, new D(c.parametros.tope));
       importe = r2(base.times(num(c.parametros, 'pct')).div(100));
     } else if (c.tipo === 'FIJO') {
       const nov = novedades.find((n) => n.tipo === 'IMPORTE' && n.conceptoId === c.id);
@@ -111,7 +112,7 @@ function descuentos(conceptos: ConceptoCalc[], remu: Dec, noRemu: Dec, renglones
 }
 
 /** Aguinaldo: 50 % de la mejor remuneración del semestre × días trabajados en el semestre / días del semestre (spec §5, §11.4). */
-export function liquidarSac(e: EmpleadoCalc, conceptos: ConceptoCalc[], mejorRemunerativo: Dec, anio: number, semestre: 1 | 2): ResultadoCalc {
+export function liquidarSac(e: EmpleadoCalc, conceptos: ConceptoCalc[], mejorRemunerativo: Dec, anio: number, semestre: 1 | 2, baseMaxima: Dec | null = null): ResultadoCalc {
   const ini = new Date(Date.UTC(anio, semestre === 1 ? 0 : 6, 1)), fin = new Date(Date.UTC(anio, semestre === 1 ? 6 : 12, 0));
   const total = Math.round((fin.getTime() - ini.getTime()) / DIA) + 1;
   const desde = e.fechaIngreso > ini ? e.fechaIngreso : ini, hasta = e.fechaEgreso && e.fechaEgreso < fin ? e.fechaEgreso : fin;
@@ -120,7 +121,7 @@ export function liquidarSac(e: EmpleadoCalc, conceptos: ConceptoCalc[], mejorRem
   const renglones: RenglonCalc[] = [];
   if (!sac.isZero()) renglones.push({ conceptoId: 'SAC', codigo: '200', nombre: 'SAC', clase: 'REMUNERATIVO', cantidad: new D(dias), base: new D(mejorRemunerativo), porcentaje: new D(50), importe: sac, orden: 200 });
   const aplicables = conceptos.filter((c) => c.tipo === 'DESCUENTO_LEY' && (!c.soloAfiliados || e.afiliadoSindicato)).sort((a, b) => a.orden - b.orden);
-  const desc = descuentos(aplicables, sac, new D(0), renglones, []);
+  const desc = descuentos(aplicables, sac, new D(0), renglones, [], baseMaxima ? baseMaxima.div(2) : null);
   return { renglones, totalRemunerativo: sac, totalNoRemunerativo: new D(0), totalDescuentos: desc, neto: sac.minus(desc), diasTrabajados: dias, antiguedadAnios: antiguedadAnios(e.fechaIngreso, fin) };
 }
 
@@ -147,7 +148,29 @@ export function validarConcepto(tipo: ConceptoCalc['tipo'], clase: ConceptoCalc[
     case 'PORCENTAJE': return numero('pct', true) ?? opcion('base', ['BASICO_MAS_ANTIGUEDAD', 'REMUNERATIVO', 'BRUTO']) ?? (p.pierdeConAusencia === undefined || typeof p.pierdeConAusencia === 'boolean' ? null : 'Parámetro pierdeConAusencia inválido');
     case 'HORAS_EXTRA': return p.recargoPct === 50 || p.recargoPct === 100 ? null : 'Parámetro recargoPct: debe ser 50 o 100';
     case 'FIJO': return numero('importe', false);
-    case 'DESCUENTO_LEY': return numero('pct', true) ?? opcion('base', ['REMUNERATIVO', 'REMUNERATIVO_MAS_NO_REMUNERATIVO']) ?? numero('tope', false);
+    case 'DESCUENTO_LEY': return numero('pct', true) ?? opcion('base', ['REMUNERATIVO', 'REMUNERATIVO_MAS_NO_REMUNERATIVO']) ?? (typeof p.tope === 'string' ? (p.tope === 'BASE_MAXIMA' ? null : 'Parámetro tope inválido') : numero('tope', false));
     default: return null;
   }
+}
+
+export type DestinoContribucion = 'SEGURIDAD_SOCIAL' | 'OBRA_SOCIAL' | 'ART' | 'SEGURO_VIDA';
+export interface ContribucionCalc { codigo: string; nombre: string; destino: DestinoContribucion; alicuota: Dec; importeFijo: Dec; aplicaDetraccion: boolean; cuentaContableId: string }
+export interface ContribucionResultado { codigo: string; nombre: string; destino: DestinoContribucion; base: Dec; alicuota: Dec; importe: Dec; cuentaContableId: string }
+
+/**
+ * Contribuciones patronales de un recibo (spec E19 §2): base = remunerativo, menos la detracción (proporcional a los días
+ * en el mensual, 50 % en el SAC) si corresponde; importe = base × alícuota + fijo (el fijo solo en el mensual). Omite los 0.
+ */
+export function calcularContribuciones(remunerativo: Dec, diasTrabajados: number, tipo: 'MENSUAL' | 'SAC', contribuciones: ContribucionCalc[], detraccion: Dec): ContribucionResultado[] {
+  if (tipo === 'MENSUAL' && diasTrabajados <= 0) return [];
+  const rem = D.max(new D(remunerativo), 0);
+  const det = r2(tipo === 'SAC' ? new D(detraccion).div(2) : new D(detraccion).times(diasTrabajados).div(30));
+  const out: ContribucionResultado[] = [];
+  for (const c of contribuciones) {
+    const base = c.aplicaDetraccion ? D.max(rem.minus(det), 0) : rem;
+    const importe = r2(base.times(c.alicuota).div(100)).plus(tipo === 'MENSUAL' ? c.importeFijo : 0);
+    if (importe.isZero()) continue;
+    out.push({ codigo: c.codigo, nombre: c.nombre, destino: c.destino, base, alicuota: new D(c.alicuota), importe: r2(importe), cuentaContableId: c.cuentaContableId });
+  }
+  return out;
 }

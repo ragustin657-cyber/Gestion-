@@ -248,6 +248,13 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Recibos** (art. 140 LCT) en PDF, original y duplicado en la misma hoja: empleador, empleado, período, conceptos por clase, neto en números y en letras, último depósito de aportes, lugar y fecha de pago y firma del empleado. En borrador llevan la marca "BORRADOR". **Resumen** de la liquidación por concepto y por empleado en Excel y PDF.
 - Permisos `sueldos.ver` y `sueldos.liquidar` (en la demo, el Contador).
 
+## Sueldos: contabilidad, pagos y F.931 (Entrega 19)
+
+- **Contribuciones patronales** (Sueldos → *Contribuciones*): tabla de la empresa con alícuota, fijo por empleado y vigencia desde un mes (precargado el régimen general: SIPA, PAMI, Fondo de Empleo y asignaciones familiares, que suman 18 %; obra social 6 %; ART y seguro de vida de ejemplo, a ajustar). Parámetros previsionales por mes: base máxima de aportes (tope de jubilación, Ley 19.032 y obra social) y detracción. Configuración de las cuentas de sueldos.
+- **Asiento al cerrar** la liquidación (último día del mes): sueldos y contribuciones por centro de costo contra Sueldos a pagar, Cargas sociales a pagar y Retenciones sindicales a pagar. Reabrir genera el contraasiento (no se puede si hay pagos). Las liquidaciones cerradas antes de esta entrega se contabilizan con un botón.
+- **Pagos:** pago de netos desde una cuenta bancaria o caja (todos o los elegidos, sin pagar dos veces un recibo) y pago de cargas sociales y retenciones contra lo pendiente del mes (Sueldos → *Cargas sociales*, con el detalle del F.931). Se pueden anular.
+- **F.931:** archivo de importación de SICOSS del mes (mensual y SAC juntos), con los códigos ARCA de cada empleado (situación, condición, actividad, modalidad, zona, obra social, cónyuge e hijos). El diseño de registro (versión 42, 499 caracteres por línea) está en `apps/api/src/sueldos/f931-diseno.ts`; conviene verificarlo contra el manual oficial de ARCA antes de presentar.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

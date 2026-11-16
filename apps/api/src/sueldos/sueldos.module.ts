@@ -1,4 +1,12 @@
 import { Module } from '@nestjs/common';
+import { AsientosModule } from '../contabilidad/asientos/asientos.module';
+import { ContabilizacionService } from './contabilizacion.service';
+import { F931Controller } from './f931.controller';
+import { F931Service } from './f931.service';
+import { PagosSueldosController } from './pagos.controller';
+import { PagosSueldosService } from './pagos.service';
+import { ContribucionesController } from './contribuciones.controller';
+import { ContribucionesService } from './contribuciones.service';
 import { LiquidacionesController } from './liquidaciones.controller';
 import { LiquidacionesService } from './liquidaciones.service';
 import { MaestrosSueldosController } from './maestros.controller';
@@ -6,8 +14,9 @@ import { MaestrosSueldosService } from './maestros.service';
 import { SalidasSueldosController } from './salidas.controller';
 
 @Module({
-  controllers: [MaestrosSueldosController, LiquidacionesController, SalidasSueldosController],
-  providers: [MaestrosSueldosService, LiquidacionesService],
-  exports: [MaestrosSueldosService, LiquidacionesService],
+  imports: [AsientosModule],
+  controllers: [F931Controller, PagosSueldosController, ContribucionesController, MaestrosSueldosController, LiquidacionesController, SalidasSueldosController],
+  providers: [F931Service, PagosSueldosService, ContabilizacionService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
+  exports: [ContribucionesService, MaestrosSueldosService, LiquidacionesService],
 })
 export class SueldosModule {}
