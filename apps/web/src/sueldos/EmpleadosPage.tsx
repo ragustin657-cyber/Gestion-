@@ -7,6 +7,8 @@ import { formatoFecha } from '../compras/formato';
 import { useCentrosCosto } from '../contabilidad/comun';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { Empleado, formatoCuil, useConvenios, useEmpleados } from './comun';
+import { DatosBaja, DialogoBaja } from './DialogoBaja';
+import { useNavigate } from 'react-router-dom';
 
 type Form = {
   id?: string; apellido: string; nombre: string; cuil: string; domicilio: string; fechaIngreso: string; fechaEgreso: string; categoriaId: string | null; centroCostoId: string | null;
@@ -25,6 +27,12 @@ export function EmpleadosPage() {
   const convenios = useConvenios();
   const centros = useCentrosCosto();
   const [form, setForm] = useState<Form | null>(null);
+  const [baja, setBaja] = useState<Empleado | null>(null);
+  const navegar = useNavigate();
+  const darDeBaja = async (d: DatosBaja) => {
+    const r = await op.ejecutar(() => api<{ id: string }>('/sueldos/egresos', { metodo: 'POST', body: d }), () => 'Liquidación final creada');
+    if (r) { setBaja(null); setForm(null); navegar(`/sueldos/liquidaciones/${r.id}`); }
+  };
   const editable = puede('sueldos.liquidar');
   const categorias = (convenios.data ?? []).flatMap((c) => c.categorias.filter((x) => x.activa).map((x) => ({ value: x.id, label: `${c.nombre} · ${x.nombre}` })));
   const editar = (e: Empleado) => setForm({ ...vacio, ...(e as Partial<Form>), cuil: formatoCuil(e.cuil), fechaEgreso: e.fechaEgreso ?? '', cbu: e.cbu ?? '' } as Form);
@@ -91,9 +99,15 @@ export function EmpleadosPage() {
             </Group>
             {form.id && <Checkbox label="Activo" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.currentTarget.checked })} />}
             {op.alerta}
-            <Group justify="flex-end"><Button onClick={guardar} loading={op.enviando}>Guardar</Button></Group>
+            <Group justify="space-between">
+              {form.id && form.activo ? <Button variant="subtle" color="red" onClick={() => setBaja((empleados.data ?? []).find((x) => x.id === form.id) ?? null)}>Dar de baja</Button> : <span />}
+              <Button onClick={guardar} loading={op.enviando}>Guardar</Button>
+            </Group>
           </Stack>
         )}
+      </Modal>
+      <Modal opened={!!baja} onClose={() => setBaja(null)} title="Dar de baja: liquidación final">
+        {baja && <><DialogoBaja empleado={baja} onConfirmar={darDeBaja} enviando={op.enviando} />{op.alerta}</>}
       </Modal>
     </Paper>
   );

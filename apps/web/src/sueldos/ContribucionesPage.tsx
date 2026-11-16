@@ -28,7 +28,7 @@ export function TablaContribuciones({ filas, onElegir }: { filas: Contribucion[]
 }
 
 type Form = Omit<Contribucion, 'id' | 'alicuota' | 'importeFijo'> & { id?: string; alicuota: number; importeFijo: number };
-const CUENTAS_CONFIG: [string, string][] = [['cuentaSueldosId', 'Sueldos y jornales'], ['cuentaContribucionesId', 'Contribuciones patronales'], ['cuentaSueldosAPagarId', 'Sueldos a pagar'], ['cuentaCargasSocialesId', 'Cargas sociales a pagar'], ['cuentaRetencionesSindicalesId', 'Retenciones sindicales a pagar']];
+const CUENTAS_CONFIG: [string, string][] = [['cuentaSueldosId', 'Sueldos y jornales'], ['cuentaContribucionesId', 'Contribuciones patronales'], ['cuentaSueldosAPagarId', 'Sueldos a pagar'], ['cuentaCargasSocialesId', 'Cargas sociales a pagar'], ['cuentaRetencionesSindicalesId', 'Retenciones sindicales a pagar'], ['cuentaIndemnizacionesId', 'Indemnizaciones (liquidación final; vacío = Sueldos y jornales)']];
 
 export function ContribucionesPage() {
   const { puede } = useAuth();

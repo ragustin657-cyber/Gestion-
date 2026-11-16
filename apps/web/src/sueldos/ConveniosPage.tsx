@@ -24,6 +24,8 @@ export function ConveniosPage() {
   const clave = ['/sueldos/escalas', convenioId, mes];
   const escalas = useQuery({ queryKey: clave, enabled: !!convenioId && !!anio && !!nmes, queryFn: () => api<FilaEscala[]>('/sueldos/escalas', { query: { convenioId: convenioId!, anio, mes: nmes } }) });
   const convenio = convenios.data?.find((c) => c.id === convenioId);
+  const topes = useQuery({ queryKey: ['/sueldos/topes', convenioId], enabled: !!convenioId, queryFn: () => api<{ topes: { id: string; desdeAnio: number; desdeMes: number; importe: string }[] }>('/sueldos/topes', { query: { convenioId: convenioId! } }) });
+  const [tope, setTope] = useState<number | ''>('');
   const refrescar = () => { void qc.invalidateQueries({ queryKey: ['/sueldos/escalas'] }); void qc.invalidateQueries({ queryKey: ['/sueldos/convenios'] }); };
   const guardarBasico = async (categoriaId: string, basico: number) => {
     if (!(basico > 0)) return;
@@ -78,6 +80,17 @@ export function ConveniosPage() {
           ))}
         </Table.Tbody>
       </Table>
+      <Title order={5} mt="lg" mb="xs">Tope indemnizatorio (art. 245)</Title>
+      <Group align="flex-end" mb="xs">
+        {(topes.data?.topes ?? []).map((t) => <Text key={t.id} size="sm">Desde {String(t.desdeMes).padStart(2, '0')}/{t.desdeAnio}: {formatoMoneda(t.importe)}</Text>)}
+        {!topes.data?.topes.length && <Text size="sm" c="dimmed">Sin tope cargado: la indemnización se calcula sin tope.</Text>}
+      </Group>
+      {editable && (
+        <Group align="flex-end">
+          <NumberInput label={`Tope desde ${String(nmes).padStart(2, '0')}/${anio}`} w={220} min={0} decimalSeparator="," thousandSeparator="." decimalScale={2} value={tope} onChange={(v) => setTope(v === '' ? '' : Number(v))} />
+          <Button variant="light" disabled={!tope} onClick={async () => { if (await op.ejecutar(() => api('/sueldos/topes', { metodo: 'PUT', body: { convenioId, desdeAnio: anio, desdeMes: nmes, importe: tope } }), () => 'Tope guardado')) { setTope(''); refrescar(); void qc.invalidateQueries({ queryKey: ['/sueldos/topes'] }); } }}>Guardar tope</Button>
+        </Group>
+      )}
       <Modal opened={!!categoria} onClose={() => setCategoria(null)} title={categoria?.id ? 'Editar categoría' : 'Nueva categoría'}>
         {categoria && (
           <Stack>
