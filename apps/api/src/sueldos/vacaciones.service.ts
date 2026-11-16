@@ -58,7 +58,8 @@ export class VacacionesService {
     const e = await db.empleado.findUnique({ where: { id: empleadoId } });
     if (!e) throw new NotFoundException('Empleado inexistente');
     const periodos = await this.periodosSalida(db, { empleadoId });
-    const anios = [...new Set([...periodos.map((p) => p.anio), new Date().getUTCFullYear()])].sort();
+    const iniciales = await db.vacacionSaldoInicial.findMany({ where: { empleadoId }, select: { anio: true } });
+    const anios = [...new Set([...periodos.map((p) => p.anio), ...iniciales.map((x) => x.anio), new Date().getUTCFullYear()])].sort();
     const saldos = [];
     for (const anio of anios) saldos.push({ anio, ...(await this.saldoAnio(db, e, anio)) });
     return { saldos, periodos };
@@ -145,6 +146,8 @@ export class VacacionesService {
     return this.tenant.transaccion(async (tx) => {
       const e = await tx.empleado.findUnique({ where: { id: d.empleadoId } });
       if (!e) throw new BadRequestException('Empleado inexistente');
+      if (d.anio < e.fechaIngreso.getUTCFullYear()) throw new BadRequestException('El año es anterior al ingreso del empleado');
+      await tx.$queryRawUnsafe(`SELECT id FROM "Empleado" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, e.id, this.tenant.empresaId);
       const actual = await tx.vacacionSaldoInicial.findFirst({ where: { empleadoId: e.id, anio: d.anio } });
       if (d.dias === null) { if (actual) await tx.vacacionSaldoInicial.delete({ where: { id: actual.id } }); }
       else if (actual) await tx.vacacionSaldoInicial.update({ where: { id: actual.id }, data: { dias: d.dias } });
