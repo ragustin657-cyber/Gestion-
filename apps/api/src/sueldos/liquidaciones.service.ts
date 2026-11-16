@@ -85,6 +85,7 @@ export class LiquidacionesService {
 
   /** Recalcula una liquidación en borrador dentro de una transacción (usado por los egresos). */
   async recalcularEn(tx: TxEmpresa, id: string) {
+    await this.bloquear(tx, id);
     const l = await tx.liquidacion.findUnique({ where: { id } });
     if (l && l.estado === 'BORRADOR') await this.calcular(tx, l);
   }
@@ -104,7 +105,8 @@ export class LiquidacionesService {
     const egreso = l.tipo === 'FINAL' ? await tx.egresoEmpleado.findUnique({ where: { liquidacionId: l.id } }) : null;
     // Quienes tienen una liquidación final con egreso en el período (mes de la mensual o semestre del SAC) no entran
     const conFinal = l.tipo === 'FINAL' ? new Set<string>() : new Set((await tx.egresoEmpleado.findMany({
-      where: { fechaEgreso: { gte: ini, lte: fin }, liquidacion: { tipo: 'FINAL' } }, select: { empleadoId: true },
+      // egreso hasta el fin del período: también los que se fueron en un mes anterior (su recibo numerado no se conserva)
+      where: { fechaEgreso: { lte: fin }, liquidacion: { tipo: 'FINAL' } }, select: { empleadoId: true },
     })).map((x) => x.empleadoId));
     const empleados = l.tipo === 'FINAL'
       ? await tx.empleado.findMany({ where: { id: egreso?.empleadoId ?? '00000000-0000-0000-0000-000000000000' } })

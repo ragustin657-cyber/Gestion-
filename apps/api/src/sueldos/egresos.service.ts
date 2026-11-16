@@ -39,6 +39,11 @@ export class EgresosService {
       if (await tx.egresoEmpleado.count({ where: { empleadoId: e.id } })) throw new BadRequestException('El empleado ya tiene una liquidación final');
       this.validarDatos(d, e.fechaIngreso);
       const fecha = aFecha(d.fechaEgreso);
+      // Bloquea las mensuales y SAC desde el mes del egreso: un cierre en curso termina antes de validar (o espera a la baja)
+      const idx = fecha.getUTCFullYear() * 12 + fecha.getUTCMonth() + 1;
+      const afectadas = (await tx.liquidacion.findMany({ where: { tipo: { in: ['MENSUAL', 'SAC'] }, anio: { gte: fecha.getUTCFullYear() } }, select: { id: true, anio: true, mes: true } }))
+        .filter((l) => l.anio * 12 + l.mes >= idx).map((l) => l.id).sort();
+      if (afectadas.length) await tx.$queryRawUnsafe(`SELECT id FROM "Liquidacion" WHERE id = ANY($1::uuid[]) AND "empresaId" = $2::uuid ORDER BY id FOR UPDATE`, afectadas, this.tenant.empresaId);
       await this.validarDobleCobro(tx, e.id, fecha);
       const anio = fecha.getUTCFullYear(), mes = fecha.getUTCMonth() + 1;
       await tx.empleado.update({ where: { id: e.id }, data: { fechaEgreso: fecha, activo: false } });

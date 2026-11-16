@@ -33,3 +33,12 @@ describe('liquidación final (web)', () => {
     expect(periodoLiquidacion({ tipo: 'FINAL', anio: 2026, mes: 11, empleado: { apellido: 'Pérez', nombre: 'Juan' } })).toBe('Final 11/2026 - Pérez, Juan');
   });
 });
+
+describe('botón dar de baja', () => {
+  it('se ofrece también a un empleado inactivo con egreso cargado a mano', async () => {
+    const { mostrarDarDeBaja } = await import('./EmpleadosPage');
+    expect(mostrarDarDeBaja({ id: 'e1', activo: false })).toBe(true);
+    expect(mostrarDarDeBaja({ id: 'e1', activo: true })).toBe(true);
+    expect(mostrarDarDeBaja({ activo: true })).toBe(false);
+  });
+});

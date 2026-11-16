@@ -19,6 +19,9 @@ type Form = {
 const vacio: Form = { apellido: '', nombre: '', cuil: '', domicilio: '', fechaIngreso: '', fechaEgreso: '', categoriaId: null, centroCostoId: null, afiliadoSindicato: true, obraSocial: '', formaPago: 'TRANSFERENCIA', cbu: '', activo: true,
   codigoSituacion: 1, codigoCondicion: 1, codigoActividad: 49, codigoModalidad: 8, codigoZona: null, codigoObraSocial: '000000', conyuge: false, cantidadHijos: 0, adherentesObraSocial: 0, trabajadorConvencionado: true };
 
+/** "Dar de baja" para cualquier empleado guardado: también inactivos con egreso cargado a mano (spec E20 §9.7); la API rechaza una segunda final. */
+export const mostrarDarDeBaja = (f: { id?: string; activo?: boolean }) => !!f.id;
+
 export function EmpleadosPage() {
   const { puede } = useAuth();
   const qc = useQueryClient();
@@ -100,7 +103,7 @@ export function EmpleadosPage() {
             {form.id && <Checkbox label="Activo" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.currentTarget.checked })} />}
             {op.alerta}
             <Group justify="space-between">
-              {form.id && form.activo ? <Button variant="subtle" color="red" onClick={() => setBaja((empleados.data ?? []).find((x) => x.id === form.id) ?? null)}>Dar de baja</Button> : <span />}
+              {mostrarDarDeBaja(form) ? <Button variant="subtle" color="red" onClick={() => setBaja((empleados.data ?? []).find((x) => x.id === form.id) ?? null)}>Dar de baja</Button> : <span />}
               <Button onClick={guardar} loading={op.enviando}>Guardar</Button>
             </Group>
           </Stack>
