@@ -6,11 +6,12 @@ const r2 = (x: Dec) => x.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 const DIA = 86400000;
 
 export type ClaseConcepto = 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO';
-export type TipoConcepto = 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY';
+export type TipoConcepto = 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES';
 export interface ConceptoCalc { id: string; codigo: string; nombre: string; clase: ClaseConcepto; tipo: TipoConcepto; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean }
 export interface EmpleadoCalc { fechaIngreso: Date; fechaEgreso: Date | null; afiliadoSindicato: boolean; basicoMensual: Dec; horasMensuales: number }
 export interface NovedadCalc { tipo: 'HORAS_EXTRA_50' | 'HORAS_EXTRA_100' | 'AUSENCIA_INJUSTIFICADA' | 'IMPORTE'; conceptoId?: string | null; cantidad?: Dec | null; importe?: Dec | null }
-export interface RenglonCalc { conceptoId: string; codigo: string; nombre: string; clase: ClaseConcepto; cantidad: Dec | null; base: Dec | null; porcentaje: Dec | null; importe: Dec; orden: number }
+export interface RenglonCalc { conceptoId: string; codigo: string; nombre: string; clase: ClaseConcepto; cantidad: Dec | null; base: Dec | null; porcentaje: Dec | null; importe: Dec; orden: number; vacacionPeriodoId?: string }
+export interface VacacionCalc { periodoId: string; dias: number }
 export interface ResultadoCalc { renglones: RenglonCalc[]; totalRemunerativo: Dec; totalNoRemunerativo: Dec; totalDescuentos: Dec; neto: Dec; diasTrabajados: number; antiguedadAnios: number }
 
 const finDeMes = (anio: number, mes: number) => new Date(Date.UTC(anio, mes, 0));
@@ -35,7 +36,7 @@ export function diasTrabajados(ingreso: Date, egreso: Date | null, anio: number,
 const num = (p: Record<string, unknown>, k: string) => new D(Number(p[k] ?? 0));
 
 /** Liquida un empleado en un mes (spec §4, §11). */
-export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedades: NovedadCalc[], anio: number, mes: number, baseMaxima: Dec | null = null): ResultadoCalc {
+export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedades: NovedadCalc[], anio: number, mes: number, baseMaxima: Dec | null = null, vacaciones: VacacionCalc[] = []): ResultadoCalc {
   const dias = diasTrabajados(e.fechaIngreso, e.fechaEgreso, anio, mes);
   const anios = antiguedadAnios(e.fechaIngreso, finDeMes(anio, mes));
   const cant = (t: NovedadCalc['tipo']) => novedades.filter((n) => n.tipo === t).reduce((s, n) => s.plus(n.cantidad ?? 0), new D(0));
@@ -75,6 +76,17 @@ export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedade
         return agregar(c, horas.times(valorHora).times(new D(1).plus(recargo.div(100))), { cantidad: horas });
       }
       case 'AUSENCIA': return agregar(c, valorDia.times(ausencias).neg(), { cantidad: ausencias });
+      case 'VACACIONES': {
+        // Vacaciones (divisor 25) y descuento de sus días (divisor 30, negativo) con básico + antigüedad del mes completo
+        const divisor = num(p, 'divisor');
+        if (divisor.lte(0)) return undefined;
+        // Solo con el pago y el descuento activos: uno sin el otro descontaría días sin pagarlos (o pagaría de más)
+        const vac = conceptos.filter((x) => x.tipo === 'VACACIONES');
+        if (!vac.some((x) => x.parametros.descuenta === true) || !vac.some((x) => x.parametros.descuenta !== true)) return undefined;
+        const signo = p.descuenta === true ? -1 : 1;
+        for (const v of vacaciones) agregar(c, new D(e.basicoMensual).plus(antigCompleta).div(divisor).times(v.dias).times(signo), { cantidad: new D(v.dias), vacacionPeriodoId: v.periodoId });
+        return undefined;
+      }
       case 'FIJO': {
         const nov = novedades.find((n) => n.tipo === 'IMPORTE' && n.conceptoId === c.id);
         return agregar(c, nov?.importe ?? num(p, 'importe'));
@@ -126,12 +138,12 @@ export function liquidarSac(e: EmpleadoCalc, conceptos: ConceptoCalc[], mejorRem
 }
 
 const ETIQUETA_TIPO: Record<ConceptoCalc['tipo'], string> = {
-  BASICO: 'Sueldo básico', ANTIGUEDAD: 'Antigüedad', PORCENTAJE: 'Porcentaje', HORAS_EXTRA: 'Horas extra', AUSENCIA: 'Ausencia', FIJO: 'Importe fijo', DESCUENTO_LEY: 'Descuento de ley',
+  BASICO: 'Sueldo básico', ANTIGUEDAD: 'Antigüedad', PORCENTAJE: 'Porcentaje', HORAS_EXTRA: 'Horas extra', AUSENCIA: 'Ausencia', FIJO: 'Importe fijo', DESCUENTO_LEY: 'Descuento de ley', VACACIONES: 'Vacaciones',
 };
 const ETIQUETA_CLASE: Record<ConceptoCalc['clase'], string> = { REMUNERATIVO: 'Remunerativo', NO_REMUNERATIVO: 'No remunerativo', DESCUENTO: 'Descuento' };
 const CLASES_POR_TIPO: Record<ConceptoCalc['tipo'], ConceptoCalc['clase'][]> = {
   BASICO: ['REMUNERATIVO'], ANTIGUEDAD: ['REMUNERATIVO'], HORAS_EXTRA: ['REMUNERATIVO'], AUSENCIA: ['REMUNERATIVO'],
-  PORCENTAJE: ['REMUNERATIVO', 'NO_REMUNERATIVO'], FIJO: ['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO'], DESCUENTO_LEY: ['DESCUENTO'],
+  PORCENTAJE: ['REMUNERATIVO', 'NO_REMUNERATIVO'], FIJO: ['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO'], DESCUENTO_LEY: ['DESCUENTO'], VACACIONES: ['REMUNERATIVO'],
 };
 
 /** Valida la clase y los parámetros de un concepto según su cálculo; devuelve el mensaje de error o null. */
@@ -148,6 +160,7 @@ export function validarConcepto(tipo: ConceptoCalc['tipo'], clase: ConceptoCalc[
     case 'PORCENTAJE': return numero('pct', true) ?? opcion('base', ['BASICO_MAS_ANTIGUEDAD', 'REMUNERATIVO', 'BRUTO']) ?? (p.pierdeConAusencia === undefined || typeof p.pierdeConAusencia === 'boolean' ? null : 'Parámetro pierdeConAusencia inválido');
     case 'HORAS_EXTRA': return p.recargoPct === 50 || p.recargoPct === 100 ? null : 'Parámetro recargoPct: debe ser 50 o 100';
     case 'FIJO': return numero('importe', false);
+    case 'VACACIONES': return typeof p.divisor === 'number' && p.divisor > 0 ? null : 'Parámetro divisor: debe ser un número mayor que cero';
     case 'DESCUENTO_LEY': return numero('pct', true) ?? opcion('base', ['REMUNERATIVO', 'REMUNERATIVO_MAS_NO_REMUNERATIVO']) ?? (typeof p.tope === 'string' ? (p.tope === 'BASE_MAXIMA' ? null : 'Parámetro tope inválido') : numero('tope', false));
     default: return null;
   }
@@ -179,7 +192,11 @@ export function calcularContribuciones(remunerativo: Dec, diasTrabajados: number
 // ---------------------------------------------------------------- Liquidación final (Entrega 20)
 
 export type CausaEgreso = 'RENUNCIA' | 'DESPIDO_SIN_CAUSA' | 'DESPIDO_CON_CAUSA' | 'MUTUO_ACUERDO';
-export interface DatosFinal { causa: CausaEgreso; fechaEgreso: Date; preavisoOtorgado: boolean; mejorRemuneracion: Dec; mejorRemuneracionSemestre: Dec; topeIndemnizatorio: Dec | null; baseMaxima: Dec | null; gratificacion: Dec }
+export interface DatosFinal {
+  causa: CausaEgreso; fechaEgreso: Date; preavisoOtorgado: boolean; mejorRemuneracion: Dec; mejorRemuneracionSemestre: Dec; topeIndemnizatorio: Dec | null; baseMaxima: Dec | null; gratificacion: Dec;
+  /** Vacaciones (E21): pendientes de años anteriores, tomadas en el año del egreso, saldo inicial del año y períodos que empiezan en el mes del egreso. */
+  diasVacacionesPendientesAnteriores?: number; diasVacacionesTomadosAnio?: number; saldoInicialAnio?: number | null; vacaciones?: VacacionCalc[];
+}
 
 /** Suma meses a una fecha, con el día recortado al último del mes de destino. */
 function sumarMeses(f: Date, meses: number): Date {
@@ -217,7 +234,7 @@ export function liquidarFinal(e: EmpleadoCalc, conceptos: ConceptoCalc[], noveda
   const emp = { ...e, fechaEgreso: eg };
   const aplica = (c: ConceptoCalc) => !c.soloAfiliados || e.afiliadoSindicato;
   // Días del mes, sin descuentos (se calculan después con el SAC)
-  const dias = liquidarMes(emp, conceptos.filter((c) => c.clase !== 'DESCUENTO'), novedades, anio, mes);
+  const dias = liquidarMes(emp, conceptos.filter((c) => c.clase !== 'DESCUENTO'), novedades, anio, mes, null, d.vacaciones ?? []);
   const renglones = [...dias.renglones];
   let remu = dias.totalRemunerativo;
   const noRemuDias = dias.totalNoRemunerativo;
@@ -267,8 +284,22 @@ export function liquidarFinal(e: EmpleadoCalc, conceptos: ConceptoCalc[], noveda
   const iniAnio = new Date(Date.UTC(anio, 0, 1));
   const desdeAnio = e.fechaIngreso > iniAnio ? e.fechaIngreso : iniAnio;
   const diasAnio = Math.round((eg.getTime() - desdeAnio.getTime()) / DIA) + 1;
-  const vac = agregar('330', 'Vacaciones no gozadas', mejor.div(25).times(diasVac).times(diasAnio).div(365), { cantidad: r2(new D(diasVac).times(diasAnio).div(365)), base: mejor });
+  // Pendientes de años anteriores + proporcional del año del egreso menos lo tomado ese año (E21 §6)
+  const proporcional = new D(d.saldoInicialAnio ?? diasVac).times(diasAnio).div(365);
+  const diasNoGozados = new D(d.diasVacacionesPendientesAnteriores ?? 0).plus(D.max(proporcional.minus(d.diasVacacionesTomadosAnio ?? 0), 0));
+  const vac = agregar('330', 'Vacaciones no gozadas', mejor.div(25).times(diasNoGozados), { cantidad: r2(diasNoGozados), base: mejor });
   agregar('331', 'SAC sobre vacaciones', vac.div(12));
   if (d.causa === 'MUTUO_ACUERDO') agregar('340', 'Gratificación por cese', new D(d.gratificacion));
   return { renglones, totalRemunerativo: remu, totalNoRemunerativo: noRemu, totalDescuentos: desc, neto: remu.plus(noRemu).minus(desc), diasTrabajados: dias.diasTrabajados, antiguedadAnios: ant.anios };
+}
+
+/** Días de vacaciones que corresponden por un año (spec E21 §3): banda por antigüedad al 31/12, o 1 cada 20 trabajados si son menos de 183. */
+export function diasVacacionesCorresponden(ingreso: Date, egreso: Date | null, anio: number): number {
+  const ini = new Date(Date.UTC(anio, 0, 1)), fin = new Date(Date.UTC(anio, 11, 31));
+  const desde = ingreso > ini ? ingreso : ini, hasta = egreso && egreso < fin ? egreso : fin;
+  if (hasta < desde) return 0;
+  const trabajados = Math.round((hasta.getTime() - desde.getTime()) / DIA) + 1;
+  if (trabajados < 183) return Math.floor(trabajados / 20);
+  const anios = antiguedadAnios(ingreso, fin);
+  return anios < 5 ? 14 : anios < 10 ? 21 : anios < 20 ? 28 : 35;
 }

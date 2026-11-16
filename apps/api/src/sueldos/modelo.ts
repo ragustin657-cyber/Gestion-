@@ -10,7 +10,7 @@ export const CATEGORIAS_COMERCIO = [
   'Auxiliar especializado A', 'Auxiliar especializado B',
   'Vendedor A', 'Vendedor B', 'Vendedor C', 'Vendedor D',
 ];
-type ConceptoModelo = { codigo: string; nombre: string; clase: 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO'; tipo: 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY'; parametros: Record<string, unknown>; soloAfiliados?: boolean; destino?: 'SEGURIDAD_SOCIAL' | 'OBRA_SOCIAL' | 'SINDICAL' };
+type ConceptoModelo = { codigo: string; nombre: string; clase: 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO'; tipo: 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES'; parametros: Record<string, unknown>; soloAfiliados?: boolean; destino?: 'SEGURIDAD_SOCIAL' | 'OBRA_SOCIAL' | 'SINDICAL' };
 /** Conceptos precargados de Comercio (spec §4), editables. */
 export const CONCEPTOS_COMERCIO: ConceptoModelo[] = [
   { codigo: '100', nombre: 'Sueldo básico', clase: 'REMUNERATIVO', tipo: 'BASICO', parametros: {} },
@@ -19,6 +19,8 @@ export const CONCEPTOS_COMERCIO: ConceptoModelo[] = [
   { codigo: '130', nombre: 'Horas extra 50 %', clase: 'REMUNERATIVO', tipo: 'HORAS_EXTRA', parametros: { recargoPct: 50 } },
   { codigo: '131', nombre: 'Horas extra 100 %', clase: 'REMUNERATIVO', tipo: 'HORAS_EXTRA', parametros: { recargoPct: 100 } },
   { codigo: '140', nombre: 'Ausencias injustificadas', clase: 'REMUNERATIVO', tipo: 'AUSENCIA', parametros: {} },
+  { codigo: '150', nombre: 'Vacaciones', clase: 'REMUNERATIVO', tipo: 'VACACIONES', parametros: { divisor: 25 } },
+  { codigo: '151', nombre: 'Descuento días de vacaciones', clase: 'REMUNERATIVO', tipo: 'VACACIONES', parametros: { divisor: 30, descuenta: true } },
   { codigo: '500', nombre: 'Jubilación', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 11, base: 'REMUNERATIVO', tope: 'BASE_MAXIMA' }, destino: 'SEGURIDAD_SOCIAL' },
   { codigo: '510', nombre: 'Ley 19.032', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 3, base: 'REMUNERATIVO', tope: 'BASE_MAXIMA' }, destino: 'SEGURIDAD_SOCIAL' },
   { codigo: '520', nombre: 'Obra social', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 3, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO', tope: 'BASE_MAXIMA' }, destino: 'OBRA_SOCIAL' },
@@ -33,7 +35,7 @@ export async function cargarSueldosModelo(tx: Prisma.TransactionClient, empresaI
   const cuenta = async (codigo: string) => (await tx.cuentaContable.findFirst({ where: { empresaId, codigo }, select: { id: true } }))?.id ?? null;
   const cfg = await tx.configuracionSueldos.create({ data: {
     empresaId, cuentaSueldosId: await cuenta('5.2.09'), cuentaContribucionesId: await cuenta('5.2.10'), cuentaSueldosAPagarId: await cuenta('2.1.03.001'),
-    cuentaCargasSocialesId: await cuenta('2.1.03.002'), cuentaRetencionesSindicalesId: await cuenta('2.1.03.003'), cuentaIndemnizacionesId: await cuenta('5.2.11'),
+    cuentaCargasSocialesId: await cuenta('2.1.03.002'), cuentaRetencionesSindicalesId: await cuenta('2.1.03.003'), cuentaIndemnizacionesId: await cuenta('5.2.11'), anioInicioVacaciones: new Date().getUTCFullYear(),
   } });
   await tx.concepto.createMany({ data: CONCEPTOS_COMERCIO.map((c) => ({
     empresaId, codigo: c.codigo, nombre: c.nombre, clase: c.clase, tipo: c.tipo, parametros: c.parametros as Prisma.InputJsonValue, orden: Number(c.codigo), soloAfiliados: !!c.soloAfiliados,

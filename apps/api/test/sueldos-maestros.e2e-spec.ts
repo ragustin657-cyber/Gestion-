@@ -20,7 +20,7 @@ describe('sueldos: maestros', () => {
     expect(convenios[0].categorias).toHaveLength(21);
     expect(convenios[0].categorias.map((c: { nombre: string }) => c.nombre)).toContain('Vendedor B');
     const conceptos = (await s.http.get('/api/sueldos/conceptos')).body as { codigo: string; tipo: string; parametros: Record<string, unknown>; soloAfiliados: boolean }[];
-    expect(conceptos.map((c) => c.codigo)).toEqual(['100', '110', '120', '130', '131', '140', '500', '510', '520', '530', '540']);
+    expect(conceptos.map((c) => c.codigo)).toEqual(['100', '110', '120', '130', '131', '140', '150', '151', '500', '510', '520', '530', '540']);
     expect(conceptos.find((c) => c.codigo === '120')).toMatchObject({ tipo: 'PORCENTAJE', parametros: { pct: 8.33, base: 'BASICO_MAS_ANTIGUEDAD', pierdeConAusencia: true } });
     expect(conceptos.find((c) => c.codigo === '540')).toMatchObject({ soloAfiliados: true, parametros: { pct: 2, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO' } });
   });

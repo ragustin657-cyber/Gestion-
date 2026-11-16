@@ -22,7 +22,7 @@ export const esquemaEdicionEmpleado = esquemaEmpleado.partial();
 export const esquemaConcepto = z.object({
   convenioId: uuid.nullish(), codigo: z.string().trim().min(1).max(10), nombre: z.string().trim().min(1).max(100),
   clase: z.enum(['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO']),
-  tipo: z.enum(['BASICO', 'ANTIGUEDAD', 'PORCENTAJE', 'HORAS_EXTRA', 'AUSENCIA', 'FIJO', 'DESCUENTO_LEY']),
+  tipo: z.enum(['BASICO', 'ANTIGUEDAD', 'PORCENTAJE', 'HORAS_EXTRA', 'AUSENCIA', 'FIJO', 'DESCUENTO_LEY', 'VACACIONES']),
   parametros: z.record(z.unknown()).default({}), orden: z.number().int(), soloAfiliados: z.boolean().default(false), activo: z.boolean().optional(),
   destino: z.enum(['SEGURIDAD_SOCIAL', 'OBRA_SOCIAL', 'SINDICAL', 'OTRO']).default('OTRO'), cuentaContableId: uuid.nullish(),
 }).superRefine((c, ctx) => {

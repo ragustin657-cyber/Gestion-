@@ -1,5 +1,5 @@
-import { Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, TextInput, Title } from '@mantine/core';
-import { useQueryClient } from '@tanstack/react-query';
+import { Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
@@ -18,6 +18,19 @@ type Form = {
 };
 const vacio: Form = { apellido: '', nombre: '', cuil: '', domicilio: '', fechaIngreso: '', fechaEgreso: '', categoriaId: null, centroCostoId: null, afiliadoSindicato: true, obraSocial: '', formaPago: 'TRANSFERENCIA', cbu: '', activo: true,
   codigoSituacion: 1, codigoCondicion: 1, codigoActividad: 49, codigoModalidad: 8, codigoZona: null, codigoObraSocial: '000000', conyuge: false, cantidadHijos: 0, adherentesObraSocial: 0, trabajadorConvencionado: true };
+
+/** Saldos por año y períodos de vacaciones del empleado (ficha). */
+function VacacionesEmpleado({ empleadoId }: { empleadoId: string }) {
+  const q = useQuery({ queryKey: ['/sueldos/empleados/vacaciones', empleadoId], queryFn: () => api<{ saldos: { anio: number; corresponden: number; tomados: number; pendientes: number }[]; periodos: { id: string; anio: number; desde: string; hasta: string; dias: number; liquidado: boolean }[] }>(`/sueldos/empleados/${empleadoId}/vacaciones`) });
+  if (!q.data) return null;
+  return (
+    <Stack gap={4}>
+      <Title order={5}>Vacaciones</Title>
+      {q.data.saldos.map((x) => <Text key={x.anio} size="sm">{x.anio}: corresponden {x.corresponden} · tomados {x.tomados} · pendientes <Text span c={x.pendientes < 0 ? 'red' : undefined} fw={600}>{x.pendientes}</Text></Text>)}
+      {q.data.periodos.map((p) => <Text key={p.id} size="xs" c="dimmed">{formatoFecha(p.desde)} al {formatoFecha(p.hasta)} · {p.dias} días ({p.anio}){p.liquidado ? ' · pagado' : ''}</Text>)}
+    </Stack>
+  );
+}
 
 /** "Dar de baja" para cualquier empleado guardado: también inactivos con egreso cargado a mano (spec E20 §9.7); la API rechaza una segunda final. */
 export const mostrarDarDeBaja = (f: { id?: string; activo?: boolean }) => !!f.id;
@@ -85,6 +98,7 @@ export function EmpleadosPage() {
               {campo('cbu', 'CBU')}
             </SimpleGrid>
             <Checkbox label="Afiliado al sindicato" checked={form.afiliadoSindicato} onChange={(e) => setForm({ ...form, afiliadoSindicato: e.currentTarget.checked })} />
+            {form.id && <VacacionesEmpleado empleadoId={form.id} />}
             <Title order={5}>Datos para el F.931</Title>
             <SimpleGrid cols={3}>
               {codigo('codigoSituacion', 'Situación', [[1, '1 Activo'], [13, '13 Licencia'], [5, '5 Licencia por maternidad']])}

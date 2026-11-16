@@ -4,7 +4,7 @@ import { ClsService } from 'nestjs-cls';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { NumeracionService } from '../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
-import { ConceptoCalc, liquidarFinal, liquidarMes, liquidarSac, NovedadCalc, remuneracionMesCompleto, ResultadoCalc, validarConcepto } from './calculo';
+import { ConceptoCalc, diasVacacionesCorresponden, liquidarFinal, liquidarMes, liquidarSac, NovedadCalc, remuneracionMesCompleto, ResultadoCalc, validarConcepto } from './calculo';
 import { basicosVigentes, topeVigente } from './maestros.service';
 import { ContabilizacionService } from './contabilizacion.service';
 import { ContribucionesService } from './contribuciones.service';
@@ -66,11 +66,13 @@ export class LiquidacionesService {
   private async mejoresRemuneraciones(tx: TxEmpresa, empleadoId: string, eg: { fechaEgreso: Date; mejorRemuneracion: Prisma.Decimal | null }, mesCompleto: Prisma.Decimal) {
     if (eg.mejorRemuneracion) return { mejor: new D(eg.mejorRemuneracion), mejorSemestre: new D(eg.mejorRemuneracion) };
     const anio = eg.fechaEgreso.getUTCFullYear(), mes = eg.fechaEgreso.getUTCMonth() + 1, idx = anio * 12 + mes;
-    const rs = await tx.reciboSueldo.findMany({ where: { empleadoId, liquidacion: { tipo: 'MENSUAL', estado: 'CERRADA' } }, include: { liquidacion: { select: { anio: true, mes: true } } } });
+    const rs = await tx.reciboSueldo.findMany({ where: { empleadoId, liquidacion: { tipo: 'MENSUAL', estado: 'CERRADA' } }, include: { liquidacion: { select: { anio: true, mes: true } }, renglones: { where: { vacacionPeriodoId: { not: null } } } } });
     let mejor = new D(mesCompleto), mejorSemestre = new D(mesCompleto);
     for (const r of rs) {
       const i = r.liquidacion.anio * 12 + r.liquidacion.mes;
-      if (i >= idx - 12 && i <= idx && new D(r.totalRemunerativo).gt(mejor)) mejor = new D(r.totalRemunerativo);
+      // Base indemnizatoria: sin la diferencia neta de vacaciones (150 + 151), E21 §11.3; el SAC sí la incluye
+      const sinVacaciones = new D(r.totalRemunerativo).minus(r.renglones.reduce((t, x) => t.plus(x.importe), new D(0)));
+      if (i >= idx - 12 && i <= idx && sinVacaciones.gt(mejor)) mejor = sinVacaciones;
       if (r.liquidacion.anio === anio && semestre(r.liquidacion.mes) === semestre(mes) && i <= idx && new D(r.totalRemunerativo).gt(mejorSemestre)) mejorSemestre = new D(r.totalRemunerativo);
     }
     return { mejor, mejorSemestre };
@@ -81,6 +83,28 @@ export class LiquidacionesService {
     if (!eg) return null;
     const e = await tx.empleado.findUnique({ where: { id: eg.empleadoId }, select: { id: true, legajo: true, apellido: true, nombre: true } });
     return { causa: eg.causa, fechaEgreso: eg.fechaEgreso.toISOString().slice(0, 10), preavisoOtorgado: eg.preavisoOtorgado, mejorRemuneracion: eg.mejorRemuneracion?.toFixed(2) ?? null, gratificacion: eg.gratificacion.toFixed(2), empleado: e };
+  }
+
+  /** Días de vacaciones para la final (E21 §6): pendientes de años anteriores, tomados y saldo inicial del año del egreso. */
+  private async vacacionesFinal(tx: TxEmpresa, e: { id: string; fechaIngreso: Date; fechaEgreso: Date | null }, egreso: Date) {
+    const anio = egreso.getUTCFullYear();
+    const inicio = (await tx.configuracionSueldos.findFirst())?.anioInicioVacaciones ?? anio;
+    const saldosIniciales = await tx.vacacionSaldoInicial.findMany({ where: { empleadoId: e.id } });
+    const periodos = await tx.vacacionPeriodo.findMany({ where: { empleadoId: e.id } });
+    const desde = Math.min(inicio, ...saldosIniciales.map((x) => x.anio));
+    let pendientesAnteriores = 0;
+    for (let a = Math.max(desde, e.fechaIngreso.getUTCFullYear()); a < anio; a++) {
+      const si = saldosIniciales.find((x) => x.anio === a);
+      const corresponden = si ? si.dias : a >= inicio ? diasVacacionesCorresponden(e.fechaIngreso, null, a) : 0;
+      const tomados = periodos.filter((p) => p.anio === a).reduce((t, p) => t + p.dias, 0);
+      pendientesAnteriores += Math.max(0, corresponden - tomados);
+    }
+    // Tomados del año del egreso: los que empiezan en el mes del egreso se pagan en la final hasta el egreso (recortados);
+    // los anteriores ya se pagaron enteros (en su mensual o fuera del sistema) y cuentan enteros
+    const iniMesEgreso = new Date(Date.UTC(anio, egreso.getUTCMonth(), 1));
+    const tomadosAnio = periodos.filter((p) => p.anio === anio && p.desde <= egreso)
+      .reduce((t, p) => t + (p.desde >= iniMesEgreso ? Math.round(((p.hasta < egreso ? p.hasta : egreso).getTime() - p.desde.getTime()) / 86400000) + 1 : p.dias), 0);
+    return { diasVacacionesPendientesAnteriores: pendientesAnteriores, diasVacacionesTomadosAnio: tomadosAnio, saldoInicialAnio: saldosIniciales.find((x) => x.anio === anio)?.dias ?? null };
   }
 
   /** Recalcula una liquidación en borrador dentro de una transacción (usado por los egresos). */
@@ -121,6 +145,8 @@ export class LiquidacionesService {
     const conceptos = (await tx.concepto.findMany({ where: { activo: true } }));
     const basicos = await basicosVigentes(tx, [...new Set(empleados.map((e) => e.categoriaId))], l.anio, l.mes);
     const novedades = await tx.novedad.findMany({ where: { liquidacionId: l.id } });
+    // Vacaciones que empiezan en el mes (las liquidadas fuera del sistema no se pagan)
+    const vacacionesMes = await tx.vacacionPeriodo.findMany({ where: { empleadoId: { in: empleados.map((e) => e.id) }, liquidadoAfuera: false, desde: { gte: new Date(Date.UTC(l.anio, l.mes - 1, 1)), lte: fin } }, orderBy: { desde: 'asc' } });
     const param = await this.contribuciones.parametros(tx, l.anio, l.mes);
     let aviso: string | undefined = param.aviso;
     let mejores = new Map<string, Prisma.Decimal>();
@@ -148,14 +174,17 @@ export class LiquidacionesService {
         const { mejor, mejorSemestre } = await this.mejoresRemuneraciones(tx, e.id, egreso, remuneracionMesCompleto(calcE, cs, l.anio, l.mes));
         const tope = await topeVigente(tx, cat.convenioId, l.anio, l.mes);
         if (!tope && egreso.causa === 'DESPIDO_SIN_CAUSA') aviso = [aviso, `No hay tope indemnizatorio cargado para ${cat.convenio.nombre}`].filter(Boolean).join('. ');
-        r = liquidarFinal(calcE, cs, nov, { causa: egreso.causa, fechaEgreso: egreso.fechaEgreso, preavisoOtorgado: egreso.preavisoOtorgado, mejorRemuneracion: mejor, mejorRemuneracionSemestre: mejorSemestre, topeIndemnizatorio: tope, baseMaxima: param.baseMaxima, gratificacion: egreso.gratificacion });
+        const vac = await this.vacacionesFinal(tx, e, egreso.fechaEgreso);
+        const vacMes = vacacionesMes.filter((v) => v.empleadoId === e.id && v.desde <= egreso.fechaEgreso)
+          .map((v) => ({ periodoId: v.id, dias: Math.round(((v.hasta < egreso.fechaEgreso ? v.hasta : egreso.fechaEgreso).getTime() - v.desde.getTime()) / 86400000) + 1 }));
+        r = liquidarFinal(calcE, cs, nov, { causa: egreso.causa, fechaEgreso: egreso.fechaEgreso, preavisoOtorgado: egreso.preavisoOtorgado, mejorRemuneracion: mejor, mejorRemuneracionSemestre: mejorSemestre, topeIndemnizatorio: tope, baseMaxima: param.baseMaxima, gratificacion: egreso.gratificacion, ...vac, vacaciones: vacMes });
       } else if (l.tipo === 'SAC') {
         const mejor = mejores.get(e.id);
         if (!mejor) continue; // sin sueldos cerrados en el semestre
         r = liquidarSac(calcE, cs, mejor, l.anio, semestre(l.mes), param.baseMaxima);
       } else {
         const nov: NovedadCalc[] = novedades.filter((n) => n.empleadoId === e.id).map((n) => ({ tipo: n.tipo, conceptoId: n.conceptoId, cantidad: n.cantidad ? new D(n.cantidad) : null, importe: n.importe ? new D(n.importe) : null }));
-        r = liquidarMes(calcE, cs, nov, l.anio, l.mes, param.baseMaxima);
+        r = liquidarMes(calcE, cs, nov, l.anio, l.mes, param.baseMaxima, vacacionesMes.filter((v) => v.empleadoId === e.id).map((v) => ({ periodoId: v.id, dias: v.dias })));
       }
       vigentes.add(e.id);
       const datos = {
@@ -168,7 +197,7 @@ export class LiquidacionesService {
         : await tx.reciboSueldo.create({ data: { ...datos, empresaId: this.tenant.empresaId, liquidacionId: l.id, empleadoId: e.id } });
       await tx.reciboSueldoRenglon.deleteMany({ where: { reciboId: recibo.id } });
       if (r.renglones.length) await tx.reciboSueldoRenglon.createMany({
-        data: r.renglones.map((x) => ({ empresaId: this.tenant.empresaId, reciboId: recibo.id, conceptoId: x.conceptoId === 'SAC' || x.conceptoId === 'FINAL' ? null : x.conceptoId, codigo: x.codigo, nombre: x.nombre, clase: x.clase, cantidad: x.cantidad, base: x.base, porcentaje: x.porcentaje, importe: x.importe, orden: x.orden })),
+        data: r.renglones.map((x) => ({ empresaId: this.tenant.empresaId, reciboId: recibo.id, conceptoId: x.conceptoId === 'SAC' || x.conceptoId === 'FINAL' ? null : x.conceptoId, vacacionPeriodoId: x.vacacionPeriodoId ?? null, codigo: x.codigo, nombre: x.nombre, clase: x.clase, cantidad: x.cantidad, base: x.base, porcentaje: x.porcentaje, importe: x.importe, orden: x.orden })),
       });
     }
     // Recibos de empleados que ya no corresponden (o que ahora tienen error): se eliminan
