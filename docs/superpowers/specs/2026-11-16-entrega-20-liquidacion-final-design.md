@@ -230,3 +230,30 @@ Vendedor B, básico 1.000.000,00, ingreso 01/03/2021, afiliado. Despido sin caus
 - **Pantallas:** su distribución dentro del estilo existente.
 - **Errores:** textos de errores secundarios.
 - **Recibo:** cómo se muestran los renglones indemnizatorios en el recibo (en la columna No remunerativo).
+
+## 9. Decisiones del builder
+
+Las tomé después de la revisión del diseño; se pueden corregir.
+
+1. **Doble cobro.**
+   - La baja se rechaza si el empleado tiene un recibo en una liquidación **mensual cerrada** de un mes igual o posterior al del egreso: `La liquidación mensual de MM/AAAA ya incluye al empleado: reábrala antes de darlo de baja`.
+   - También se rechaza si lo tiene en un **SAC cerrado** del semestre: `El SAC de MM/AAAA ya incluye al empleado: reábralo antes de darlo de baja`.
+   - Al recalcular una mensual en borrador (también una reabierta), se borra el recibo de quien tiene una final con egreso en ese mes, aunque estuviera numerado. Reabrir ya exige que no haya pagos.
+2. **Novedades.** Las del empleado en la mensual en borrador del mes del egreso pasan a la final al darlo de baja.
+3. **Antigüedad.**
+   - **Años completos:** el aniversario del ingreso es igual o anterior al egreso.
+   - **Fracción:** cuenta meses y días desde el último aniversario (del 01/03/2021 al 15/11/2026 son 5 años, 8 meses y 14 días).
+   - **Año indemnizable extra:** el egreso es posterior a `último aniversario + 3 meses`. Con ingreso 01/03, egreso 01/06 no suma; 02/06 sí.
+   - **Preaviso de medio mes:** `egreso ≤ ingreso + 3 meses`.
+4. **F.931 con la mensual sin cerrar.** Si existe una mensual del mes que no está cerrada, el archivo se rechaza: `La liquidación mensual de MM/AAAA no está cerrada`. Si no existe ninguna mensual del mes, se genera solo con las finales cerradas.
+5. **Modificar el egreso.**
+   - La fecha de egreso se puede cambiar solo dentro del mismo mes. Si no: `Para cambiar el mes del egreso, elimine la liquidación final y vuelva a darlo de baja`.
+   - La fecha de pago también se puede modificar en borrador.
+6. **Contribuciones de la final.**
+   - Llevan el importe fijo mensual (ART, seguro de vida) si hubo días trabajados, porque el empleado ya no está en la mensual.
+   - La detracción es la proporcional a los días del mes, más el 50 % si hay SAC, sin superar el remunerativo.
+7. **Estado del empleado.**
+   - La baja pone al empleado inactivo. Eliminar la final lo vuelve a poner activo y sin fecha de egreso.
+   - Mientras exista una final, la ficha no deja cambiar la fecha de egreso: `La fecha de egreso se cambia desde la liquidación final`.
+   - Un empleado con fecha de egreso cargada a mano (antes de esta entrega) puede darse de baja: la baja la reemplaza.
+   - La mejor remuneración manual reemplaza también la del semestre (la base del SAC proporcional).
