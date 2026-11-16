@@ -33,7 +33,7 @@ export async function cargarSueldosModelo(tx: Prisma.TransactionClient, empresaI
   const cuenta = async (codigo: string) => (await tx.cuentaContable.findFirst({ where: { empresaId, codigo }, select: { id: true } }))?.id ?? null;
   const cfg = await tx.configuracionSueldos.create({ data: {
     empresaId, cuentaSueldosId: await cuenta('5.2.09'), cuentaContribucionesId: await cuenta('5.2.10'), cuentaSueldosAPagarId: await cuenta('2.1.03.001'),
-    cuentaCargasSocialesId: await cuenta('2.1.03.002'), cuentaRetencionesSindicalesId: await cuenta('2.1.03.003'),
+    cuentaCargasSocialesId: await cuenta('2.1.03.002'), cuentaRetencionesSindicalesId: await cuenta('2.1.03.003'), cuentaIndemnizacionesId: await cuenta('5.2.11'),
   } });
   await tx.concepto.createMany({ data: CONCEPTOS_COMERCIO.map((c) => ({
     empresaId, codigo: c.codigo, nombre: c.nombre, clase: c.clase, tipo: c.tipo, parametros: c.parametros as Prisma.InputJsonValue, orden: Number(c.codigo), soloAfiliados: !!c.soloAfiliados,

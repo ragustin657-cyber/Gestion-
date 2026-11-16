@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Uploaded
 import { FileInterceptor } from '@nestjs/platform-express';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../comun/zod.pipe';
-import { DatosConcepto, DatosEmpleado, esquemaCategoria, esquemaConcepto, esquemaConvenio, esquemaEdicionEmpleado, esquemaEmpleado, esquemaEscala } from './dto';
+import { DatosConcepto, DatosEmpleado, esquemaTope, esquemaCategoria, esquemaConcepto, esquemaConvenio, esquemaEdicionEmpleado, esquemaEmpleado, esquemaEscala } from './dto';
 import { MaestrosSueldosService } from './maestros.service';
 
 @Controller('sueldos')
@@ -35,6 +35,12 @@ export class MaestrosSueldosController {
   importar(@Query('convenioId') convenioId?: string, @UploadedFile() archivo?: { buffer: Buffer; originalname: string }) {
     return this.m.importarEscalas(convenioId, archivo?.buffer, archivo?.originalname ?? 'escalas.csv');
   }
+
+  @Get('topes') @RequierePermiso('sueldos.ver')
+  topes(@Query('convenioId') convenioId?: string, @Query('anio') anio?: string, @Query('mes') mes?: string) { return this.m.topes(convenioId, anio ? Number(anio) : undefined, mes ? Number(mes) : undefined); }
+
+  @Put('topes') @RequierePermiso('sueldos.liquidar')
+  guardarTope(@Body(new ZodValidationPipe(esquemaTope)) d: { convenioId: string; desdeAnio: number; desdeMes: number; importe: number }) { return this.m.guardarTope(d); }
 
   @Get('empleados') @RequierePermiso('sueldos.ver')
   empleados() { return this.m.empleados(); }

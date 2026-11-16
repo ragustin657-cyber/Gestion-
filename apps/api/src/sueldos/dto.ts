@@ -6,6 +6,7 @@ const fecha = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida');
 export const esquemaConvenio = z.object({ nombre: z.string().trim().min(1).max(100), codigo: z.string().trim().min(1).max(30), horasMensuales: z.number().int().min(1).max(400), activo: z.boolean().optional() });
 export const esquemaCategoria = z.object({ convenioId: uuid, nombre: z.string().trim().min(1).max(100), orden: z.number().int().min(0).default(0), activa: z.boolean().optional() });
 export const esquemaEscala = z.object({ categoriaId: uuid, anio: z.number().int().min(2000).max(2100), mes: z.number().int().min(1).max(12), basico: z.number().positive('Debe ser mayor que cero') });
+export const esquemaTope = z.object({ convenioId: uuid, desdeAnio: z.number().int().min(2000).max(2100), desdeMes: z.number().int().min(1).max(12), importe: z.number().positive('Debe ser mayor que cero') });
 export const esquemaEmpleado = z.object({
   apellido: z.string().trim().min(1).max(100), nombre: z.string().trim().min(1).max(100), cuil: z.string().trim().min(11), domicilio: z.string().trim().max(200).default(''),
   fechaIngreso: fecha, fechaEgreso: fecha.nullish(), categoriaId: uuid, centroCostoId: uuid.nullish(), sucursalId: uuid.nullish(),

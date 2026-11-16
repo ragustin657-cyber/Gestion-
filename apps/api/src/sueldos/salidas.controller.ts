@@ -5,6 +5,7 @@ import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { Columna, Fila, tablaPdf } from '../contabilidad/consultas/exportar';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 import { LiquidacionesService } from './liquidaciones.service';
+import { CAUSAS_EGRESO } from './contabilizacion.service';
 import { DatosRecibo, pdfRecibos } from './recibo-pdf';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -15,7 +16,7 @@ export class SalidasSueldosController {
 
   private periodo(x: { tipo: string; anio: number; mes: number }) {
     const mm = `${String(x.mes).padStart(2, '0')}/${x.anio}`;
-    return x.tipo === 'SAC' ? `SAC ${x.mes === 6 ? '1.er' : '2.º'} semestre ${x.anio}` : `Mensual ${mm}`;
+    return x.tipo === 'SAC' ? `SAC ${x.mes === 6 ? '1.er' : '2.º'} semestre ${x.anio}` : x.tipo === 'FINAL' ? `Final ${mm}` : `Mensual ${mm}`;
   }
 
   @Get(':id/recibos.pdf') @RequierePermiso('sueldos.ver')
@@ -34,8 +35,9 @@ export class SalidasSueldosController {
       totales: { remunerativo: r.totalRemunerativo ?? '0.00', noRemunerativo: r.totalNoRemunerativo ?? '0.00', descuentos: r.totalDescuentos ?? '0.00', neto: r.neto ?? '0.00' },
       deposito: { fecha: liq.ultimoDepositoFecha, banco: liq.ultimoDepositoBanco, periodo: liq.ultimoDepositoPeriodo },
       fechaPago: liq.fechaPago, borrador: liq.estado === 'BORRADOR',
+      final: liq.egreso ? { causa: CAUSAS_EGRESO[liq.egreso.causa], fechaEgreso: liq.egreso.fechaEgreso } : null,
     }));
-    const nombre = `recibos-${liq.anio}-${String(liq.mes).padStart(2, '0')}${liq.tipo === 'SAC' ? '-sac' : ''}${recibos.length === 1 ? `-legajo-${recibos[0].legajo}` : ''}`;
+    const nombre = `recibos-${liq.anio}-${String(liq.mes).padStart(2, '0')}${liq.tipo === 'SAC' ? '-sac' : liq.tipo === 'FINAL' ? '-final' : ''}${recibos.length === 1 ? `-legajo-${recibos[0].legajo}` : ''}`;
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${nombre}.pdf"` });
     return new StreamableFile(await pdfRecibos(datos));
   }
@@ -56,7 +58,7 @@ export class SalidasSueldosController {
     const t = liq.totales;
     const totalEmp: Fila = ['', 'Totales', '', '', Number(t.remunerativo), Number(t.noRemunerativo), Number(t.descuentos), Number(t.neto)];
     const titulo = `Resumen de liquidación ${this.periodo(liq)}`.replace(/[*?:\\/\[\]]/g, '-');
-    const nombre = `resumen-sueldos-${liq.anio}-${String(liq.mes).padStart(2, '0')}${liq.tipo === 'SAC' ? '-sac' : ''}`;
+    const nombre = `resumen-sueldos-${liq.anio}-${String(liq.mes).padStart(2, '0')}${liq.tipo === 'SAC' ? '-sac' : liq.tipo === 'FINAL' ? '-final' : ''}`;
     if (formato === 'xlsx') {
       const wb = new ExcelJS.Workbook();
       const hoja = (n: string, cab: string[], filas: Fila[], importes: number[]) => {

@@ -8,6 +8,9 @@ import { ContribucionesService } from './contribuciones.service';
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
 export const ORIGEN_LIQUIDACION = 'LIQUIDACION_SUELDO';
+export const CAUSAS_EGRESO: Record<string, string> = { RENUNCIA: 'Renuncia', DESPIDO_SIN_CAUSA: 'Despido sin causa', DESPIDO_CON_CAUSA: 'Despido con causa', MUTUO_ACUERDO: 'Mutuo acuerdo' };
+/** Renglón indemnizatorio de la liquidación final (300 a 340, sin concepto). */
+export const esIndemnizatorio = (x: { codigo: string; conceptoId: string | null }) => !x.conceptoId && Number(x.codigo) >= 300 && Number(x.codigo) < 400;
 const finDeMes = (anio: number, mes: number) => new Date(Date.UTC(anio, mes, 0));
 
 /** Contribuciones patronales y asiento contable de una liquidación (spec E19 §2-§3). */
@@ -19,9 +22,9 @@ export class ContabilizacionService {
   async calcular(tx: TxEmpresa, l: Liquidacion): Promise<Map<string, ContribucionResultado[]>> {
     const [vigentes, param, recibos] = await Promise.all([
       this.contribuciones.vigentes(tx, l.anio, l.mes), this.contribuciones.parametros(tx, l.anio, l.mes),
-      tx.reciboSueldo.findMany({ where: { liquidacionId: l.id } }),
+      tx.reciboSueldo.findMany({ where: { liquidacionId: l.id }, include: { renglones: { where: { codigo: '200', conceptoId: null } } } }),
     ]);
-    return new Map(recibos.map((r) => [r.id, calcularContribuciones(r.totalRemunerativo, r.diasTrabajados, l.tipo, vigentes, param.detraccion)]));
+    return new Map(recibos.map((r) => [r.id, calcularContribuciones(r.totalRemunerativo, r.diasTrabajados, l.tipo, vigentes, param.detraccion, r.renglones.reduce((s, x) => s.plus(x.importe), new D(0)))]));
   }
 
   /** Resumen para la consulta: grabadas si está contabilizada, si no calculadas. */
@@ -55,7 +58,10 @@ export class ContabilizacionService {
     const sumar = (cuenta: string, centro: string | null, importe: Dec) => { const k = `${cuenta}|${centro ?? ''}`; saldos.set(k, (saldos.get(k) ?? new D(0)).plus(importe)); };
     await tx.reciboSueldoContribucion.deleteMany({ where: { recibo: { liquidacionId: l.id } } });
     for (const r of recibos) {
-      sumar(cfg.cuentaSueldosId, r.centroCostoId, new D(r.totalRemunerativo).plus(r.totalNoRemunerativo));
+      // Conceptos indemnizatorios de la liquidación final (300 a 340): a la cuenta de indemnizaciones
+      const indemn = r.renglones.filter((x) => esIndemnizatorio(x)).reduce((s, x) => s.plus(x.importe), new D(0));
+      if (!indemn.isZero()) sumar(cfg.cuentaIndemnizacionesId ?? cfg.cuentaSueldosId, r.centroCostoId, indemn);
+      sumar(cfg.cuentaSueldosId, r.centroCostoId, new D(r.totalRemunerativo).plus(r.totalNoRemunerativo).minus(indemn));
       sumar(cfg.cuentaSueldosAPagarId, null, new D(r.neto).neg());
       for (const x of r.renglones.filter((y) => y.clase === 'DESCUENTO')) {
         const c = x.conceptoId ? conceptos.get(x.conceptoId) : undefined;
@@ -72,8 +78,14 @@ export class ContabilizacionService {
       const [cuentaContableId, centro] = k.split('|');
       return { cuentaContableId, centroCostoId: centro || null, ...(v.gt(0) ? { debe: v.toFixed(2) } : { haber: v.neg().toFixed(2) }) };
     });
-    const fecha = l.tipo === 'SAC' ? finDeMes(l.anio, l.mes <= 6 ? 6 : 12) : finDeMes(l.anio, l.mes);
-    const descripcion = l.tipo === 'SAC' ? `SAC ${l.mes <= 6 ? '1.er' : '2.º'} semestre ${l.anio}` : `Liquidación de sueldos ${String(l.mes).padStart(2, '0')}/${l.anio}`;
+    const egreso = l.tipo === 'FINAL' ? await tx.egresoEmpleado.findUnique({ where: { liquidacionId: l.id } }) : null;
+    let fecha = l.tipo === 'SAC' ? finDeMes(l.anio, l.mes <= 6 ? 6 : 12) : finDeMes(l.anio, l.mes);
+    let descripcion = l.tipo === 'SAC' ? `SAC ${l.mes <= 6 ? '1.er' : '2.º'} semestre ${l.anio}` : `Liquidación de sueldos ${String(l.mes).padStart(2, '0')}/${l.anio}`;
+    if (egreso) {
+      const r = recibos[0];
+      fecha = egreso.fechaEgreso;
+      descripcion = `Liquidación final - ${r ? `${r.apellido}, ${r.nombre}` : ''} - ${CAUSAS_EGRESO[egreso.causa]}`;
+    }
     const a = await this.asientos.generar(tx, { fecha, descripcion, origenTipo: ORIGEN_LIQUIDACION, origenId: l.id, renglones });
     await tx.liquidacion.update({ where: { id: l.id }, data: { asientoId: a.id } });
     return a;

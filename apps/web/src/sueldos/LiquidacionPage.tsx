@@ -7,6 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { errorConsulta, opcionesCajas, opcionesCuentas, useCajas, useCuentasBancarias, useOperacion } from '../tesoreria/comun';
 import { PanelPagos } from './PanelPagos';
+import { DialogoBaja, TarjetaEgreso } from './DialogoBaja';
 import { DESTINOS_CONTRIBUCION, DestinoContribucion, formatoCuil, LiquidacionDetalle, Novedad, periodoLiquidacion, Recibo } from './comun';
 
 const cantidad = (x: Recibo['renglones'][number]) =>
@@ -110,6 +111,7 @@ export function LiquidacionPage() {
   const q = useQuery({ queryKey: clave, queryFn: () => api<LiquidacionDetalle>(`/sueldos/liquidaciones/${id}`) });
   const [elegido, setElegido] = useState<string | null>(null);
   const [deposito, setDeposito] = useState<{ fecha: string; banco: string; periodo: string } | null>(null);
+  const [editarEgreso, setEditarEgreso] = useState(false);
   const [pago, setPago] = useState<{ reciboIds: string[]; fecha: string; origen: string | null } | null>(null);
   const bancos = useCuentasBancarias().filter((c) => c.monedaCodigo === 'ARS');
   const cajas = useCajas().filter((c) => c.monedaCodigo === 'ARS');
@@ -123,13 +125,13 @@ export function LiquidacionPage() {
     return r;
   };
   if (!l) return <Paper withBorder p="md">{errorConsulta(q.error) ?? 'Cargando…'}</Paper>;
-  const nombre = `${l.anio}-${String(l.mes).padStart(2, '0')}${l.tipo === 'SAC' ? '-sac' : ''}`;
+  const nombre = `${l.anio}-${String(l.mes).padStart(2, '0')}${l.tipo === 'SAC' ? '-sac' : l.tipo === 'FINAL' ? `-final-legajo-${l.egreso?.empleado?.legajo ?? ''}` : ''}`;
   const bajar = (ruta: string, query: Record<string, string>, archivo: string) => op.ejecutar(() => descargar(ruta, query, archivo), () => 'Archivo descargado');
   return (
     <Paper withBorder p="md" radius="md">
       <Group justify="space-between" mb="md">
         <Group>
-          <Title order={3}>Liquidación {periodoLiquidacion(l)}</Title>
+          <Title order={3}>Liquidación {periodoLiquidacion({ ...l, empleado: l.egreso?.empleado })}</Title>
           <Badge color={l.estado === 'CERRADA' ? 'green' : 'yellow'}>{l.estado === 'CERRADA' ? 'Cerrada' : 'Borrador'}</Badge>
         </Group>
         <Group>
@@ -146,6 +148,15 @@ export function LiquidacionPage() {
         Fecha de pago {formatoFecha(l.fechaPago)} · Último depósito: {l.ultimoDepositoFecha ? `${formatoFecha(l.ultimoDepositoFecha)} · ${l.ultimoDepositoBanco} · período ${l.ultimoDepositoPeriodo}` : 'sin informar'}
       </Text>
       {op.alerta}
+      {l.egreso && <TarjetaEgreso egreso={l.egreso} onEditar={liquidar && l.estado === 'BORRADOR' ? () => setEditarEgreso(true) : undefined} />}
+      {l.egreso?.empleado && (
+        <Modal opened={editarEgreso} onClose={() => setEditarEgreso(false)} title="Editar egreso">
+          <DialogoBaja empleado={l.egreso.empleado} causaInicial={l.egreso.causa} textoBoton="Guardar" enviando={op.enviando}
+            inicial={{ fechaEgreso: l.egreso.fechaEgreso, fechaPago: l.fechaPago, preavisoOtorgado: l.egreso.preavisoOtorgado, gratificacion: Number(l.egreso.gratificacion) || undefined, mejorRemuneracion: l.egreso.mejorRemuneracion ? Number(l.egreso.mejorRemuneracion) : undefined }}
+            onConfirmar={async ({ empleadoId: _e, ...d }) => { if (await accion(() => api(`/sueldos/egresos/${id}`, { metodo: 'PUT', body: d }), 'Egreso actualizado')) setEditarEgreso(false); }} />
+          {op.alerta}
+        </Modal>
+      )}
       {l.contribuciones && (
         <SimpleGrid cols={{ base: 2, sm: 5 }} mb="md">
           {(Object.keys(DESTINOS_CONTRIBUCION) as DestinoContribucion[]).map((k) => (

@@ -15,9 +15,9 @@ export interface Recibo {
   id: string; empleadoId: string; numero: number | null; legajo: number; apellido: string; nombre: string; cuil: string; categoria: string; basico: string; fechaIngreso: string;
   antiguedadAnios: number; diasTrabajados: number; totalRemunerativo: string; totalNoRemunerativo: string; totalDescuentos: string; neto: string; renglones: RenglonRecibo[]; novedades: Novedad[]; pagado?: boolean;
 }
-export interface LiquidacionLista { id: string; numero: number; tipo: 'MENSUAL' | 'SAC'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA'; empleados: number; totalNeto: string }
+export interface LiquidacionLista { empleado?: { legajo: number; apellido: string; nombre: string } | null; id: string; numero: number; tipo: 'MENSUAL' | 'SAC' | 'FINAL'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA'; empleados: number; totalNeto: string }
 export interface LiquidacionDetalle {
-  id: string; numero: number; tipo: 'MENSUAL' | 'SAC'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA';
+  id: string; numero: number; tipo: 'MENSUAL' | 'SAC' | 'FINAL'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA'; egreso?: Egreso | null;
   ultimoDepositoFecha: string | null; ultimoDepositoBanco: string | null; ultimoDepositoPeriodo: string | null;
   errores: { empleadoId: string; mensaje: string }[]; aviso?: string; recibos: Recibo[];
   asiento?: { id: string; numero: number } | null; contribuciones?: ResumenContribuciones; pagos?: PagoSueldos[]; pendientePago?: string;
@@ -28,8 +28,13 @@ export const CLASES: Record<Clase, string> = { REMUNERATIVO: 'Remunerativo', NO_
 export const TIPOS_CONCEPTO: Record<string, string> = {
   BASICO: 'Sueldo básico', ANTIGUEDAD: 'Antigüedad', PORCENTAJE: 'Porcentaje', HORAS_EXTRA: 'Horas extra', AUSENCIA: 'Ausencia', FIJO: 'Importe fijo', DESCUENTO_LEY: 'Descuento de ley',
 };
-export const periodoLiquidacion = (l: { tipo: string; anio: number; mes: number }) =>
-  l.tipo === 'SAC' ? `SAC ${l.mes === 6 ? '1.er' : '2.º'} semestre ${l.anio}` : `${String(l.mes).padStart(2, '0')}/${l.anio}`;
+export const periodoLiquidacion = (l: { tipo: string; anio: number; mes: number; empleado?: { apellido: string; nombre: string } | null }) =>
+  l.tipo === 'SAC' ? `SAC ${l.mes === 6 ? '1.er' : '2.º'} semestre ${l.anio}`
+    : l.tipo === 'FINAL' ? `Final ${String(l.mes).padStart(2, '0')}/${l.anio}${l.empleado ? ` - ${l.empleado.apellido}, ${l.empleado.nombre}` : ''}`
+      : `${String(l.mes).padStart(2, '0')}/${l.anio}`;
+export type CausaEgreso = 'RENUNCIA' | 'DESPIDO_SIN_CAUSA' | 'DESPIDO_CON_CAUSA' | 'MUTUO_ACUERDO';
+export const CAUSAS_EGRESO: Record<CausaEgreso, string> = { RENUNCIA: 'Renuncia', DESPIDO_SIN_CAUSA: 'Despido sin causa', DESPIDO_CON_CAUSA: 'Despido con causa', MUTUO_ACUERDO: 'Mutuo acuerdo' };
+export interface Egreso { causa: CausaEgreso; fechaEgreso: string; preavisoOtorgado: boolean; mejorRemuneracion: string | null; gratificacion: string; empleado: { id: string; legajo: number; apellido: string; nombre: string } | null }
 export const formatoCuil = (c: string) => (c.length === 11 ? `${c.slice(0, 2)}-${c.slice(2, 10)}-${c.slice(10)}` : c);
 
 export const useConvenios = () => useQuery({ queryKey: ['/sueldos/convenios'], queryFn: () => api<Convenio[]>('/sueldos/convenios') });

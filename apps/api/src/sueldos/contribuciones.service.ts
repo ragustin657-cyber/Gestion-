@@ -6,7 +6,7 @@ import { ContribucionCalc } from './calculo';
 const D = Prisma.Decimal;
 const clave = (anio: number, mes: number) => anio * 100 + mes;
 export interface DatosContribucion { codigo: string; nombre: string; destino: ContribucionCalc['destino']; alicuota: number; importeFijo: number; aplicaDetraccion: boolean; cuentaContableId: string; desdeAnio: number; desdeMes: number; activa?: boolean }
-export interface DatosConfiguracion { cuentaSueldosId: string; cuentaContribucionesId: string; cuentaSueldosAPagarId: string; cuentaCargasSocialesId: string; cuentaRetencionesSindicalesId: string }
+export interface DatosConfiguracion { cuentaSueldosId: string; cuentaContribucionesId: string; cuentaSueldosAPagarId: string; cuentaCargasSocialesId: string; cuentaRetencionesSindicalesId: string; cuentaIndemnizacionesId?: string | null }
 const CAMPOS_CONFIG = ['cuentaSueldosId', 'cuentaContribucionesId', 'cuentaSueldosAPagarId', 'cuentaCargasSocialesId', 'cuentaRetencionesSindicalesId'] as const;
 
 /** Contribuciones patronales, parámetros previsionales y cuentas de sueldos de la empresa. */
@@ -79,13 +79,14 @@ export class ContribucionesService {
 
   async verConfiguracion() {
     const c = await this.tenant.db.configuracionSueldos.findFirst();
-    const ids = CAMPOS_CONFIG.map((k) => c?.[k]).filter((x): x is string => !!x);
+    const ids = [...CAMPOS_CONFIG, 'cuentaIndemnizacionesId' as const].map((k) => c?.[k]).filter((x): x is string => !!x);
     const cuentas = new Map((await this.tenant.db.cuentaContable.findMany({ where: { id: { in: ids } }, select: { id: true, codigo: true, nombre: true } })).map((x) => [x.id, x]));
-    return Object.fromEntries(CAMPOS_CONFIG.flatMap((k) => [[k, c?.[k] ?? null], [k.replace(/Id$/, ''), c?.[k] ? cuentas.get(c[k]!) ?? null : null]]));
+    return Object.fromEntries([...CAMPOS_CONFIG, 'cuentaIndemnizacionesId' as const].flatMap((k) => [[k, c?.[k] ?? null], [k.replace(/Id$/, ''), c?.[k] ? cuentas.get(c[k]!) ?? null : null]]));
   }
 
   async guardarConfiguracion(d: DatosConfiguracion) {
     for (const k of CAMPOS_CONFIG) await this.validarCuenta(this.tenant.db, d[k]);
+    if (d.cuentaIndemnizacionesId) await this.validarCuenta(this.tenant.db, d.cuentaIndemnizacionesId);
     const actual = await this.tenant.db.configuracionSueldos.findFirst();
     if (actual) await this.tenant.db.configuracionSueldos.update({ where: { id: actual.id }, data: d });
     else await this.tenant.db.configuracionSueldos.create({ data: { ...d, empresaId: this.tenant.empresaId } });
