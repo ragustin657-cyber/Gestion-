@@ -8,6 +8,7 @@ import { ConceptoCalc, liquidarMes, liquidarSac, NovedadCalc, ResultadoCalc, val
 import { basicosVigentes } from './maestros.service';
 import { ContabilizacionService } from './contabilizacion.service';
 import { ContribucionesService } from './contribuciones.service';
+import { PagosSueldosService } from './pagos.service';
 
 const D = Prisma.Decimal;
 const mmaaaa = (anio: number, mes: number) => `${String(mes).padStart(2, '0')}/${anio}`;
@@ -22,7 +23,7 @@ const aCalc = (c: Concepto): ConceptoCalc => ({ id: c.id, codigo: c.codigo, nomb
 
 @Injectable()
 export class LiquidacionesService {
-  constructor(private readonly tenant: TenantPrisma, private readonly numeracion: NumeracionService, private readonly cls: ClsService, private readonly contabilizacion: ContabilizacionService, private readonly contribuciones: ContribucionesService) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly numeracion: NumeracionService, private readonly cls: ClsService, private readonly contabilizacion: ContabilizacionService, private readonly contribuciones: ContribucionesService, private readonly pagos: PagosSueldosService) {}
 
   private usuario() {
     return this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
@@ -130,15 +131,18 @@ export class LiquidacionesService {
     const { errores, aviso } = l.estado === 'BORRADOR' ? await this.estadoBorrador(tx, l) : { errores: [], aviso: undefined };
     const recibos = await tx.reciboSueldo.findMany({ where: { liquidacionId: id }, include: { renglones: { orderBy: { orden: 'asc' } } }, orderBy: { legajo: 'asc' } });
     const novedades = await tx.novedad.findMany({ where: { liquidacionId: id } });
+    const pagados = await this.pagos.recibosPagados(tx, id);
     const tot = recibos.reduce((s, r) => ({ remunerativo: s.remunerativo.plus(r.totalRemunerativo), noRemunerativo: s.noRemunerativo.plus(r.totalNoRemunerativo), descuentos: s.descuentos.plus(r.totalDescuentos), neto: s.neto.plus(r.neto) }), { remunerativo: new D(0), noRemunerativo: new D(0), descuentos: new D(0), neto: new D(0) });
     return {
       ...l, fechaPago: l.fechaPago.toISOString().slice(0, 10), ultimoDepositoFecha: l.ultimoDepositoFecha?.toISOString().slice(0, 10) ?? null,
       errores, ...(aviso ? { aviso } : {}),
       recibos: recibos.map((r) => ({
-        ...r, fechaIngreso: r.fechaIngreso.toISOString().slice(0, 10), basico: f2(r.basico), totalRemunerativo: f2(r.totalRemunerativo), totalNoRemunerativo: f2(r.totalNoRemunerativo), totalDescuentos: f2(r.totalDescuentos), neto: f2(r.neto),
+        ...r, pagado: pagados.has(r.id), fechaIngreso: r.fechaIngreso.toISOString().slice(0, 10), basico: f2(r.basico), totalRemunerativo: f2(r.totalRemunerativo), totalNoRemunerativo: f2(r.totalNoRemunerativo), totalDescuentos: f2(r.totalDescuentos), neto: f2(r.neto),
         renglones: r.renglones.map((x) => ({ ...x, importe: f2(x.importe), base: f2(x.base), cantidad: x.cantidad === null ? null : new D(x.cantidad).toString(), porcentaje: x.porcentaje === null ? null : new D(x.porcentaje).toString() })),
         novedades: novedades.filter((n) => n.empleadoId === r.empleadoId).map((n) => ({ ...n, cantidad: n.cantidad === null ? null : Number(n.cantidad), importe: n.importe === null ? null : Number(n.importe) })),
       })),
+      pagos: await this.pagos.pagosDeLiquidacion(tx, id),
+      pendientePago: recibos.filter((r) => !pagados.has(r.id)).reduce((s, r) => s.plus(r.neto), new D(0)).toFixed(2),
       asiento: l.asientoId ? await tx.asiento.findUnique({ where: { id: l.asientoId }, select: { id: true, numero: true } }) : null,
       contribuciones: await this.contabilizacion.resumen(tx, await this.liquidacion(tx, id)),
       totales: { remunerativo: tot.remunerativo.toFixed(2), noRemunerativo: tot.noRemunerativo.toFixed(2), descuentos: tot.descuentos.toFixed(2), neto: tot.neto.toFixed(2) },
@@ -194,6 +198,7 @@ export class LiquidacionesService {
         const sac = await tx.liquidacion.findFirst({ where: { tipo: 'SAC', anio: l.anio, mes: semestre(l.mes) === 1 ? 6 : 12, estado: 'CERRADA' } });
         if (sac) throw new BadRequestException(`La liquidación se usó en el SAC de ${mmaaaa(sac.anio, sac.mes)}: reábralo primero`);
       }
+      await this.pagos.validarReapertura(tx, l);
       await this.contabilizacion.anular(tx, l);
       await tx.liquidacion.update({ where: { id }, data: { estado: 'BORRADOR', cerradoPor: null, cerradoEn: null } });
       return this.obtener(id, tx);
