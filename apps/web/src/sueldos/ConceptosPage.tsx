@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
-import { Clase, CLASES, Concepto, TIPOS_CONCEPTO, useConceptos } from './comun';
+import { useCuentasImputables } from '../abm/opciones';
+import { Clase, CLASES, Concepto, DESTINOS_DESCUENTO, TIPOS_CONCEPTO, useConceptos } from './comun';
 
-type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean };
-const vacio: Form = { codigo: '', nombre: '', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{ "importe": 0 }', orden: 300, soloAfiliados: false, activo: true };
+type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean; destino: string; cuentaContableId: string | null };
+const vacio: Form = { codigo: '', nombre: '', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{ "importe": 0 }', orden: 300, soloAfiliados: false, activo: true, destino: 'OTRO', cuentaContableId: null };
 
 /** Parámetros en una línea: "porcentaje: 11 · base: REMUNERATIVO". */
 const resumenParametros = (p: Record<string, unknown>) => Object.entries(p).map(([k, v]) => `${k}: ${String(v)}`).join(' · ');
@@ -17,9 +18,10 @@ export function ConceptosPage() {
   const qc = useQueryClient();
   const op = useOperacion();
   const conceptos = useConceptos();
+  const cuentas = useCuentasImputables();
   const editable = puede('sueldos.liquidar');
   const [form, setForm] = useState<Form | null>(null);
-  const editar = (c: Concepto) => setForm({ ...c, parametros: JSON.stringify(c.parametros, null, 2) });
+  const editar = (c: Concepto) => setForm({ ...c, parametros: JSON.stringify(c.parametros, null, 2), destino: c.destino ?? 'OTRO', cuentaContableId: c.cuentaContableId ?? null });
   const guardar = async () => {
     if (!form) return;
     let parametros: unknown;
@@ -56,6 +58,8 @@ export function ConceptosPage() {
               <Select label="Clase" data={Object.entries(CLASES).map(([value, label]) => ({ value, label }))} value={form.clase} onChange={(v) => setForm({ ...form, clase: (v ?? 'REMUNERATIVO') as Clase })} />
               <Select label="Cálculo" data={Object.entries(TIPOS_CONCEPTO).map(([value, label]) => ({ value, label }))} value={form.tipo} onChange={(v) => setForm({ ...form, tipo: v ?? 'FIJO' })} />
               <NumberInput label="Orden" value={form.orden} onChange={(v) => setForm({ ...form, orden: Number(v) || 0 })} />
+              {form.clase === 'DESCUENTO' && <Select label="Destino del descuento" data={Object.entries(DESTINOS_DESCUENTO).map(([value, label]) => ({ value, label }))} value={form.destino} onChange={(v) => setForm({ ...form, destino: v ?? 'OTRO' })} />}
+              {form.clase === 'DESCUENTO' && <Select label="Cuenta (vacío = según el destino)" clearable searchable data={cuentas} value={form.cuentaContableId} onChange={(v) => setForm({ ...form, cuentaContableId: v })} />}
             </SimpleGrid>
             <Textarea label="Parámetros (JSON)" autosize minRows={3} value={form.parametros} onChange={(e) => setForm({ ...form, parametros: e.currentTarget.value })} />
             <Checkbox label="Solo afiliados al sindicato" checked={form.soloAfiliados} onChange={(e) => setForm({ ...form, soloAfiliados: e.currentTarget.checked })} />

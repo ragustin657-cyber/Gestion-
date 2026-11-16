@@ -1,4 +1,4 @@
-import { Badge, Button, Checkbox, Group, Modal, Paper, Select, SimpleGrid, Stack, Table, TextInput, Title } from '@mantine/core';
+import { Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, TextInput, Title } from '@mantine/core';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api/cliente';
@@ -11,8 +11,11 @@ import { Empleado, formatoCuil, useConvenios, useEmpleados } from './comun';
 type Form = {
   id?: string; apellido: string; nombre: string; cuil: string; domicilio: string; fechaIngreso: string; fechaEgreso: string; categoriaId: string | null; centroCostoId: string | null;
   afiliadoSindicato: boolean; obraSocial: string; formaPago: 'EFECTIVO' | 'TRANSFERENCIA'; cbu: string; activo: boolean;
+  codigoSituacion: number; codigoCondicion: number; codigoActividad: number; codigoModalidad: number; codigoZona: number | null; codigoObraSocial: string;
+  conyuge: boolean; cantidadHijos: number; adherentesObraSocial: number; trabajadorConvencionado: boolean;
 };
-const vacio: Form = { apellido: '', nombre: '', cuil: '', domicilio: '', fechaIngreso: '', fechaEgreso: '', categoriaId: null, centroCostoId: null, afiliadoSindicato: true, obraSocial: '', formaPago: 'TRANSFERENCIA', cbu: '', activo: true };
+const vacio: Form = { apellido: '', nombre: '', cuil: '', domicilio: '', fechaIngreso: '', fechaEgreso: '', categoriaId: null, centroCostoId: null, afiliadoSindicato: true, obraSocial: '', formaPago: 'TRANSFERENCIA', cbu: '', activo: true,
+  codigoSituacion: 1, codigoCondicion: 1, codigoActividad: 49, codigoModalidad: 8, codigoZona: null, codigoObraSocial: '000000', conyuge: false, cantidadHijos: 0, adherentesObraSocial: 0, trabajadorConvencionado: true };
 
 export function EmpleadosPage() {
   const { puede } = useAuth();
@@ -24,7 +27,7 @@ export function EmpleadosPage() {
   const [form, setForm] = useState<Form | null>(null);
   const editable = puede('sueldos.liquidar');
   const categorias = (convenios.data ?? []).flatMap((c) => c.categorias.filter((x) => x.activa).map((x) => ({ value: x.id, label: `${c.nombre} · ${x.nombre}` })));
-  const editar = (e: Empleado) => setForm({ ...vacio, ...e, cuil: formatoCuil(e.cuil), fechaEgreso: e.fechaEgreso ?? '', cbu: e.cbu ?? '' });
+  const editar = (e: Empleado) => setForm({ ...vacio, ...(e as Partial<Form>), cuil: formatoCuil(e.cuil), fechaEgreso: e.fechaEgreso ?? '', cbu: e.cbu ?? '' } as Form);
   const guardar = async () => {
     if (!form) return;
     const { id, ...d } = form;
@@ -32,6 +35,10 @@ export function EmpleadosPage() {
     const r = await op.ejecutar(() => api(id ? `/sueldos/empleados/${id}` : '/sueldos/empleados', { metodo: id ? 'PUT' : 'POST', body }), () => 'Empleado guardado');
     if (r) { setForm(null); void qc.invalidateQueries({ queryKey: ['/sueldos/empleados'] }); }
   };
+  /** Código ARCA numérico, con los valores más usados como ayuda. */
+  const codigo = (k: 'codigoSituacion' | 'codigoCondicion' | 'codigoActividad' | 'codigoModalidad', etiqueta: string, opciones: [number, string][]) => form && (
+    <NumberInput label={etiqueta} description={opciones.map(([, l]) => l).join(' · ')} min={0} max={999} value={form[k]} onChange={(v) => setForm({ ...form, [k]: Number(v) || 0 })} />
+  );
   const campo = (k: keyof Form, etiqueta: string, tipo = 'text') => form && (
     <TextInput label={etiqueta} type={tipo} value={String(form[k] ?? '')} onChange={(e) => setForm({ ...form, [k]: e.currentTarget.value })} />
   );
@@ -67,6 +74,21 @@ export function EmpleadosPage() {
               {campo('cbu', 'CBU')}
             </SimpleGrid>
             <Checkbox label="Afiliado al sindicato" checked={form.afiliadoSindicato} onChange={(e) => setForm({ ...form, afiliadoSindicato: e.currentTarget.checked })} />
+            <Title order={5}>Datos para el F.931</Title>
+            <SimpleGrid cols={3}>
+              {codigo('codigoSituacion', 'Situación', [[1, '1 Activo'], [13, '13 Licencia'], [5, '5 Licencia por maternidad']])}
+              {codigo('codigoCondicion', 'Condición', [[1, '1 Servicios comunes mayor de 18'], [0, '0 Jubilado']])}
+              {codigo('codigoActividad', 'Actividad', [[49, '49 Actividades no clasificadas'], [1, '1 Servicios comunes']])}
+              {codigo('codigoModalidad', 'Modalidad de contratación', [[8, '8 Tiempo indeterminado'], [14, '14 Nuevo período de prueba'], [102, '102 Tiempo parcial indeterminado']])}
+              <NumberInput label="Zona (vacío = la de la empresa)" value={form.codigoZona ?? ''} onChange={(v) => setForm({ ...form, codigoZona: v === '' ? null : Number(v) })} min={0} max={99} />
+              <TextInput label="Código de obra social (RNOS)" value={form.codigoObraSocial} maxLength={6} onChange={(e) => setForm({ ...form, codigoObraSocial: e.currentTarget.value })} />
+              <NumberInput label="Cantidad de hijos" value={form.cantidadHijos} min={0} onChange={(v) => setForm({ ...form, cantidadHijos: Number(v) || 0 })} />
+              <NumberInput label="Adherentes de obra social" value={form.adherentesObraSocial} min={0} onChange={(v) => setForm({ ...form, adherentesObraSocial: Number(v) || 0 })} />
+            </SimpleGrid>
+            <Group>
+              <Checkbox label="Cónyuge" checked={form.conyuge} onChange={(e) => setForm({ ...form, conyuge: e.currentTarget.checked })} />
+              <Checkbox label="Trabajador convencionado" checked={form.trabajadorConvencionado} onChange={(e) => setForm({ ...form, trabajadorConvencionado: e.currentTarget.checked })} />
+            </Group>
             {form.id && <Checkbox label="Activo" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.currentTarget.checked })} />}
             {op.alerta}
             <Group justify="flex-end"><Button onClick={guardar} loading={op.enviando}>Guardar</Button></Group>

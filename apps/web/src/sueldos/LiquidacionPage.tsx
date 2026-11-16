@@ -1,12 +1,13 @@
-import { Alert, Badge, Button, Group, Modal, NumberInput, Paper, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, Card, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
-import { formatoFecha, formatoMoneda } from '../compras/formato';
-import { errorConsulta, useOperacion } from '../tesoreria/comun';
-import { formatoCuil, LiquidacionDetalle, Novedad, periodoLiquidacion, Recibo } from './comun';
+import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
+import { errorConsulta, opcionesCajas, opcionesCuentas, useCajas, useCuentasBancarias, useOperacion } from '../tesoreria/comun';
+import { PanelPagos } from './PanelPagos';
+import { DESTINOS_CONTRIBUCION, DestinoContribucion, formatoCuil, LiquidacionDetalle, Novedad, periodoLiquidacion, Recibo } from './comun';
 
 const cantidad = (x: Recibo['renglones'][number]) =>
   x.porcentaje !== null && x.base !== null ? `${formatoMoneda(x.base)} × ${Number(x.porcentaje).toLocaleString('es-AR')} %` : x.cantidad !== null ? Number(x.cantidad).toLocaleString('es-AR') : '';
@@ -109,6 +110,10 @@ export function LiquidacionPage() {
   const q = useQuery({ queryKey: clave, queryFn: () => api<LiquidacionDetalle>(`/sueldos/liquidaciones/${id}`) });
   const [elegido, setElegido] = useState<string | null>(null);
   const [deposito, setDeposito] = useState<{ fecha: string; banco: string; periodo: string } | null>(null);
+  const [pago, setPago] = useState<{ reciboIds: string[]; fecha: string; origen: string | null } | null>(null);
+  const bancos = useCuentasBancarias().filter((c) => c.monedaCodigo === 'ARS');
+  const cajas = useCajas().filter((c) => c.monedaCodigo === 'ARS');
+  const origenes = [...opcionesCuentas(bancos).map((o) => ({ ...o, value: `b:${o.value}` })), ...opcionesCajas(cajas).map((o) => ({ ...o, value: `c:${o.value}` }))];
   const l = q.data;
   const recibo = l?.recibos.find((r) => r.empleadoId === elegido) ?? null;
   const liquidar = puede('sueldos.liquidar');
@@ -141,7 +146,63 @@ export function LiquidacionPage() {
         Fecha de pago {formatoFecha(l.fechaPago)} · Último depósito: {l.ultimoDepositoFecha ? `${formatoFecha(l.ultimoDepositoFecha)} · ${l.ultimoDepositoBanco} · período ${l.ultimoDepositoPeriodo}` : 'sin informar'}
       </Text>
       {op.alerta}
-      <TablaLiquidacion datos={l} puedeLiquidar={liquidar} onElegir={(r) => setElegido(r.empleadoId)} onCerrar={() => accion(() => api(`/sueldos/liquidaciones/${id}/cerrar`, { metodo: 'POST' }), 'Liquidación cerrada')} />
+      {l.contribuciones && (
+        <SimpleGrid cols={{ base: 2, sm: 5 }} mb="md">
+          {(Object.keys(DESTINOS_CONTRIBUCION) as DestinoContribucion[]).map((k) => (
+            <Card key={k} withBorder padding="xs"><Text size="xs" c="dimmed">{DESTINOS_CONTRIBUCION[k]}</Text><Text fw={600}>{formatoMoneda(l.contribuciones!.porDestino[k])}</Text></Card>
+          ))}
+          <Card withBorder padding="xs"><Text size="xs" c="dimmed">Contribuciones patronales{l.estado === 'BORRADOR' ? ' (estimadas)' : ''}</Text><Text fw={700}>{formatoMoneda(l.contribuciones.total)}</Text></Card>
+        </SimpleGrid>
+      )}
+      {l.estado === 'CERRADA' && (
+        <Group mb="sm">
+          {l.asiento ? <Text size="sm">Asiento N° <Text span fw={600} c="blue" style={{ cursor: 'pointer' }} onClick={() => navegar(`/contabilidad/asientos/${l.asiento!.id}`)}>{l.asiento.numero}</Text></Text>
+            : liquidar && <Button size="xs" variant="light" onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/contabilizar`, { metodo: 'POST' }), 'Liquidación contabilizada')}>Contabilizar</Button>}
+          <Button size="xs" variant="light" onClick={() => bajar('/sueldos/f931', { anio: String(l.anio), mes: String(l.mes) }, `F931-${l.anio}${String(l.mes).padStart(2, '0')}.txt`)}>Descargar F.931</Button>
+        </Group>
+      )}
+      <Tabs defaultValue="recibos">
+        <Tabs.List>
+          <Tabs.Tab value="recibos">Recibos</Tabs.Tab>
+          {l.estado === 'CERRADA' && <Tabs.Tab value="pagos">Pagos{l.pendientePago && Number(l.pendientePago) > 0 ? ` (pendiente ${formatoMoneda(l.pendientePago)})` : ''}</Tabs.Tab>}
+        </Tabs.List>
+        <Tabs.Panel value="recibos" pt="sm">
+          <TablaLiquidacion datos={l} puedeLiquidar={liquidar} onElegir={(r) => setElegido(r.empleadoId)} onCerrar={() => accion(() => api(`/sueldos/liquidaciones/${id}/cerrar`, { metodo: 'POST' }), 'Liquidación cerrada')} />
+        </Tabs.Panel>
+        {l.estado === 'CERRADA' && (
+          <Tabs.Panel value="pagos" pt="sm">
+            <PanelPagos recibos={l.recibos} deshabilitado={!liquidar || !l.asiento} onPagar={(ids) => setPago({ reciboIds: ids, fecha: hoy(), origen: null })} />
+            <Title order={5} mt="md" mb="xs">Pagos registrados</Title>
+            <Table withTableBorder striped>
+              <Table.Thead><Table.Tr><Table.Th>N°</Table.Th><Table.Th>Fecha</Table.Th><Table.Th>Desde</Table.Th><Table.Th ta="right">Empleados</Table.Th><Table.Th ta="right">Importe</Table.Th><Table.Th>Estado</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+              <Table.Tbody>
+                {(l.pagos ?? []).map((p) => (
+                  <Table.Tr key={p.id}>
+                    <Table.Td>{p.numero}</Table.Td><Table.Td>{formatoFecha(p.fecha)}</Table.Td><Table.Td>{p.cuenta}</Table.Td><Table.Td ta="right">{p.empleados}</Table.Td><Table.Td ta="right">{formatoMoneda(p.importe)}</Table.Td>
+                    <Table.Td>{p.anulado ? <Badge color="gray" variant="light">Anulado</Badge> : <Badge color="green" variant="light">Vigente</Badge>}</Table.Td>
+                    <Table.Td>{liquidar && !p.anulado && <Button size="compact-xs" variant="subtle" color="red" onClick={() => accion(async () => { await api(`/sueldos/pagos/${p.id}/anular`, { metodo: 'POST' }); return api(`/sueldos/liquidaciones/${id}`); }, 'Pago anulado')}>Anular</Button>}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Tabs.Panel>
+        )}
+      </Tabs>
+      <Modal opened={!!pago} onClose={() => setPago(null)} title="Pagar sueldos">
+        {pago && (
+          <Stack>
+            <Text size="sm">{pago.reciboIds.length} recibo(s) por {formatoMoneda(l.recibos.filter((r) => pago.reciboIds.includes(r.id)).reduce((s, r) => s + Number(r.neto), 0))}</Text>
+            <TextInput type="date" label="Fecha" value={pago.fecha} onChange={(e) => setPago({ ...pago, fecha: e.currentTarget.value })} />
+            <Select label="Desde" data={origenes} value={pago.origen} onChange={(v) => setPago({ ...pago, origen: v })} />
+            {op.alerta}
+            <Button disabled={!pago.origen} loading={op.enviando} onClick={async () => {
+              const [t, o] = pago.origen!.split(':');
+              const body = { fecha: pago.fecha, reciboIds: pago.reciboIds, ...(t === 'b' ? { cuentaBancariaId: o } : { cajaId: o }) };
+              if (await accion(async () => { await api(`/sueldos/liquidaciones/${id}/pagos`, { metodo: 'POST', body }); return api(`/sueldos/liquidaciones/${id}`); }, 'Pago registrado')) setPago(null);
+            }}>Pagar</Button>
+          </Stack>
+        )}
+      </Modal>
       <Modal opened={!!recibo} onClose={() => setElegido(null)} size="xl" title={recibo ? `Legajo ${recibo.legajo} · ${recibo.apellido}, ${recibo.nombre}` : ''}>
         {recibo && (
           <Stack>
