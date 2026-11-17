@@ -37,7 +37,7 @@ test('comisiones: el administrador cobra una factura de un vendedor empleado, li
 
   // 2. Factura con la vendedora y recibo que la cancela
   await page.goto('/ventas/comprobante');
-  await elegir(page, 'Cliente', 'Constructora Norte S.R.L.');
+  await elegir(page, 'Cliente', 'Distribuidora Norte SA');
   await elegir(page, 'Punto de venta', /^0002/);
   await elegir(page, 'Vendedor', 'Gómez');
   await page.getByLabel('Descripción').first().fill('Servicio con comisión');
@@ -47,11 +47,12 @@ test('comisiones: el administrador cobra una factura de un vendedor empleado, li
   await expect(page.getByText('Autorizado', { exact: true })).toBeVisible();
 
   await page.goto('/ventas/recibo');
-  await elegir(page, 'Cliente', 'Constructora Norte S.R.L.');
+  await elegir(page, 'Cliente', 'Distribuidora Norte SA');
   await elegir(page, 'Punto de venta', /^0002/);
   await elegir(page, 'Caja', /^Caja principal/);
   await page.getByLabel('Efectivo', { exact: true }).fill('12100');
-  await page.getByRole('button', { name: 'Aplicar automático' }).click();
+  // A la factura recién emitida (la última): el cliente puede tener otras pendientes de otras pruebas
+  await page.getByRole('textbox', { name: /^A cancelar de/ }).last().fill('12100');
   await page.getByRole('button', { name: 'Confirmar recibo' }).click();
   await expect(page.getByText(/Recibo 0002-\d{8} registrado/)).toBeVisible();
 
