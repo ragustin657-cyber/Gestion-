@@ -64,7 +64,7 @@ export class ConsultasVentasService {
   }
 
   /** Descripción de cada movimiento: comprobante, recibo o cobro de Tesorería. */
-  private async describir(movs: MovimientoCuentaCorriente[]) {
+  async describir(movs: MovimientoCuentaCorriente[]) {
     const db = this.tenant.db;
     const ids = movs.map((m) => m.origenId);
     const ventas = await db.comprobanteVenta.findMany({ where: { id: { in: ids } } });
