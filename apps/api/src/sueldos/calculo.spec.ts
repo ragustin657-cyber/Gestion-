@@ -32,6 +32,12 @@ describe('cálculo de sueldos', () => {
     expect([r.diasTrabajados, r.antiguedadAnios]).toEqual([30, 5]);
   });
 
+  it('dos importes del mismo concepto fijo se suman (comisiones y manual, E24)', () => {
+    const comisiones = c('210', 'Comisiones', 'NO_REMUNERATIVO', 'FIJO');
+    const r = liquidarMes(empleado(), [...COMERCIO, comisiones], [{ tipo: 'IMPORTE', conceptoId: 'c210', importe: D(30) }, { tipo: 'IMPORTE', conceptoId: 'c210', importe: D(100) }], 2026, 11);
+    expect(mapa(r)['210']).toBe('130.00');
+  });
+
   it('ausencia injustificada', () => {
     const r = liquidarMes(empleado(), COMERCIO, [{ tipo: 'HORAS_EXTRA_50', cantidad: D(4) }, { tipo: 'AUSENCIA_INJUSTIFICADA', cantidad: D(1) }], 2026, 11);
     expect(mapa(r)['140']).toBe('-35000.00');

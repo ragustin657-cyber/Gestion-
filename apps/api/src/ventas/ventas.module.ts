@@ -1,3 +1,4 @@
+import { LiquidacionesComisionesService } from './comisiones/liquidaciones.service';
 import { ComisionesCalculoService } from './comisiones/calculo.service';
 import { ComisionesController } from './comisiones/comisiones.controller';
 import { VendedoresService } from './comisiones/vendedores.service';
@@ -9,6 +10,7 @@ import { PedidosService } from './pedidos/pedidos.service';
 import { PreciosController } from './precios/precios.controller';
 import { PreciosService } from './precios/precios.service';
 import { Module } from '@nestjs/common';
+import { SueldosModule } from '../sueldos/sueldos.module';
 import { ArcaModule } from '../arca/arca.module';
 import { ComprobantesVentaController } from './comprobantes/comprobantes.controller';
 import { ComprobantesVentaService } from './comprobantes/comprobantes.service';
@@ -22,9 +24,9 @@ import { ConsultasVentasService } from './consultas/consultas-ventas.service';
 import { DatosVentasController } from './consultas/datos-ventas.controller';
 
 @Module({
-  imports: [ArcaModule],
+  imports: [ArcaModule, SueldosModule],
   controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController],
-  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService],
+  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}

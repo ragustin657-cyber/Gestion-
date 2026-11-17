@@ -256,12 +256,18 @@ export class LiquidacionesService {
       const ausencias = novedades.filter((n) => n.tipo === 'AUSENCIA_INJUSTIFICADA').reduce((t, n) => t + (n.cantidad ?? 0), 0);
       const trabajados = diasTrabajados(emp.fechaIngreso, emp.fechaEgreso, l.anio, l.mes);
       if (ausencias > trabajados) throw new BadRequestException(`Las ausencias (${ausencias} días) superan los días trabajados del mes (${trabajados})`);
-      await tx.novedad.deleteMany({ where: { liquidacionId: id, empleadoId } });
+      // Las novedades cargadas por una liquidación de comisiones (E24) no se tocan desde acá
+      await tx.novedad.deleteMany({ where: { liquidacionId: id, empleadoId, liquidacionComisionesId: null } });
       const data = novedades.filter((n) => (n.cantidad ?? 0) || (n.importe ?? 0)).map((n) => ({ empresaId: this.tenant.empresaId, liquidacionId: id, empleadoId, tipo: n.tipo, conceptoId: n.conceptoId ?? null, cantidad: n.cantidad ?? null, importe: n.importe ?? null, detalle: n.detalle ?? null }));
       if (data.length) await tx.novedad.createMany({ data });
       await this.calcular(tx, l);
       return this.obtener(id, tx);
     });
+  }
+
+  /** Recalcula un borrador dentro de la transacción recibida (lo usan las comisiones al cargar o quitar su novedad). */
+  async recalcularEnTx(tx: TxEmpresa, id: string) {
+    await this.calcular(tx, await this.liquidacion(tx, id, true));
   }
 
   recalcular(id: string) {
