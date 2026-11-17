@@ -6,7 +6,7 @@ import { ContribucionCalc } from './calculo';
 const D = Prisma.Decimal;
 const clave = (anio: number, mes: number) => anio * 100 + mes;
 export interface DatosContribucion { codigo: string; nombre: string; destino: ContribucionCalc['destino']; alicuota: number; importeFijo: number; aplicaDetraccion: boolean; cuentaContableId: string; desdeAnio: number; desdeMes: number; activa?: boolean }
-export interface DatosConfiguracion { cuentaSueldosId: string; cuentaContribucionesId: string; cuentaSueldosAPagarId: string; cuentaCargasSocialesId: string; cuentaRetencionesSindicalesId: string; cuentaIndemnizacionesId?: string | null }
+export interface DatosConfiguracion { cuentaSueldosId: string; cuentaContribucionesId: string; cuentaSueldosAPagarId: string; cuentaCargasSocialesId: string; cuentaRetencionesSindicalesId: string; cuentaIndemnizacionesId?: string | null; conceptoComisionesId?: string | null }
 const CAMPOS_CONFIG = ['cuentaSueldosId', 'cuentaContribucionesId', 'cuentaSueldosAPagarId', 'cuentaCargasSocialesId', 'cuentaRetencionesSindicalesId'] as const;
 
 /** Contribuciones patronales, parámetros previsionales y cuentas de sueldos de la empresa. */
@@ -81,12 +81,20 @@ export class ContribucionesService {
     const c = await this.tenant.db.configuracionSueldos.findFirst();
     const ids = [...CAMPOS_CONFIG, 'cuentaIndemnizacionesId' as const].map((k) => c?.[k]).filter((x): x is string => !!x);
     const cuentas = new Map((await this.tenant.db.cuentaContable.findMany({ where: { id: { in: ids } }, select: { id: true, codigo: true, nombre: true } })).map((x) => [x.id, x]));
-    return Object.fromEntries([...CAMPOS_CONFIG, 'cuentaIndemnizacionesId' as const].flatMap((k) => [[k, c?.[k] ?? null], [k.replace(/Id$/, ''), c?.[k] ? cuentas.get(c[k]!) ?? null : null]]));
+    const concepto = c?.conceptoComisionesId ? await this.tenant.db.concepto.findUnique({ where: { id: c.conceptoComisionesId }, select: { id: true, codigo: true, nombre: true } }) : null;
+    return {
+      ...Object.fromEntries([...CAMPOS_CONFIG, 'cuentaIndemnizacionesId' as const].flatMap((k) => [[k, c?.[k] ?? null], [k.replace(/Id$/, ''), c?.[k] ? cuentas.get(c[k]!) ?? null : null]])),
+      conceptoComisionesId: c?.conceptoComisionesId ?? null, conceptoComisiones: concepto,
+    };
   }
 
   async guardarConfiguracion(d: DatosConfiguracion) {
     for (const k of CAMPOS_CONFIG) await this.validarCuenta(this.tenant.db, d[k]);
     if (d.cuentaIndemnizacionesId) await this.validarCuenta(this.tenant.db, d.cuentaIndemnizacionesId);
+    if (d.conceptoComisionesId) {
+      const c = await this.tenant.db.concepto.findUnique({ where: { id: d.conceptoComisionesId } });
+      if (!c || c.tipo !== 'FIJO' || !c.activo || c.clase === 'DESCUENTO') throw new BadRequestException('Concepto de comisiones inválido: debe ser fijo, activo y no de descuento');
+    }
     const actual = await this.tenant.db.configuracionSueldos.findFirst();
     if (actual) await this.tenant.db.configuracionSueldos.update({ where: { id: actual.id }, data: d });
     else await this.tenant.db.configuracionSueldos.create({ data: { ...d, empresaId: this.tenant.empresaId } });

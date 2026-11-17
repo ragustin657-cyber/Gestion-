@@ -129,6 +129,7 @@ model Tercero {
   condicionIva       CondicionIva
   esProveedor        Boolean             @default(false)
   esCliente          Boolean             @default(false)
+  vendedorId         String?             @db.Uuid
   domicilio          String?
   localidad          String?
   provincia          String?
@@ -1452,6 +1453,9 @@ model ComprobanteVenta {
   depositoId            String?                   @db.Uuid
   devuelveMercaderia    Boolean                   @default(false)
   aplicarAAsociado      Boolean                   @default(true)
+  vendedorId            String?                   @db.Uuid
+  /// Copia del porcentaje del vendedor al emitir.
+  comisionPct           Decimal?                  @db.Decimal(5, 2)
   asientoId             String?                   @db.Uuid
   creadoPor             String
   creadoEn              DateTime                  @default(now())
@@ -1803,6 +1807,7 @@ model PedidoVenta {
   listaPreciosId String?              @db.Uuid
   depositoId     String?              @db.Uuid
   estado         EstadoPedido         @default(PRESUPUESTO)
+  vendedorId     String?              @db.Uuid
   observaciones  String?
   letra          String
   netoGravado    Decimal              @db.Decimal(18, 2)
@@ -2163,16 +2168,18 @@ model Liquidacion {
 }
 
 model Novedad {
-  id            String      @id @default(uuid()) @db.Uuid
-  empresaId     String      @db.Uuid
-  liquidacionId String      @db.Uuid
-  liquidacion   Liquidacion @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
-  empleadoId    String      @db.Uuid
-  conceptoId    String?     @db.Uuid
-  tipo          TipoNovedad
-  cantidad      Decimal?    @db.Decimal(18, 4)
-  importe       Decimal?    @db.Decimal(18, 2)
-  detalle       String?
+  id                      String      @id @default(uuid()) @db.Uuid
+  empresaId               String      @db.Uuid
+  liquidacionId           String      @db.Uuid
+  liquidacion             Liquidacion @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  empleadoId              String      @db.Uuid
+  conceptoId              String?     @db.Uuid
+  tipo                    TipoNovedad
+  cantidad                Decimal?    @db.Decimal(18, 4)
+  importe                 Decimal?    @db.Decimal(18, 2)
+  detalle                 String?
+  /// Cargada por una liquidación de comisiones (Entrega 24): la pantalla de novedades no la borra ni la edita.
+  liquidacionComisionesId String?     @db.Uuid
 
   @@index([empresaId, liquidacionId, empleadoId])
 }
@@ -2274,6 +2281,7 @@ model ConfiguracionSueldos {
   cuentaRetencionesSindicalesId String? @db.Uuid
   cuentaIndemnizacionesId       String? @db.Uuid
   anioInicioVacaciones          Int     @default(2026)
+  conceptoComisionesId          String? @db.Uuid
 }
 
 model ReciboSueldoContribucion {
@@ -2475,4 +2483,73 @@ model LiquidacionTarjetaImpuesto {
   tipo          TipoImpuestoTarjeta
   jurisdiccion  String?
   importe       Decimal              @db.Decimal(18, 2)
+}
+
+enum TipoVendedor {
+  EMPLEADO
+  EXTERNO
+}
+
+enum EstadoLiquidacionComisiones {
+  CONFIRMADA
+  ANULADA
+}
+
+enum TipoRenglonComision {
+  COBRO
+  ANULACION
+  RECHAZO
+}
+
+/// Vendedor que cobra comisión sobre lo cobrado (Entrega 24).
+model Vendedor {
+  id          String       @id @default(uuid()) @db.Uuid
+  empresaId   String       @db.Uuid
+  nombre      String
+  tipo        TipoVendedor
+  porcentaje  Decimal      @db.Decimal(5, 2)
+  empleadoId  String?      @db.Uuid
+  proveedorId String?      @db.Uuid
+  activo      Boolean      @default(true)
+
+  @@unique([empresaId, nombre])
+  @@unique([empresaId, empleadoId])
+  @@unique([empresaId, proveedorId])
+}
+
+model LiquidacionComisiones {
+  id              String                         @id @default(uuid()) @db.Uuid
+  empresaId       String                         @db.Uuid
+  numero          Int
+  anio            Int
+  mes             Int
+  fecha           DateTime                       @db.Date
+  estado          EstadoLiquidacionComisiones    @default(CONFIRMADA)
+  motivoAnulacion String?
+  creadoPor       String
+  creadoEn        DateTime                       @default(now())
+  renglones       LiquidacionComisionesRenglon[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, anio, mes])
+}
+
+model LiquidacionComisionesRenglon {
+  id            String                @id @default(uuid()) @db.Uuid
+  empresaId     String                @db.Uuid
+  liquidacionId String                @db.Uuid
+  liquidacion   LiquidacionComisiones @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  vendedorId    String                @db.Uuid
+  tipo          TipoRenglonComision
+  aplicacionId  String                @db.Uuid
+  comprobanteId String                @db.Uuid
+  chequeId      String?               @db.Uuid
+  cobrado       Decimal               @db.Decimal(18, 2)
+  neto          Decimal               @db.Decimal(18, 2)
+  porcentaje    Decimal               @db.Decimal(5, 2)
+  comision      Decimal               @db.Decimal(18, 2)
+  anulado       Boolean               @default(false)
+
+  @@index([empresaId, aplicacionId])
+  @@index([empresaId, liquidacionId])
 }
