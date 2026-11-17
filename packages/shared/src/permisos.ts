@@ -56,6 +56,7 @@ export const PERMISOS = {
   'informes.ver': 'Ver informes de gestión',
   'venta.maestros': 'Editar vendedores',
   'comisiones.liquidar': 'Liquidar comisiones de vendedores',
+  'cobranzas.gestionar': 'Registrar gestiones de cobranza',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;

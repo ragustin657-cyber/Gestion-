@@ -2553,3 +2553,28 @@ model LiquidacionComisionesRenglon {
   @@index([empresaId, aplicacionId])
   @@index([empresaId, liquidacionId])
 }
+
+enum MedioGestion {
+  LLAMADO
+  MAIL
+  WHATSAPP
+  VISITA
+  OTRO
+}
+
+/// Gestión de cobranza sobre un cliente, con próxima acción y promesa de pago opcionales (Entrega 25).
+model GestionCobranza {
+  id             String       @id @default(uuid()) @db.Uuid
+  empresaId      String       @db.Uuid
+  terceroId      String       @db.Uuid
+  fecha          DateTime     @db.Date
+  medio          MedioGestion
+  nota           String
+  proximaAccion  DateTime?    @db.Date
+  promesaFecha   DateTime?    @db.Date
+  promesaImporte Decimal?     @db.Decimal(18, 2)
+  creadoPor      String
+  creadoEn       DateTime     @default(now())
+
+  @@index([empresaId, terceroId, fecha])
+}
