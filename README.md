@@ -290,6 +290,13 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
   - los externos tienen su PDF para facturar la comisión, que se carga en Compras y se paga como a cualquier proveedor;
   - se confirman en orden y solo se anula la última; anular quita la novedad de sueldos (la liquidación de sueldos tiene que estar en borrador).
 
+## Seguimiento de deudores (Entrega 25)
+
+- **Agenda de cobranzas** (*Ventas → Cobranzas*, con `venta.ver` o `cobranzas.gestionar`): clientes con deuda vencida a hoy, con vencido, días de atraso, última gestión, próxima acción y promesa vigente. Primero las acciones para hoy o atrasadas, después las promesas incumplidas y el resto por antigüedad; filtros por acciones para hoy, promesas incumplidas, mínimo de días y nombre.
+- **Ficha del cliente:** comprobantes pendientes (vencidos primero), saldo a favor sin aplicar, historial de gestiones y el formulario para registrar una (medio, nota, próxima acción y promesa de pago), con el permiso `cobranzas.gestionar`.
+- **Promesas:** se cumplen solas cuando lo cobrado desde la gestión (recibos e ingresos de valores, menos los cheques rechazados) alcanza lo prometido; vencida la fecha sin alcanzarlo quedan incumplidas. Una promesa nueva reemplaza a la anterior.
+- La deuda sale de la cuenta corriente (en pesos): no se toca ningún recibo ni cobro. Las gestiones no se editan y solo se eliminan el mismo día.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
