@@ -83,6 +83,14 @@ Genera comisión una aplicación de cobro (`AplicacionCobro`) que cumple todo es
 - `netoPesos` = `cobradoPesos × netoComprobante / totalComprobante`, redondeado al centavo. El neto es neto gravado + no gravado + exento, es decir, el total sin IVA ni otros tributos;
 - `comision` = `netoPesos × comisionPct / 100`, redondeado al centavo.
 
+**Cobro con cheque:** cuenta en la fecha del recibo o del ingreso, aunque el cheque sea diferido, igual que la cuenta corriente.
+
+**Ajuste por cheque rechazado** (decisión del usuario):
+- **Cuándo:** un cheque de terceros con `fechaRechazo` hasta el fin del mes que se liquida genera renglones negativos.
+- **Qué renglones:** uno por cada aplicación comisionable del cobro que lo recibió. El cobro es el recibo o el ingreso de valores que tiene ese cheque en su ingreso.
+- **Importe:** la comisión de esa aplicación × (pesos del cheque / pesos del total de valores del cobro), redondeado al centavo. El total de valores del cobro es efectivo + cheques + transferencias + cupones, sin retenciones.
+- **Una sola vez:** se descuenta una vez por cheque y aplicación, aunque la comisión positiva todavía no se haya liquidado. En ese caso ambos renglones entran en la misma liquidación.
+
 **Ajuste por anulación:** una aplicación ya liquidada que hoy figura anulada entra en la próxima liquidación del vendedor como **renglón negativo**, por la misma comisión que se pagó. Se descuenta una sola vez.
 
 ## 6. Liquidación de comisiones
@@ -148,7 +156,8 @@ Ruiz SRL        Externo       5        800.000,00   5,00   40.000,00   [PDF]
 - el empleado cobra en el recibo como no remunerativo;
 - comisión sobre lo cobrado;
 - un porcentaje por vendedor;
-- enfoque B.
+- enfoque B;
+- el cheque rechazado descuenta la comisión en la parte proporcional.
 
 **Del builder (pueden revisarse):**
 - base de la comisión: el neto sin IVA, proporcional a lo cobrado, en pesos (`importePesosDebito`);
@@ -156,7 +165,21 @@ Ruiz SRL        Externo       5        800.000,00   5,00   40.000,00   [PDF]
 - permisos nuevos: `venta.maestros` y `comisiones.liquidar`. A la demo se le da el de comisiones al Administrador (ya tiene todos);
 - la demo agrega un vendedor empleado (vinculado a un empleado existente) y uno externo (vinculado a un proveedor existente), asignados a clientes demo.
 
-**Del builder, según la revisión:** *(se completa con el control del builder)*
+**Del builder, según la revisión:**
+- **Novedad de comisiones en sueldos:**
+  - `Novedad` gana una copia de origen: `liquidacionComisionesId` opcional.
+  - La pantalla y el guardado de novedades de sueldos la muestran pero no la borran ni la editan.
+  - El cálculo suma todas las novedades `IMPORTE` de un mismo concepto (hoy toma solo una), así la comisión convive con importes manuales.
+- **Saldos cero o negativos:** si el total del mes de un vendedor (empleado o externo) es ≤ 0, sus renglones no entran en la liquidación y quedan pendientes para la siguiente. Esto reemplaza lo dicho en §6 sobre el empleado con total ≤ 0.
+- **Empleado con liquidación final en el mes:**
+  - si la final está en borrador, la novedad va a la final y no a la mensual;
+  - si está cerrada: 400 `La liquidación final de <empleado> de MM/AAAA está cerrada: la comisión no se puede cargar`;
+  - la anulación revisa del mismo modo la liquidación donde quedó la novedad.
+- **Orden de las liquidaciones:**
+  - solo se confirma un mes posterior al último confirmado, si no: 400 `Ya hay una liquidación de comisiones de un mes posterior`;
+  - solo se anula la última confirmada, si no: 400 `Anule primero la liquidación de comisiones de MM/AAAA`.
+- **Vendedor de un comprobante emitido:** no se modifica. "No cambia el porcentaje" se refiere a cambios en el maestro del vendedor.
+- **Ajustes únicos:** los ajustes (anulación o cheque) tienen su propio índice único: por aplicación para la anulación, y por cheque más aplicación para el rechazo.
 
 ## 11. Pruebas
 
@@ -170,6 +193,11 @@ Ruiz SRL        Externo       5        800.000,00   5,00   40.000,00   [PDF]
 - no se liquida dos veces;
 - dos confirmaciones simultáneas: una 201 y otra 400;
 - anular un recibo ya liquidado da un ajuste negativo en el mes siguiente;
+- un cheque rechazado descuenta la parte proporcional, en un recibo con cheque y efectivo;
+- vendedor con total negativo: queda pendiente;
+- empleado con final en borrador: la novedad va a la final;
+- la novedad de comisiones sobrevive al guardar las novedades manuales;
+- orden de confirmación y de anulación;
 - anular la liquidación;
 - mensual cerrada → 400;
 - permisos.
