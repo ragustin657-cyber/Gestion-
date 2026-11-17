@@ -1,3 +1,4 @@
+import { vendedorActivo } from '../comisiones/vendedor-activo';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type EstadoPedido } from '@prisma/client';
 import { calcularVenta, formatearCuit, letraVenta, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
@@ -57,6 +58,9 @@ export class PedidosService {
     }
     if (d.depositoId && !(await tx.deposito.findUnique({ where: { id: d.depositoId } }))) throw new BadRequestException('Depósito inexistente');
     if (d.listaPreciosId && !(await tx.listaPrecios.findUnique({ where: { id: d.listaPreciosId } }))) throw new BadRequestException('Lista de precios inexistente');
+    // Vendedor: el indicado, o el habitual del cliente si viene sin indicar (E24 §4)
+    const vendedorId = d.vendedorId === undefined ? tercero.vendedorId : d.vendedorId;
+    if (vendedorId && d.vendedorId !== undefined) await vendedorActivo(tx, vendedorId);
     const ids = d.renglones.map((r) => r.articuloId).filter((x): x is string => !!x);
     if (ids.length && (await tx.articulo.count({ where: { id: { in: ids } } })) !== new Set(ids).size) throw new BadRequestException('Artículo inexistente');
     const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
@@ -64,7 +68,7 @@ export class PedidosService {
     return {
       datos: {
         terceroId: d.terceroId, fecha: d.fecha, validoHasta: d.validoHasta ?? null, monedaCodigo: d.monedaCodigo, cotizacion: cot, listaPreciosId: d.listaPreciosId ?? tercero.listaPreciosId ?? null,
-        depositoId: d.depositoId ?? null, observaciones: d.observaciones ?? null, letra,
+        depositoId: d.depositoId ?? null, observaciones: d.observaciones ?? null, letra, vendedorId: vendedorId ?? null,
         netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total: calc.total,
       },
       renglones: d.renglones.map((r, i) => ({

@@ -1,3 +1,4 @@
+import { vendedorActivo } from '../comisiones/vendedor-activo';
 import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -113,6 +114,7 @@ export class ComprobantesVentaService {
         cuentaContableId: r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas),
       };
     });
+    const vendedor = await this.vendedor(tx, d, tercero.vendedorId, origenes);
     const depositoId = d.depositoId ?? pv.depositoId ?? null;
     // Los renglones de remito ya salieron del stock: no se controlan ni se mueven
     const advertencias = await this.stock.controlar(tx, {
@@ -128,10 +130,38 @@ export class ComprobantesVentaService {
         fechaVencimientoPago: d.concepto === 'PRODUCTOS' ? null : d.fechaVencimientoPago,
         monedaCodigo: d.monedaCodigo, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total: calc.total,
         totalPesos: new D(calc.total).mul(cot).toDecimalPlaces(2), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId, aplicarAAsociado: d.aplicarAAsociado,
+        vendedorId: vendedor.vendedorId, comisionPct: vendedor.comisionPct,
       },
       renglones,
       ivas: calc.ivas.map((x) => ({ empresaId: this.tenant.empresaId, alicuota: x.alicuota, base: x.base, importe: x.importe })),
     };
+  }
+
+  /**
+   * Vendedor y porcentaje del comprobante (E24 §4). NC y ND heredan los de su asociado. Una factura usa el indicado
+   * (null = sin vendedor); si no se indicó, el del pedido de origen y si no, el habitual del cliente. El porcentaje
+   * se vuelve a copiar al autorizar.
+   */
+  private async vendedor(tx: TxEmpresa, d: DatosComprobanteVenta, delCliente: string | null, origenes: { pedidoRenglonId?: string | null; remitoRenglonId?: string | null }[]) {
+    if (d.tipo !== 'FACTURA') {
+      const asoc = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: d.comprobanteAsociadoId! } });
+      return { vendedorId: asoc.vendedorId, comisionPct: asoc.comisionPct };
+    }
+    let id: string | null | undefined = d.vendedorId;
+    if (id === undefined) {
+      const pedidoRenglonIds = origenes.map((o) => o.pedidoRenglonId).filter((x): x is string => !!x);
+      const remitoRenglonIds = origenes.map((o) => o.remitoRenglonId).filter((x): x is string => !!x);
+      if (remitoRenglonIds.length)
+        pedidoRenglonIds.push(...(await tx.remitoRenglon.findMany({ where: { id: { in: remitoRenglonIds } }, select: { pedidoRenglonId: true } })).flatMap((r) => (r.pedidoRenglonId ? [r.pedidoRenglonId] : [])));
+      const pr = pedidoRenglonIds.length ? await tx.pedidoVentaRenglon.findFirst({ where: { id: { in: pedidoRenglonIds } }, select: { pedidoId: true } }) : null;
+      const pedido = pr ? await tx.pedidoVenta.findUnique({ where: { id: pr.pedidoId }, select: { vendedorId: true } }) : null;
+      id = pedido ? pedido.vendedorId : delCliente;
+      // El propuesto pudo quedar inactivo: se factura sin vendedor en vez de rechazar
+      if (id && !(await tx.vendedor.findFirst({ where: { id, activo: true } }))) id = null;
+    } else if (id) await vendedorActivo(tx, id);
+    if (!id) return { vendedorId: null, comisionPct: null };
+    const v = await tx.vendedor.findUniqueOrThrow({ where: { id } });
+    return { vendedorId: v.id, comisionPct: v.porcentaje };
   }
 
   crear(d: DatosComprobanteVenta) {

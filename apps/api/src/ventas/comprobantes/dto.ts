@@ -21,6 +21,7 @@ export const esquemaComprobanteVenta = z
     monedaCodigo: z.enum(['ARS', 'USD'], { message: 'Moneda inválida' }),
     cotizacion: z.number().positive('Debe ser mayor a cero').nullish(),
     comprobanteAsociadoId: z.string().uuid('Valor inválido').nullish(),
+    vendedorId: z.string().uuid('Valor inválido').nullish(),
     aplicarAAsociado: z.boolean().default(true),
     depositoId: z.string().uuid('Valor inválido').nullish(),
     devuelveMercaderia: z.boolean().default(false),

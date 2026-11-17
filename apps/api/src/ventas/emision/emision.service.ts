@@ -178,10 +178,12 @@ export class EmisionService {
       const advertencias: string[] = [];
       const actual = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id } });
       if (actual.estado === 'AUTORIZADO') return { ...(await this.comprobantes.obtener(id, tx)), advertencias: ['El comprobante ya había sido autorizado por otro intento'] };
+      // El porcentaje de comisión de una factura es el del vendedor al emitir (E24 §4); NC y ND conservan el heredado
+      const comisionPct = actual.vendedorId && !actual.comprobanteAsociadoId ? (await tx.vendedor.findUnique({ where: { id: actual.vendedorId } }))?.porcentaje ?? actual.comisionPct : actual.comisionPct;
       const c = await tx.comprobanteVenta.update({
         where: { id },
         data: {
-          estado: 'AUTORIZADO', numero, cae: r.cae, caeVencimiento: fechaDe(r.caeVencimiento), emisionEnCurso: null, numeroReservado: null,
+          estado: 'AUTORIZADO', comisionPct, numero, cae: r.cae, caeVencimiento: fechaDe(r.caeVencimiento), emisionEnCurso: null, numeroReservado: null,
           ultimoError: r.observaciones.length ? `Observaciones de ARCA: ${r.observaciones.join('; ')}` : null,
         },
         include: { tercero: true, renglones: true },
