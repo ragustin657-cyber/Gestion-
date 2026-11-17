@@ -22,6 +22,7 @@ export const CONCEPTOS_COMERCIO: ConceptoModelo[] = [
   { codigo: '150', nombre: 'Vacaciones', clase: 'REMUNERATIVO', tipo: 'VACACIONES', parametros: { divisor: 25 } },
   { codigo: '151', nombre: 'Descuento días de vacaciones', clase: 'REMUNERATIVO', tipo: 'VACACIONES', parametros: { divisor: 30, descuenta: true } },
   { codigo: '500', nombre: 'Jubilación', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 11, base: 'REMUNERATIVO', tope: 'BASE_MAXIMA' }, destino: 'SEGURIDAD_SOCIAL' },
+  { codigo: '210', nombre: 'Comisiones', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: {} },
   { codigo: '510', nombre: 'Ley 19.032', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 3, base: 'REMUNERATIVO', tope: 'BASE_MAXIMA' }, destino: 'SEGURIDAD_SOCIAL' },
   { codigo: '520', nombre: 'Obra social', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 3, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO', tope: 'BASE_MAXIMA' }, destino: 'OBRA_SOCIAL' },
   { codigo: '530', nombre: 'FAECYS', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 0.5, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO' }, destino: 'SINDICAL' },
@@ -43,6 +44,9 @@ export async function cargarSueldosModelo(tx: Prisma.TransactionClient, empresaI
     empresaId, codigo: c.codigo, nombre: c.nombre, clase: c.clase, tipo: c.tipo, parametros: c.parametros as Prisma.InputJsonValue, orden: Number(c.codigo), soloAfiliados: !!c.soloAfiliados,
     destino: c.destino ?? 'OTRO', cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : null,
   })) });
+  // Concepto de comisiones de vendedores (E24 §7)
+  const comisiones = await tx.concepto.findFirst({ where: { empresaId, codigo: '210' }, select: { id: true } });
+  if (comisiones) await tx.configuracionSueldos.update({ where: { id: cfg.id }, data: { conceptoComisionesId: comisiones.id } });
   if (cfg.cuentaCargasSocialesId) await tx.contribucionPatronal.createMany({ data: CONTRIBUCIONES_MODELO.map((c) => ({ empresaId, ...c, cuentaContableId: cfg.cuentaCargasSocialesId!, desdeAnio: 2026, desdeMes: 1 })) });
   await tx.parametroPrevisional.create({ data: { empresaId, anio: 2026, mes: 1, baseMaximaAportes: 3500000, detraccion: 7003.68 } });
 }

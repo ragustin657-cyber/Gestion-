@@ -130,6 +130,10 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     for (const [razonSocial, cuit] of CLIENTES)
       await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('27') ? 'CONSUMIDOR_FINAL' : 'RESPONSABLE_INSCRIPTO', esCliente: true, diasPago: 15 } });
     await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial: 'Consumidor Final', cuit: 'Consumidor final', tipoDocumento: 'OTRO', condicionIva: 'CONSUMIDOR_FINAL', esCliente: true } });
+    // Vendedor externo de la demo (E24): una consultora que factura su comisión, vendedora habitual de Supermercados Litoral
+    const consultora = await tx.tercero.findFirstOrThrow({ where: { empresaId: e, razonSocial: 'Consultora Delta S.R.L.' } });
+    const vendedor = await tx.vendedor.create({ data: { empresaId: e, nombre: 'Consultora Delta', tipo: 'EXTERNO', porcentaje: 5, proveedorId: consultora.id } });
+    await tx.tercero.updateMany({ where: { empresaId: e, razonSocial: 'Supermercados Litoral S.A.' }, data: { vendedorId: vendedor.id } });
     await tx.talonario.create({ data: { empresaId: e, tipoComprobante: 'TERCERO', puntoVenta: 0, ultimoNumero: codigo } });
 
     const gastos = await cuenta('5.2.01');

@@ -256,12 +256,18 @@ export class LiquidacionesService {
       const ausencias = novedades.filter((n) => n.tipo === 'AUSENCIA_INJUSTIFICADA').reduce((t, n) => t + (n.cantidad ?? 0), 0);
       const trabajados = diasTrabajados(emp.fechaIngreso, emp.fechaEgreso, l.anio, l.mes);
       if (ausencias > trabajados) throw new BadRequestException(`Las ausencias (${ausencias} días) superan los días trabajados del mes (${trabajados})`);
-      await tx.novedad.deleteMany({ where: { liquidacionId: id, empleadoId } });
+      // Las novedades cargadas por una liquidación de comisiones (E24) no se tocan desde acá
+      await tx.novedad.deleteMany({ where: { liquidacionId: id, empleadoId, liquidacionComisionesId: null } });
       const data = novedades.filter((n) => (n.cantidad ?? 0) || (n.importe ?? 0)).map((n) => ({ empresaId: this.tenant.empresaId, liquidacionId: id, empleadoId, tipo: n.tipo, conceptoId: n.conceptoId ?? null, cantidad: n.cantidad ?? null, importe: n.importe ?? null, detalle: n.detalle ?? null }));
       if (data.length) await tx.novedad.createMany({ data });
       await this.calcular(tx, l);
       return this.obtener(id, tx);
     });
+  }
+
+  /** Recalcula un borrador dentro de la transacción recibida (lo usan las comisiones al cargar o quitar su novedad). */
+  async recalcularEnTx(tx: TxEmpresa, id: string) {
+    await this.calcular(tx, await this.liquidacion(tx, id, true));
   }
 
   recalcular(id: string) {
@@ -330,6 +336,12 @@ export class LiquidacionesService {
       await this.bloquear(tx, id);
       const l = await this.liquidacion(tx, id);
       if (l.estado !== 'BORRADOR') throw new BadRequestException('Solo se elimina una liquidación en borrador');
+      // Sus novedades de comisiones se perderían con la liquidación (E24): primero se anula la de comisiones
+      const conComisiones = await tx.novedad.findFirst({ where: { liquidacionId: id, liquidacionComisionesId: { not: null } } });
+      if (conComisiones) {
+        const lc = await tx.liquidacionComisiones.findUniqueOrThrow({ where: { id: conComisiones.liquidacionComisionesId! } });
+        throw new BadRequestException(`La liquidación tiene comisiones cargadas: anule primero la liquidación de comisiones de ${mmaaaa(lc.anio, lc.mes)}`);
+      }
       const eg = l.tipo === 'FINAL' ? await tx.egresoEmpleado.findUnique({ where: { liquidacionId: id } }) : null;
       if (eg && (await tx.liquidacion.count({ where: { tipo: 'MENSUAL', anio: l.anio, mes: l.mes, estado: 'CERRADA' } })))
         throw new BadRequestException(`La liquidación mensual de ${mmaaaa(l.anio, l.mes)} ya está cerrada: el empleado quedaría sin recibo de ese mes. Reábrala antes de eliminar la final`);

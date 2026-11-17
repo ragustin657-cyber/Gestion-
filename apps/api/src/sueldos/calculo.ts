@@ -87,10 +87,7 @@ export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedade
         for (const v of vacaciones) agregar(c, new D(e.basicoMensual).plus(antigCompleta).div(divisor).times(v.dias).times(signo), { cantidad: new D(v.dias), vacacionPeriodoId: v.periodoId });
         return undefined;
       }
-      case 'FIJO': {
-        const nov = novedades.find((n) => n.tipo === 'IMPORTE' && n.conceptoId === c.id);
-        return agregar(c, nov?.importe ?? num(p, 'importe'));
-      }
+      case 'FIJO': return agregar(c, importeFijo(novedades, c.id) ?? num(p, 'importe'));
       default: return undefined;
     }
   };
@@ -99,6 +96,12 @@ export function liquidarMes(e: EmpleadoCalc, conceptos: ConceptoCalc[], novedade
   for (const c of ordenados) if (aplica(c) && c.clase === 'NO_REMUNERATIVO') calcular(c);
   const desc = descuentos(ordenados.filter(aplica), remu, noRemu, renglones, novedades, baseMaxima);
   return { renglones, totalRemunerativo: remu, totalNoRemunerativo: noRemu, totalDescuentos: desc, neto: remu.plus(noRemu).minus(desc), diasTrabajados: dias, antiguedadAnios: anios };
+}
+
+/** Importe de un concepto fijo según las novedades: la suma de todas las de importe (p. ej. comisiones y una manual, E24), o null si no hay. */
+function importeFijo(novedades: NovedadCalc[], conceptoId: string): Dec | null {
+  const propias = novedades.filter((n) => n.tipo === 'IMPORTE' && n.conceptoId === conceptoId && n.importe);
+  return propias.length ? propias.reduce((s, n) => s.plus(n.importe!), new D(0)) : null;
 }
 
 /** Descuentos sobre el remunerativo (o remunerativo + no remunerativo), con tope de base opcional. */
@@ -113,8 +116,7 @@ function descuentos(conceptos: ConceptoCalc[], remu: Dec, noRemu: Dec, renglones
       else if (typeof c.parametros.tope === 'number' && c.parametros.tope > 0) base = D.min(base, new D(c.parametros.tope));
       importe = r2(base.times(num(c.parametros, 'pct')).div(100));
     } else if (c.tipo === 'FIJO') {
-      const nov = novedades.find((n) => n.tipo === 'IMPORTE' && n.conceptoId === c.id);
-      importe = r2(nov?.importe ?? num(c.parametros, 'importe'));
+      importe = r2(importeFijo(novedades, c.id) ?? num(c.parametros, 'importe'));
     } else continue;
     if (importe.isZero()) continue;
     renglones.push({ conceptoId: c.id, codigo: c.codigo, nombre: c.nombre, clase: c.clase, cantidad: null, base, porcentaje: c.tipo === 'DESCUENTO_LEY' ? num(c.parametros, 'pct') : null, importe, orden: c.orden });

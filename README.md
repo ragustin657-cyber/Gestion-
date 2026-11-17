@@ -279,6 +279,17 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Consultas:** cupones por tarjeta y estado, con los días de antigüedad, y costo por tarjeta en un período (comisiones sobre bruto y descuento total).
 - Un cobro con un cupón liquidado no se puede anular sin anular antes la liquidación.
 
+## Vendedores y comisiones (Entrega 24)
+
+- **Vendedores** (*Maestros → Vendedores*, permiso `venta.maestros`): empleados en relación de dependencia (vinculados a su legajo) o externos (vinculados a un proveedor), con un porcentaje de comisión.
+- **Asignación:** el cliente tiene un vendedor habitual, que se propone en el pedido y en la factura. La factura guarda el vendedor y el porcentaje al emitirse; las notas de crédito y débito heredan los de la factura.
+- **Base:** la comisión se gana sobre lo **cobrado**: el neto sin IVA, proporcional a cada cobro aplicado a la factura y en pesos. Las notas de crédito no comisionan. Un cobro anulado después de liquidado y un cheque rechazado (en la parte proporcional al cheque) se descuentan en la liquidación siguiente.
+- **Liquidación mensual** (*Ventas → Comisiones*, permiso `comisiones.liquidar` para confirmar y anular):
+  - muestra por vendedor el detalle de facturas y cobros; un vendedor con total cero o negativo queda para el mes siguiente;
+  - al confirmar, la comisión de cada empleado se carga como novedad en la mensual de sueldos del mes (o en su liquidación final, si se va ese mes), en el concepto configurado (*210 Comisiones*, no remunerativo, por defecto; se cambia en *Sueldos → Contribuciones*);
+  - los externos tienen su PDF para facturar la comisión, que se carga en Compras y se paga como a cualquier proveedor;
+  - se confirman en orden y solo se anula la última; anular quita la novedad de sueldos (la liquidación de sueldos tiene que estar en borrador).
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)

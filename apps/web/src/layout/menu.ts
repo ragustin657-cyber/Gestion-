@@ -120,6 +120,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Recibos', ruta: '/ventas/recibos', permiso: 'venta.ver' },
           { titulo: 'Cuenta corriente de clientes', ruta: '/ventas/cuenta-corriente', permiso: 'venta.ver' },
           { titulo: 'Saldos de clientes', ruta: '/ventas/saldos', permiso: 'venta.ver' },
+          { titulo: 'Comisiones', ruta: '/ventas/comisiones', permiso: 'venta.ver' },
         ],
       },
       {
@@ -197,6 +198,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Proveedores y clientes', ruta: '/maestros/terceros', permiso: 'tercero.ver' },
       { titulo: 'Artículos', ruta: '/maestros/articulos', permiso: 'articulo.ver' },
       { titulo: 'Listas de precios', ruta: '/maestros/listas-precios', permiso: 'precios.editar' },
+      { titulo: 'Vendedores', ruta: '/maestros/vendedores', permiso: 'venta.maestros' },
       { titulo: 'Rubros de bienes de uso', ruta: '/maestros/rubros-bienes', permiso: 'bienes.gestionar' },
       { titulo: 'Plan de cuentas', ruta: '/maestros/plan-cuentas', permiso: 'plancuentas.ver' },
       { titulo: 'Monedas y cotizaciones', ruta: '/maestros/monedas', permiso: 'moneda.editar' },

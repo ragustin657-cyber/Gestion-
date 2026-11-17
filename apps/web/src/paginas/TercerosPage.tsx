@@ -1,3 +1,4 @@
+import { useVendedores } from '../ventas/ComisionesPages';
 import { ActionIcon, Badge, Button, Group, Modal, NumberInput, Paper, SegmentedControl, Stack, Table, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
@@ -27,6 +28,7 @@ const CAMPOS_GENERALES: CampoAbm[] = [
   { nombre: 'condicionIva', etiqueta: 'Condición frente al IVA', tipo: 'select', requerido: true, opciones: condiciones },
   { nombre: 'diasPago', etiqueta: 'Días de pago', tipo: 'numero' },
   { nombre: 'listaPreciosId', etiqueta: 'Lista de precios', tipo: 'select', ayuda: 'Para clientes: sin lista se usa la lista por defecto' },
+  { nombre: 'vendedorId', etiqueta: 'Vendedor', tipo: 'select', ayuda: 'Para clientes: se propone en pedidos y facturas' },
   { nombre: 'esProveedor', etiqueta: 'Es proveedor', tipo: 'booleano' },
   { nombre: 'esCliente', etiqueta: 'Es cliente', tipo: 'booleano' },
   { nombre: 'domicilio', etiqueta: 'Domicilio', tipo: 'texto' },
@@ -102,6 +104,7 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
   const regimenes = useQuery({ queryKey: ['/pagos/config/regimenes', 'ficha'], queryFn: () => api<{ codigo: string; descripcion: string }[]>('/pagos/config/regimenes').catch(() => []) });
   const CAMPOS_IMPUESTOS = camposImpuestos(regimenes.data ?? []);
   const listas = (useQuery({ queryKey: ['/ventas/listas', 'tercero'], queryFn: () => api<{ id: string; nombre: string }[]>('/ventas/listas').catch(() => []) }).data ?? []).map((l) => ({ value: l.id, label: l.nombre }));
+  const vendedores = useVendedores().filter((v) => v.activo || v.id === detalle.data?.vendedorId).map((v) => ({ value: v.id, label: v.nombre }));
   const refrescar = () => qc.invalidateQueries({ queryKey: ['/terceros'] });
   const t = detalle.data ?? null;
   if (id && !t) return null;
@@ -113,9 +116,9 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
       </Tabs.List>
       <Tabs.Panel value="general">
         <FormAbm
-          campos={CAMPOS_GENERALES.map((c) => (c.nombre === 'listaPreciosId' ? { ...c, opciones: listas } : c))}
+          campos={CAMPOS_GENERALES.map((c) => (c.nombre === 'listaPreciosId' ? { ...c, opciones: listas } : c.nombre === 'vendedorId' ? { ...c, opciones: vendedores } : c))}
           valoresIniciales={t ? { ...valores(t, CAMPOS_GENERALES), cuit: t.tipoDocumento === 'CUIT' ? formatearCuit(t.cuit) : t.cuit } : { esProveedor: true, activo: true, condicionIva: 'RESPONSABLE_INSCRIPTO', tipoDocumento: 'CUIT', diasPago: 30 }}
-          onEnviar={(v) => { const b = { ...v, listaPreciosId: v.listaPreciosId || null }; return t ? api(`/terceros/${t.id}`, { metodo: 'PATCH', body: b }) : api('/terceros', { metodo: 'POST', body: b }); }}
+          onEnviar={(v) => { const b = { ...v, listaPreciosId: v.listaPreciosId || null, vendedorId: v.vendedorId || null }; return t ? api(`/terceros/${t.id}`, { metodo: 'PATCH', body: b }) : api('/terceros', { metodo: 'POST', body: b }); }}
           onExito={() => {
             notifications.show({ color: 'green', message: 'Guardado correctamente' });
             void refrescar();

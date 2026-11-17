@@ -17,6 +17,7 @@ export const esquemaPedido = z.object({
   cotizacion: z.number().positive().nullish(),
   listaPreciosId: z.string().uuid().nullish(),
   depositoId: z.string().uuid().nullish(),
+  vendedorId: z.string().uuid('Valor inválido').nullish(),
   observaciones: z.string().trim().max(1000).nullish(),
   renglones: z.array(zRenglonPedido).min(1, 'El pedido debe tener al menos un renglón'),
   confirmar: z.boolean().default(false),

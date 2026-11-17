@@ -1,3 +1,4 @@
+import { SelectorVendedor, useVendedores } from './ComisionesPages';
 import { Alert, Badge, Button, Group, Modal, Paper, Select, Stack, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -11,7 +12,7 @@ import { alicuotaDe, GrillaVenta, renglonVacio, type ArticuloVenta, type Renglon
 import { precioSugerido } from './precios';
 
 export interface PedidoVenta {
-  id: string; numero: number; terceroId: string; fecha: string; validoHasta: string | null; monedaCodigo: string; cotizacion: string; depositoId: string | null; estado: string;
+  id: string; numero: number; terceroId: string; fecha: string; validoHasta: string | null; monedaCodigo: string; cotizacion: string; depositoId: string | null; estado: string; vendedorId?: string | null;
   observaciones: string | null; total: string; version: number; motivoCierre: string | null;
   renglones: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; cantidadEntregada: string; cantidadFacturada: string; pendienteEntregar: string; pendienteFacturar: string }[];
 }
@@ -36,6 +37,8 @@ export function PedidoVentaPage() {
   const [moneda, setMoneda] = useState('ARS');
   const [cotizacion, setCotizacion] = useState('');
   const [depositoId, setDepositoId] = useState<string | null>(null);
+  const [vendedor, setVendedor] = useState<string | null | undefined>(undefined);
+  const vendedores = useVendedores();
   const [observaciones, setObservaciones] = useState('');
   const [renglones, setRenglones] = useState<RenglonVentaEditable[]>([renglonVacio()]);
   const [avisos, setAvisos] = useState<string[]>([]);
@@ -43,7 +46,7 @@ export function PedidoVentaPage() {
   const [motivo, setMotivo] = useState('');
 
   const cargar = (p: PedidoVenta) => {
-    setActual(p); setTerceroId(p.terceroId); setFecha(p.fecha.slice(0, 10)); setValidoHasta(p.validoHasta?.slice(0, 10) ?? ''); setMoneda(p.monedaCodigo);
+    setActual(p); setTerceroId(p.terceroId); setVendedor(p.vendedorId ?? null); setFecha(p.fecha.slice(0, 10)); setValidoHasta(p.validoHasta?.slice(0, 10) ?? ''); setMoneda(p.monedaCodigo);
     setCotizacion(p.monedaCodigo === 'USD' ? String(Number(p.cotizacion)) : ''); setDepositoId(p.depositoId); setObservaciones(p.observaciones ?? '');
     setRenglones(p.renglones.map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota })));
   };
@@ -54,7 +57,7 @@ export function PedidoVentaPage() {
   try { if (empresa && cliente) letra = letraVenta(empresa.condicionIva, cliente.condicionIva); } catch { /* lo informa el servidor */ }
   const editable = !actual || actual.estado === 'PRESUPUESTO';
   const cuerpo = (confirmar: boolean) => ({
-    terceroId, fecha, validoHasta: validoHasta || null, monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null, depositoId, observaciones: observaciones || null, confirmar,
+    terceroId, fecha, validoHasta: validoHasta || null, monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null, depositoId, observaciones: observaciones || null, confirmar, vendedorId: vendedor,
     renglones: renglones.filter((r) => r.descripcion).map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
   });
   const guardar = async (confirmar: boolean) => {
@@ -76,7 +79,8 @@ export function PedidoVentaPage() {
         {actual && <Badge color={ESTADOS_PEDIDO[actual.estado]?.color}>{ESTADOS_PEDIDO[actual.estado]?.etiqueta}</Badge>}
       </Group>
       <Group align="flex-end" mb="md">
-        <Select label="Cliente" w={300} searchable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroId} onChange={setTerceroId} disabled={!editable} />
+        <Select label="Cliente" w={300} searchable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroId} onChange={(v) => { setTerceroId(v); setVendedor(undefined); }} disabled={!editable} />
+        <SelectorVendedor vendedores={vendedores} value={vendedor === undefined ? (cliente?.vendedorId ?? null) : vendedor} onChange={setVendedor} disabled={!editable} />
         <TextInput label="Fecha" type="date" value={fecha} onChange={(e) => setFecha(e.currentTarget.value)} disabled={!editable} />
         <TextInput label="Válido hasta" type="date" value={validoHasta} onChange={(e) => setValidoHasta(e.currentTarget.value)} disabled={!editable} />
         <Select label="Moneda" w={100} data={['ARS', 'USD']} allowDeselect={false} value={moneda} onChange={(v) => setMoneda(v ?? 'ARS')} disabled={!editable} />

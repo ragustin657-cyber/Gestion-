@@ -1,3 +1,4 @@
+import { vendedorActivo } from '../ventas/comisiones/vendedor-activo';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { normalizarCuit } from '@gestion/shared';
@@ -62,10 +63,15 @@ export class TercerosService {
     if (id && !(await tx.listaPrecios.findUnique({ where: { id } }))) throw new BadRequestException('Lista de precios inexistente');
   }
 
+  private async verificarVendedor(tx: TxEmpresa, id: string | null | undefined) {
+    if (id) await vendedorActivo(tx, id);
+  }
+
   crear(d: AltaTercero) {
     return conUnicidad(CUIT_DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
         await this.verificarLista(tx, d.listaPreciosId);
+        await this.verificarVendedor(tx, d.vendedorId);
         const codigo = await this.numeracion.siguiente(tx, 'TERCERO', 0);
         const t = await tx.tercero.create({
           data: { ...d, email: d.email || null, empresaId: this.tenant.empresaId, codigo },
@@ -80,6 +86,9 @@ export class TercerosService {
     return conUnicidad(CUIT_DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
         await this.verificarLista(tx, d.listaPreciosId);
+        // Solo se valida un vendedor nuevo: uno que quedó inactivo no traba la edición del resto de los datos
+        const actual = await tx.tercero.findUnique({ where: { id }, select: { vendedorId: true } });
+        if (d.vendedorId !== actual?.vendedorId) await this.verificarVendedor(tx, d.vendedorId);
         const t = await tx.tercero.update({
           where: { id },
           data: { ...d, email: d.email === '' ? null : d.email, diasPago: 'diasPago' in d ? (d.diasPago ?? 0) : undefined },

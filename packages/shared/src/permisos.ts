@@ -54,6 +54,8 @@ export const PERMISOS = {
   'sueldos.ver': 'Ver sueldos',
   'sueldos.liquidar': 'Liquidar sueldos',
   'informes.ver': 'Ver informes de gestión',
+  'venta.maestros': 'Editar vendedores',
+  'comisiones.liquidar': 'Liquidar comisiones de vendedores',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;
