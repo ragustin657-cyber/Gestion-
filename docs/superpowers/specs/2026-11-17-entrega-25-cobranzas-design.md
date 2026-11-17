@@ -37,7 +37,7 @@ Un área de cobranzas para toda la empresa (decisión del usuario):
 - no hay asignación por vendedor ni por cobrador.
 
 **Permisos:**
-- ver la agenda y las fichas: `venta.ver`;
+- ver la agenda y las fichas: `venta.ver` **o** `cobranzas.gestionar`;
 - registrar y eliminar gestiones: `cobranzas.gestionar` (nuevo).
 
 ## 4. Deuda vencida
@@ -81,7 +81,10 @@ Un cliente aparece en la agenda solo si su vencido es mayor que cero.
 **Promesa vigente:** la de la gestión más reciente que tenga promesa. Una promesa nueva reemplaza a la anterior.
 
 **Estado, calculado en el momento:**
-- **Cumplida:** la suma en pesos de los cobros del cliente (movimientos `RECIBO` o `COBRO` no anulados) con fecha igual o posterior a la fecha de la gestión alcanza el importe prometido.
+- **Cumplida:** lo cobrado desde la gestión alcanza el importe prometido. Lo cobrado es:
+  - la suma en pesos de los cobros del cliente (movimientos `RECIBO` o `COBRO` no anulados) con fecha igual o posterior a la de la gestión;
+  - **menos** los cheques rechazados del cliente (movimientos `CHEQUE_RECHAZADO_CLIENTE` no anulados) con fecha igual o posterior a la de la gestión. Esto lo decidió el usuario: un cheque que rebota no cumple la promesa.
+  - Si un rebote posterior deja lo cobrado por debajo de lo prometido, la promesa vuelve a pendiente o incumplida.
 - **Incumplida:** no está cumplida y la fecha prometida ya pasó, es decir es anterior a hoy.
 - **Pendiente:** en otro caso.
 
@@ -144,7 +147,8 @@ Supermercados Lit.    85.000,00   12   —                       —         —
 **Del usuario:**
 - empezar por el seguimiento de deudores vencidos;
 - un área de cobranzas para toda la empresa;
-- el enfoque A.
+- el enfoque A;
+- un cheque rechazado no cumple la promesa (se resta de lo cobrado).
 
 **Del builder (pueden revisarse):**
 - montos en pesos (`saldoPesos`), así las facturas en dólares suman al vencido con el valor registrado;
@@ -155,7 +159,9 @@ Supermercados Lit.    85.000,00   12   —                       —         —
 - la demo no trae gestiones;
 - sin filtro por sucursal: los clientes son de toda la empresa.
 
-**Del builder, según la revisión:** *(se completa con el control del builder)*
+**Del builder, según la revisión:**
+- la pantalla se abre con `venta.ver` o con `cobranzas.gestionar`, así el Tesorero de la demo la usa sin ver el resto de Ventas;
+- la migración agrega `cobranzas.gestionar` al rol Administrador de las empresas existentes.
 
 ## 11. Pruebas
 
@@ -165,6 +171,7 @@ Supermercados Lit.    85.000,00   12   —                       —         —
 - registrar gestión y sus validaciones;
 - estados de una promesa: pendiente, cumplida con un recibo, incumplida y cumplida parcialmente;
 - un cobro anulado no cumple;
+- un cheque rechazado después del cobro vuelve la promesa a incumplida;
 - promesa reemplazada;
 - eliminar solo el mismo día;
 - permisos.
