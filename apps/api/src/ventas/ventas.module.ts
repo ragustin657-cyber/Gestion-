@@ -1,3 +1,4 @@
+import { ComisionesCalculoService } from './comisiones/calculo.service';
 import { ComisionesController } from './comisiones/comisiones.controller';
 import { VendedoresService } from './comisiones/vendedores.service';
 import { OrigenesVenta } from './comprobantes/origenes';
@@ -23,7 +24,7 @@ import { DatosVentasController } from './consultas/datos-ventas.controller';
 @Module({
   imports: [ArcaModule],
   controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController],
-  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService],
+  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}
