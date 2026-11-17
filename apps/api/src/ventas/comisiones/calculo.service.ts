@@ -5,7 +5,6 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 type Dec = Prisma.Decimal;
 const D = Prisma.Decimal;
 const r2 = (x: Dec) => x.toDecimalPlaces(2, D.ROUND_HALF_UP);
-const ORIGENES_COBRO = ['RECIBO', 'COBRO'];
 
 export type TipoRenglon = 'COBRO' | 'ANULACION' | 'RECHAZO';
 export interface RenglonComision {
@@ -30,29 +29,48 @@ export class ComisionesCalculoService {
 
   async pendientes(tx: TxEmpresa, anio: number, mes: number): Promise<RenglonComision[]> {
     const fin = finDeMes(anio, mes);
-    const comprobantes = await tx.comprobanteVenta.findMany({ where: { vendedorId: { not: null }, estado: 'AUTORIZADO', tipo: { not: 'NOTA_CREDITO' } } });
-    if (!comprobantes.length) return [];
-    const porId = new Map(comprobantes.map((c) => [c.id, c]));
-    const debitos = await tx.movimientoCuentaCorriente.findMany({ where: { origenTipo: 'VENTA', origenId: { in: comprobantes.map((c) => c.id) } }, select: { id: true, origenId: true } });
-    const compDeDebito = new Map(debitos.map((m) => [m.id, porId.get(m.origenId)!]));
-    const aplicaciones = await tx.aplicacionCobro.findMany({ where: { debitoMovId: { in: debitos.map((m) => m.id) } }, orderBy: [{ fecha: 'asc' }, { numero: 'asc' }, { id: 'asc' }] });
-    const creditos = new Map((await tx.movimientoCuentaCorriente.findMany({ where: { id: { in: [...new Set(aplicaciones.map((a) => a.creditoMovId))] } }, select: { id: true, origenTipo: true, origenId: true } })).map((m) => [m.id, m]));
-    // Solo comisionan los cobros (recibos e ingresos de valores), no las NC ni los cheques rechazados
-    const comisionables = aplicaciones.filter((a) => ORIGENES_COBRO.includes(creditos.get(a.creditoMovId)?.origenTipo ?? ''));
-    const vigentes = await tx.liquidacionComisionesRenglon.findMany({ where: { anulado: false, aplicacionId: { in: comisionables.map((a) => a.id) } } });
-    const ya = (tipo: TipoRenglon, aplicacionId: string, chequeId: string | null = null) => vigentes.some((r) => r.tipo === tipo && r.aplicacionId === aplicacionId && (tipo !== 'RECHAZO' || r.chequeId === chequeId));
+    const empresaId = this.tenant.empresaId;
+    // Candidatas, acotadas en SQL (no se recorre toda la historia): (a) cobros no anulados sin renglón COBRO vigente,
+    // (b) aplicaciones anuladas con COBRO vigente y sin ANULACION, (c) cobros de ingresos con un cheque rechazado
+    // hasta el fin de mes. Siempre sobre comprobantes con vendedor y créditos que son cobros (recibos o ingresos).
+    const candidatas = await tx.$queryRawUnsafe<{ id: string }[]>(`
+      SELECT a.id FROM "AplicacionCobro" a
+      JOIN "MovimientoCuentaCorriente" d ON d.id = a."debitoMovId" AND d."origenTipo" = 'VENTA'
+      JOIN "ComprobanteVenta" c ON c.id = d."origenId" AND c."vendedorId" IS NOT NULL AND c.estado = 'AUTORIZADO' AND c.tipo <> 'NOTA_CREDITO'
+      JOIN "MovimientoCuentaCorriente" cr ON cr.id = a."creditoMovId" AND cr."origenTipo" IN ('RECIBO', 'COBRO')
+      LEFT JOIN "Recibo" r ON cr."origenTipo" = 'RECIBO' AND r.id = cr."origenId"
+      WHERE a."empresaId" = $1::uuid AND (
+        (NOT a.anulada AND a.fecha <= $2::date AND NOT EXISTS (SELECT 1 FROM "LiquidacionComisionesRenglon" x WHERE x."aplicacionId" = a.id AND x.tipo = 'COBRO' AND NOT x.anulado))
+        OR (a.anulada AND EXISTS (SELECT 1 FROM "LiquidacionComisionesRenglon" x WHERE x."aplicacionId" = a.id AND x.tipo = 'COBRO' AND NOT x.anulado)
+          AND NOT EXISTS (SELECT 1 FROM "LiquidacionComisionesRenglon" x WHERE x."aplicacionId" = a.id AND x.tipo = 'ANULACION' AND NOT x.anulado))
+        OR (NOT a.anulada AND EXISTS (SELECT 1 FROM "ChequeTercero" ch WHERE ch."empresaId" = $1::uuid AND ch."fechaRechazo" IS NOT NULL AND ch."fechaRechazo" <= $2::date
+          AND ch."ingresoId" = CASE WHEN cr."origenTipo" = 'COBRO' THEN cr."origenId" ELSE r."ingresoId" END))
+      )`, empresaId, fin);
+    if (!candidatas.length) return [];
+    const aplicaciones = await tx.aplicacionCobro.findMany({ where: { id: { in: candidatas.map((x) => x.id) } }, orderBy: [{ fecha: 'asc' }, { numero: 'asc' }, { id: 'asc' }] });
+    const movs = new Map((await tx.movimientoCuentaCorriente.findMany({ where: { id: { in: [...new Set(aplicaciones.flatMap((a) => [a.debitoMovId, a.creditoMovId]))] } }, select: { id: true, origenTipo: true, origenId: true } })).map((m) => [m.id, m]));
+    const comprobantes = new Map((await tx.comprobanteVenta.findMany({ where: { id: { in: [...new Set(aplicaciones.map((a) => movs.get(a.debitoMovId)!.origenId))] } } })).map((c) => [c.id, c]));
+    const compDe = (a: (typeof aplicaciones)[number]) => comprobantes.get(movs.get(a.debitoMovId)!.origenId)!;
+    // Renglones vigentes de estas aplicaciones, indexados por tipo, aplicación y cheque
+    const vigentes = await tx.liquidacionComisionesRenglon.findMany({ where: { anulado: false, aplicacionId: { in: aplicaciones.map((a) => a.id) } } });
+    const indice = new Map<string, (typeof vigentes)[number][]>();
+    for (const r of vigentes) {
+      for (const k of [`${r.tipo}|${r.aplicacionId}`, `${r.tipo}|${r.aplicacionId}|${r.chequeId ?? ''}`]) indice.set(k, [...(indice.get(k) ?? []), r]);
+    }
+    const ya = (tipo: TipoRenglon, aplicacionId: string, chequeId: string | null = null) => indice.has(tipo === 'RECHAZO' ? `${tipo}|${aplicacionId}|${chequeId ?? ''}` : `${tipo}|${aplicacionId}`);
 
-    const clientes = new Map((await tx.tercero.findMany({ where: { id: { in: [...new Set(comprobantes.map((c) => c.terceroId))] } }, select: { id: true, razonSocial: true } })).map((t) => [t.id, t.razonSocial]));
-    const recibos = new Map((await tx.recibo.findMany({ where: { id: { in: comisionables.flatMap((a) => (creditos.get(a.creditoMovId)!.origenTipo === 'RECIBO' ? [creditos.get(a.creditoMovId)!.origenId] : [])) } } })).map((r) => [r.id, r]));
-    const nombreComp = (c: (typeof comprobantes)[number]) => `${c.tipo === 'FACTURA' ? 'FC' : 'ND'} ${c.letra} ${String(c.puntoVenta).padStart(4, '0')}-${String(c.numero ?? 0).padStart(8, '0')}`;
+    const clientes = new Map((await tx.tercero.findMany({ where: { id: { in: [...new Set([...comprobantes.values()].map((c) => c.terceroId))] } }, select: { id: true, razonSocial: true } })).map((t) => [t.id, t.razonSocial]));
+    const reciboIds = aplicaciones.flatMap((a) => { const m = movs.get(a.creditoMovId)!; return m.origenTipo === 'RECIBO' ? [m.origenId] : []; });
+    const recibos = new Map((reciboIds.length ? await tx.recibo.findMany({ where: { id: { in: [...new Set(reciboIds)] } } }) : []).map((r) => [r.id, r]));
+    const nombreComp = (c: { tipo: string; letra: string; puntoVenta: number; numero: number | null }) => `${c.tipo === 'FACTURA' ? 'FC' : 'ND'} ${c.letra} ${String(c.puntoVenta).padStart(4, '0')}-${String(c.numero ?? 0).padStart(8, '0')}`;
     const nombreCobro = (creditoMovId: string) => {
-      const m = creditos.get(creditoMovId)!;
+      const m = movs.get(creditoMovId)!;
       const r = m.origenTipo === 'RECIBO' ? recibos.get(m.origenId) : null;
       return r ? `Recibo ${String(r.puntoVenta).padStart(4, '0')}-${String(r.numero).padStart(8, '0')}` : 'Cobro de Tesorería';
     };
     /** Comisión de una aplicación: neto proporcional a lo cobrado (en pesos) por el porcentaje copiado. */
     const calcular = (a: (typeof aplicaciones)[number]) => {
-      const c = compDeDebito.get(a.debitoMovId)!;
+      const c = compDe(a);
       const netoComp = c.netoGravado.plus(c.noGravado).plus(c.exento);
       const neto = c.total.isZero() ? new D(0) : r2(a.importePesosDebito.times(netoComp).div(c.total));
       const pct = c.comisionPct ?? new D(0);
@@ -67,19 +85,26 @@ export class ComisionesCalculoService {
     };
 
     const salida: RenglonComision[] = [];
-    // Cobros pendientes
-    for (const a of comisionables) if (!a.anulada && a.fecha <= fin && !ya('COBRO', a.id)) salida.push(renglon(a, 'COBRO', calcular(a).comision));
-    // Aplicaciones liquidadas que después se anularon: se descuenta lo que se pagó
-    for (const a of comisionables) {
-      const pagado = vigentes.find((r) => r.tipo === 'COBRO' && r.aplicacionId === a.id);
-      if (a.anulada && pagado && !ya('ANULACION', a.id)) salida.push({ ...renglon(a, 'ANULACION', pagado.comision.neg()), cobrado: pagado.cobrado.neg(), neto: pagado.neto.neg(), porcentaje: pagado.porcentaje });
+    for (const a of aplicaciones) if (!a.anulada && a.fecha <= fin && !ya('COBRO', a.id)) salida.push(renglon(a, 'COBRO', calcular(a).comision));
+    // Aplicaciones liquidadas que después se anularon: se descuenta lo que quedó pagado neto (el cobro menos los
+    // rechazos ya descontados), para no descontar dos veces
+    for (const a of aplicaciones) {
+      const pagado = indice.get(`COBRO|${a.id}`)?.[0];
+      if (!a.anulada || !pagado || ya('ANULACION', a.id)) continue;
+      const rechazos = (indice.get(`RECHAZO|${a.id}`) ?? []).reduce((s2, r) => s2.plus(r.comision), new D(0));
+      salida.push({ ...renglon(a, 'ANULACION', pagado.comision.plus(rechazos).neg()), cobrado: pagado.cobrado.neg(), neto: pagado.neto.neg(), porcentaje: pagado.porcentaje });
     }
     // Cheques rechazados: la parte proporcional de la comisión del cobro que los recibió
     const ingresoDe = (creditoMovId: string) => {
-      const m = creditos.get(creditoMovId)!;
+      const m = movs.get(creditoMovId)!;
       return m.origenTipo === 'COBRO' ? m.origenId : recibos.get(m.origenId)?.ingresoId ?? null;
     };
-    const ingresoIds = [...new Set(comisionables.map((a) => ingresoDe(a.creditoMovId)).filter((x): x is string => !!x))];
+    const porIngreso = new Map<string, (typeof aplicaciones)[number][]>();
+    for (const a of aplicaciones) {
+      const ing = a.anulada ? null : ingresoDe(a.creditoMovId);
+      if (ing) porIngreso.set(ing, [...(porIngreso.get(ing) ?? []), a]);
+    }
+    const ingresoIds = [...porIngreso.keys()];
     const rechazados = ingresoIds.length ? await tx.chequeTercero.findMany({ where: { ingresoId: { in: ingresoIds }, fechaRechazo: { not: null, lte: fin } } }) : [];
     if (rechazados.length) {
       const ids = [...new Set(rechazados.map((c) => c.ingresoId))];
@@ -87,14 +112,15 @@ export class ComisionesCalculoService {
         tx.ingresoValoresEfectivo.findMany({ where: { ingresoId: { in: ids } } }), tx.chequeTercero.findMany({ where: { ingresoId: { in: ids } } }),
         tx.transferenciaRecibida.findMany({ where: { ingresoId: { in: ids } } }), tx.cuponTarjeta.findMany({ where: { ingresoId: { in: ids } } }),
       ]);
-      const total = (id: string) => [...efectivo, ...cheques, ...transf, ...cupones].filter((x) => x.ingresoId === id).reduce((s, x) => s.plus(x.importe), new D(0));
+      const totales = new Map<string, Dec>();
+      for (const x of [...efectivo, ...cheques, ...transf, ...cupones]) totales.set(x.ingresoId, (totales.get(x.ingresoId) ?? new D(0)).plus(x.importe));
       for (const ch of rechazados) {
-        const tot = total(ch.ingresoId);
+        const tot = totales.get(ch.ingresoId) ?? new D(0);
         if (tot.isZero()) continue;
-        for (const a of comisionables.filter((x) => !x.anulada && ingresoDe(x.creditoMovId) === ch.ingresoId)) {
+        for (const a of porIngreso.get(ch.ingresoId) ?? []) {
           if (ya('RECHAZO', a.id, ch.id)) continue;
-          const comision = r2(calcular(a).comision.times(ch.importe).div(tot)).neg();
-          salida.push({ ...renglon(a, 'RECHAZO', comision, ch.id, ch.fechaRechazo!), cobrado: ch.importe.neg(), neto: r2(calcular(a).neto.times(ch.importe).div(tot)).neg() });
+          const k = calcular(a);
+          salida.push({ ...renglon(a, 'RECHAZO', r2(k.comision.times(ch.importe).div(tot)).neg(), ch.id, ch.fechaRechazo!), cobrado: ch.importe.neg(), neto: r2(k.neto.times(ch.importe).div(tot)).neg() });
         }
       }
     }

@@ -114,7 +114,7 @@ export class ComprobantesVentaService {
         cuentaContableId: r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas),
       };
     });
-    const vendedor = await this.vendedor(tx, d, tercero.vendedorId, origenes);
+    const vendedor = await this.vendedor(tx, d, tercero.vendedorId, origenes, id);
     const depositoId = d.depositoId ?? pv.depositoId ?? null;
     // Los renglones de remito ya salieron del stock: no se controlan ni se mueven
     const advertencias = await this.stock.controlar(tx, {
@@ -142,7 +142,7 @@ export class ComprobantesVentaService {
    * (null = sin vendedor); si no se indicó, el del pedido de origen y si no, el habitual del cliente. El porcentaje
    * se vuelve a copiar al autorizar.
    */
-  private async vendedor(tx: TxEmpresa, d: DatosComprobanteVenta, delCliente: string | null, origenes: { pedidoRenglonId?: string | null; remitoRenglonId?: string | null }[]) {
+  private async vendedor(tx: TxEmpresa, d: DatosComprobanteVenta, delCliente: string | null, origenes: { pedidoRenglonId?: string | null; remitoRenglonId?: string | null }[], editandoId?: string) {
     if (d.tipo !== 'FACTURA') {
       const asoc = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: d.comprobanteAsociadoId! } });
       return { vendedorId: asoc.vendedorId, comisionPct: asoc.comisionPct };
@@ -158,7 +158,11 @@ export class ComprobantesVentaService {
       id = pedido ? pedido.vendedorId : delCliente;
       // El propuesto pudo quedar inactivo: se factura sin vendedor en vez de rechazar
       if (id && !(await tx.vendedor.findFirst({ where: { id, activo: true } }))) id = null;
-    } else if (id) await vendedorActivo(tx, id);
+    } else if (id) {
+      // Al modificar un borrador, el vendedor que ya tenía no se revalida (pudo quedar inactivo)
+      const previo = editandoId ? await tx.comprobanteVenta.findUnique({ where: { id: editandoId }, select: { vendedorId: true } }) : null;
+      if (previo?.vendedorId !== id) await vendedorActivo(tx, id);
+    }
     if (!id) return { vendedorId: null, comisionPct: null };
     const v = await tx.vendedor.findUniqueOrThrow({ where: { id } });
     return { vendedorId: v.id, comisionPct: v.porcentaje };

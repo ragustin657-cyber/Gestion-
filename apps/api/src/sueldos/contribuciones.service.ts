@@ -93,7 +93,8 @@ export class ContribucionesService {
     if (d.cuentaIndemnizacionesId) await this.validarCuenta(this.tenant.db, d.cuentaIndemnizacionesId);
     if (d.conceptoComisionesId) {
       const c = await this.tenant.db.concepto.findUnique({ where: { id: d.conceptoComisionesId } });
-      if (!c || c.tipo !== 'FIJO' || !c.activo || c.clase === 'DESCUENTO') throw new BadRequestException('Concepto de comisiones inválido: debe ser fijo, activo y no de descuento');
+      if (!c || c.tipo !== 'FIJO' || !c.activo || c.clase === 'DESCUENTO' || c.convenioId || c.soloAfiliados)
+        throw new BadRequestException('Concepto de comisiones inválido: debe ser fijo, activo, no de descuento, sin convenio y para todos los empleados');
     }
     const actual = await this.tenant.db.configuracionSueldos.findFirst();
     if (actual) await this.tenant.db.configuracionSueldos.update({ where: { id: actual.id }, data: d });

@@ -57,7 +57,7 @@ describe('comisiones: maestro de vendedores', () => {
     const desc = await prisma.concepto.findFirstOrThrow({ where: { empresaId: x.empresaId, codigo: '520' } });
     const body = { cuentaSueldosId: cfg.cuentaSueldosId, cuentaContribucionesId: cfg.cuentaContribucionesId, cuentaSueldosAPagarId: cfg.cuentaSueldosAPagarId, cuentaCargasSocialesId: cfg.cuentaCargasSocialesId, cuentaRetencionesSindicalesId: cfg.cuentaRetencionesSindicalesId };
     const r = await x.http.put('/api/sueldos/configuracion', { ...body, conceptoComisionesId: desc.id });
-    expect([r.status, r.body.message]).toEqual([400, 'Concepto de comisiones inválido: debe ser fijo, activo y no de descuento']);
+    expect([r.status, r.body.message]).toEqual([400, 'Concepto de comisiones inválido: debe ser fijo, activo, no de descuento, sin convenio y para todos los empleados']);
     const sin = await x.http.put('/api/sueldos/configuracion', body);
     expect(sin.status).toBe(200);
     expect(sin.body.conceptoComisionesId).toBe(cfg.conceptoComisionesId);

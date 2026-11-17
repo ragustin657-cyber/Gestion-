@@ -336,6 +336,12 @@ export class LiquidacionesService {
       await this.bloquear(tx, id);
       const l = await this.liquidacion(tx, id);
       if (l.estado !== 'BORRADOR') throw new BadRequestException('Solo se elimina una liquidación en borrador');
+      // Sus novedades de comisiones se perderían con la liquidación (E24): primero se anula la de comisiones
+      const conComisiones = await tx.novedad.findFirst({ where: { liquidacionId: id, liquidacionComisionesId: { not: null } } });
+      if (conComisiones) {
+        const lc = await tx.liquidacionComisiones.findUniqueOrThrow({ where: { id: conComisiones.liquidacionComisionesId! } });
+        throw new BadRequestException(`La liquidación tiene comisiones cargadas: anule primero la liquidación de comisiones de ${mmaaaa(lc.anio, lc.mes)}`);
+      }
       const eg = l.tipo === 'FINAL' ? await tx.egresoEmpleado.findUnique({ where: { liquidacionId: id } }) : null;
       if (eg && (await tx.liquidacion.count({ where: { tipo: 'MENSUAL', anio: l.anio, mes: l.mes, estado: 'CERRADA' } })))
         throw new BadRequestException(`La liquidación mensual de ${mmaaaa(l.anio, l.mes)} ya está cerrada: el empleado quedaría sin recibo de ese mes. Reábrala antes de eliminar la final`);

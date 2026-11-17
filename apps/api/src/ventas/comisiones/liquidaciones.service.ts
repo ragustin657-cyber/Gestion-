@@ -64,7 +64,7 @@ export class LiquidacionesComisionesService {
       if (empleados.length) {
         const cfg = await tx.configuracionSueldos.findFirst();
         const c = cfg?.conceptoComisionesId ? await tx.concepto.findUnique({ where: { id: cfg.conceptoComisionesId } }) : null;
-        if (!c || !c.activo || c.tipo !== 'FIJO' || c.clase === 'DESCUENTO') throw new BadRequestException('Configure el concepto de comisiones en sueldos');
+        if (!c || !c.activo || c.tipo !== 'FIJO' || c.clase === 'DESCUENTO' || c.convenioId || c.soloAfiliados) throw new BadRequestException('Configure el concepto de comisiones en sueldos');
         conceptoId = c.id;
       }
       const destinos = new Map<string, string>();
@@ -83,8 +83,18 @@ export class LiquidacionesComisionesService {
         await tx.novedad.create({ data: { empresaId: this.tenant.empresaId, liquidacionId: destinos.get(v.id)!, empleadoId: v.empleadoId!, tipo: 'IMPORTE', conceptoId, importe: total(v.id), detalle: `Comisiones ${mm(anio, mes)}`, liquidacionComisionesId: liq.id } });
       }
       for (const id of new Set(destinos.values())) await this.sueldos.recalcularEnTx(tx, id);
+      // La comisión tiene que quedar en un recibo: si el empleado no lo tiene (p. ej. egresó en un mes anterior) o el
+      // concepto no se le aplica, se rechaza en vez de darla por pagada
+      for (const v of empleados) {
+        const destinoId = destinos.get(v.id)!;
+        const recibo = await tx.reciboSueldo.findFirst({ where: { liquidacionId: destinoId, empleadoId: v.empleadoId! }, include: { renglones: { where: { conceptoId } } } });
+        if (!recibo?.renglones.length) {
+          const e = await tx.empleado.findUniqueOrThrow({ where: { id: v.empleadoId! } });
+          throw new BadRequestException(`La comisión de ${e.apellido}, ${e.nombre} no se puede cargar en la liquidación de ${mm(anio, mes)}: el empleado no tiene recibo o el concepto de comisiones no se le aplica`);
+        }
+      }
       return { id: liq.id, numero, anio, mes, vendedores: liquidables.map((v) => ({ vendedorId: v.id, nombre: v.nombre, tipo: v.tipo, comision: total(v.id).toFixed(2) })) };
-    }).catch((e) => {
+    }, { timeout: 60000 }).catch((e) => {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new BadRequestException(`Las comisiones de ${mm(anio, mes)} ya están liquidadas`);
       throw e;
     });

@@ -86,7 +86,9 @@ export class TercerosService {
     return conUnicidad(CUIT_DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
         await this.verificarLista(tx, d.listaPreciosId);
-        await this.verificarVendedor(tx, d.vendedorId);
+        // Solo se valida un vendedor nuevo: uno que quedó inactivo no traba la edición del resto de los datos
+        const actual = await tx.tercero.findUnique({ where: { id }, select: { vendedorId: true } });
+        if (d.vendedorId !== actual?.vendedorId) await this.verificarVendedor(tx, d.vendedorId);
         const t = await tx.tercero.update({
           where: { id },
           data: { ...d, email: d.email === '' ? null : d.email, diasPago: 'diasPago' in d ? (d.diasPago ?? 0) : undefined },
