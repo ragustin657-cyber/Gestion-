@@ -1,3 +1,4 @@
+import { AgendaCobranzasPage, FichaCobranzaPage } from '../ventas/CobranzasPages';
 import { ComisionesPage, VendedoresPage } from '../ventas/ComisionesPages';
 import { CostoTarjetasPage, CuponesTarjetasPage, LiquidacionesTarjetaPage, TarjetasMaestroPage } from '../tesoreria/TarjetasPages';
 import { ReactNode } from 'react';
@@ -95,6 +96,8 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/maestros/tarjetas', elemento: <TarjetasMaestroPage /> },
   { ruta: '/maestros/vendedores', elemento: <VendedoresPage /> },
   { ruta: '/ventas/comisiones', elemento: <ComisionesPage /> },
+  { ruta: '/ventas/cobranzas', elemento: <AgendaCobranzasPage /> },
+  { ruta: '/ventas/cobranzas/:terceroId', elemento: <FichaCobranzaPage /> },
   { ruta: '/tesoreria/tarjetas/cupones', elemento: <CuponesTarjetasPage /> },
   { ruta: '/tesoreria/tarjetas/liquidaciones', elemento: <LiquidacionesTarjetaPage /> },
   { ruta: '/tesoreria/tarjetas/costo', elemento: <CostoTarjetasPage /> },

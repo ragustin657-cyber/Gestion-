@@ -4,6 +4,8 @@ export interface NodoMenu {
   titulo: string;
   ruta?: string;
   permiso?: Permiso;
+  /** Alcanza con uno de estos permisos. */
+  permisoAlguno?: Permiso[];
   proximamente?: boolean;
   /** Solo para el administrador general del sistema. */
   soloSuperadmin?: boolean;
@@ -39,6 +41,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Comprobante de venta', ruta: '/ventas/comprobante', permiso: 'venta.emitir' },
           { titulo: 'Recibo', ruta: '/ventas/recibo', permiso: 'cobro.registrar' },
           { titulo: 'Aplicación de cobros', ruta: '/ventas/aplicacion', permiso: 'cobro.registrar' },
+          { titulo: 'Cobranzas', ruta: '/ventas/cobranzas', permisoAlguno: ['venta.ver', 'cobranzas.gestionar'] },
         ],
       },
       {
@@ -236,6 +239,8 @@ export function filtrarMenu(menu: NodoMenu[], permisos: Permiso[], superadmin = 
       if (hijos.length) r.push({ ...n, hijos });
     } else if (n.soloSuperadmin) {
       if (superadmin) r.push(n);
+    } else if (n.permisoAlguno) {
+      if (n.permisoAlguno.some((p) => permisos.includes(p))) r.push(n);
     } else if (n.proximamente || !n.permiso || permisos.includes(n.permiso)) {
       r.push(n);
     }
