@@ -6,7 +6,7 @@ import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { formatoMoneda, hoy } from '../compras/formato';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
-import { Contribucion, DESTINOS_CONTRIBUCION, DestinoContribucion, mesTexto, pct } from './comun';
+import { Contribucion, DESTINOS_CONTRIBUCION, DestinoContribucion, mesTexto, pct, useConceptos } from './comun';
 
 /** Contribuciones con su vigencia (una fila por vigencia). */
 export function TablaContribuciones({ filas, onElegir }: { filas: Contribucion[]; onElegir?: (c: Contribucion) => void }) {
@@ -42,6 +42,8 @@ export function ContribucionesPage() {
   const parametros = useQuery({ queryKey: ['/sueldos/parametros', mes], enabled: !!anio && !!nmes, queryFn: () => api<{ anio: number; mes: number; baseMaximaAportes: string | null; detraccion: string; aviso?: string }>('/sueldos/parametros', { query: { anio, mes: nmes } }) });
   const config = useQuery({ queryKey: ['/sueldos/configuracion'], queryFn: () => api<Record<string, string | null>>('/sueldos/configuracion') });
   const [form, setForm] = useState<Form | null>(null);
+  // Conceptos fijos que pueden recibir las comisiones (no de descuento), E24 §7
+  const conceptosComision = (useConceptos().data ?? []).filter((c) => c.tipo === 'FIJO' && c.clase !== 'DESCUENTO' && c.activo).map((c) => ({ value: c.id, label: `${c.codigo} ${c.nombre}` }));
   const [param, setParam] = useState<{ base: number | ''; detraccion: number | '' }>({ base: '', detraccion: '' });
   const [cfg, setCfg] = useState<Record<string, string | null>>({});
   useEffect(() => { if (parametros.data) setParam({ base: parametros.data.baseMaximaAportes ? Number(parametros.data.baseMaximaAportes) : '', detraccion: Number(parametros.data.detraccion) }); }, [parametros.data]);
@@ -81,8 +83,9 @@ export function ContribucionesPage() {
         <Title order={4} mb="sm">Cuentas de sueldos</Title>
         <SimpleGrid cols={2}>
           {CUENTAS_CONFIG.map(([k, etiqueta]) => <Select key={k} label={etiqueta} data={cuentas} searchable value={cfg[k] ?? null} onChange={(v) => setCfg({ ...cfg, [k]: v })} disabled={!editable} />)}
+          <Select label="Concepto de comisiones de vendedores" description="Donde se cargan las comisiones confirmadas en Ventas" data={conceptosComision} value={cfg.conceptoComisionesId ?? null} onChange={(v) => setCfg({ ...cfg, conceptoComisionesId: v })} disabled={!editable} clearable />
         </SimpleGrid>
-        {editable && <Group justify="flex-end" mt="sm"><Button variant="light" onClick={async () => { if (await op.ejecutar(() => api('/sueldos/configuracion', { metodo: 'PUT', body: Object.fromEntries(CUENTAS_CONFIG.map(([k]) => [k, cfg[k]])) }), () => 'Cuentas guardadas')) refrescar(); }}>Guardar cuentas</Button></Group>}
+        {editable && <Group justify="flex-end" mt="sm"><Button variant="light" onClick={async () => { if (await op.ejecutar(() => api('/sueldos/configuracion', { metodo: 'PUT', body: { ...Object.fromEntries(CUENTAS_CONFIG.map(([k]) => [k, cfg[k]])), conceptoComisionesId: cfg.conceptoComisionesId ?? null } }), () => 'Cuentas guardadas')) refrescar(); }}>Guardar cuentas</Button></Group>}
       </Paper>
       {op.alerta}
       <Modal opened={!!form} onClose={() => setForm(null)} size="lg" title={form?.id ? 'Editar contribución' : 'Nueva contribución'}>

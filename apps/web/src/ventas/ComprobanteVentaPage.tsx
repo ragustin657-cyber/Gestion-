@@ -1,3 +1,4 @@
+import { SelectorVendedor, useVendedores } from './ComisionesPages';
 import { Button, Checkbox, Group, Modal, Paper, Select, Stack, TextInput, Title, Alert } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -54,6 +55,9 @@ export function ComprobanteVentaPage() {
   const [moneda, setMoneda] = useState('ARS');
   const [cotizacion, setCotizacion] = useState('');
   const [asociadoId, setAsociadoId] = useState<string | null>(null);
+  // Vendedor: undefined = el que propone el sistema (pedido de origen o cliente); null = sin vendedor (E24 §4)
+  const [vendedor, setVendedor] = useState<string | null | undefined>(undefined);
+  const vendedores = useVendedores();
   const [aplicarAAsociado, setAplicarAAsociado] = useState(true);
   const [depositoId, setDepositoId] = useState<string | null>(null);
   const [devuelveMercaderia, setDevuelveMercaderia] = useState(false);
@@ -104,7 +108,7 @@ export function ComprobanteVentaPage() {
       const f = (x: string | null) => (x ? x.slice(0, 10) : '');
       setActual(c); setTipo(c.tipo); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setFecha(f(c.fecha)); setFechaVencimiento(f(c.fechaVencimiento));
       setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
-      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
+      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setVendedor(c.vendedorId ?? null); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
       setRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
     }).catch(() => op.setError('No se pudo cargar el comprobante'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,7 +132,7 @@ export function ComprobanteVentaPage() {
     fechaServicioDesde: concepto === 'PRODUCTOS' ? null : servDesde || null, fechaServicioHasta: concepto === 'PRODUCTOS' ? null : servHasta || null,
     fechaVencimientoPago: concepto === 'PRODUCTOS' ? null : vencePago || null,
     monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null,
-    comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado,
+    comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado, vendedorId: tipo === 'FACTURA' ? vendedor : undefined,
     depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
     renglones: renglones.map((r) => ({ origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, articuloId: r.articuloId, bienUsoId: r.bienUsoId ?? null, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
   });
@@ -182,7 +186,7 @@ export function ComprobanteVentaPage() {
         <Group align="flex-end" wrap="wrap">
           <Select label="Tipo" w={170} allowDeselect={false} data={TIPOS_VENTA} value={tipo} onChange={(v) => { setTipo((v ?? 'FACTURA') as TipoVenta); setAsociadoId(null); }} disabled={!editable} />
           <Select label="Cliente" w={300} searchable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroId}
-            onChange={(v) => { setTerceroId(v); setAsociadoId(null); const c = clientes.find((x) => x.id === v); if (c?.diasPago) setFechaVencimiento(sumarDias(fecha, c.diasPago)); }} disabled={!editable} />
+            onChange={(v) => { setTerceroId(v); setAsociadoId(null); setVendedor(undefined); const c = clientes.find((x) => x.id === v); if (c?.diasPago) setFechaVencimiento(sumarDias(fecha, c.diasPago)); }} disabled={!editable} />
           <Select label="Punto de venta" w={170} data={puntos.map((p) => ({ value: p.id, label: `${String(p.numero).padStart(4, '0')}${p.descripcion ? ` ${p.descripcion}` : ''}` }))} value={puntoVentaId} onChange={setPuntoVentaId} disabled={!editable} />
           <TextInput label="Fecha" type="date" value={fecha} onChange={(e) => setFecha(e.currentTarget.value)} disabled={!editable} />
           <TextInput label="Vencimiento" type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.currentTarget.value)} disabled={!editable} />
@@ -190,6 +194,7 @@ export function ComprobanteVentaPage() {
             data={[{ value: 'PRODUCTOS', label: 'Productos' }, { value: 'SERVICIOS', label: 'Servicios' }, { value: 'PRODUCTOS_Y_SERVICIOS', label: 'Productos y servicios' }]} />
           <Select label="Depósito" w={180} clearable placeholder="El del punto de venta" data={depositos} value={depositoId} onChange={setDepositoId} disabled={!editable} />
           <Select label="Moneda" w={110} allowDeselect={false} value={moneda} onChange={(v) => setMoneda(v ?? 'ARS')} data={['ARS', 'USD']} disabled={!editable} />
+          {tipo === 'FACTURA' && <SelectorVendedor vendedores={vendedores} value={vendedor === undefined ? (cliente?.vendedorId ?? null) : vendedor} onChange={setVendedor} disabled={!editable} />}
           {moneda === 'USD' && <TextInput label="Cotización" w={120} inputMode="decimal" placeholder="Del día" value={cotizacion} onChange={(e) => setCotizacion(e.currentTarget.value)} disabled={!editable} />}
         </Group>
         {concepto !== 'PRODUCTOS' && (

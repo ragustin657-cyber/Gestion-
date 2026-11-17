@@ -15,10 +15,10 @@ export const ESTADOS_VENTA: Record<string, { etiqueta: string; color: string }> 
   RECHAZADO: { etiqueta: 'Rechazado', color: 'red' },
 };
 
-export interface Cliente { id: string; razonSocial: string; condicionIva: CondicionIva; tipoDocumento: string; cuit: string; diasPago: number }
+export interface Cliente { id: string; razonSocial: string; condicionIva: CondicionIva; tipoDocumento: string; cuit: string; diasPago: number; vendedorId?: string | null }
 export interface PuntoVenta { id: string; numero: number; descripcion: string | null; electronico: boolean; depositoId?: string | null }
 export interface ComprobanteVenta {
-  depositoId?: string | null; devuelveMercaderia?: boolean;
+  depositoId?: string | null; devuelveMercaderia?: boolean; vendedorId?: string | null;
   id: string; tipo: TipoVenta; letra: string; puntoVenta: number; numero: number | null; terceroId: string; fecha: string; fechaVencimiento: string;
   concepto: string; monedaCodigo: string; cotizacion: string; netoGravado: string; noGravado: string; exento: string; iva: string; total: string;
   estado: string; cae: string | null; caeVencimiento: string | null; ultimoError: string | null; version: number; saldo?: string | null; numeroReservado: number | null;

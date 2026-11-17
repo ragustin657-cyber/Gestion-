@@ -47,12 +47,15 @@ const CAMPOS: { tipo: Novedad['tipo']; etiqueta: string; importe?: boolean }[] =
 /** Novedades del mes de un empleado: horas extra y ausencias. */
 export function PanelNovedades({ novedades, onCambiar, deshabilitado, conceptosFijos = [] }: { novedades: Novedad[]; onCambiar: (n: Novedad[]) => void; deshabilitado?: boolean; conceptosFijos?: { id: string; codigo: string; nombre: string }[] }) {
   const inicial = () => Object.fromEntries(CAMPOS.map((c) => [c.tipo, novedades.find((n) => n.tipo === c.tipo)?.cantidad ?? 0])) as Record<string, number>;
-  const inicialImportes = () => Object.fromEntries(conceptosFijos.map((c) => [c.id, novedades.find((n) => n.tipo === 'IMPORTE' && n.conceptoId === c.id)?.importe ?? 0])) as Record<string, number>;
+  // Las novedades cargadas por una liquidación de comisiones (E24) se muestran pero no se editan ni se envían
+  const deComisiones = novedades.filter((n) => n.liquidacionComisionesId);
+  const manuales = novedades.filter((n) => !n.liquidacionComisionesId);
+  const inicialImportes = () => Object.fromEntries(conceptosFijos.map((c) => [c.id, manuales.find((n) => n.tipo === 'IMPORTE' && n.conceptoId === c.id)?.importe ?? 0])) as Record<string, number>;
   const [valores, setValores] = useState(inicial);
   const [importes, setImportes] = useState(inicialImportes);
   useEffect(() => { setValores(inicial()); setImportes(inicialImportes()); }, [JSON.stringify(novedades), conceptosFijos.length]); // eslint-disable-line react-hooks/exhaustive-deps
   // Se conservan las novedades de importe de conceptos que no se muestran (p. ej. inactivos)
-  const otras = novedades.filter((n) => !CAMPOS.some((c) => c.tipo === n.tipo) && !(n.tipo === 'IMPORTE' && conceptosFijos.some((c) => c.id === n.conceptoId)));
+  const otras = manuales.filter((n) => !CAMPOS.some((c) => c.tipo === n.tipo) && !(n.tipo === 'IMPORTE' && conceptosFijos.some((c) => c.id === n.conceptoId)));
   const guardar = () => onCambiar([
     ...CAMPOS.filter((c) => Number(valores[c.tipo]) > 0).map((c) => ({ tipo: c.tipo, cantidad: Number(valores[c.tipo]) })),
     ...conceptosFijos.filter((c) => Number(importes[c.id]) > 0).map((c) => ({ tipo: 'IMPORTE' as const, conceptoId: c.id, importe: Number(importes[c.id]) })),
@@ -74,6 +77,7 @@ export function PanelNovedades({ novedades, onCambiar, deshabilitado, conceptosF
           ))}
         </Group>
       )}
+      {deComisiones.map((n, i) => <Text key={i} size="sm" c="dimmed">{`${n.detalle ?? 'Comisiones'}: ${formatoMoneda(n.importe ?? 0)} (de la liquidación de comisiones)`}</Text>)}
       <Group justify="flex-end"><Button variant="light" onClick={guardar} disabled={deshabilitado}>Guardar novedades</Button></Group>
     </Stack>
   );
