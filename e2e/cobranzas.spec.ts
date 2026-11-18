@@ -13,12 +13,16 @@ async function elegir(page: Page, etiqueta: string | RegExp, opcion: string | Re
   await page.getByRole('option', { name: opcion }).first().click();
 }
 
-/** Fecha local AAAA-MM-DD desplazada en días. */
+/** Fecha AAAA-MM-DD en la hora argentina (la del servidor), desplazada en días. */
 function fecha(dias: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + dias);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
+  const d = new Date(`${hoy}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
 }
+
+// El navegador en la hora argentina, como los usuarios: las fechas por defecto de los formularios coinciden con las del servidor
+test.use({ timezoneId: 'America/Argentina/Buenos_Aires' });
 
 test('cobranzas: el tesorero ve la agenda, registra un llamado con promesa y la agenda la muestra pendiente', async ({ page }) => {
   test.setTimeout(120000);
