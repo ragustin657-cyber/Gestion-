@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 export const CONCEPTOS_CUENTA = {
   PROVEEDORES: '2.1.01.001',
   RESULTADO_VENTA_BIENES_USO: '4.2.05',
+  INTERESES_GANADOS: '4.2.02',
   BAJAS_BIENES_USO: '5.2.08',
   IVA_CREDITO_FISCAL: '1.1.03.001',
   PERCEPCION_IVA: '1.1.03.002',

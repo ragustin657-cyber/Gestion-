@@ -10,7 +10,9 @@ export default defineConfig({
   use: { baseURL: WEB, headless: true, launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {} },
   // La conciliación cierra el mes de la cuenta demo: corre al final, cuando las demás pruebas ya registraron sus movimientos
   projects: [
-    { name: 'general', testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|sueldos-final)\.spec\.ts/ },
+    // Intereses factura en el mes anterior: corre antes de que la prueba de contabilidad (general) cierre ese mes
+    { name: 'intereses', testMatch: /intereses\.spec\.ts/ },
+    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final)\.spec\.ts/ },
     // La baja crea un empleado que no debe quedar en las mensuales que cierran las pruebas de sueldos: corre después de ellas
     // Comisiones reabre la mensual del mes (que cerró la prueba de sueldos), carga la comisión y la vuelve a cerrar
     { name: 'comisiones', testMatch: /comisiones\.spec\.ts/, dependencies: ['general'] },

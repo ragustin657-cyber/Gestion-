@@ -130,6 +130,8 @@ model Tercero {
   esProveedor        Boolean             @default(false)
   esCliente          Boolean             @default(false)
   vendedorId         String?             @db.Uuid
+  /// Exceptuado de los intereses por mora (Entrega 27).
+  sinIntereses       Boolean             @default(false)
   domicilio          String?
   localidad          String?
   provincia          String?
@@ -2578,4 +2580,46 @@ model GestionCobranza {
   creadoEn       DateTime     @default(now())
 
   @@index([empresaId, terceroId, fecha])
+}
+
+/// Tasa de intereses por mora de la empresa (Entrega 27).
+model ConfigIntereses {
+  id          String  @id @default(uuid()) @db.Uuid
+  empresaId   String  @unique @db.Uuid
+  tasaMensual Decimal @db.Decimal(5, 2)
+  descripcion String  @default("Intereses por mora")
+}
+
+model LiquidacionIntereses {
+  id        String                        @id @default(uuid()) @db.Uuid
+  empresaId String                        @db.Uuid
+  numero    Int
+  anio      Int
+  mes       Int
+  tasa      Decimal                       @db.Decimal(5, 2)
+  fecha     DateTime                      @db.Date
+  creadoPor String
+  creadoEn  DateTime                      @default(now())
+  renglones LiquidacionInteresesRenglon[]
+
+  @@unique([empresaId, numero])
+}
+
+model LiquidacionInteresesRenglon {
+  id            String               @id @default(uuid()) @db.Uuid
+  empresaId     String               @db.Uuid
+  liquidacionId String               @db.Uuid
+  liquidacion   LiquidacionIntereses @relation(fields: [liquidacionId], references: [id], onDelete: Cascade)
+  comprobanteId String               @db.Uuid
+  terceroId     String               @db.Uuid
+  monedaCodigo  String
+  saldo         Decimal              @db.Decimal(18, 2)
+  dias          Int
+  interes       Decimal              @db.Decimal(18, 2)
+  alicuota      String
+  /// Nota de débito que factura el interés (sin clave foránea: si se elimina el borrador, el renglón queda libre)
+  notaDebitoId  String?              @db.Uuid
+
+  @@index([empresaId, comprobanteId])
+  @@index([notaDebitoId])
 }
