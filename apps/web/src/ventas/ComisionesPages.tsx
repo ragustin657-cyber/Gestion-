@@ -11,7 +11,7 @@ import { useOperacionVentas } from './comun';
 export interface Vendedor { id: string; nombre: string; tipo?: 'EMPLEADO' | 'EXTERNO'; porcentaje?: string; empleadoId?: string | null; proveedorId?: string | null; activo: boolean; empleado?: string | null; proveedor?: string | null }
 interface DetalleComision { tipo: 'COBRO' | 'ANULACION' | 'RECHAZO'; fecha: string; cliente: string; comprobante: string; cobro: string; cobrado: string; neto: string; porcentaje: string; comision: string }
 export interface FilaComision { vendedorId: string; nombre: string; tipo: string; renglones: number; neto: string; comision: string; liquidable: boolean; detalle: DetalleComision[] }
-interface LiquidacionComisiones { id: string; numero: number; anio: number; mes: number; fecha: string; estado: 'CONFIRMADA' | 'ANULADA'; total: string; motivoAnulacion: string | null }
+interface LiquidacionComisiones { id: string; numero: number; anio: number; mes: number; fecha: string; estado: 'CONFIRMADA' | 'ANULADA'; total: string; motivoAnulacion: string | null; externos: { vendedorId: string; nombre: string }[] }
 
 export const useVendedores = () => useQuery({ queryKey: ['/ventas/vendedores'], queryFn: () => api<Vendedor[]>('/ventas/vendedores') }).data ?? [];
 
@@ -22,6 +22,11 @@ export function SelectorVendedor({ vendedores, value, onChange, disabled, w = 22
 }
 
 const TIPOS: Record<string, string> = { EMPLEADO: 'Empleado', EXTERNO: 'Externo' };
+/** Porcentaje del vendedor en el mes: el único de sus renglones, o "varios" si cambió entre facturas. */
+const porcentaje = (detalle: { porcentaje: string }[]) => {
+  const distintos = [...new Set(detalle.map((d) => Number(d.porcentaje)))];
+  return distintos.length === 1 ? distintos[0].toLocaleString('es-AR', { minimumFractionDigits: 2 }) : distintos.length ? 'varios' : '';
+};
 const TIPOS_RENGLON: Record<string, string> = { COBRO: 'Cobro', ANULACION: 'Cobro anulado', RECHAZO: 'Cheque rechazado' };
 
 /** Comisiones pendientes del mes por vendedor, con el detalle desplegable. */
@@ -31,7 +36,7 @@ export function TablaComisiones({ vendedores, puedeLiquidar, onConfirmar, envian
   return (
     <Stack>
       <Table withTableBorder striped>
-        <Table.Thead><Table.Tr><Table.Th w={30} /><Table.Th>Vendedor</Table.Th><Table.Th>Tipo</Table.Th><Table.Th ta="right">Renglones</Table.Th><Table.Th ta="right">Neto cobrado</Table.Th><Table.Th ta="right">Comisión</Table.Th></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th w={30} /><Table.Th>Vendedor</Table.Th><Table.Th>Tipo</Table.Th><Table.Th ta="right">Renglones</Table.Th><Table.Th ta="right">Neto cobrado</Table.Th><Table.Th ta="right">%</Table.Th><Table.Th ta="right">Comisión</Table.Th></Table.Tr></Table.Thead>
         <Table.Tbody>
           {vendedores.map((v) => (
             <Fragment key={v.vendedorId}>
@@ -39,10 +44,11 @@ export function TablaComisiones({ vendedores, puedeLiquidar, onConfirmar, envian
                 <Table.Td>{abierto === v.vendedorId ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}</Table.Td>
                 <Table.Td>{v.nombre}</Table.Td><Table.Td>{TIPOS[v.tipo] ?? v.tipo}</Table.Td><Table.Td ta="right">{v.renglones}</Table.Td>
                 <Table.Td ta="right">{formatoMoneda(v.neto)}</Table.Td>
+                <Table.Td ta="right">{porcentaje(v.detalle)}</Table.Td>
                 <Table.Td ta="right">{formatoMoneda(v.comision)}{!v.liquidable && <Text size="xs" c="dimmed">Queda para el mes siguiente</Text>}</Table.Td>
               </Table.Tr>
               {abierto === v.vendedorId && (
-                <Table.Tr><Table.Td colSpan={6}>
+                <Table.Tr><Table.Td colSpan={7}>
                   <Table withRowBorders={false} fz="xs">
                     <Table.Thead><Table.Tr><Table.Th>Fecha</Table.Th><Table.Th>Cliente</Table.Th><Table.Th>Comprobante</Table.Th><Table.Th>Cobro</Table.Th><Table.Th>Tipo</Table.Th><Table.Th ta="right">Cobrado</Table.Th><Table.Th ta="right">Neto</Table.Th><Table.Th ta="right">%</Table.Th><Table.Th ta="right">Comisión</Table.Th></Table.Tr></Table.Thead>
                     <Table.Tbody>
@@ -79,7 +85,6 @@ export function ComisionesPage() {
   const consulta = useQuery({ queryKey: ['/ventas/comisiones', anio, mes], queryFn: () => api<{ vendedores: FilaComision[] }>('/ventas/comisiones', { query: { anio, mes } }) });
   const historial = useQuery({ queryKey: ['/ventas/comisiones/liquidaciones'], queryFn: () => api<LiquidacionComisiones[]>('/ventas/comisiones/liquidaciones') });
   const [pdf, setPdf] = useState<LiquidacionComisiones | null>(null);
-  const externos = vendedores.filter((v) => v.tipo === 'EXTERNO');
   const mm = (l: { anio: number; mes: number }) => `${String(l.mes).padStart(2, '0')}/${l.anio}`;
   return (
     <Stack>
@@ -106,7 +111,7 @@ export function ComisionesPage() {
                 <Table.Td>{l.estado === 'ANULADA' ? <Badge color="gray" variant="light">Anulada</Badge> : <Badge color="green" variant="light">Confirmada</Badge>}</Table.Td>
                 <Table.Td>
                   <Group gap="xs" justify="flex-end">
-                    {externos.length > 0 && <Button size="compact-xs" variant="subtle" leftSection={<IconFileTypePdf size={14} />} onClick={() => setPdf(l)}>PDF</Button>}
+                    {l.externos.length > 0 && <Button size="compact-xs" variant="subtle" leftSection={<IconFileTypePdf size={14} />} onClick={() => setPdf(l)}>PDF</Button>}
                     {puede('comisiones.liquidar') && l.estado === 'CONFIRMADA' && (
                       <Button size="compact-xs" variant="subtle" color="red" disabled={op.enviando} onClick={() => {
                         const motivo = window.prompt(`Motivo de la anulación de las comisiones de ${mm(l)}`);
@@ -122,8 +127,8 @@ export function ComisionesPage() {
       </Paper>
       <Modal opened={!!pdf} onClose={() => setPdf(null)} title="Liquidación para el vendedor externo">
         <Stack>
-          {externos.map((v) => (
-            <Button key={v.id} variant="light" leftSection={<IconFileTypePdf size={14} />} onClick={() => void descargar(`/ventas/comisiones/liquidaciones/${pdf!.id}/pdf`, { vendedorId: v.id }, `comisiones-${pdf!.anio}-${pdf!.mes}-${v.nombre}.pdf`).catch(() => op.setError(`${v.nombre} no tiene comisiones en esta liquidación`))}>{v.nombre}</Button>
+          {(pdf?.externos ?? []).map((v) => (
+            <Button key={v.vendedorId} variant="light" leftSection={<IconFileTypePdf size={14} />} onClick={() => void descargar(`/ventas/comisiones/liquidaciones/${pdf!.id}/pdf`, { vendedorId: v.vendedorId }, `comisiones-${pdf!.anio}-${pdf!.mes}-${v.nombre}.pdf`).catch(() => op.setError(`No se pudo descargar el PDF de ${v.nombre}`))}>{v.nombre}</Button>
           ))}
         </Stack>
       </Modal>

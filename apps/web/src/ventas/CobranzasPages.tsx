@@ -13,7 +13,7 @@ export interface FilaAgenda {
   ultimaGestion: { fecha: string; medio: string; nota: string } | null; proximaAccion: string | null; accionAtrasada: boolean;
   promesa: { fecha: string; importe: string; estado: Estado } | null;
 }
-interface Gestion { id: string; fecha: string; medio: string; nota: string; proximaAccion: string | null; promesaFecha: string | null; promesaImporte: string | null; promesaEstado: Estado | null; creadoEn: string; eliminable: boolean }
+interface Gestion { id: string; fecha: string; medio: string; nota: string; proximaAccion: string | null; promesaFecha: string | null; promesaImporte: string | null; promesaEstado: Estado | null; creadoEn: string; eliminable: boolean; usuario: string }
 interface Ficha {
   cliente: { id: string; razonSocial: string; cuit: string; telefono: string | null; email: string | null };
   vencido: string; porVencer: string; aFavor: string; dias: number;
@@ -34,12 +34,13 @@ export function BadgePromesa({ estado }: { estado: Estado }) {
 export function TablaAgenda({ clientes, onElegir }: { clientes: FilaAgenda[]; onElegir: (terceroId: string) => void }) {
   return (
     <Table withTableBorder striped highlightOnHover>
-      <Table.Thead><Table.Tr><Table.Th>Cliente</Table.Th><Table.Th ta="right">Vencido</Table.Th><Table.Th ta="right">Días</Table.Th><Table.Th>Última gestión</Table.Th><Table.Th>Próxima acción</Table.Th><Table.Th>Promesa</Table.Th></Table.Tr></Table.Thead>
+      <Table.Thead><Table.Tr><Table.Th>Cliente</Table.Th><Table.Th ta="right">Vencido</Table.Th><Table.Th ta="right">Por vencer</Table.Th><Table.Th ta="right">Días</Table.Th><Table.Th>Última gestión</Table.Th><Table.Th>Próxima acción</Table.Th><Table.Th>Promesa</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>
         {clientes.map((c) => (
           <Table.Tr key={c.terceroId} style={{ cursor: 'pointer' }} onClick={() => onElegir(c.terceroId)}>
             <Table.Td>{c.cliente}{Number(c.aFavor) < 0 && <Text size="xs" c="dimmed">{`${formatoMoneda(-Number(c.aFavor))} a favor sin aplicar`}</Text>}</Table.Td>
             <Table.Td ta="right">{formatoMoneda(c.vencido)}</Table.Td>
+            <Table.Td ta="right">{formatoMoneda(c.porVencer)}</Table.Td>
             <Table.Td ta="right">{c.dias}</Table.Td>
             <Table.Td>{c.ultimaGestion ? `${formatoFecha(c.ultimaGestion.fecha)} ${MEDIOS[c.ultimaGestion.medio]}: ${corto(c.ultimaGestion.nota)}` : '—'}</Table.Td>
             <Table.Td>{c.proximaAccion ? <Group gap={4}><Text size="sm" c={c.accionAtrasada ? 'red' : undefined}>{formatoFecha(c.proximaAccion)}</Text>{c.accionAtrasada && <Badge color="red" variant="light" size="xs">Atrasada</Badge>}</Group> : '—'}</Table.Td>
@@ -112,6 +113,8 @@ export function FichaCobranzaPage() {
   const q = useQuery({ queryKey: ['/ventas/cobranzas', terceroId], queryFn: () => api<Ficha>(`/ventas/cobranzas/${terceroId}`) });
   const [form, setForm] = useState(0);
   const f = q.data;
+  // Cliente inexistente o sin permiso: se muestra el motivo en vez de una pantalla en blanco
+  if (q.error) return <Alert color="red" title="No se pudo abrir la ficha">{q.error instanceof Error ? q.error.message : 'Error inesperado'}</Alert>;
   if (!f) return null;
   const gestionar = puede('cobranzas.gestionar');
   return (
@@ -161,7 +164,7 @@ export function FichaCobranzaPage() {
             <Paper key={g.id} withBorder p="xs" radius="sm">
               <Group justify="space-between" align="flex-start">
                 <div>
-                  <Text size="sm" fw={500}>{`${formatoFecha(g.fecha)} · ${MEDIOS[g.medio]}`}</Text>
+                  <Text size="sm" fw={500}>{`${formatoFecha(g.fecha)} · ${MEDIOS[g.medio]}${g.usuario ? ` · ${g.usuario}` : ''}`}</Text>
                   <Text size="sm">{g.nota}</Text>
                   <Group gap="md" mt={4}>
                     {g.proximaAccion && <Text size="xs" c="dimmed">{`Próxima acción: ${formatoFecha(g.proximaAccion)}`}</Text>}

@@ -56,7 +56,9 @@ export function FormLiquidacion({ cupones, onConfirmar, enviando }: { cupones: C
   const [elegidos, setElegidos] = useState<string[]>([]);
   const [v, setV] = useState({ arancel: '', ivaArancel: '', costoFinanciero: '', ivaCostoFinanciero: '', neto: '', fecha: hoy(), referencia: '' });
   const [impuestos, setImpuestos] = useState<ImpuestoEditable[]>([]);
-  const bruto = cupones.filter((c) => elegidos.includes(c.id)).reduce((s, c) => s + Number(c.importe), 0);
+  // Solo cuentan los tildados que siguen pendientes (un refresco puede sacar los que ya se liquidaron)
+  const vigentes = elegidos.filter((id) => cupones.some((c) => c.id === id));
+  const bruto = cupones.filter((c) => vigentes.includes(c.id)).reduce((s, c) => s + Number(c.importe), 0);
   const dif = diferenciaLiquidacion({ bruto, arancel: n0(v.arancel), ivaArancel: n0(v.ivaArancel), costoFinanciero: n0(v.costoFinanciero), ivaCostoFinanciero: n0(v.ivaCostoFinanciero), impuestos: impuestos.map((i) => n0(i.importe)), neto: n0(v.neto) });
   const campo = (k: keyof typeof v, etiqueta: string) => <TextInput label={etiqueta} inputMode="decimal" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.currentTarget.value })} />;
   const cambiarImp = (i: number, c: Partial<ImpuestoEditable>) => setImpuestos(impuestos.map((x, j) => (j === i ? { ...x, ...c } : x)));
@@ -94,8 +96,8 @@ export function FormLiquidacion({ cupones, onConfirmar, enviando }: { cupones: C
       <Group align="flex-end" justify="space-between">
         <TextInput label="Neto acreditado" inputMode="decimal" value={v.neto} onChange={(e) => setV({ ...v, neto: e.currentTarget.value })} w={200} />
         <Text fw={700} c={dif ? 'red' : 'green'}>{`Diferencia ${formatoMoneda(dif)}`}</Text>
-        <Button disabled={!elegidos.length || dif !== 0 || n0(v.neto) <= 0} loading={enviando} onClick={() => onConfirmar({
-          cuponIds: elegidos, arancel: n0(v.arancel), ivaArancel: n0(v.ivaArancel), costoFinanciero: n0(v.costoFinanciero), ivaCostoFinanciero: n0(v.ivaCostoFinanciero),
+        <Button disabled={!vigentes.length || dif !== 0 || n0(v.neto) <= 0} loading={enviando} onClick={() => onConfirmar({
+          cuponIds: vigentes, arancel: n0(v.arancel), ivaArancel: n0(v.ivaArancel), costoFinanciero: n0(v.costoFinanciero), ivaCostoFinanciero: n0(v.ivaCostoFinanciero),
           impuestos: impuestos.filter((x) => n0(x.importe) > 0).map((x) => ({ clase: x.clase, tipo: x.tipo, jurisdiccion: x.tipo === 'IIBB' ? x.jurisdiccion || null : null, importe: n0(x.importe) })),
           neto: n0(v.neto), fecha: v.fecha, referencia: v.referencia || null,
         })}>Confirmar liquidación</Button>
