@@ -8,7 +8,10 @@ async function ingresar(page: Page, email: string, password: string) {
   await expect(page.getByText('Estás trabajando en')).toBeVisible();
 }
 
-const hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+// Fecha de hoy en Argentina (la de la API), no la de la máquina que corre la prueba
+const hoy = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(new Date());
+
+test.use({ timezoneId: 'America/Argentina/Buenos_Aires' });
 
 test('sueldos: el contador da de baja a un empleado por despido sin causa, ve la indemnización, cierra y paga', async ({ page }) => {
   await ingresar(page, 'contador@demo.com', 'contador1234');

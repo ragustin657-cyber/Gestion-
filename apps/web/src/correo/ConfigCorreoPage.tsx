@@ -29,7 +29,7 @@ export function FormConfigCorreo({ inicial, onGuardar, enviando }: { inicial: Co
       <Textarea label="Texto del mail" autosize minRows={6} value={v.cuerpo} onChange={(e) => setV({ ...v, cuerpo: e.currentTarget.value })} />
       <Text size="xs" c="dimmed">Variables: {'{cliente}'}, {'{vencido}'}, {'{porVencer}'}, {'{diasAtraso}'}, {'{empresa}'}</Text>
       <Group justify="flex-end">
-        <Button loading={enviando} disabled={!v.servidor || !v.usuario || !v.remitenteEmail || (!inicial.claveCargada && !clave)} onClick={() => onGuardar({ ...v, ...(clave ? { clave } : {}) })}>Guardar</Button>
+        <Button loading={enviando} disabled={!v.servidor.trim() || !v.usuario.trim() || !v.remitenteNombre.trim() || !v.remitenteEmail.trim() || !v.asunto.trim() || !v.cuerpo.trim() || (!inicial.claveCargada && !clave)} onClick={() => onGuardar({ ...v, ...(clave ? { clave } : {}) })}>Guardar</Button>
       </Group>
     </Stack>
   );

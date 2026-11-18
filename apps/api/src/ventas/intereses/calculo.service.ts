@@ -47,15 +47,26 @@ export class InteresesCalculoService {
     const finAnterior = new Date(Date.UTC(anio, mes - 1, 0));
     // Notas de débito de intereses: no generan intereses
     const deIntereses = new Set((await tx.liquidacionInteresesRenglon.findMany({ where: { notaDebitoId: { not: null } }, select: { notaDebitoId: true } })).map((r) => r.notaDebitoId!));
+    // Acotado en la consulta (spec E29): solo movimientos de venta con saldo o con algo aplicado por un crédito posterior al cierre
+    const posteriores = (await tx.$queryRawUnsafe<{ id: string }[]>(`
+      SELECT DISTINCT a."debitoMovId" AS id FROM "AplicacionCobro" a
+      JOIN "MovimientoCuentaCorriente" cr ON cr.id = a."creditoMovId"
+      WHERE a."empresaId" = $1::uuid AND NOT a.anulada AND cr.fecha > $2::date`, this.tenant.empresaId, fin.toISOString().slice(0, 10))).map((r) => r.id);
+    const conPosterior = new Set(posteriores);
+    const movsVenta = await tx.movimientoCuentaCorriente.findMany({
+      where: { origenTipo: 'VENTA', anulado: false, OR: [{ saldo: { gt: 0 } }, ...(posteriores.length ? [{ id: { in: posteriores } }] : [])] },
+    });
+    if (!movsVenta.length) return { tasa: cfg.tasaMensual, renglones: [] };
     const comps = await tx.comprobanteVenta.findMany({
-      where: { estado: 'AUTORIZADO', tipo: { in: ['FACTURA', 'NOTA_DEBITO'] }, fechaVencimiento: { lt: fin }, tercero: { sinIntereses: false, activo: true } },
+      where: { id: { in: movsVenta.map((m) => m.origenId) }, estado: 'AUTORIZADO', tipo: { in: ['FACTURA', 'NOTA_DEBITO'] }, fechaVencimiento: { lt: fin }, tercero: { sinIntereses: false, activo: true } },
       include: { ivas: true, tercero: { select: { razonSocial: true } } },
     });
     const candidatos = comps.filter((c) => !deIntereses.has(c.id));
     if (!candidatos.length) return { tasa: cfg.tasaMensual, renglones: [] };
-    const movs = new Map((await tx.movimientoCuentaCorriente.findMany({ where: { origenTipo: 'VENTA', origenId: { in: candidatos.map((c) => c.id) }, anulado: false } })).map((m) => [m.origenId, m]));
+    const ids = new Set(candidatos.map((c) => c.id));
+    const movs = new Map(movsVenta.filter((m) => ids.has(m.origenId)).map((m) => [m.origenId, m]));
     // Lo aplicado después del cierre (según la fecha del pago o la nota de crédito) vuelve a sumar al saldo
-    const apl = await tx.aplicacionCobro.findMany({ where: { anulada: false, debitoMovId: { in: [...movs.values()].map((m) => m.id) } } });
+    const apl = await tx.aplicacionCobro.findMany({ where: { anulada: false, debitoMovId: { in: [...movs.values()].map((m) => m.id).filter((id) => conPosterior.has(id)) } } });
     const creditos = new Map((apl.length ? await tx.movimientoCuentaCorriente.findMany({ where: { id: { in: [...new Set(apl.map((a) => a.creditoMovId))] } }, select: { id: true, fecha: true } }) : []).map((m) => [m.id, m.fecha]));
     const ya = new Set((await renglonesVigentes(tx, { comprobanteId: { in: candidatos.map((c) => c.id) } })).filter((r) => r.liquidacion.anio === anio && r.liquidacion.mes === mes).map((r) => r.comprobanteId));
     const renglones: RenglonInteres[] = [];

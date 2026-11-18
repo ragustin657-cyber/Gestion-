@@ -14,6 +14,12 @@ import { InteresesCalculoService, nombreComprobante, RenglonInteres } from './ca
 const D = Prisma.Decimal;
 const mm = (anio: number, mes: number) => `${String(mes).padStart(2, '0')}/${anio}`;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** Arma la nota con el esquema de la API; un error de validación es un 400 con su mensaje, no un 500. */
+const validar = (datos: unknown) => {
+  const r = esquemaComprobanteVenta.safeParse(datos);
+  if (!r.success) throw new BadRequestException(r.error.issues[0]?.message ?? 'Datos inválidos');
+  return r.data;
+};
 
 /** Liquidación mensual de intereses por mora: notas de débito por cliente y moneda (spec E27 §5). */
 @Injectable()
@@ -50,7 +56,7 @@ export class LiquidacionesInteresesService {
         const a = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: asociado.comprobanteId }, include: { tercero: { select: { razonSocial: true } } } });
         // Mismo esquema que la API (fechas, importes); la cotización de una nota en dólares es la del día, como en un alta manual.
         // Un error de un grupo nombra al cliente, así el usuario sabe qué destildar
-        const nd = await this.crearNota(a.tercero?.razonSocial ?? asociado.cliente, () => this.comprobantes.crearEnTx(tx, esquemaComprobanteVenta.parse({
+        const nd = await this.crearNota(a.tercero?.razonSocial ?? asociado.cliente, () => this.comprobantes.crearEnTx(tx, validar({
           terceroId: a.terceroId, puntoVentaId: a.puntoVentaId, tipo: 'NOTA_DEBITO', concepto: 'SERVICIOS', fecha, fechaVencimiento: fecha,
           fechaServicioDesde: iso(new Date(Date.UTC(anio, mes - 1, 1))), fechaServicioHasta: iso(new Date(Date.UTC(anio, mes, 0))), fechaVencimientoPago: fecha,
           monedaCodigo: a.monedaCodigo, cotizacion: null, comprobanteAsociadoId: a.id, aplicarAAsociado: false, devuelveMercaderia: false,
@@ -92,6 +98,9 @@ export class LiquidacionesInteresesService {
     const ls = await db.liquidacionIntereses.findMany({ include: { renglones: true }, orderBy: { numero: 'desc' } });
     const notaIds = [...new Set(ls.flatMap((l) => l.renglones.map((r) => r.notaDebitoId).filter((x): x is string => !!x)))];
     const notas = new Map((notaIds.length ? await db.comprobanteVenta.findMany({ where: { id: { in: notaIds } }, include: { tercero: { select: { razonSocial: true } } } }) : []).map((n) => [n.id, n]));
+    // Nota eliminada: el cliente sale del renglón (el comprobante ya no existe)
+    const terceroIds = [...new Set(ls.flatMap((l) => l.renglones.filter((r) => !r.notaDebitoId || !notas.has(r.notaDebitoId)).map((r) => r.terceroId)))];
+    const clientes = new Map((terceroIds.length ? await db.tercero.findMany({ where: { id: { in: terceroIds } }, select: { id: true, razonSocial: true } }) : []).map((t) => [t.id, t.razonSocial]));
     return ls.map((l) => {
       const totales: Record<string, string> = {};
       for (const r of l.renglones) totales[r.monedaCodigo] = new D(totales[r.monedaCodigo] ?? 0).plus(r.interes).toFixed(2);
@@ -103,7 +112,7 @@ export class LiquidacionesInteresesService {
           const rs = l.renglones.filter((r) => r.notaDebitoId === id);
           return n
             ? { id, cliente: n.tercero.razonSocial, monedaCodigo: n.monedaCodigo, total: n.total.toFixed(2), estado: n.estado, numero: n.numero ? nombreComprobante(n) : null }
-            : { id, cliente: '', monedaCodigo: rs[0].monedaCodigo, total: rs.reduce((s, r) => s.plus(r.interes), new D(0)).toFixed(2), estado: 'ELIMINADA', numero: null };
+            : { id, cliente: clientes.get(rs[0].terceroId) ?? '', monedaCodigo: rs[0].monedaCodigo, total: rs.reduce((s, r) => s.plus(r.interes), new D(0)).toFixed(2), estado: 'ELIMINADA', numero: null };
         }),
       };
     });

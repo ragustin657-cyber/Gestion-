@@ -1,7 +1,7 @@
 import { ActionIcon, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconDownload, IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
@@ -56,6 +56,8 @@ export function FormLiquidacion({ cupones, onConfirmar, enviando }: { cupones: C
   const [elegidos, setElegidos] = useState<string[]>([]);
   const [v, setV] = useState({ arancel: '', ivaArancel: '', costoFinanciero: '', ivaCostoFinanciero: '', neto: '', fecha: hoy(), referencia: '' });
   const [impuestos, setImpuestos] = useState<ImpuestoEditable[]>([]);
+  // Un cupón que sale de la lista (p. ej. al refrescar) se destilda: si vuelve, no reaparece tildado
+  useEffect(() => { setElegidos((x) => (x.every((id) => cupones.some((c) => c.id === id)) ? x : x.filter((id) => cupones.some((c) => c.id === id)))); }, [cupones]);
   // Solo cuentan los tildados que siguen pendientes (un refresco puede sacar los que ya se liquidaron)
   const vigentes = elegidos.filter((id) => cupones.some((c) => c.id === id));
   const bruto = cupones.filter((c) => vigentes.includes(c.id)).reduce((s, c) => s + Number(c.importe), 0);
