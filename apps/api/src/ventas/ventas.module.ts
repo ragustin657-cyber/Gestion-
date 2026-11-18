@@ -1,3 +1,5 @@
+import { InteresesController } from './intereses/intereses.controller';
+import { ConfigInteresesService } from './intereses/config.service';
 import { AgendaCobranzasService } from './cobranzas/agenda.service';
 import { CobranzasController } from './cobranzas/cobranzas.controller';
 import { GestionesService } from './cobranzas/gestiones.service';
@@ -28,8 +30,8 @@ import { DatosVentasController } from './consultas/datos-ventas.controller';
 
 @Module({
   imports: [ArcaModule, SueldosModule],
-  controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController, CobranzasController],
-  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService],
+  controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController, CobranzasController, InteresesController],
+  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService, ConfigInteresesService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}

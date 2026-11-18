@@ -27,6 +27,7 @@ const base = z.object({
   activo: z.boolean().optional(),
   listaPreciosId: z.string().uuid('Valor inválido').nullish(),
   vendedorId: z.string().uuid('Valor inválido').nullish(),
+  sinIntereses: z.boolean().optional(),
 });
 
 const tipo = (t: { esProveedor?: boolean; esCliente?: boolean }) => t.esProveedor || t.esCliente;

@@ -24,7 +24,7 @@ const ROLES: Record<string, Permiso[]> = {
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar', 'tesoreria.tarjetas', 'cobranzas.gestionar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
   Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar', 'stock.ver', 'stock.operar', 'informes.ver', 'bienes.ver', 'bienes.gestionar', 'presupuesto.ver', 'presupuesto.editar', 'sueldos.ver', 'sueldos.liquidar'],
-  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver', 'precios.editar', 'pedido.gestionar'],
+  Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver', 'precios.editar', 'pedido.gestionar', 'intereses.liquidar'],
 };
 
 /** Proveedores demo: razón social, CUIT y régimen de Ganancias (null: sin retención). */
@@ -130,6 +130,8 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
     for (const [razonSocial, cuit] of CLIENTES)
       await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial, cuit, condicionIva: cuit.startsWith('27') ? 'CONSUMIDOR_FINAL' : 'RESPONSABLE_INSCRIPTO', esCliente: true, diasPago: 15 } });
     await tx.tercero.create({ data: { empresaId: e, codigo: ++codigo, razonSocial: 'Consumidor Final', cuit: 'Consumidor final', tipoDocumento: 'OTRO', condicionIva: 'CONSUMIDOR_FINAL', esCliente: true } });
+    // Intereses por mora de la demo (E27): 5 % mensual
+    await tx.configIntereses.create({ data: { empresaId: e, tasaMensual: 5 } });
     // Vendedor externo de la demo (E24): una consultora que factura su comisión, vendedora habitual de Supermercados Litoral
     const consultora = await tx.tercero.findFirstOrThrow({ where: { empresaId: e, razonSocial: 'Consultora Delta S.R.L.' } });
     const vendedor = await tx.vendedor.create({ data: { empresaId: e, nombre: 'Consultora Delta', tipo: 'EXTERNO', porcentaje: 5, proveedorId: consultora.id } });
