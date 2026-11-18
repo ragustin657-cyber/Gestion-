@@ -41,7 +41,7 @@ test('intereses: el administrador configura la tasa, liquida el mes anterior y v
 
   // 1. Un cliente propio (no lo usa ninguna otra prueba)
   const nombre = `Cliente Intereses ${Date.now().toString().slice(-6)}`;
-  await page.goto('/maestros/proveedores-clientes');
+  await page.goto('/maestros/terceros');
   await page.getByRole('button', { name: 'Nuevo' }).click();
   const dlg = page.getByRole('dialog');
   await dlg.getByLabel('Razón social').fill(nombre);
