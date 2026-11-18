@@ -29,6 +29,17 @@ describe('LSD: conceptos', () => {
     expect([r.status, r.body.codigoArca]).toEqual([201, '160000']);
   });
 
+  it('revisión: códigos reservados para los renglones del cálculo', async () => {
+    const s = await prepararSueldos(app, prisma);
+    for (const codigo of ['200', '201', '310']) {
+      const r = await s.http.post('/api/sueldos/conceptos', { codigo, nombre: 'Premio', clase: 'REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 100 }, orden: 900 });
+      expect([r.status, r.body.message]).toEqual([400, `El código ${codigo} está reservado para los renglones del cálculo (SAC y liquidación final)`]);
+    }
+    const c = (await conceptos(s)).find((x) => x.codigo === '110')!;
+    const r = await s.http.put(`/api/sueldos/conceptos/${c.id}`, { codigo: '300', nombre: 'Antigüedad', clase: c.clase, tipo: c.tipo, parametros: c.parametros, orden: c.orden, destino: c.destino });
+    expect(r.status).toBe(400);
+  });
+
   it('código fuera de rango', async () => {
     const s = await prepararSueldos(app, prisma);
     const c = (await conceptos(s)).find((x) => x.codigo === '110')!;

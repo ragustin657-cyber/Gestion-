@@ -29,15 +29,19 @@ export class LsdService {
     return { nombre: 'LSD-conceptos.txt', contenido: archivo(datos.map((d) => linea(REG_CONCEPTO, d))) };
   }
 
-  /** Fija el primer número del Libro de una liquidación que todavía no lo tiene (spec E30 §5). */
+  /**
+   * Fija o cambia el número del Libro de una liquidación (spec E30 §5; revisión: también si ya tenía uno, p. ej. porque ARCA
+   * ya tenía ese número). Siempre mayor que el de las demás liquidaciones del período, así los números nunca bajan.
+   */
   async fijarNumero(id: string, numero: number) {
     if (!Number.isInteger(numero) || numero < 1 || numero > 99999) throw new BadRequestException('Número inválido');
     return this.tenant.transaccion(async (tx) => {
       const l = await tx.liquidacion.findUnique({ where: { id } });
       if (!l) throw new NotFoundException('Liquidación inexistente');
+      // Se decide con los datos leídos después del bloqueo (una descarga simultánea pudo asignar un número)
       await this.bloquear(tx, l.anio, l.mes);
-      if (l.numeroLsd !== null) throw new BadRequestException('La liquidación ya tiene número del Libro');
-      if (await tx.liquidacion.findFirst({ where: { anio: l.anio, mes: l.mes, numeroLsd: numero } })) throw new BadRequestException(`El número ${numero} ya está usado en el período`);
+      const max = (await tx.liquidacion.aggregate({ where: { anio: l.anio, mes: l.mes, id: { not: id } }, _max: { numeroLsd: true } }))._max.numeroLsd ?? 0;
+      if (numero <= max) throw new BadRequestException(`El número del Libro debe ser mayor que ${max}, el último del período`);
       await tx.liquidacion.update({ where: { id }, data: { numeroLsd: numero } });
       return { numeroLsd: numero };
     });
@@ -80,13 +84,15 @@ export class LsdService {
       const esSac = l.tipo === 'SAC';
       const esFinal = l.tipo === 'FINAL';
       const lineas: string[] = [linea(REG01, { cuit: empresa.cuit.replace(/\D/g, ''), periodo: `${l.anio}${String(l.mes).padStart(2, '0')}`, numero, cantidad04: recibos.length })];
+      // Todos los empleados sin CBU en un solo error (revisión: no de a uno por intento)
+      const sinCbu = recibos.filter((r) => { const e = empleados.get(r.empleadoId)!; return (r.formaPago ?? e.formaPago) === 'TRANSFERENCIA' && !/^\d{22}$/.test((e.cbu ?? '').trim()); });
+      if (sinCbu.length) throw new BadRequestException(`${sinCbu.map((r) => `${r.apellido}, ${r.nombre}`).join('; ')}: falta el CBU (22 dígitos) para la acreditación en cuenta`);
       for (const r of recibos) {
         const e = empleados.get(r.empleadoId)!;
         const quien = `${r.apellido}, ${r.nombre}`;
         try {
           const forma = r.formaPago ?? e.formaPago;
           const cbu = (e.cbu ?? '').trim();
-          if (forma === 'TRANSFERENCIA' && !/^\d{22}$/.test(cbu)) throw new Error('falta el CBU (22 dígitos) para la acreditación en cuenta');
           const ingresoEnMes = e.fechaIngreso >= ini;
           lineas.push(linea(REG02, {
             cuil: r.cuil.replace(/\D/g, ''), legajo: String(r.legajo), dependencia: e.sucursalId ? sucursales.get(e.sucursalId) ?? '' : '', cbu: forma === 'TRANSFERENCIA' ? cbu : '',

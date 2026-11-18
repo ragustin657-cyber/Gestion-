@@ -6,7 +6,7 @@ import { filasCsv, numeroAR } from '../comun/csv';
 import { NumeracionService } from '../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { DatosConcepto, DatosEmpleado } from './dto';
-import { codigoArcaPorDefecto, validarCodigoArca } from './lsd-conceptos';
+import { codigoArcaPorDefecto, RENGLONES_FIJOS, validarCodigoArca } from './lsd-conceptos';
 
 const D = Prisma.Decimal;
 const dia = (f: Date | null) => (f ? f.toISOString().slice(0, 10) : null);
@@ -195,6 +195,7 @@ export class MaestrosSueldosService {
 
   async crearConcepto(d: DatosConcepto) {
     if (await this.tenant.db.concepto.findFirst({ where: { codigo: d.codigo } })) throw new BadRequestException(`Ya existe el concepto ${d.codigo}`);
+    this.validarCodigoLibre(d.codigo);
     await this.validarCuentaConcepto(d.cuentaContableId);
     const codigoArca = d.codigoArca || codigoArcaPorDefecto(d);
     this.validarArca(codigoArca, d.clase);
@@ -204,6 +205,7 @@ export class MaestrosSueldosService {
   async modificarConcepto(id: string, d: DatosConcepto) {
     const actual = await this.tenant.db.concepto.findUnique({ where: { id } });
     if (!actual) throw new NotFoundException('Concepto inexistente');
+    if (d.codigo !== actual.codigo) this.validarCodigoLibre(d.codigo);
     if (await this.tenant.db.configuracionSueldos.findFirst({ where: { conceptoComisionesId: id } })) {
       // Solo se bloquea pasar de activo a inactivo (uno que ya estaba inactivo se puede editar), E29 §2.2
       if (actual.activo && d.activo === false)
@@ -217,6 +219,11 @@ export class MaestrosSueldosService {
     const codigoArca = d.codigoArca || (validarCodigoArca(actual.codigoArca, d.clase) ? codigoArcaPorDefecto(d) : actual.codigoArca);
     this.validarArca(codigoArca, d.clase);
     return this.tenant.db.concepto.update({ where: { id }, data: { ...d, codigoArca, parametros: d.parametros as Prisma.InputJsonValue } });
+  }
+
+  /** Los códigos de los renglones fijos del cálculo (SAC y final) no se usan en conceptos: chocarían en el Libro (revisión E30). */
+  private validarCodigoLibre(codigo: string) {
+    if (RENGLONES_FIJOS.some((r) => r.codigo === codigo.trim())) throw new BadRequestException(`El código ${codigo.trim()} está reservado para los renglones del cálculo (SAC y liquidación final)`);
   }
 
   private validarArca(codigo: string, clase: DatosConcepto['clase']) {

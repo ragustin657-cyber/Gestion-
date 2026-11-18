@@ -44,3 +44,22 @@ describe('Libro de Sueldos Digital (web)', () => {
     expect(screen.queryByRole('button', { name: 'Libro de Sueldos Digital' })).toBeNull();
   });
 });
+
+describe('revisión E30: fijar el número del Libro', () => {
+  it('pide el número y lo informa', () => {
+    const fijar = vi.fn();
+    const prompt = vi.spyOn(window, 'prompt').mockReturnValue('7');
+    envolver(<AccionesLibro estado="CERRADA" numeroLsd={2} onDescargar={() => undefined} onFijarNumero={fijar} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar número' }));
+    expect(fijar).toHaveBeenCalledWith(7);
+    prompt.mockReturnValue(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar número' }));
+    expect(fijar).toHaveBeenCalledTimes(1);
+    prompt.mockRestore();
+  });
+
+  it('sin permiso no muestra el botón', () => {
+    envolver(<AccionesLibro estado="CERRADA" numeroLsd={2} onDescargar={() => undefined} />);
+    expect(screen.queryByRole('button', { name: 'Fijar número' })).toBeNull();
+  });
+});

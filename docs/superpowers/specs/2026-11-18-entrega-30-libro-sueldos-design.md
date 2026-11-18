@@ -273,7 +273,7 @@ Por eso cada archivo informa los importes de su propia liquidación y no los acu
 - con un bloqueo por empresa y período, para que dos descargas simultáneas no tomen el mismo número;
 - después no cambia, aunque se reabra y se vuelva a cerrar. Así una liquidación ya presentada conserva su número y una nueva siempre tiene uno mayor.
 
-Si ARCA ya tiene cargada otra liquidación con ese número (por ejemplo, cargada a mano), el contador puede fijar el primer número del período: `PUT /api/sueldos/liquidaciones/:id/numero-lsd` con `{ numero }` (`sueldos.liquidar`). Solo se permite mientras la liquidación no tenga número asignado.
+Si ARCA ya tiene cargada otra liquidación con ese número (por ejemplo, cargada a mano), el contador puede fijar el número: `PUT /api/sueldos/liquidaciones/:id/numero-lsd` con `{ numero }` (`sueldos.liquidar`), desde el botón *Fijar número* de la liquidación. Se permite aunque ya tenga uno (según la revisión), siempre que sea mayor que el de las demás liquidaciones del período; si no: 400 `El número del Libro debe ser mayor que N, el último del período`.
 
 ## 6. Descarga
 
@@ -322,6 +322,11 @@ No hay permisos nuevos. Descargar requiere `sueldos.ver`; fijar el número requi
 - cada archivo con los importes de su liquidación (§4.4);
 - un número del Libro persistente, asignado en la primera descarga (§5);
 - registros 05 y 06 fuera.
+
+**Del builder, según la revisión final:**
+- el número del Libro se puede fijar o cambiar desde la web, siempre por encima del último del período (§5);
+- los códigos 200, 201 y 300 a 340 quedan reservados para los renglones del cálculo y no se usan en conceptos;
+- los empleados sin CBU se informan todos juntos en un solo error.
 
 **Del builder, según la revisión:**
 - el SAC repite los días trabajados de la mensual (§4.4);

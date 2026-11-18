@@ -148,8 +148,41 @@ describe('LSD: archivo de la liquidación', () => {
     await x.cerrar(l.id);
     expect((await x.http.put(`/api/sueldos/liquidaciones/${l.id}/numero-lsd`, { numero: 5 })).status).toBe(200);
     expect(x.lineas((await x.lsd(l.id)).body as Buffer)[0].slice(22, 27)).toBe('00005');
-    const r = await x.http.put(`/api/sueldos/liquidaciones/${l.id}/numero-lsd`, { numero: 6 });
-    expect([r.status, r.body.message]).toEqual([400, 'La liquidación ya tiene número del Libro']);
+    // Revisión: se puede cambiar después (ARCA ya tenía ese número), siempre hacia arriba de las demás del período
+    expect((await x.http.put(`/api/sueldos/liquidaciones/${l.id}/numero-lsd`, { numero: 7 })).status).toBe(200);
+    expect(x.lineas((await x.lsd(l.id)).body as Buffer)[0].slice(22, 27)).toBe('00007');
+  });
+
+  it('revisión: el número fijado supera al de las demás liquidaciones del período', async () => {
+    const x = await escenario();
+    await x.http.put('/api/sueldos/parametros', { anio: 2026, mes: 12, baseMaximaAportes: 1000000, detraccion: 7003.68 });
+    await x.cerrar((await x.crear('MENSUAL', 2026, 11)).id);
+    const m = await x.crear('MENSUAL', 2026, 12);
+    await x.cerrar(m.id);
+    const sac = await x.crear('SAC', 2026, 12);
+    await x.cerrar(sac.id);
+    expect((await x.http.put(`/api/sueldos/liquidaciones/${m.id}/numero-lsd`, { numero: 5 })).status).toBe(200);
+    const r = await x.http.put(`/api/sueldos/liquidaciones/${sac.id}/numero-lsd`, { numero: 3 });
+    expect([r.status, r.body.message]).toEqual([400, 'El número del Libro debe ser mayor que 5, el último del período']);
+    expect((await x.http.put(`/api/sueldos/liquidaciones/${sac.id}/numero-lsd`, { numero: 6 })).status).toBe(200);
+  });
+
+  it('revisión: fijar el número mientras se descarga no cambia el número del archivo', async () => {
+    const x = await escenario();
+    await x.http.put('/api/sueldos/parametros', { anio: 2026, mes: 12, baseMaximaAportes: 1000000, detraccion: 7003.68 });
+    const ids: string[] = [];
+    for (const [tipo, mes] of [['MENSUAL', 11], ['MENSUAL', 12], ['SAC', 12]] as const) { const l = await x.crear(tipo, 2026, mes); await x.cerrar(l.id); ids.push(l.id); }
+    for (const [i, id] of ids.entries()) {
+      const l = { id };
+      const [d, p] = await Promise.all([x.lsd(l.id), x.http.put(`/api/sueldos/liquidaciones/${l.id}/numero-lsd`, { numero: 20 + i * 10 })]);
+      const enArchivo = Number(x.lineas(d.body as Buffer)[0].slice(22, 27));
+      const guardado = (await prisma.liquidacion.findUniqueOrThrow({ where: { id: l.id } })).numeroLsd;
+      // O el PUT ganó (archivo y base con 9), o la descarga ganó y el PUT fijó 9 > 1 después: nunca el archivo con un número y la base con otro sin que el PUT lo informe
+      // El PUT solo puede ganar o fijarse después si lo informa con 200; si respondió 400, la base conserva el número del archivo
+      if (p.status === 200) expect(guardado).toBe(20 + i * 10);
+      else expect(guardado).toBe(enArchivo);
+      expect([200, 400]).toContain(p.status);
+    }
   });
 
   it('no cerrada', async () => {
@@ -165,6 +198,17 @@ describe('LSD: archivo de la liquidación', () => {
     await x.cerrar(f.id);
     const r = await x.http.get(`/api/sueldos/liquidaciones/${f.id}/lsd`);
     expect([r.status, r.body.message]).toEqual([400, 'Pérez, Juan 1: falta el CBU (22 dígitos) para la acreditación en cuenta']);
+  });
+
+  it('revisión: informa todos los empleados sin CBU juntos', async () => {
+    const x = await escenario({});
+    await x.empleado({});
+    const l = await x.crear('MENSUAL', 2026, 11);
+    await x.cerrar(l.id);
+    const r = await x.http.get(`/api/sueldos/liquidaciones/${l.id}/lsd`);
+    expect([r.status, r.body.message]).toEqual([400, 'Pérez, Juan 1; Pérez, Juan 2: falta el CBU (22 dígitos) para la acreditación en cuenta']);
+    // Un 400 no gasta número
+    expect((await prisma.liquidacion.findUniqueOrThrow({ where: { id: l.id } })).numeroLsd).toBeNull();
   });
 
   it('permisos', async () => {
