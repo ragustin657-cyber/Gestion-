@@ -56,7 +56,7 @@ describe('correo: configuración', () => {
     const s = await sesionConPlan(app, prisma);
     await s.http.put('/api/correo/configuracion', datos({ clave: 'secreta' }));
     expect((await s.http.post('/api/correo/prueba', { destinatario: 'a@b.com' })).status).toBe(201);
-    expect(transporte.enviados.map((m) => [m.para, m.de])).toEqual([['a@b.com', '"Cobranzas Demo" <cobranzas@demo.com>']]);
+    expect(transporte.enviados.map((m) => [m.para, m.de])).toEqual([['a@b.com', { nombre: 'Cobranzas Demo', email: 'cobranzas@demo.com' }]]);
     transporte.fallarPara.add('x@y.com');
     const r = await s.http.post('/api/correo/prueba', { destinatario: 'x@y.com' });
     expect(r.status).toBe(400);
@@ -73,5 +73,15 @@ describe('correo: configuración', () => {
     const s = await sesionConPlan(app, prisma);
     const u = await otroUsuario(app, prisma, s.empresaId, ['cobranzas.gestionar']);
     expect((await u.http.get('/api/correo/configuracion')).status).toBe(403);
+  });
+
+  it('revisión: no se permite apuntar a la red interna ni a puertos que no son de correo', async () => {
+    const s = await sesionConPlan(app, prisma);
+    for (const servidor of ['127.0.0.1', '10.0.0.5', '169.254.169.254', 'localhost', '192.168.1.10']) {
+      const r = await s.http.put('/api/correo/configuracion', datos({ servidor, clave: 'x' }));
+      expect([servidor, r.status, r.body.message]).toEqual([servidor, 400, 'Servidor de correo no permitido: use un servidor público']);
+    }
+    const p = await s.http.put('/api/correo/configuracion', datos({ puerto: 5432, clave: 'x' }));
+    expect(p.status).toBe(400);
   });
 });

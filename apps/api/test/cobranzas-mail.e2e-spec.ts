@@ -39,7 +39,7 @@ describe('cobranzas: resumen por mail', () => {
     const r = await x.http.post(`/api/ventas/cobranzas/${x.clienteRI.id}/mail`, { cuerpo: 'Hola {cliente}, adjuntamos el resumen.' });
     expect([r.status, r.body.destinatario]).toEqual([201, 'cobranzas@norte.com']);
     const [m] = transporte.enviados;
-    expect([m.para, m.texto, m.de, m.adjuntos.map((a) => a.nombre)]).toEqual(['cobranzas@norte.com', 'Hola Distribuidora Norte SA, adjuntamos el resumen.', '"Cobranzas Demo" <cobranzas@demo.com>', ['resumen-de-cuenta-distribuidora-norte-sa.pdf']]);
+    expect([m.para, m.texto, m.de, m.adjuntos.map((a) => a.nombre)]).toEqual(['cobranzas@norte.com', 'Hola Distribuidora Norte SA, adjuntamos el resumen.', { nombre: 'Cobranzas Demo', email: 'cobranzas@demo.com' }, ['resumen-de-cuenta-distribuidora-norte-sa.pdf']]);
     expect(m.adjuntos[0].contenido.subarray(0, 4).toString()).toBe('%PDF');
     const g = await x.gestiones();
     expect(g.map((y) => [y.medio, y.nota])).toEqual([['MAIL', 'Resumen de cuenta enviado a cobranzas@norte.com']]);
@@ -95,5 +95,34 @@ describe('cobranzas: resumen por mail', () => {
     const x = await escenario();
     const u = await otroUsuario(app, prisma, x.empresaId, ['venta.ver']);
     expect((await u.http.post(`/api/ventas/cobranzas/${x.clienteRI.id}/mail`, {})).status).toBe(403);
+  });
+
+  it('revisión: un error de conexión corta el envío masivo', async () => {
+    const x = await escenario();
+    const otro = await x.cliente('Otro SA', '30-71234567-1', 'otro@x.com');
+    await x.factura({ terceroId: otro.id, fecha: '2026-10-01', fechaVencimiento: '2026-10-31' });
+    transporte.fallaConexion = true;
+    transporte.intentos = 0;
+    try {
+      const r = await x.http.post('/api/ventas/cobranzas/mail', { terceroIds: [x.clienteRI.id, otro.id] });
+      expect(r.status).toBe(201);
+      expect(r.body.enviados).toEqual([]);
+      expect((r.body.omitidos as { motivo: string }[]).map((o) => o.motivo)).toEqual(['No se pudo conectar con el servidor de correo', 'No se pudo conectar con el servidor de correo']);
+      expect(transporte.intentos).toBe(1);
+    } finally {
+      transporte.fallaConexion = false;
+    }
+  });
+
+  it('revisión: si el mail salió pero no se pudo registrar la gestión, se informa como enviado', async () => {
+    const x = await escenario();
+    await prisma.$executeRawUnsafe(`ALTER TABLE "GestionCobranza" ADD CONSTRAINT prueba_falla CHECK (nota NOT LIKE 'Resumen%') NOT VALID`);
+    try {
+      const r = await x.http.post(`/api/ventas/cobranzas/${x.clienteRI.id}/mail`, {});
+      expect([r.status, r.body.destinatario, r.body.aviso]).toEqual([201, 'cobranzas@norte.com', 'El mail se envió, pero no se pudo registrar la gestión']);
+      expect(transporte.enviados).toHaveLength(1);
+    } finally {
+      await prisma.$executeRawUnsafe(`ALTER TABLE "GestionCobranza" DROP CONSTRAINT prueba_falla`);
+    }
   });
 });

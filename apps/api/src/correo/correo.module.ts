@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigCorreoService } from './config-correo.service';
 import { CorreoController } from './correo.controller';
-import { TransporteCorreo, TransporteMemoria, TransporteSmtp } from './transporte';
+import { crearTransporte, TransporteCorreo } from './transporte';
 
 @Module({
   controllers: [CorreoController],
-  providers: [ConfigCorreoService, { provide: TransporteCorreo, useClass: process.env.TRANSPORTE_CORREO === 'prueba' ? TransporteMemoria : TransporteSmtp }],
+  providers: [ConfigCorreoService, { provide: TransporteCorreo, useFactory: crearTransporte }],
   exports: [ConfigCorreoService, TransporteCorreo],
 })
 export class CorreoModule {}
