@@ -47,14 +47,15 @@ export class LiquidacionesInteresesService {
       for (const rs of grupos.values()) {
         // Asociada a la factura vencida más vieja del grupo (ARCA exige un comprobante asociado)
         const asociado = [...rs].sort((a, b) => a.fechaComprobante.getTime() - b.fechaComprobante.getTime() || a.numeroComprobante - b.numeroComprobante)[0];
-        const a = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: asociado.comprobanteId } });
-        // Mismo esquema que la API: valida y transforma (fechas, importes) como un alta normal
-        const nd = await this.comprobantes.crearEnTx(tx, esquemaComprobanteVenta.parse({
+        const a = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: asociado.comprobanteId }, include: { tercero: { select: { razonSocial: true } } } });
+        // Mismo esquema que la API (fechas, importes); la cotización de una nota en dólares es la del día, como en un alta manual.
+        // Un error de un grupo nombra al cliente, así el usuario sabe qué destildar
+        const nd = await this.crearNota(a.tercero?.razonSocial ?? asociado.cliente, () => this.comprobantes.crearEnTx(tx, esquemaComprobanteVenta.parse({
           terceroId: a.terceroId, puntoVentaId: a.puntoVentaId, tipo: 'NOTA_DEBITO', concepto: 'SERVICIOS', fecha, fechaVencimiento: fecha,
           fechaServicioDesde: iso(new Date(Date.UTC(anio, mes - 1, 1))), fechaServicioHasta: iso(new Date(Date.UTC(anio, mes, 0))), fechaVencimientoPago: fecha,
-          monedaCodigo: a.monedaCodigo, cotizacion: a.monedaCodigo === 'ARS' ? null : Number(a.cotizacion), comprobanteAsociadoId: a.id, aplicarAAsociado: false, devuelveMercaderia: false,
+          monedaCodigo: a.monedaCodigo, cotizacion: null, comprobanteAsociadoId: a.id, aplicarAAsociado: false, devuelveMercaderia: false,
           renglones: rs.map((r) => ({ origen: 'DIRECTO' as const, descripcion: `${cfg.descripcion} ${r.comprobante} (${r.dias} días)`, cantidad: 1, precioUnitario: Number(r.interes), alicuota: r.alicuota === 'EXENTO' ? 'EXENTO' : Number(r.alicuota) })),
-        }), { cuentaContableId: cuenta, sinVendedor: true });
+        }), { cuentaContableId: cuenta, sinVendedor: true }));
         await tx.liquidacionInteresesRenglon.createMany({
           data: rs.map((r) => ({ empresaId: this.tenant.empresaId, liquidacionId: liq.id, comprobanteId: r.comprobanteId, terceroId: r.terceroId, monedaCodigo: r.monedaCodigo, saldo: r.saldo, dias: r.dias, interes: r.interes, alicuota: r.alicuota, notaDebitoId: nd.id })),
         });
@@ -75,6 +76,15 @@ export class LiquidacionesInteresesService {
       resultado.push({ ...n, total: c.total.toFixed(2), estado: c.estado, ...(mensaje || c.ultimoError ? { mensaje: mensaje ?? c.ultimoError } : {}) });
     }
     return { id: creadas.liq.id, numero: creadas.liq.numero, notas: resultado };
+  }
+
+  private async crearNota<T>(cliente: string, f: () => Promise<T>): Promise<T> {
+    try {
+      return await f();
+    } catch (e) {
+      if (e instanceof BadRequestException) throw new BadRequestException(`${cliente}: ${e.message}`);
+      throw e;
+    }
   }
 
   async listar() {

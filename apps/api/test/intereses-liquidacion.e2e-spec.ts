@@ -29,6 +29,7 @@ describe('intereses: liquidación', () => {
     const vieja = await x.octubre();
     await x.octubre({ fecha: '2026-10-05' });
     const usd = await x.octubre({ monedaCodigo: 'USD', cotizacion: 1000, renglones: [{ descripcion: 'Servicio', cantidad: 1, precioUnitario: 100, alicuota: 'EXENTO' }] });
+    await x.cotizacionUsd('2026-11-06', 1050);
     const r = await x.liquidar();
     expect(r.status).toBe(201);
     const notas = r.body.notas as Nota[];
@@ -110,5 +111,57 @@ describe('intereses: liquidación', () => {
     await x.octubre();
     const u = await otroUsuario(app, prisma, x.empresaId, ['intereses.liquidar']);
     expect((await x.liquidar({}, u.http)).status).toBe(201);
+  });
+
+  it('revisión: la nota en dólares usa la cotización del día', async () => {
+    const x = await escenario();
+    await x.octubre({ monedaCodigo: 'USD', cotizacion: 1000, renglones: [{ descripcion: 'Servicio', cantidad: 1, precioUnitario: 100, alicuota: 'EXENTO' }] });
+    await x.cotizacionUsd('2026-11-06', 1100);
+    const n = ((await x.liquidar()).body.notas as Nota[])[0];
+    expect((await prisma.comprobanteVenta.findUniqueOrThrow({ where: { id: n.id } })).cotizacion.toFixed(0)).toBe('1100');
+  });
+
+  it('revisión: un cliente inactivo no se liquida ni traba al resto', async () => {
+    const x = await escenario();
+    await x.octubre();
+    const otro = (await x.http.post('/api/terceros', { esCliente: true, razonSocial: 'Otro SA', cuit: '30-71234567-1', condicionIva: 'RESPONSABLE_INSCRIPTO' })).body as { id: string };
+    await x.octubre({ terceroId: otro.id });
+    await prisma.tercero.update({ where: { id: x.clienteRI.id }, data: { activo: false } });
+    expect((await x.grupos()).length).toBe(1);
+    const r = await x.liquidar();
+    expect(r.status).toBe(201);
+    expect((r.body.notas as Nota[]).map((n) => n.terceroId)).toEqual([otro.id]);
+  });
+
+  it('revisión: nota rechazada bloquea hasta eliminarla', async () => {
+    const x = await escenario();
+    await x.octubre();
+    const n = ((await x.liquidar()).body.notas as Nota[])[0];
+    await prisma.comprobanteVenta.update({ where: { id: n.id }, data: { estado: 'RECHAZADO', numero: null, cae: null } });
+    await prisma.movimientoCuentaCorriente.deleteMany({ where: { origenTipo: 'VENTA', origenId: n.id } });
+    expect(await x.grupos()).toEqual([]);
+    expect((await x.http.delete(`/api/ventas/comprobantes/${n.id}`)).status).toBeLessThan(300);
+    expect((await x.grupos()).length).toBe(1);
+    const [l] = (await x.http.get('/api/ventas/intereses/liquidaciones')).body as { notas: { estado: string; cliente: string }[] }[];
+    expect(l.notas[0].estado).toBe('ELIMINADA');
+  });
+
+  it('revisión: una nota de crédito parcial no libera el mes', async () => {
+    const x = await escenario();
+    await x.octubre();
+    const n = ((await x.liquidar()).body.notas as Nota[])[0];
+    expect((await x.http.post('/api/ventas/comprobantes', x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: n.id, renglones: [{ descripcion: 'Parcial', cantidad: 1, precioUnitario: 10, alicuota: 21 }], emitir: true }))).status).toBe(201);
+    expect(await x.grupos()).toEqual([]);
+  });
+
+  it('revisión: las notas de intereses no generan intereses', async () => {
+    const x = await escenario();
+    await x.octubre();
+    const n = ((await x.liquidar()).body.notas as Nota[])[0];
+    // La nota de intereses, vencida en octubre (simulado), no es candidata en ese mes
+    await prisma.comprobanteVenta.update({ where: { id: n.id }, data: { fecha: new Date('2026-10-01'), fechaVencimiento: new Date('2026-10-05') } });
+    await prisma.liquidacionInteresesRenglon.deleteMany({ where: { notaDebitoId: { not: n.id } } });
+    const ids = (await x.grupos()).flatMap((g) => g.renglones.map((r) => r.comprobanteId));
+    expect(ids).not.toContain(n.id);
   });
 });

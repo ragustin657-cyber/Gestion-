@@ -48,7 +48,7 @@ export class InteresesCalculoService {
     // Notas de débito de intereses: no generan intereses
     const deIntereses = new Set((await tx.liquidacionInteresesRenglon.findMany({ where: { notaDebitoId: { not: null } }, select: { notaDebitoId: true } })).map((r) => r.notaDebitoId!));
     const comps = await tx.comprobanteVenta.findMany({
-      where: { estado: 'AUTORIZADO', tipo: { in: ['FACTURA', 'NOTA_DEBITO'] }, fechaVencimiento: { lt: fin }, tercero: { sinIntereses: false } },
+      where: { estado: 'AUTORIZADO', tipo: { in: ['FACTURA', 'NOTA_DEBITO'] }, fechaVencimiento: { lt: fin }, tercero: { sinIntereses: false, activo: true } },
       include: { ivas: true, tercero: { select: { razonSocial: true } } },
     });
     const candidatos = comps.filter((c) => !deIntereses.has(c.id));
