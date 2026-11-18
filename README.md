@@ -297,6 +297,13 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Promesas:** se cumplen solas cuando lo cobrado desde la gestión (recibos e ingresos de valores, menos los cheques rechazados) alcanza lo prometido; vencida la fecha sin alcanzarlo quedan incumplidas. Una promesa nueva reemplaza a la anterior.
 - La deuda sale de la cuenta corriente (en pesos): no se toca ningún recibo ni cobro. Las gestiones no se editan y solo se eliminan el mismo día.
 
+## Intereses por mora (Entrega 27)
+
+- **Configuración** (*Ventas → Intereses por mora*, permiso `intereses.liquidar`): tasa mensual fija y descripción del renglón. Un cliente se puede marcar "Sin intereses por mora" en su ficha.
+- **Cálculo de un mes terminado:** cada factura o nota de débito vencida con saldo al fin de mes paga `saldo × tasa × días de atraso dentro del mes / 30` (interés simple, en la moneda de la factura). Lo pagado después del cierre (según la fecha del pago) no achica el saldo de ese mes.
+- **Liquidación:** se tildan o destildan clientes y facturas; al confirmar se emite una nota de débito por cliente y moneda, asociada a su factura vencida más vieja, con un renglón por factura. El interés es el neto y lleva encima el IVA de la factura de origen; va a la cuenta *4.2.02 Intereses ganados* (concepto `INTERESES_GANADOS`) y sin vendedor (no genera comisión).
+- Un mes no se factura dos veces: la factura queda libre solo si su nota se elimina sin autorizar o se cancela con notas de crédito. Las notas de intereses no se modifican; las que fallan en ARCA se reintentan o eliminan desde *Comprobantes de venta*.
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
