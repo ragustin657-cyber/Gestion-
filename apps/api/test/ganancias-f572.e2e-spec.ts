@@ -1,14 +1,9 @@
 import { INestApplication } from '@nestjs/common';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase, otroUsuario } from './helpers';
+import { f572 } from './helpers-ganancias';
 import { prepararSueldos } from './helpers-sueldos';
-
-const PLANTILLA = readFileSync(join(__dirname, 'fixtures/f572-ejemplo.xml'), 'utf8');
-export const f572 = (o: { cuil?: string; cuit?: string; nro?: number; extra?: string } = {}) =>
-  PLANTILLA.replace('{CUIL}', o.cuil ?? '20172543597').replace('{CUIT}', o.cuit ?? '30712345671').replace('{NRO}', String(o.nro ?? 1)).replace('{EXTRA}', o.extra ?? '');
 
 describe('ganancias: F.572 web', () => {
   let app: INestApplication;

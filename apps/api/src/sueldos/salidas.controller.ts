@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Param, ParseUUIDPipe, Query, Res, StreamableFile } from '@nestjs/common';
+import { BadRequestException, NotFoundException, Controller, Get, Param, ParseUUIDPipe, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
 import ExcelJS from 'exceljs';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
@@ -7,6 +7,8 @@ import { TenantPrisma } from '../prisma/tenant-prisma.service';
 import { LiquidacionesService } from './liquidaciones.service';
 import { CAUSAS_EGRESO } from './contabilizacion.service';
 import { DatosRecibo, pdfRecibos } from './recibo-pdf';
+import { HojaGanancias } from './ganancias/calculo';
+import { pdfHojaGanancias } from './ganancias/hoja-pdf';
 
 const XLSX = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -17,6 +19,17 @@ export class SalidasSueldosController {
   private periodo(x: { tipo: string; anio: number; mes: number }) {
     const mm = `${String(x.mes).padStart(2, '0')}/${x.anio}`;
     return x.tipo === 'SAC' ? `SAC ${x.mes === 6 ? '1.er' : '2.º'} semestre ${x.anio}` : x.tipo === 'FINAL' ? `Final ${mm}` : `Mensual ${mm}`;
+  }
+
+  @Get(':id/recibos/:reciboId/ganancias.pdf') @RequierePermiso('sueldos.ver')
+  async hojaGanancias(@Param('id', ParseUUIDPipe) id: string, @Param('reciboId', ParseUUIDPipe) reciboId: string, @Res({ passthrough: true }) res: Response) {
+    const r = await this.tenant.db.reciboSueldo.findFirst({ where: { id: reciboId, liquidacionId: id }, include: { liquidacion: true } });
+    if (!r) throw new NotFoundException('Recibo inexistente');
+    if (!r.hojaGanancias) throw new BadRequestException('El recibo no tiene cálculo de Ganancias');
+    const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    const pdf = await pdfHojaGanancias({ empresa, empleado: r, periodo: this.periodo(r.liquidacion), hoja: r.hojaGanancias as unknown as HojaGanancias });
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="ganancias-legajo-${r.legajo}.pdf"` });
+    return new StreamableFile(pdf);
   }
 
   @Get(':id/recibos.pdf') @RequierePermiso('sueldos.ver')

@@ -1,13 +1,9 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase, otroUsuario } from './helpers';
+import { TABLA_PRUEBA } from './helpers-ganancias';
 import { prepararSueldos } from './helpers-sueldos';
 
-export const TABLA_PRUEBA = {
-  gni: 1200000, deduccionEspecial: 4800000, conyuge: 1200000, hijo: 600000, hijoIncapacitado: 1200000,
-  topes: { hipotecario: 120000, seguroMuerte: 60000, seguroMixto: 60000, seguroRetiro: 60000, sepelio: 12000 },
-  tramos: [{ desde: 0, hasta: 1200000, fijo: 0, porcentaje: 5 }, { desde: 1200000, hasta: 2400000, fijo: 60000, porcentaje: 10 }, { desde: 2400000, hasta: null, fijo: 180000, porcentaje: 15 }],
-};
 
 describe('ganancias: tablas de ARCA', () => {
   let app: INestApplication;

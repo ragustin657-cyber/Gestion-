@@ -23,7 +23,7 @@ const ROLES: Record<string, Permiso[]> = {
   Aprobador: ['oc.ver', 'oc.aprobar', 'op.ver', 'op.aprobar'],
   Tesorero: ['tercero.ver', 'op.ver', 'pago.ejecutar', 'tesoreria.maestros.editar', 'fc.ver', 'tesoreria.ver', 'tesoreria.operar', 'tesoreria.aceptar', 'conciliacion.operar', 'tesoreria.tarjetas', 'cobranzas.gestionar'],
   'Cajero sucursal': ['tercero.ver', 'tesoreria.ver', 'tesoreria.operar'],
-  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar', 'stock.ver', 'stock.operar', 'informes.ver', 'bienes.ver', 'bienes.gestionar', 'presupuesto.ver', 'presupuesto.editar', 'sueldos.ver', 'sueldos.liquidar'],
+  Contador: ['plancuentas.ver', 'plancuentas.editar', 'auditoria.ver', 'asiento.registrar', 'contabilidad.cerrar', 'impuestos.ver', 'impuestos.presentar', 'stock.ver', 'stock.operar', 'informes.ver', 'bienes.ver', 'bienes.gestionar', 'presupuesto.ver', 'presupuesto.editar', 'sueldos.ver', 'sueldos.liquidar', 'ganancias.configurar'],
   Facturación: ['tercero.ver', 'articulo.ver', 'venta.emitir', 'cobro.registrar', 'venta.ver', 'tesoreria.ver', 'stock.ver', 'precios.editar', 'pedido.gestionar', 'intereses.liquidar'],
 };
 
@@ -78,6 +78,15 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       },
     });
     const e = empresa.id;
+    // Ganancias de cuarta (E31): tablas de EJEMPLO del año en curso (en producción se cargan las que publica ARCA cada semestre)
+    for (const semestre of [1, 2]) {
+      const t = await tx.tablaGanancias.create({ data: {
+        empresaId: e, anio: new Date().getUTCFullYear(), semestre, gni: 4000000, deduccionEspecial: 19200000, conyuge: 3800000, hijo: 1900000, hijoIncapacitado: 3800000,
+        topeHipotecario: 20000, topeSeguroMuerte: 600000, topeSeguroMixto: 600000, topeSeguroRetiro: 600000, topeSepelio: 100000,
+      } });
+      const tramos: [number, number | null, number, number][] = [[0, 2e6, 0, 5], [2e6, 4e6, 1e5, 9], [4e6, 6e6, 28e4, 12], [6e6, 9e6, 52e4, 15], [9e6, 18e6, 97e4, 19], [18e6, 27e6, 268e4, 23], [27e6, 40e6, 475e4, 27], [40e6, 60e6, 826e4, 31], [60e6, null, 1446e4, 35]];
+      await tx.tramoGanancias.createMany({ data: tramos.map(([desde, hasta, fijo, porcentaje]) => ({ empresaId: e, tablaId: t.id, desde, hasta, fijo, porcentaje })) });
+    }
     const central = await tx.sucursal.create({ data: { empresaId: e, codigo: 'CEN', nombre: 'Casa central', domicilio: 'Av. Corrientes 1234, CABA', esCentral: true } });
     await tx.puntoVenta.create({ data: { empresaId: e, numero: 1, descripcion: 'Casa central (manual)', electronico: false } });
     await tx.puntoVenta.create({ data: { empresaId: e, numero: 2, descripcion: 'Factura electrónica', electronico: true, sucursalId: central.id } });
