@@ -13,19 +13,19 @@ test.use({ timezoneId: 'America/Argentina/Buenos_Aires' });
 
 const LARGOS: Record<string, number> = { '01': 35, '02': 115, '03': 51, '04': 370 };
 
-test('libro de sueldos: el contador descarga el Libro de Sueldos Digital de la liquidación mensual', async ({ page }) => {
+test('libro de sueldos: el contador descarga el Libro de Sueldos Digital de la liquidación final', async ({ page }) => {
   await ingresar(page, 'contador@demo.com', 'contador1234');
   // La acreditación en cuenta exige el CBU del empleado
   await page.goto('/sueldos/empleados');
-  await page.getByRole('cell', { name: 'Gómez, Ana' }).click();
+  await page.getByRole('cell', { name: 'Sosa, Luis' }).click();
   const dlg = page.getByRole('dialog');
   await dlg.getByLabel('CBU').fill('2850590940090418135201');
   await dlg.getByRole('button', { name: 'Guardar' }).click();
   await expect(dlg).toBeHidden();
-  // Liquidación mensual cerrada
+  // Liquidación final cerrada (de la prueba de sueldos-final)
   await page.goto('/sueldos/liquidaciones');
-  await page.getByRole('cell', { name: /^\d{2}\/\d{4}$/ }).first().click();
-  await expect(page.getByText('Cerrada', { exact: true })).toBeVisible();
+  await page.getByRole('cell', { name: /^Final .* - Sosa, Luis$/ }).click();
+  await expect(page.getByRole('heading', { name: /Final .* Sosa, Luis/ })).toBeVisible();
   const descarga = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Libro de Sueldos Digital' }).click();
   const archivo = await descarga;
