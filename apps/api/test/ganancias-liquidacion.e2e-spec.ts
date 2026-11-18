@@ -121,6 +121,17 @@ describe('ganancias: retención en la liquidación', () => {
     expect([r.status, r.body.message]).toEqual([400, `Hay una liquidación cerrada con fecha de pago posterior (N° ${numero}): ciérrelas en orden de fecha de pago`]);
   });
 
+  it('cierre fuera de orden sin retención posterior no bloquea', async () => {
+    const x = await escenario();
+    // Sueldo bajo: la liquidación posterior no retuvo nada, así que no hay nada que retener dos veces
+    for (const mes of ['2026-11', '2026-12']) await x.escala('Vendedor B', mes, 300000);
+    const dic = await x.crear('MENSUAL', 2026, 12, '2026-12-20');
+    expect((await x.cerrar(dic.id)).status).toBe(201);
+    expect(x.ganancias(await x.recibo(dic.id))).toBeUndefined();
+    const nov = await x.crear('MENSUAL', 2026, 11, '2026-12-05');
+    expect((await x.cerrar(nov.id)).status).toBe(201);
+  });
+
   it('reabrir con posteriores cerradas avisa', async () => {
     const x = await escenario();
     const nov = await x.crear('MENSUAL', 2026, 11);

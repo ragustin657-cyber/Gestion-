@@ -204,7 +204,7 @@ En una liquidación en borrador se recalcula en cada recálculo; al cerrar queda
 **Orden de cálculo entre liquidaciones:**
 - una liquidación acumula todas las liquidaciones cerradas del año fiscal, excepto ella misma, sin importar su número;
 - al cerrar se recalcula, para tomar las que se cerraron mientras estaba en borrador;
-- no se puede cerrar una liquidación si ya hay otra cerrada del mismo año con fecha de pago posterior: 400 `Hay una liquidación cerrada con fecha de pago posterior (N° X): ciérrelas en orden de fecha de pago`;
+- no se puede cerrar una liquidación si ya hay otra cerrada del mismo año con fecha de pago posterior que retuvo o devolvió Ganancias a alguno de sus empleados (si la posterior no retuvo nada, no hay nada que retener dos veces): 400 `Hay una liquidación cerrada con fecha de pago posterior (N° X): ciérrelas en orden de fecha de pago`;
 - con la misma fecha de pago cuenta el orden de cierre: la segunda acumula a la primera;
 - reabrir una liquidación con otras posteriores cerradas avisa: `Hay liquidaciones posteriores cerradas: su retención de Ganancias no se recalcula`.
 

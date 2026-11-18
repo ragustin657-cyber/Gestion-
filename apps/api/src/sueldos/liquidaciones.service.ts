@@ -301,7 +301,16 @@ export class LiquidacionesService {
         // Ganancias (E31 §6): los cierres de la empresa se serializan y van en orden de fecha de pago dentro del año
         await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
         const anio = l.fechaPago.getUTCFullYear();
-        const posterior = await tx.liquidacion.findFirst({ where: { id: { not: id }, estado: 'CERRADA', fechaPago: { gt: l.fechaPago, lt: new Date(Date.UTC(anio + 1, 0, 1)) } }, orderBy: { fechaPago: 'asc' } });
+        // Solo importa si la posterior ya retuvo (o devolvió) Ganancias a alguno de los empleados de esta: si no, no hay nada que retener dos veces
+        const empleados = (await tx.reciboSueldo.findMany({ where: { liquidacionId: id }, select: { empleadoId: true } })).map((r) => r.empleadoId);
+        const conceptosGanancias = (await tx.concepto.findMany({ where: { tipo: 'GANANCIAS' }, select: { id: true } })).map((c) => c.id);
+        const posterior = await tx.liquidacion.findFirst({
+          where: {
+            id: { not: id }, estado: 'CERRADA', fechaPago: { gt: l.fechaPago, lt: new Date(Date.UTC(anio + 1, 0, 1)) },
+            recibos: { some: { empleadoId: { in: empleados }, renglones: { some: { conceptoId: { in: conceptosGanancias } } } } },
+          },
+          orderBy: { fechaPago: 'asc' },
+        });
         if (posterior) throw new BadRequestException(`Hay una liquidación cerrada con fecha de pago posterior (N° ${posterior.numero}): ciérrelas en orden de fecha de pago`);
       }
       const { errores } = await this.calcular(tx, l);

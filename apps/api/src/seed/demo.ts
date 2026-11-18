@@ -78,10 +78,10 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       },
     });
     const e = empresa.id;
-    // Ganancias de cuarta (E31): tablas de EJEMPLO del año en curso (en producción se cargan las que publica ARCA cada semestre)
-    for (const semestre of [1, 2]) {
+    // Ganancias de cuarta (E31): tablas de EJEMPLO del año en curso y del siguiente (en producción se cargan las que publica ARCA cada semestre)
+    for (const [anio, semestre] of [0, 1].flatMap((d) => [1, 2].map((sem) => [new Date().getUTCFullYear() + d, sem]))) {
       const t = await tx.tablaGanancias.create({ data: {
-        empresaId: e, anio: new Date().getUTCFullYear(), semestre, gni: 4000000, deduccionEspecial: 19200000, conyuge: 3800000, hijo: 1900000, hijoIncapacitado: 3800000,
+        empresaId: e, anio, semestre, gni: 4000000, deduccionEspecial: 19200000, conyuge: 3800000, hijo: 1900000, hijoIncapacitado: 3800000,
         topeHipotecario: 20000, topeSeguroMuerte: 600000, topeSeguroMixto: 600000, topeSeguroRetiro: 600000, topeSepelio: 100000,
       } });
       const tramos: [number, number | null, number, number][] = [[0, 2e6, 0, 5], [2e6, 4e6, 1e5, 9], [4e6, 6e6, 28e4, 12], [6e6, 9e6, 52e4, 15], [9e6, 18e6, 97e4, 19], [18e6, 27e6, 268e4, 23], [27e6, 40e6, 475e4, 27], [40e6, 60e6, 826e4, 31], [60e6, null, 1446e4, 35]];
