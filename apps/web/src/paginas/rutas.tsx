@@ -1,3 +1,4 @@
+import { ConfigCorreoPage } from '../correo/ConfigCorreoPage';
 import { InteresesPage } from '../ventas/InteresesPages';
 import { AgendaCobranzasPage, FichaCobranzaPage } from '../ventas/CobranzasPages';
 import { ComisionesPage, VendedoresPage } from '../ventas/ComisionesPages';
@@ -99,6 +100,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/ventas/comisiones', elemento: <ComisionesPage /> },
   { ruta: '/ventas/cobranzas', elemento: <AgendaCobranzasPage /> },
   { ruta: '/ventas/intereses', elemento: <InteresesPage /> },
+  { ruta: '/ventas/correo', elemento: <ConfigCorreoPage /> },
   { ruta: '/ventas/cobranzas/:terceroId', elemento: <FichaCobranzaPage /> },
   { ruta: '/tesoreria/tarjetas/cupones', elemento: <CuponesTarjetasPage /> },
   { ruta: '/tesoreria/tarjetas/liquidaciones', elemento: <LiquidacionesTarjetaPage /> },

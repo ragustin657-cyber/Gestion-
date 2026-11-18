@@ -43,6 +43,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Aplicación de cobros', ruta: '/ventas/aplicacion', permiso: 'cobro.registrar' },
           { titulo: 'Cobranzas', ruta: '/ventas/cobranzas', permisoAlguno: ['venta.ver', 'cobranzas.gestionar'] },
           { titulo: 'Intereses por mora', ruta: '/ventas/intereses', permiso: 'intereses.liquidar' },
+          { titulo: 'Configuración de correo', ruta: '/ventas/correo', permiso: 'correo.configurar' },
         ],
       },
       {

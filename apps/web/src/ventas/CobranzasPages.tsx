@@ -1,8 +1,8 @@
-import { Alert, Badge, Button, Chip, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
+import { Alert, Badge, Button, Checkbox, Chip, Modal, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api } from '../api/cliente';
+import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { useOperacionVentas } from './comun';
@@ -31,13 +31,19 @@ export function BadgePromesa({ estado }: { estado: Estado }) {
 }
 
 /** Agenda: clientes vencidos con su última gestión, próxima acción y promesa. */
-export function TablaAgenda({ clientes, onElegir }: { clientes: FilaAgenda[]; onElegir: (terceroId: string) => void }) {
+export function TablaAgenda({ clientes, onElegir, seleccion, onSeleccion }: { clientes: FilaAgenda[]; onElegir: (terceroId: string) => void; seleccion?: string[]; onSeleccion?: (ids: string[]) => void }) {
+  const conSeleccion = !!onSeleccion && !!seleccion;
   return (
     <Table withTableBorder striped highlightOnHover>
-      <Table.Thead><Table.Tr><Table.Th>Cliente</Table.Th><Table.Th ta="right">Vencido</Table.Th><Table.Th ta="right">Por vencer</Table.Th><Table.Th ta="right">Días</Table.Th><Table.Th>Última gestión</Table.Th><Table.Th>Próxima acción</Table.Th><Table.Th>Promesa</Table.Th></Table.Tr></Table.Thead>
+      <Table.Thead><Table.Tr>{conSeleccion && <Table.Th w={36} />}<Table.Th>Cliente</Table.Th><Table.Th ta="right">Vencido</Table.Th><Table.Th ta="right">Por vencer</Table.Th><Table.Th ta="right">Días</Table.Th><Table.Th>Última gestión</Table.Th><Table.Th>Próxima acción</Table.Th><Table.Th>Promesa</Table.Th></Table.Tr></Table.Thead>
       <Table.Tbody>
         {clientes.map((c) => (
           <Table.Tr key={c.terceroId} style={{ cursor: 'pointer' }} onClick={() => onElegir(c.terceroId)}>
+            {conSeleccion && (
+              <Table.Td onClick={(e) => e.stopPropagation()}>
+                <Checkbox aria-label={`Seleccionar ${c.cliente}`} checked={seleccion!.includes(c.terceroId)} onChange={(e) => onSeleccion!(e.currentTarget.checked ? [...seleccion!, c.terceroId] : seleccion!.filter((x) => x !== c.terceroId))} />
+              </Table.Td>
+            )}
             <Table.Td>{c.cliente}{Number(c.aFavor) < 0 && <Text size="xs" c="dimmed">{`${formatoMoneda(-Number(c.aFavor))} a favor sin aplicar`}</Text>}</Table.Td>
             <Table.Td ta="right">{formatoMoneda(c.vencido)}</Table.Td>
             <Table.Td ta="right">{formatoMoneda(c.porVencer)}</Table.Td>
@@ -79,8 +85,24 @@ export function FormGestion({ onGuardar, enviando }: { onGuardar: (d: DatosGesti
   );
 }
 
+export interface ResultadoMasivo { enviados: { terceroId: string; cliente: string; destinatario: string }[]; omitidos: { terceroId: string; cliente: string; motivo: string }[] }
+
+/** Resultado del envío masivo: cuántos salieron y por qué se omitieron los demás. */
+export function ResultadoEnvio({ enviados, omitidos }: ResultadoMasivo) {
+  return (
+    <Alert color={omitidos.length ? 'yellow' : 'green'} title={`${enviados.length} ${enviados.length === 1 ? 'enviado' : 'enviados'}`}>
+      {omitidos.length > 0 && <Text size="sm" fw={500}>{`${omitidos.length} sin enviar:`}</Text>}
+      {omitidos.map((o) => <Text key={o.terceroId} size="sm">{`${o.cliente || o.terceroId}: ${o.motivo}`}</Text>)}
+    </Alert>
+  );
+}
+
 export function AgendaCobranzasPage() {
   const navegar = useNavigate();
+  const { puede } = useAuth();
+  const op = useOperacionVentas();
+  const [seleccion, setSeleccion] = useState<string[]>([]);
+  const [resultado, setResultado] = useState<ResultadoMasivo | null>(null);
   const [filtros, setFiltros] = useState<string[]>([]);
   const [minDias, setMinDias] = useState<number | string>('');
   const [busqueda, setBusqueda] = useState('');
@@ -100,7 +122,18 @@ export function AgendaCobranzasPage() {
         </Group>
       </Group>
       {q.data && !q.data.clientes.length && <Text c="dimmed">No hay clientes con deuda vencida{filtros.length || minDias !== '' || busqueda ? ' con esos filtros' : ''}.</Text>}
-      {!!q.data?.clientes.length && <TablaAgenda clientes={q.data.clientes} onElegir={(id) => navegar(`/ventas/cobranzas/${id}`)} />}
+      {puede('cobranzas.gestionar') && !!q.data?.clientes.length && (
+        <Group mb="sm">
+          <Button size="xs" variant="light" disabled={!seleccion.length || seleccion.length > 50} loading={op.enviando} onClick={async () => {
+            const r = await op.ejecutar(() => api<ResultadoMasivo>('/ventas/cobranzas/mail', { metodo: 'POST', body: { terceroIds: seleccion } }), (x) => `${x.enviados.length} resumen(es) enviado(s)`);
+            if (r) { setResultado(r); setSeleccion([]); }
+          }}>{`Enviar resumen a los seleccionados${seleccion.length ? ` (${seleccion.length})` : ''}`}</Button>
+          {seleccion.length > 50 && <Text size="sm" c="red">Se envían hasta 50 clientes por vez</Text>}
+        </Group>
+      )}
+      {op.error && <Alert color="red" mb="sm">{op.error}</Alert>}
+      {resultado && <ResultadoEnvio {...resultado} />}
+      {!!q.data?.clientes.length && <TablaAgenda clientes={q.data.clientes} onElegir={(id) => navegar(`/ventas/cobranzas/${id}`)} {...(puede('cobranzas.gestionar') ? { seleccion, onSeleccion: setSeleccion } : {})} />}
     </Paper>
   );
 }
@@ -112,6 +145,16 @@ export function FichaCobranzaPage() {
   const navegar = useNavigate();
   const q = useQuery({ queryKey: ['/ventas/cobranzas', terceroId], queryFn: () => api<Ficha>(`/ventas/cobranzas/${terceroId}`) });
   const [form, setForm] = useState(0);
+  const [mail, setMail] = useState<{ destinatario: string; asunto: string; cuerpo: string } | null>(null);
+  const abrirMail = async () => {
+    op.setError('');
+    try {
+      const p = await api<{ destinatario: string | null; asunto: string; cuerpo: string }>(`/ventas/cobranzas/${terceroId}/mail/previsualizar`);
+      setMail({ destinatario: p.destinatario ?? '', asunto: p.asunto, cuerpo: p.cuerpo });
+    } catch (e) {
+      op.setError(e instanceof Error ? e.message : 'No se pudo armar el mail');
+    }
+  };
   const f = q.data;
   // Cliente inexistente o sin permiso: se muestra el motivo en vez de una pantalla en blanco
   if (q.error) return <Alert color="red" title="No se pudo abrir la ficha">{q.error instanceof Error ? q.error.message : 'Error inesperado'}</Alert>;
@@ -125,7 +168,11 @@ export function FichaCobranzaPage() {
             <Title order={3}>{f.cliente.razonSocial}</Title>
             <Text size="sm" c="dimmed">{`CUIT ${f.cliente.cuit}${f.cliente.telefono ? ` · Tel. ${f.cliente.telefono}` : ''}${f.cliente.email ? ` · ${f.cliente.email}` : ''}`}</Text>
           </div>
-          <Button variant="subtle" onClick={() => navegar('/ventas/cobranzas')}>Volver a la agenda</Button>
+          <Group>
+            <Button variant="light" size="xs" onClick={() => void descargar(`/ventas/cobranzas/${terceroId}/resumen.pdf`, {}, 'resumen-de-cuenta.pdf')}>Descargar resumen</Button>
+            {gestionar && <Button size="xs" onClick={() => void abrirMail()}>Enviar resumen por mail</Button>}
+            <Button variant="subtle" onClick={() => navegar('/ventas/cobranzas')}>Volver a la agenda</Button>
+          </Group>
         </Group>
         <Group mt="sm" gap="xl">
           <Text><b>Vencido</b> {formatoMoneda(f.vencido)} ({f.dias} días)</Text>
@@ -133,6 +180,22 @@ export function FichaCobranzaPage() {
           {Number(f.aFavor) < 0 && <Text c="orange"><b>A favor sin aplicar</b> {formatoMoneda(-Number(f.aFavor))}</Text>}
         </Group>
       </Paper>
+      <Modal opened={!!mail} onClose={() => setMail(null)} size="lg" title="Enviar resumen por mail">
+        {mail && (
+          <Stack>
+            <TextInput label="Para" value={mail.destinatario} onChange={(e) => setMail({ ...mail, destinatario: e.currentTarget.value })} />
+            <TextInput label="Asunto" value={mail.asunto} onChange={(e) => setMail({ ...mail, asunto: e.currentTarget.value })} />
+            <Textarea label="Texto" autosize minRows={6} value={mail.cuerpo} onChange={(e) => setMail({ ...mail, cuerpo: e.currentTarget.value })} />
+            <Text size="xs" c="dimmed">Se adjunta el resumen de cuenta en PDF.</Text>
+            {op.error && <Alert color="red">{op.error}</Alert>}
+            <Group justify="flex-end">
+              <Button loading={op.enviando} disabled={!mail.destinatario} onClick={async () => {
+                if (await op.ejecutar(() => api(`/ventas/cobranzas/${terceroId}/mail`, { metodo: 'POST', body: mail }), () => 'Mail enviado')) setMail(null);
+              }}>Enviar</Button>
+            </Group>
+          </Stack>
+        )}
+      </Modal>
       <Paper withBorder p="md" radius="md">
         <Title order={4} mb="sm">Comprobantes pendientes</Title>
         <Table withTableBorder striped>
