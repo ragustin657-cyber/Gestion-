@@ -63,5 +63,7 @@ describe('cobranzas: gestiones', () => {
     expect(await msg({ fecha: '2026-02-30' })).toEqual([400, 'Fecha inválida']);
     expect(await msg({ promesaFecha: '2026-11-10', promesaImporte: 1000.555 })).toEqual([400, 'Importe inválido']);
     expect(await msg({ promesaFecha: '2026-11-10', promesaImporte: 1e15 })).toEqual([400, 'Importe inválido']);
+    expect((await x.gestion({ promesaFecha: '2026-11-10', promesaImporte: 1234567890.12 })).status).toBe(201);
+    expect((await x.gestion({ promesaFecha: '2026-11-10', promesaImporte: 999999999999.99 })).status).toBe(201);
   });
 });
