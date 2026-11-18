@@ -32,7 +32,8 @@ function promesas(gestiones: GestionCobranza[], movs: { origenTipo: string; fech
   const conPromesa = gestiones.filter((g) => g.promesaFecha && g.promesaImporte);
   const estados = new Map<string, EstadoPromesa>();
   conPromesa.forEach((g, i) => {
-    const siguiente = i > 0 ? conPromesa[i - 1] : null;
+    // La ventana termina en la próxima gestión con promesa de fecha posterior: las del mismo día no la cierran (E26 §2.11)
+    const siguiente = conPromesa.slice(0, i).reverse().find((x) => x.fecha > g.fecha) ?? null;
     estados.set(g.id, estadoPromesa({ fecha: g.promesaFecha!, importe: g.promesaImporte!, desde: g.fecha, hasta: siguiente?.fecha ?? null }, movs, corte));
   });
   return { estados, vigente: conPromesa[0] ?? null };
@@ -112,6 +113,7 @@ export class AgendaCobranzasService {
     const describir = await this.consultas.describir(pendientes);
     const gs = await this.gestiones.deCliente(db, terceroId);
     const { estados } = promesas(gs, movs, corte);
+    const usuarios = new Map((await db.usuario.findMany({ where: { id: { in: [...new Set(gs.map((g) => g.creadoPor))].filter((id) => /^[0-9a-f-]{36}$/i.test(id)) } }, select: { id: true, nombre: true } })).map((u) => [u.id, u.nombre]));
     const f2 = (x: Dec) => x.toFixed(2);
     const { esCliente: _c, ...cliente } = t;
     return {
@@ -120,7 +122,7 @@ export class AgendaCobranzasService {
         movimientoId: m.id, origenTipo: m.origenTipo, descripcion: describir(m), fecha: iso(m.fecha), fechaVencimiento: iso(m.fechaVencimiento),
         dias: Math.max(0, Math.round((corte.getTime() - m.fechaVencimiento.getTime()) / DIA)), importe: f2(m.importePesos), saldo: f2(m.saldoPesos), vencido: m.fechaVencimiento < corte,
       })),
-      gestiones: gs.map((g) => ({ ...gestionSalida(g), promesaEstado: estados.get(g.id) ?? null, eliminable: diaArgentina(g.creadoEn) === iso(corte) })),
+      gestiones: gs.map((g) => ({ ...gestionSalida(g), promesaEstado: estados.get(g.id) ?? null, usuario: usuarios.get(g.creadoPor) ?? '', eliminable: diaArgentina(g.creadoEn) === iso(corte) })),
     };
   }
 }
