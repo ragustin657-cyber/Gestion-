@@ -29,6 +29,7 @@ const CAMPOS_GENERALES: CampoAbm[] = [
   { nombre: 'diasPago', etiqueta: 'Días de pago', tipo: 'numero' },
   { nombre: 'listaPreciosId', etiqueta: 'Lista de precios', tipo: 'select', ayuda: 'Para clientes: sin lista se usa la lista por defecto' },
   { nombre: 'vendedorId', etiqueta: 'Vendedor', tipo: 'select', ayuda: 'Para clientes: se propone en pedidos y facturas' },
+  { nombre: 'sinIntereses', etiqueta: 'Sin intereses por mora', tipo: 'booleano', ayuda: 'Para clientes: no se le liquidan intereses' },
   { nombre: 'esProveedor', etiqueta: 'Es proveedor', tipo: 'booleano' },
   { nombre: 'esCliente', etiqueta: 'Es cliente', tipo: 'booleano' },
   { nombre: 'domicilio', etiqueta: 'Domicilio', tipo: 'texto' },
