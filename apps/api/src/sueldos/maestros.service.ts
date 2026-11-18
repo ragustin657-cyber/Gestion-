@@ -6,6 +6,7 @@ import { filasCsv, numeroAR } from '../comun/csv';
 import { NumeracionService } from '../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { DatosConcepto, DatosEmpleado } from './dto';
+import { codigoArcaPorDefecto, validarCodigoArca } from './lsd-conceptos';
 
 const D = Prisma.Decimal;
 const dia = (f: Date | null) => (f ? f.toISOString().slice(0, 10) : null);
@@ -195,7 +196,9 @@ export class MaestrosSueldosService {
   async crearConcepto(d: DatosConcepto) {
     if (await this.tenant.db.concepto.findFirst({ where: { codigo: d.codigo } })) throw new BadRequestException(`Ya existe el concepto ${d.codigo}`);
     await this.validarCuentaConcepto(d.cuentaContableId);
-    return this.tenant.db.concepto.create({ data: { ...d, parametros: d.parametros as Prisma.InputJsonValue, empresaId: this.tenant.empresaId } });
+    const codigoArca = d.codigoArca || codigoArcaPorDefecto(d);
+    this.validarArca(codigoArca, d.clase);
+    return this.tenant.db.concepto.create({ data: { ...d, codigoArca, parametros: d.parametros as Prisma.InputJsonValue, empresaId: this.tenant.empresaId } });
   }
 
   async modificarConcepto(id: string, d: DatosConcepto) {
@@ -210,6 +213,14 @@ export class MaestrosSueldosService {
         throw new BadRequestException('Es el concepto de comisiones de vendedores: debe seguir siendo fijo, sin convenio, para todos los empleados y no de descuento');
     }
     await this.validarCuentaConcepto(d.cuentaContableId);
-    return this.tenant.db.concepto.update({ where: { id }, data: { ...d, parametros: d.parametros as Prisma.InputJsonValue } });
+    // Sin código ARCA se conserva el actual; si cambió la clase y ya no corresponde, se toma el de defecto
+    const codigoArca = d.codigoArca || (validarCodigoArca(actual.codigoArca, d.clase) ? codigoArcaPorDefecto(d) : actual.codigoArca);
+    this.validarArca(codigoArca, d.clase);
+    return this.tenant.db.concepto.update({ where: { id }, data: { ...d, codigoArca, parametros: d.parametros as Prisma.InputJsonValue } });
+  }
+
+  private validarArca(codigo: string, clase: DatosConcepto['clase']) {
+    const error = validarCodigoArca(codigo, clase);
+    if (error) throw new BadRequestException(error);
   }
 }
