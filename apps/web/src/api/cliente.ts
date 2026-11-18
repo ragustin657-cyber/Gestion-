@@ -88,3 +88,15 @@ export async function subirArchivos<T>(ruta: string, archivos: Record<string, Fi
   if (!res.ok) throw new ErrorApi(res.status, datos.message ?? 'No se pudo subir el archivo', datos.campos, datos);
   return datos as T;
 }
+
+/** Sube varios archivos en el mismo campo (multipart), con campos adicionales. */
+export async function subirLista<T>(ruta: string, nombreCampo: string, archivos: File[], campos: Record<string, string> = {}): Promise<T> {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(campos)) fd.append(k, v);
+  for (const a of archivos) fd.append(nombreCampo, a);
+  const token = sesion.leer()?.token;
+  const res = await fetch(`/api${ruta}`, { method: 'POST', body: fd, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const datos = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ErrorApi(res.status, datos.message ?? 'No se pudo subir el archivo', datos.campos, datos);
+  return datos as T;
+}

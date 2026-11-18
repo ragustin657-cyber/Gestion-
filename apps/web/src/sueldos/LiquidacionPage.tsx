@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
+import { HojaGananciasVista } from './GananciasPages';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { errorConsulta, opcionesCajas, opcionesCuentas, useCajas, useCuentasBancarias, useOperacion } from '../tesoreria/comun';
 import { PanelPagos } from './PanelPagos';
@@ -143,6 +144,7 @@ export function AccionesLibro({ estado, numeroLsd, onDescargar, onFijarNumero }:
 export function LiquidacionPage() {
   const { id = '' } = useParams();
   const { puede } = useAuth();
+  const [verGanancias, setVerGanancias] = useState(false);
   const navegar = useNavigate();
   const qc = useQueryClient();
   const op = useOperacion();
@@ -269,8 +271,11 @@ export function LiquidacionPage() {
             )}
             <TablaRecibo recibo={recibo} />
             <Group justify="flex-end">
+              {recibo.hojaGanancias && <Button variant="subtle" onClick={() => setVerGanancias((x) => !x)}>Ver cálculo de Ganancias</Button>}
+              {recibo.hojaGanancias && <Button variant="light" onClick={() => bajar(`/sueldos/liquidaciones/${id}/recibos/${recibo.id}/ganancias.pdf`, {}, `ganancias-legajo-${recibo.legajo}.pdf`)}>Cálculo de Ganancias PDF</Button>}
               <Button variant="light" onClick={() => bajar(`/sueldos/liquidaciones/${id}/recibos.pdf`, { empleadoId: recibo.empleadoId }, `recibo-${nombre}-legajo-${recibo.legajo}.pdf`)}>Recibo PDF</Button>
             </Group>
+            {verGanancias && recibo.hojaGanancias && <HojaGananciasVista hoja={recibo.hojaGanancias} />}
           </Stack>
         )}
       </Modal>

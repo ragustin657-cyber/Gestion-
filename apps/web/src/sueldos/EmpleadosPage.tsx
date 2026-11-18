@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
+import { GananciasEmpleado, ImportarF572 } from './GananciasPages';
 import { formatoFecha } from '../compras/formato';
 import { useCentrosCosto } from '../contabilidad/comun';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
@@ -70,7 +71,10 @@ export function EmpleadosPage() {
     <Paper withBorder p="md" radius="md">
       <Group justify="space-between" mb="md">
         <Title order={3}>Empleados</Title>
-        {editable && <Button size="xs" onClick={() => setForm({ ...vacio })}>Nuevo empleado</Button>}
+        <Group gap="xs" align="start">
+          {editable && <ImportarF572 />}
+          {editable && <Button size="xs" onClick={() => setForm({ ...vacio })}>Nuevo empleado</Button>}
+        </Group>
       </Group>
       {errorConsulta(empleados.error)}
       <Table withTableBorder striped highlightOnHover>
@@ -114,6 +118,7 @@ export function EmpleadosPage() {
               <Checkbox label="Cónyuge" checked={form.conyuge} onChange={(e) => setForm({ ...form, conyuge: e.currentTarget.checked })} />
               <Checkbox label="Trabajador convencionado" checked={form.trabajadorConvencionado} onChange={(e) => setForm({ ...form, trabajadorConvencionado: e.currentTarget.checked })} />
             </Group>
+            {form.id && <Paper withBorder p="xs"><GananciasEmpleado empleadoId={form.id} editable={editable} /></Paper>}
             {form.id && <Checkbox label="Activo" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.currentTarget.checked })} />}
             {op.alerta}
             <Group justify="space-between">

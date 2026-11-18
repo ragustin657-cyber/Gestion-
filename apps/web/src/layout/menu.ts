@@ -183,6 +183,7 @@ export const MENU: NodoMenu[] = [
       { titulo: 'Vacaciones', ruta: '/sueldos/vacaciones', permiso: 'sueldos.ver' },
       { titulo: 'Contribuciones', ruta: '/sueldos/contribuciones', permiso: 'sueldos.ver' },
       { titulo: 'Cargas sociales', ruta: '/sueldos/cargas-sociales', permiso: 'sueldos.ver' },
+      { titulo: 'Ganancias: tablas de ARCA', ruta: '/sueldos/ganancias/tablas', permiso: 'ganancias.configurar' },
     ],
   },
   {
