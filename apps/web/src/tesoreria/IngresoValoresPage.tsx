@@ -2,7 +2,7 @@ import { RenglonesCupones, cuponesParaApi, totalCupones, useTarjetas, type Cupon
 import { ActionIcon, Alert, Button, Group, Modal, Paper, ScrollArea, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api } from '../api/cliente';
 import { useCuentasImputables } from '../abm/opciones';
 import { useAuth } from '../auth/AuthContext';
@@ -50,6 +50,8 @@ export function IngresoValoresPage() {
 
   const caja = cajas.find((c) => c.id === cajaId);
   const moneda = caja?.monedaCodigo ?? 'ARS';
+  // Los cupones se cobran en pesos: al pasar a una caja en otra moneda se descartan (si no, quedarían ocultos y se enviarían)
+  useEffect(() => { if (moneda !== 'ARS') setCupones([]); }, [moneda]);
   const total = (numero(efectivo) || 0) + cheques.reduce((s, c) => s + (numero(c.importe) || 0), 0) + transfs.reduce((s, t) => s + (numero(t.importe) || 0), 0) + totalCupones(cupones);
   const vencidos = cheques.filter((c) => vencido(c.fechaPago));
   const cambiarCheque = (i: number, c: Partial<ChequeEditable>) => setCheques(cheques.map((x, j) => (j === i ? { ...x, ...c } : x)));

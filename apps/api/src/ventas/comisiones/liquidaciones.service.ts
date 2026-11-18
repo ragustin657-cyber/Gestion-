@@ -124,8 +124,10 @@ export class LiquidacionesComisionesService {
   }
 
   async listar() {
-    const ls = await this.tenant.db.liquidacionComisiones.findMany({ include: { renglones: { select: { comision: true } } }, orderBy: [{ numero: 'desc' }] });
+    const ls = await this.tenant.db.liquidacionComisiones.findMany({ include: { renglones: { select: { comision: true, vendedorId: true } } }, orderBy: [{ numero: 'desc' }] });
+    const externos = await this.tenant.db.vendedor.findMany({ where: { tipo: 'EXTERNO', id: { in: [...new Set(ls.flatMap((l) => l.renglones.map((r) => r.vendedorId)))] } }, orderBy: { nombre: 'asc' } });
     return ls.map((l) => ({
+      externos: externos.filter((v) => l.renglones.some((r) => r.vendedorId === v.id)).map((v) => ({ vendedorId: v.id, nombre: v.nombre })),
       id: l.id, numero: l.numero, anio: l.anio, mes: l.mes, fecha: l.fecha.toISOString().slice(0, 10), estado: l.estado, motivoAnulacion: l.motivoAnulacion,
       total: l.renglones.reduce((s, r) => s.plus(r.comision), new D(0)).toFixed(2),
     }));

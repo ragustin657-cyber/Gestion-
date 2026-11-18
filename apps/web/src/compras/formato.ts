@@ -1,4 +1,4 @@
-import { hoyEn } from '@gestion/shared';
+import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 
 /** "$ 1.234,56" o "US$ 1.234,56" a partir de un importe en texto o número. */
 export function formatoMoneda(importe: string | number | null | undefined, moneda = 'ARS'): string {
@@ -20,7 +20,8 @@ export const formatoNumero = (pv: number, n: number) => `${String(pv).padStart(5
 export const numeroInterno = (n: number | null | undefined) => (n ? `0001-${String(n).padStart(8, '0')}` : '—');
 
 /** Fecha de hoy en la zona horaria del navegador (no en UTC). */
-export const hoy = () => hoyEn(Intl.DateTimeFormat().resolvedOptions().timeZone);
+/** Fecha de hoy en la hora argentina, la misma que usa la API (no la del navegador). */
+export const hoy = () => hoyEn(ZONA_ARGENTINA);
 
 export const ESTADOS_OC: Record<string, { etiqueta: string; color: string }> = {
   BORRADOR: { etiqueta: 'Borrador', color: 'gray' },

@@ -200,6 +200,8 @@ export class MaestrosSueldosService {
 
   async modificarConcepto(id: string, d: DatosConcepto) {
     if (!(await this.tenant.db.concepto.findUnique({ where: { id } }))) throw new NotFoundException('Concepto inexistente');
+    if (d.activo === false && (await this.tenant.db.configuracionSueldos.findFirst({ where: { conceptoComisionesId: id } })))
+      throw new BadRequestException('Es el concepto de comisiones de vendedores: elija otro en la configuración de sueldos antes de desactivarlo');
     await this.validarCuentaConcepto(d.cuentaContableId);
     return this.tenant.db.concepto.update({ where: { id }, data: { ...d, parametros: d.parametros as Prisma.InputJsonValue } });
   }

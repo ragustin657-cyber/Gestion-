@@ -166,4 +166,36 @@ describe('cobranzas: agenda y ficha', () => {
     const f = (await x.http.get(`/api/ventas/cobranzas/${x.clienteRI.id}`)).body as { gestiones: { nota: string; eliminable: boolean }[] };
     expect(f.gestiones.map((g) => [g.nota, g.eliminable])).toEqual([['Hoy', true], ['Ayer', false]]);
   });
+
+  it('pulido 26: dos promesas el mismo día', async () => {
+    const x = await escenario();
+    const fc = await x.vencida();
+    const fc2 = await x.vencida();
+    await x.gestion(x.clienteRI.id, { fecha: '2026-11-04', nota: 'A', promesaFecha: '2026-11-10', promesaImporte: 500 });
+    await x.gestion(x.clienteRI.id, { fecha: '2026-11-04', nota: 'B', promesaFecha: '2026-11-10', promesaImporte: 700 });
+    await x.recibo(fc, 500, { fecha: '2026-11-04' });
+    await x.gestion(x.clienteRI.id, { fecha: '2026-11-05', nota: 'C', promesaFecha: '2026-11-10', promesaImporte: 100 });
+    await x.recibo(fc2, 100, { fecha: '2026-11-05' });
+    const ficha = (await x.http.get(`/api/ventas/cobranzas/${x.clienteRI.id}`)).body as { gestiones: { nota: string; promesaEstado: string }[] };
+    expect(ficha.gestiones.map((g) => [g.nota, g.promesaEstado])).toEqual([['C', 'CUMPLIDA'], ['B', 'PENDIENTE'], ['A', 'CUMPLIDA']]);
+  });
+
+  it('pulido 26: cobro anulado no cumple', async () => {
+    const x = await escenario();
+    await x.vencida();
+    await x.gestion(x.clienteRI.id, { promesaFecha: '2026-11-10', promesaImporte: 1210 });
+    const { ingreso } = await x.cobro(1210, '2026-11-06');
+    expect((await x.agenda())[0].promesa?.estado).toBe('CUMPLIDA');
+    expect((await x.http.post(`/api/tesoreria/ingresos/${ingreso.id}/anular`, { motivo: 'Error' })).status).toBeLessThan(300);
+    expect((await x.agenda())[0].promesa?.estado).toBe('PENDIENTE');
+  });
+
+  it('pulido 26: usuario de la gestión', async () => {
+    const x = await escenario();
+    await x.vencida();
+    await x.gestion(x.clienteRI.id, {});
+    const u = await prisma.usuario.findFirstOrThrow({ where: { id: (await prisma.gestionCobranza.findFirstOrThrow({ where: { empresaId: x.empresaId } })).creadoPor } });
+    const f = (await x.http.get(`/api/ventas/cobranzas/${x.clienteRI.id}`)).body as { gestiones: { usuario: string }[] };
+    expect(f.gestiones[0].usuario).toBe(u.nombre);
+  });
 });
