@@ -36,6 +36,8 @@ export interface DatosGanancias {
   /** Lo retenido en el año por esta empresa (límite de la devolución). */
   retenidoEmpresa: Dec;
   brutaRecibo: Dec;
+  /** Neto del recibo antes de la retención: la retención no lo deja negativo (revisión E31). */
+  netoRecibo?: Dec;
 }
 
 export interface HojaGanancias {
@@ -102,7 +104,8 @@ export function retencionGanancias(d: DatosGanancias): { importe: Dec; hoja: Hoj
   const tramo = [...tramos].reverse().find((x) => sujeta.gt(x.desde)) ?? tramos[0];
   const impuesto = sujeta.gt(0) ? r2(tramo.fijo.plus(sujeta.minus(tramo.desde).times(tramo.porcentaje).div(100))) : cero();
   const calculado = r2(impuesto.minus(d.retenidoAnterior));
-  const topeMes = r2(D.max(d.brutaRecibo, 0).times(0.35));
+  const tope35 = D.max(d.brutaRecibo, 0).times(0.35);
+  const topeMes = r2(d.netoRecibo ? D.min(tope35, D.max(d.netoRecibo, 0)) : tope35);
   let importe: Dec;
   let noRetenido = cero();
   if (calculado.lt(0)) importe = D.max(calculado, d.retenidoEmpresa.neg()); // devolución, hasta lo retenido por la empresa

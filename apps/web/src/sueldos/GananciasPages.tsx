@@ -200,6 +200,22 @@ const TIPOS = [
   ['INTERESES_CORREDORES', 'Intereses de corredores'], ['CAJAS_JUBILACION', 'Aportes a cajas de jubilación'], ['OTRA', 'Otra (no se deduce)'],
 ].map(([value, label]) => ({ value, label }));
 
+type DeduccionWeb = DatosF572Web['deducciones'][number];
+type CambioDeduccion = Partial<{ tipo: string; prestador: string; desde: number; hasta: number; mensual: string }>;
+
+/**
+ * Edita una deducción: el tipo y el prestador no tocan los meses (los importados pueden variar por mes o saltear meses);
+ * solo cambiar el rango o el importe mensual rearma los meses como un rango con el mismo importe (revisión E31).
+ */
+export function editarDeduccion(d: DeduccionWeb, x: CambioDeduccion): DeduccionWeb {
+  const r = { ...d, tipo: x.tipo ?? d.tipo, prestador: x.prestador ?? d.prestador };
+  if (x.desde === undefined && x.hasta === undefined && x.mensual === undefined) return r;
+  const de = x.desde ?? d.meses[0]?.mes ?? 1;
+  const ha = Math.max(x.hasta ?? d.meses[d.meses.length - 1]?.mes ?? de, de);
+  const im = x.mensual ?? d.meses[0]?.importe ?? '0';
+  return { ...r, meses: Array.from({ length: ha - de + 1 }, (_, k) => ({ mes: de + k, importe: im })) };
+}
+
 /** Ganancias de un empleado: F.572 (resumen y edición) y acumulado previo (spec E31 §4 y §6). */
 export function GananciasEmpleado({ empleadoId, editable }: { empleadoId: string; editable: boolean }) {
   const qc = useQueryClient();
@@ -256,10 +272,7 @@ export function GananciasEmpleado({ empleadoId, editable }: { empleadoId: string
             const desde = d.meses[0]?.mes ?? 1;
             const hasta = d.meses[d.meses.length - 1]?.mes ?? desde;
             const mensual = d.meses[0]?.importe ?? '0';
-            const set = (x: Partial<{ tipo: string; prestador: string; desde: number; hasta: number; mensual: string }>) => {
-              const de = x.desde ?? desde; const ha = Math.max(x.hasta ?? hasta, de); const im = x.mensual ?? mensual;
-              setEdicion({ ...edicion, deducciones: edicion.deducciones.map((y, j) => (j === i ? { ...y, tipo: x.tipo ?? y.tipo, prestador: x.prestador ?? y.prestador, meses: Array.from({ length: ha - de + 1 }, (_, k) => ({ mes: de + k, importe: im })) } : y)) });
-            };
+            const set = (x: CambioDeduccion) => setEdicion({ ...edicion, deducciones: edicion.deducciones.map((y, j) => (j === i ? editarDeduccion(y, x) : y)) });
             return (
               <Group key={i} gap="xs" wrap="nowrap">
                 <Select aria-label="Tipo de deducción" w={230} data={TIPOS} value={d.tipo} onChange={(x) => set({ tipo: x ?? 'OTRA' })} />

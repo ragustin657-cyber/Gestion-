@@ -342,9 +342,18 @@ export class LiquidacionesService {
       const res = await this.obtener(id, tx);
       // Ganancias (E31 §6): las liquidaciones posteriores ya cerradas no se recalculan solas
       const anio = l.fechaPago.getUTCFullYear();
-      const posteriores = await this.retencion.concepto(tx) && await tx.liquidacion.count({ where: { id: { not: id }, estado: 'CERRADA', fechaPago: { gte: l.fechaPago, lt: new Date(Date.UTC(anio + 1, 0, 1)) } } });
+      // Mismo criterio que el cierre: posteriores del año que retuvieron Ganancias a empleados de esta
+      let posteriores = 0;
+      if (await this.retencion.concepto(tx)) {
+        const empleados = (await tx.reciboSueldo.findMany({ where: { liquidacionId: id }, select: { empleadoId: true } })).map((r) => r.empleadoId);
+        const conceptosGanancias = (await tx.concepto.findMany({ where: { tipo: 'GANANCIAS' }, select: { id: true } })).map((c) => c.id);
+        posteriores = await tx.liquidacion.count({ where: {
+          id: { not: id }, estado: 'CERRADA', fechaPago: { gt: l.fechaPago, lt: new Date(Date.UTC(anio + 1, 0, 1)) },
+          recibos: { some: { empleadoId: { in: empleados }, renglones: { some: { conceptoId: { in: conceptosGanancias } } } } },
+        } });
+      }
       if (!posteriores) return res;
-      const aviso = 'Hay liquidaciones posteriores cerradas: su retención de Ganancias no se recalcula';
+      const aviso = 'Hay liquidaciones posteriores cerradas: su retención de Ganancias no se recalcula; para volver a cerrarla, reabra primero las posteriores que retuvieron Ganancias';
       return { ...res, aviso: [res.aviso, aviso].filter(Boolean).join('. ') };
     });
   }

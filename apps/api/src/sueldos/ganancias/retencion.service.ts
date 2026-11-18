@@ -56,7 +56,7 @@ export class RetencionGananciasService {
     if (!tabla) throw new SinTablaGanancias(`Cargue la tabla de Ganancias de ${semestreDe(mes) === 1 ? '1.er' : '2.º'} semestre ${anio}`);
     const conceptos = new Map((await tx.concepto.findMany()).map((c) => [c.id, c]));
     const previos = await tx.reciboSueldoRenglon.findMany({
-      where: { recibo: { empleadoId, liquidacionId: { not: l.id }, liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio, 0, 1)), lt: new Date(Date.UTC(anio + 1, 0, 1)) } } } },
+      where: { recibo: { empleadoId, liquidacionId: { not: l.id }, liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio, 0, 1)), lte: l.fechaPago } } } },
     });
     const ant = this.sumar(previos, conceptos);
     const actual = this.sumar(r.renglones.map((x) => ({ ...x, conceptoId: x.conceptoId === 'SAC' || x.conceptoId === 'FINAL' ? null : x.conceptoId })), conceptos);
@@ -75,7 +75,7 @@ export class RetencionGananciasService {
     const retenidoEmpresa = ant.retenido.plus(acum?.retenido ?? 0);
     const brutaRecibo = new D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
     const res = retencionGanancias({
-      mes, deducciones, cargas, brutaRecibo, retenidoEmpresa,
+      mes, deducciones, cargas, brutaRecibo, retenidoEmpresa, netoRecibo: new D(r.neto),
       tabla: { ...tabla, tramos: tabla.tramos.map((x) => ({ desde: x.desde, hasta: x.hasta, fijo: x.fijo, porcentaje: x.porcentaje })) },
       bruta: ant.bruta.plus(actual.bruta).plus(acum?.bruta ?? 0).plus(otrosBruta),
       aportes: ant.aportes.plus(actual.aportes).plus(acum?.aportes ?? 0).plus(otrosAportes),

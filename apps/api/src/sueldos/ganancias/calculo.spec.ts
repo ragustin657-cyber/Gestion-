@@ -66,4 +66,10 @@ describe('Ganancias de cuarta: cálculo de la retención', () => {
     expect(r.hoja.calculado).toBe('369000.00');
     expect([r.importe.toFixed(2), r.hoja.noRetenido]).toEqual(['350000.00', '19000.00']);
   });
+
+  it('revisión: la retención no deja el neto negativo', () => {
+    // Otros descuentos dejan un neto de 100.000: aunque el 35 % permita más, se retiene como máximo el neto
+    const r = retencionGanancias(base({ mes: 2, bruta: D(4000000), aportes: D(340000), brutaRecibo: D(1000000), netoRecibo: D(100000) }));
+    expect([r.importe.toFixed(2), r.hoja.noRetenido]).toEqual(['100000.00', '269000.00']);
+  });
 });

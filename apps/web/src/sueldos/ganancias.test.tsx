@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { vi } from 'vitest';
-import { FormTablaGanancias, HojaGananciasVista, ResultadoImportacionF572, tramosValidos, type TablaGananciasWeb } from './GananciasPages';
+import { editarDeduccion, FormTablaGanancias, HojaGananciasVista, ResultadoImportacionF572, tramosValidos, type TablaGananciasWeb } from './GananciasPages';
 
 const envolver = (n: ReactNode) => render(<MantineProvider><MemoryRouter>{n}</MemoryRouter></MantineProvider>);
 const tabla: TablaGananciasWeb = {
@@ -53,5 +53,16 @@ describe('Ganancias de cuarta (web)', () => {
     expect(screen.getByText(/Deducción con código 99/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Confirmar reemplazo' }));
     expect(confirmar).toHaveBeenCalled();
+  });
+});
+
+describe('revisión E31: edición de deducciones importadas', () => {
+  const importada = { tipo: 'GASTOS_MEDICOS', codigo: '7', prestador: 'Clínica', meses: [{ mes: 2, importe: '1000.00' }, { mes: 5, importe: '3500.00' }] };
+  it('cambiar el prestador o el tipo no toca los meses', () => {
+    expect(editarDeduccion(importada, { prestador: 'Clínica Sur' }).meses).toEqual(importada.meses);
+    expect(editarDeduccion(importada, { tipo: 'EDUCACION' }).meses).toEqual(importada.meses);
+  });
+  it('cambiar el rango o el importe rearma los meses', () => {
+    expect(editarDeduccion(importada, { desde: 3, hasta: 4, mensual: '200' }).meses).toEqual([{ mes: 3, importe: '200' }, { mes: 4, importe: '200' }]);
   });
 });

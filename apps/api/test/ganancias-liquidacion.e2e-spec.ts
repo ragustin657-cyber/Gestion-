@@ -132,6 +132,27 @@ describe('ganancias: retención en la liquidación', () => {
     expect((await x.cerrar(nov.id)).status).toBe(201);
   });
 
+  it('revisión: solo acumula liquidaciones con fecha de pago anterior o igual', async () => {
+    const x = await escenario();
+    for (const mes of ['2026-11', '2026-12']) await x.escala('Vendedor B', mes, 300000);
+    const dic = await x.crear('MENSUAL', 2026, 12, '2026-12-20');
+    expect((await x.cerrar(dic.id)).status).toBe(201);
+    const nov = await x.crear('MENSUAL', 2026, 11, '2026-12-05');
+    const r = await x.recibo(nov.id);
+    // La bruta acumulada de noviembre es solo la de su propio recibo (diciembre se paga después)
+    expect(r.hojaGanancias!.bruta).toBe(D(r.totalRemunerativo).plus(r.totalNoRemunerativo).toFixed(2));
+  });
+
+  it('revisión: el aviso al reabrir dice que hay que reabrir las posteriores', async () => {
+    const x = await escenario();
+    const nov = await x.crear('MENSUAL', 2026, 11);
+    await x.cerrar(nov.id);
+    const dic = await x.crear('MENSUAL', 2026, 12);
+    await x.cerrar(dic.id);
+    const r = await x.http.post(`/api/sueldos/liquidaciones/${nov.id}/reabrir`);
+    expect(r.body.aviso).toContain('para volver a cerrarla, reabra primero las posteriores que retuvieron Ganancias');
+  });
+
   it('reabrir con posteriores cerradas avisa', async () => {
     const x = await escenario();
     const nov = await x.crear('MENSUAL', 2026, 11);
