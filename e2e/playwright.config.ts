@@ -28,7 +28,8 @@ export default defineConfig({
       // Base e2e: se migra, se siembra con datos demo y se levanta la API
       command: 'pnpm --filter @gestion/api exec prisma migrate deploy && pnpm --filter @gestion/api seed && pnpm --filter @gestion/api dev',
       url: `${API}/api/salud`,
-      env: { DATABASE_URL: DB, JWT_SECRET: 'e2e', PORT: '3100' },
+      // Correo en modo de prueba (los mails se guardan en memoria) y clave de cifrado de prueba (E28)
+      env: { DATABASE_URL: DB, JWT_SECRET: 'e2e', PORT: '3100', TRANSPORTE_CORREO: 'prueba', ARCA_CLAVE_MAESTRA: 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=' },
       cwd: '..',
       timeout: 120000,
       reuseExistingServer: false,

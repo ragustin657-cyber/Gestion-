@@ -43,7 +43,7 @@ test('cobranzas: el tesorero ve la agenda, registra un llamado con promesa y la 
   await expect(page.getByLabel('Email')).toBeVisible();
   await ingresar(page, 'tesorero@demo.com', 'tesorero1234');
   await page.goto('/ventas/cobranzas');
-  await page.getByRole('cell', { name: 'María Gómez' }).click();
+  await page.getByRole('cell', { name: 'María Gómez', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'María Gómez' })).toBeVisible();
   await expect(page.getByRole('cell', { name: /Servicio|FC|Factura/ }).first()).toBeVisible();
 

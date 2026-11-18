@@ -1,3 +1,4 @@
+import { CorreoModule } from './correo/correo.module';
 import { Module } from '@nestjs/common';
 import { ClsModule } from 'nestjs-cls';
 import { ArticulosModule } from './articulos/articulos.module';
@@ -33,6 +34,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
 
 @Module({
   imports: [
+    CorreoModule,
     ClsModule.forRoot({ global: true, middleware: { mount: true } }),
     PrismaModule,
     AuditoriaModule,

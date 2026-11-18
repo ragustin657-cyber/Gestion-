@@ -58,6 +58,7 @@ export const PERMISOS = {
   'comisiones.liquidar': 'Liquidar comisiones de vendedores',
   'cobranzas.gestionar': 'Registrar gestiones de cobranza',
   'intereses.liquidar': 'Liquidar intereses por mora',
+  'correo.configurar': 'Configurar el correo de la empresa',
 } as const;
 
 export type Permiso = keyof typeof PERMISOS;
