@@ -59,8 +59,10 @@ export class PedidosService {
     if (d.depositoId && !(await tx.deposito.findUnique({ where: { id: d.depositoId } }))) throw new BadRequestException('Depósito inexistente');
     if (d.listaPreciosId && !(await tx.listaPrecios.findUnique({ where: { id: d.listaPreciosId } }))) throw new BadRequestException('Lista de precios inexistente');
     // Vendedor: el indicado, o el habitual del cliente si viene sin indicar (E24 §4)
-    const vendedorId = d.vendedorId === undefined ? tercero.vendedorId : d.vendedorId;
+    let vendedorId = d.vendedorId === undefined ? tercero.vendedorId : d.vendedorId;
     if (vendedorId && d.vendedorId !== undefined) await vendedorActivo(tx, vendedorId);
+    // El habitual del cliente se propone solo si sigue activo; si no, el pedido queda sin vendedor (como la factura)
+    else if (vendedorId && !(await tx.vendedor.findFirst({ where: { id: vendedorId, activo: true } }))) vendedorId = null;
     const ids = d.renglones.map((r) => r.articuloId).filter((x): x is string => !!x);
     if (ids.length && (await tx.articulo.count({ where: { id: { in: ids } } })) !== new Set(ids).size) throw new BadRequestException('Artículo inexistente');
     const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);

@@ -2182,6 +2182,7 @@ model Novedad {
   liquidacionComisionesId String?     @db.Uuid
 
   @@index([empresaId, liquidacionId, empleadoId])
+  @@index([liquidacionComisionesId])
 }
 
 model ReciboSueldo {

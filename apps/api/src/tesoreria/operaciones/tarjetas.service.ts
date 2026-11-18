@@ -47,21 +47,29 @@ export class TarjetasService {
     return cuentaContableId;
   }
 
-  crear(d: DatosTarjeta) {
-    return this.tenant.transaccion(async (tx) => {
-      const cuentaContableId = await this.validar(tx, d);
-      return tx.tarjeta.create({ data: { empresaId: this.tenant.empresaId, nombre: d.nombre, tipo: d.tipo, cuentaBancariaId: d.cuentaBancariaId, cuentaContableId, activa: d.activa ?? true } });
+  /** Dos altas simultáneas con el mismo nombre chocan con el índice único: 400 en vez de 500 (E26 §2.4). */
+  private unico<T>(nombre: string, p: Promise<T>) {
+    return p.catch((e) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') throw new BadRequestException(`Ya existe la tarjeta ${nombre}`);
+      throw e;
     });
   }
 
+  crear(d: DatosTarjeta) {
+    return this.unico(d.nombre, this.tenant.transaccion(async (tx) => {
+      const cuentaContableId = await this.validar(tx, d);
+      return tx.tarjeta.create({ data: { empresaId: this.tenant.empresaId, nombre: d.nombre, tipo: d.tipo, cuentaBancariaId: d.cuentaBancariaId, cuentaContableId, activa: d.activa ?? true } });
+    }));
+  }
+
   modificar(id: string, d: DatosTarjeta) {
-    return this.tenant.transaccion(async (tx) => {
+    return this.unico(d.nombre, this.tenant.transaccion(async (tx) => {
       const actual = await tx.tarjeta.findUnique({ where: { id } });
       if (!actual) throw new NotFoundException('Tarjeta inexistente');
       // Sin cuenta en el pedido se conserva la que tenía (no se vuelve a la de la configuración)
       const cuentaContableId = await this.validar(tx, d, id, actual.cuentaContableId);
       return tx.tarjeta.update({ where: { id }, data: { nombre: d.nombre, tipo: d.tipo, cuentaBancariaId: d.cuentaBancariaId, cuentaContableId, activa: d.activa ?? true } });
-    });
+    }));
   }
 
   /** Cupones con filtros y totales por tarjeta (limitado a la sucursal del usuario si tiene una). */
@@ -114,6 +122,10 @@ export class TarjetasService {
         if (sucursal && c.sucursalId !== sucursal) throw new BadRequestException(`El cupón ${nombre} no pertenece a su sucursal`);
         if (c.estado !== 'PENDIENTE') throw new BadRequestException(`El cupón ${nombre} no está pendiente`);
       }
+      // La liquidación no puede ser anterior al cupón más nuevo (E26 §2.3)
+      const masNuevo = cupones.reduce((m, c) => (c.fecha > m.fecha ? c : m), cupones[0]);
+      if (new Date(`${d.fecha}T00:00:00Z`) < masNuevo.fecha)
+        throw new BadRequestException(`La liquidación no puede ser anterior al cupón ${masNuevo.numero ?? masNuevo.id.slice(0, 8)} (${masNuevo.fecha.toISOString().slice(0, 10).split('-').reverse().join('/')})`);
       const dec = (n: number | undefined) => new D(n ?? 0).toDecimalPlaces(2);
       const arancel = dec(d.arancel), ivaArancel = dec(d.ivaArancel), costo = dec(d.costoFinanciero), ivaCosto = dec(d.ivaCostoFinanciero), neto = dec(d.neto);
       const impuestos = d.impuestos.map((i) => ({ ...i, importe: dec(i.importe) }));
