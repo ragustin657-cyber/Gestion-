@@ -143,7 +143,7 @@ export async function otroUsuario(app: INestApplication, prisma: PrismaService, 
   });
   await prisma.usuarioEmpresa.create({ data: { usuarioId: usuario.id, empresaId, rolId: rol.id } });
   const token = await loginComo(app, usuario.email, password, empresaId);
-  return { usuario, http: conToken(app, token) };
+  return { usuario, token, http: conToken(app, token) };
 }
 
 /** Crea y confirma una OC aprobada automáticamente (sube el monto límite) y la devuelve. */
