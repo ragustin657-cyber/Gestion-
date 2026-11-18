@@ -9,6 +9,8 @@ import { basicosVigentes, topeVigente } from './maestros.service';
 import { ContabilizacionService } from './contabilizacion.service';
 import { ContribucionesService } from './contribuciones.service';
 import { PagosSueldosService } from './pagos.service';
+import { RetencionGananciasService, SinTablaGanancias } from './ganancias/retencion.service';
+import type { HojaGanancias } from './ganancias/calculo';
 
 const D = Prisma.Decimal;
 const mmaaaa = (anio: number, mes: number) => `${String(mes).padStart(2, '0')}/${anio}`;
@@ -23,7 +25,7 @@ const aCalc = (c: Concepto): ConceptoCalc => ({ id: c.id, codigo: c.codigo, nomb
 
 @Injectable()
 export class LiquidacionesService {
-  constructor(private readonly tenant: TenantPrisma, private readonly numeracion: NumeracionService, private readonly cls: ClsService, private readonly contabilizacion: ContabilizacionService, private readonly contribuciones: ContribucionesService, private readonly pagos: PagosSueldosService) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly numeracion: NumeracionService, private readonly cls: ClsService, private readonly contabilizacion: ContabilizacionService, private readonly contribuciones: ContribucionesService, private readonly pagos: PagosSueldosService, private readonly retencion: RetencionGananciasService) {}
 
   private usuario() {
     return this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
@@ -159,6 +161,8 @@ export class LiquidacionesService {
     }
     const errores: { empleadoId: string; mensaje: string }[] = [];
     const vigentes = new Set<string>(conservados);
+    // Ganancias de cuarta (E31): solo si la empresa es agente de retención y tiene el concepto activo
+    const conceptoGanancias = await this.retencion.concepto(tx);
     for (const e of empleados) {
       const cat = categorias.get(e.categoriaId)!;
       if (!cat.activa) { errores.push({ empleadoId: e.id, mensaje: `La categoría ${cat.nombre} está inactiva` }); continue; }
@@ -186,8 +190,19 @@ export class LiquidacionesService {
         const nov: NovedadCalc[] = novedades.filter((n) => n.empleadoId === e.id).map((n) => ({ tipo: n.tipo, conceptoId: n.conceptoId, cantidad: n.cantidad ? new D(n.cantidad) : null, importe: n.importe ? new D(n.importe) : null }));
         r = liquidarMes(calcE, cs, nov, l.anio, l.mes, param.baseMaxima, vacacionesMes.filter((v) => v.empleadoId === e.id).map((v) => ({ periodoId: v.id, dias: v.dias })));
       }
+      let hojaGanancias: HojaGanancias | null = null;
+      if (conceptoGanancias) {
+        try {
+          hojaGanancias = await this.retencion.aplicar(tx, l, e.id, r, conceptoGanancias);
+        } catch (err) {
+          if (!(err instanceof SinTablaGanancias)) throw err;
+          errores.push({ empleadoId: e.id, mensaje: err.message });
+          continue;
+        }
+      }
       vigentes.add(e.id);
       const datos = {
+        hojaGanancias: hojaGanancias ? (hojaGanancias as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
         apellido: e.apellido, nombre: e.nombre, cuil: e.cuil, legajo: e.legajo, categoria: cat.nombre, basico, fechaIngreso: e.fechaIngreso, antiguedadAnios: r.antiguedadAnios, diasTrabajados: r.diasTrabajados,
         totalRemunerativo: r.totalRemunerativo, totalNoRemunerativo: r.totalNoRemunerativo, totalDescuentos: r.totalDescuentos, neto: r.neto, centroCostoId: e.centroCostoId, formaPago: e.formaPago,
       };
@@ -282,6 +297,22 @@ export class LiquidacionesService {
     return this.tenant.transaccion(async (tx) => {
       await this.bloquear(tx, id);
       const l = await this.liquidacion(tx, id, true);
+      if (await this.retencion.concepto(tx)) {
+        // Ganancias (E31 §6): los cierres de la empresa se serializan y van en orden de fecha de pago dentro del año
+        await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
+        const anio = l.fechaPago.getUTCFullYear();
+        // Solo importa si la posterior ya retuvo (o devolvió) Ganancias a alguno de los empleados de esta: si no, no hay nada que retener dos veces
+        const empleados = (await tx.reciboSueldo.findMany({ where: { liquidacionId: id }, select: { empleadoId: true } })).map((r) => r.empleadoId);
+        const conceptosGanancias = (await tx.concepto.findMany({ where: { tipo: 'GANANCIAS' }, select: { id: true } })).map((c) => c.id);
+        const posterior = await tx.liquidacion.findFirst({
+          where: {
+            id: { not: id }, estado: 'CERRADA', fechaPago: { gt: l.fechaPago, lt: new Date(Date.UTC(anio + 1, 0, 1)) },
+            recibos: { some: { empleadoId: { in: empleados }, renglones: { some: { conceptoId: { in: conceptosGanancias } } } } },
+          },
+          orderBy: { fechaPago: 'asc' },
+        });
+        if (posterior) throw new BadRequestException(`Hay una liquidación cerrada con fecha de pago posterior (N° ${posterior.numero}): ciérrelas en orden de fecha de pago`);
+      }
       const { errores } = await this.calcular(tx, l);
       if (errores.length) throw new BadRequestException('Corrija los errores antes de cerrar la liquidación');
       const recibos = await tx.reciboSueldo.findMany({ where: { liquidacionId: id, numero: null }, orderBy: { legajo: 'asc' } });
@@ -308,7 +339,22 @@ export class LiquidacionesService {
       await this.pagos.validarReapertura(tx, l);
       await this.contabilizacion.anular(tx, l);
       await tx.liquidacion.update({ where: { id }, data: { estado: 'BORRADOR', cerradoPor: null, cerradoEn: null } });
-      return this.obtener(id, tx);
+      const res = await this.obtener(id, tx);
+      // Ganancias (E31 §6): las liquidaciones posteriores ya cerradas no se recalculan solas
+      const anio = l.fechaPago.getUTCFullYear();
+      // Mismo criterio que el cierre: posteriores del año que retuvieron Ganancias a empleados de esta
+      let posteriores = 0;
+      if (await this.retencion.concepto(tx)) {
+        const empleados = (await tx.reciboSueldo.findMany({ where: { liquidacionId: id }, select: { empleadoId: true } })).map((r) => r.empleadoId);
+        const conceptosGanancias = (await tx.concepto.findMany({ where: { tipo: 'GANANCIAS' }, select: { id: true } })).map((c) => c.id);
+        posteriores = await tx.liquidacion.count({ where: {
+          id: { not: id }, estado: 'CERRADA', fechaPago: { gt: l.fechaPago, lt: new Date(Date.UTC(anio + 1, 0, 1)) },
+          recibos: { some: { empleadoId: { in: empleados }, renglones: { some: { conceptoId: { in: conceptosGanancias } } } } },
+        } });
+      }
+      if (!posteriores) return res;
+      const aviso = 'Hay liquidaciones posteriores cerradas: su retención de Ganancias no se recalcula; para volver a cerrarla, reabra primero las posteriores que retuvieron Ganancias';
+      return { ...res, aviso: [res.aviso, aviso].filter(Boolean).join('. ') };
     });
   }
 

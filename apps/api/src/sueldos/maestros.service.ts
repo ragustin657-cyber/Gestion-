@@ -190,7 +190,11 @@ export class MaestrosSueldosService {
     const vac = await this.tenant.db.concepto.findMany({ where: { tipo: 'VACACIONES', activo: true } });
     const pago = vac.some((c) => (c.parametros as Record<string, unknown>)?.descuenta !== true);
     const descuento = vac.some((c) => (c.parametros as Record<string, unknown>)?.descuenta === true);
-    return pago && descuento ? [] : ['Faltan los conceptos de vacaciones (pago y descuento): las vacaciones no se liquidan'];
+    const avisos = pago && descuento ? [] : ['Faltan los conceptos de vacaciones (pago y descuento): las vacaciones no se liquidan'];
+    // Ganancias de cuarta (E31 §6): descuentos manuales de ganancias cargados antes del cálculo automático
+    const viejos = await this.tenant.db.concepto.findMany({ where: { activo: true, clase: 'DESCUENTO', tipo: { not: 'GANANCIAS' }, nombre: { contains: 'ganancia', mode: 'insensitive' } }, orderBy: { codigo: 'asc' } });
+    for (const c of viejos) avisos.push(`El concepto ${c.codigo} ${c.nombre} parece una retención de Ganancias cargada a mano: sume lo retenido en el acumulado previo de cada empleado y desactívelo`);
+    return avisos;
   }
 
   async crearConcepto(d: DatosConcepto) {

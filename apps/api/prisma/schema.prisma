@@ -2017,6 +2017,7 @@ enum TipoConcepto {
   FIJO
   DESCUENTO_LEY
   VACACIONES
+  GANANCIAS
 }
 
 enum FormaPagoSueldo {
@@ -2138,6 +2139,8 @@ model Concepto {
   cuentaContableId String?          @db.Uuid
   // Código de concepto ARCA del Libro de Sueldos Digital (Anexo I)
   codigoArca       String
+  // Ganancias de cuarta: concepto exento (no suma a la ganancia bruta, E31 §6)
+  exentoGanancias  Boolean          @default(false)
 
   @@unique([empresaId, codigo])
 }
@@ -2213,6 +2216,8 @@ model ReciboSueldo {
   neto                Decimal                    @db.Decimal(18, 2)
   centroCostoId       String?                    @db.Uuid
   formaPago           FormaPagoSueldo?
+  // Hoja de cálculo de la retención de Ganancias de cuarta (E31 §6)
+  hojaGanancias       Json?
   renglones           ReciboSueldoRenglon[]
   contribuciones      ReciboSueldoContribucion[]
 
@@ -2641,4 +2646,69 @@ model ConfigCorreo {
   remitenteEmail  String
   asunto          String
   cuerpo          String
+}
+
+// Ganancias de cuarta categoría (E31): tablas de ARCA por semestre, importes anuales
+model TablaGanancias {
+  id                String           @id @default(uuid()) @db.Uuid
+  empresaId         String           @db.Uuid
+  anio              Int
+  semestre          Int
+  gni               Decimal          @db.Decimal(18, 2)
+  deduccionEspecial Decimal          @db.Decimal(18, 2)
+  conyuge           Decimal          @db.Decimal(18, 2)
+  hijo              Decimal          @db.Decimal(18, 2)
+  hijoIncapacitado  Decimal          @db.Decimal(18, 2)
+  topeHipotecario   Decimal          @db.Decimal(18, 2)
+  topeSeguroMuerte  Decimal          @db.Decimal(18, 2)
+  topeSeguroMixto   Decimal          @db.Decimal(18, 2)
+  topeSeguroRetiro  Decimal          @db.Decimal(18, 2)
+  topeSepelio       Decimal          @db.Decimal(18, 2)
+  tramos            TramoGanancias[]
+
+  @@unique([empresaId, anio, semestre])
+}
+
+// Escala del art. 94 (anual)
+model TramoGanancias {
+  id         String         @id @default(uuid()) @db.Uuid
+  empresaId  String         @db.Uuid
+  tablaId    String         @db.Uuid
+  tabla      TablaGanancias @relation(fields: [tablaId], references: [id], onDelete: Cascade)
+  desde      Decimal        @db.Decimal(18, 2)
+  hasta      Decimal?       @db.Decimal(18, 2)
+  fijo       Decimal        @db.Decimal(18, 2)
+  porcentaje Decimal        @db.Decimal(7, 4)
+
+  @@index([tablaId])
+}
+
+// F.572 web (SiRADIG) de un empleado y año
+model F572 {
+  id              String    @id @default(uuid()) @db.Uuid
+  empresaId       String    @db.Uuid
+  empleadoId      String    @db.Uuid
+  anio            Int
+  nroPresentacion Int       @default(0)
+  fecha           DateTime? @db.Date
+  origen          String
+  modificadoAMano Boolean   @default(false)
+  datos           Json
+
+  @@unique([empleadoId, anio])
+  @@index([empresaId])
+}
+
+// Acumulado de Ganancias pagado fuera del sistema (puesta en marcha a mitad de año)
+model AcumuladoGanancias {
+  id         String  @id @default(uuid()) @db.Uuid
+  empresaId  String  @db.Uuid
+  empleadoId String  @db.Uuid
+  anio       Int
+  bruta      Decimal @default(0) @db.Decimal(18, 2)
+  aportes    Decimal @default(0) @db.Decimal(18, 2)
+  retenido   Decimal @default(0) @db.Decimal(18, 2)
+
+  @@unique([empleadoId, anio])
+  @@index([empresaId])
 }

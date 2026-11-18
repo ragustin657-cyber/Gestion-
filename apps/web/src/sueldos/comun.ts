@@ -8,12 +8,14 @@ export interface Empleado {
   id: string; legajo: number; apellido: string; nombre: string; cuil: string; domicilio: string; fechaIngreso: string; fechaEgreso: string | null;
   categoriaId: string; categoria: string; centroCostoId: string | null; afiliadoSindicato: boolean; obraSocial: string; formaPago: 'EFECTIVO' | 'TRANSFERENCIA'; cbu: string | null; activo: boolean;
 }
-export interface Concepto { id: string; convenioId: string | null; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean; activo: boolean; destino?: string; cuentaContableId?: string | null; codigoArca: string }
+import type { HojaGanancias } from './GananciasPages';
+
+export interface Concepto { id: string; convenioId: string | null; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean; activo: boolean; destino?: string; cuentaContableId?: string | null; codigoArca: string; exentoGanancias?: boolean }
 export interface Novedad { tipo: 'HORAS_EXTRA_50' | 'HORAS_EXTRA_100' | 'AUSENCIA_INJUSTIFICADA' | 'IMPORTE'; conceptoId?: string | null; cantidad?: number | null; importe?: number | null; detalle?: string | null; liquidacionComisionesId?: string | null }
 export interface RenglonRecibo { codigo: string; nombre: string; clase: Clase; cantidad: string | null; base: string | null; porcentaje: string | null; importe: string; orden: number }
 export interface Recibo {
   id: string; empleadoId: string; numero: number | null; legajo: number; apellido: string; nombre: string; cuil: string; categoria: string; basico: string; fechaIngreso: string;
-  antiguedadAnios: number; diasTrabajados: number; totalRemunerativo: string; totalNoRemunerativo: string; totalDescuentos: string; neto: string; renglones: RenglonRecibo[]; novedades: Novedad[]; pagado?: boolean; sinNeto?: boolean;
+  antiguedadAnios: number; diasTrabajados: number; totalRemunerativo: string; totalNoRemunerativo: string; totalDescuentos: string; neto: string; renglones: RenglonRecibo[]; novedades: Novedad[]; pagado?: boolean; sinNeto?: boolean; hojaGanancias?: HojaGanancias | null;
 }
 export interface LiquidacionLista { empleado?: { legajo: number; apellido: string; nombre: string } | null; id: string; numero: number; tipo: 'MENSUAL' | 'SAC' | 'FINAL'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA'; empleados: number; totalNeto: string }
 export interface LiquidacionDetalle {

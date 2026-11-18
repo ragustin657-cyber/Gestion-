@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<presentacion>
+  <periodo>2026</periodo>
+  <nroPresentacion>{NRO}</nroPresentacion>
+  <fechaPresentacion>2026-03-10</fechaPresentacion>
+  <empleado><cuit>{CUIL}</cuit><tipoDoc>86</tipoDoc><apellido>PEREZ</apellido><nombre>JUAN</nombre></empleado>
+  <agenteRetencion><cuit>{CUIT}</cuit><denominacion>EMPRESA</denominacion></agenteRetencion>
+  <cargasFamilia>
+    <cargaFamilia><tipoDoc>96</tipoDoc><nroDoc>30111222</nroDoc><apellido>GOMEZ</apellido><nombre>ANA</nombre><fechaNac>1985-05-01</fechaNac><mesDesde>1</mesDesde><mesHasta>12</mesHasta><parentesco>1</parentesco><porcentajeDeduccion>100</porcentajeDeduccion></cargaFamilia>
+  </cargasFamilia>
+  <ganLiqOtrosEmpEnt>
+    <empEnt><cuit>30700123452</cuit><denominacion>OTRO EMPLEADOR SA</denominacion>
+      <ingresosAportes><ingAp mes="3"><ganBrut>500000.00</ganBrut><obraSoc>15000.00</obraSoc><segSoc>70000.00</segSoc><sind>0.00</sind><retGan>1000.00</retGan></ingAp></ingresosAportes>
+    </empEnt>
+  </ganLiqOtrosEmpEnt>
+  <deducciones>
+    <deduccion tipo="1"><tipoDoc>80</tipoDoc><nroDoc>30654321092</nroDoc><denominacion>PREPAGA SA</denominacion><montoTotal>120000.00</montoTotal>
+      <periodos><periodo mesDesde="1" mesHasta="12" montoMensual="10000.00"/></periodos>
+    </deduccion>
+    {EXTRA}
+  </deducciones>
+</presentacion>

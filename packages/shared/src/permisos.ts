@@ -53,6 +53,7 @@ export const PERMISOS = {
   'presupuesto.editar': 'Editar presupuestos',
   'sueldos.ver': 'Ver sueldos',
   'sueldos.liquidar': 'Liquidar sueldos',
+  'ganancias.configurar': 'Configurar las tablas de Ganancias de cuarta categoría',
   'informes.ver': 'Ver informes de gestión',
   'venta.maestros': 'Editar vendedores',
   'comisiones.liquidar': 'Liquidar comisiones de vendedores',
