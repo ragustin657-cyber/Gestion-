@@ -52,8 +52,8 @@ Que el área de cobranzas pueda mandarle a un cliente, o a varios a la vez, un m
 | `cuerpo` | plantilla del texto |
 
 **Cifrado de la clave:**
-- AES-256-GCM con una clave maestra del servidor: la variable de entorno `CLAVE_CIFRADO`, 32 bytes en base64.
-- Sin esa variable, guardar responde 400: `El servidor no tiene configurada la clave de cifrado (CLAVE_CIFRADO): no se puede guardar la clave del correo`.
+- Reutiliza el cifrado que ya existe para los certificados de ARCA (`src/arca/cifrado.ts`): AES-256-GCM con la variable `ARCA_CLAVE_MAESTRA`. No se agrega otro secreto para configurar en cada instalación.
+- Sin esa variable, guardar responde 400: `El servidor no tiene configurada la clave de cifrado (ARCA_CLAVE_MAESTRA): no se puede guardar la clave del correo`.
 - La API nunca devuelve la clave. Solo informa `claveCargada: boolean`.
 - Al modificar la configuración, una clave vacía conserva la anterior.
 
@@ -86,14 +86,20 @@ Usa los mismos datos que la ficha de la Entrega 25.
 **Individual:** `POST /api/ventas/cobranzas/:terceroId/mail` con `cobranzas.gestionar`.
 - **Body:** `{ asunto?, cuerpo?, destinatario? }`.
 - **Valores por defecto:**
-  - sin asunto o sin cuerpo, se usa la plantilla con las variables reemplazadas;
+  - sin asunto o sin cuerpo, se usa la plantilla;
+  - las variables se reemplazan siempre, también en un texto retocado (si el usuario escribe `{cliente}`, se reemplaza);
   - sin destinatario, se usa el email del cliente.
 - **Previsualización:** `GET …/mail/previsualizar` devuelve el asunto, el cuerpo y el destinatario armados, para el formulario.
 
 **Masivo:** `POST /api/ventas/cobranzas/mail` con `{ terceroIds: string[] }`, de 1 a 50 clientes. Si son más: 400 `Se envían hasta 50 clientes por vez`.
 - Se manda uno por uno, con la plantilla.
 - Responde `{ enviados: [{ terceroId, cliente, destinatario }], omitidos: [{ terceroId, cliente, motivo }] }`.
-- Los motivos de omisión son `Sin email` y el error del servidor de correo.
+- Los motivos de omisión son:
+  - `Cliente inexistente`, si el id no existe o no es un cliente;
+  - `Sin saldo pendiente`, si no debe nada vencido ni por vencer; no se le manda un resumen en cero;
+  - `Sin email`;
+  - el error del servidor de correo.
+- Un id repetido se manda una sola vez.
 
 **Sin configuración del correo**, cualquier envío responde 400 `Configure el correo de la empresa`.
 
@@ -144,7 +150,7 @@ Si el envío falla, no se registra.
 - texto estándar por empresa con variables, retocable en el envío individual.
 
 **Del builder (pueden revisarse):**
-- clave cifrada con `CLAVE_CIFRADO`;
+- clave cifrada con el cifrado de ARCA (`ARCA_CLAVE_MAESTRA`);
 - masivo síncrono, con un tope de 50 por vez;
 - variables `{cliente}`, `{vencido}`, `{porVencer}`, `{diasAtraso}` y `{empresa}`;
 - transporte falso en las pruebas;
@@ -152,4 +158,9 @@ Si el envío falla, no se registra.
 - el registro va como gestión `MAIL`;
 - en modo de prueba y en la demo, `TRANSPORTE_CORREO=prueba` hace que el transporte guarde los mails en vez de enviarlos. La e2e usa ese modo.
 
-**Del builder, según la revisión:** *(se completa con el control del builder)*
+**Del builder, según la revisión:**
+- se reutiliza `ARCA_CLAVE_MAESTRA` en vez de un secreto nuevo (§3). La configuración de la e2e la agrega a la API de pruebas;
+- en el masivo se omiten los clientes inexistentes y los que no deben nada, con su motivo (§5);
+- las variables se reemplazan también en el texto retocado (§5);
+- las rutas de configuración del correo no chocan con `GET /ventas/cobranzas/:terceroId`: van bajo `/ventas/cobranzas/correo/…` y se declaran antes, o en un controlador propio;
+- el cuerpo es texto plano.
