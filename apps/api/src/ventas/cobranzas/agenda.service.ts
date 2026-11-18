@@ -4,7 +4,7 @@ import { ORIGENES_CLIENTE } from '../../compras/comun';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
 import { hoy } from '../../tesoreria/operaciones/tesoreria-comun';
 import { ConsultasVentasService } from '../consultas/consultas-ventas.service';
-import { gestionSalida, GestionesService } from './gestiones.service';
+import { diaArgentina, gestionSalida, GestionesService } from './gestiones.service';
 import { EstadoPromesa, estadoPromesa } from './promesas';
 
 type Dec = Prisma.Decimal;
@@ -46,19 +46,43 @@ export class AgendaCobranzasService {
   async agenda(q: { soloHoy?: string; incumplidas?: string; minDias?: string; q?: string }) {
     const db = this.tenant.db;
     const corte = hoy();
-    const movs = await db.movimientoCuentaCorriente.findMany({ where: { anulado: false, origenTipo: { in: ORIGENES_CLIENTE } } });
+    // Solo los movimientos con saldo clasifican la deuda (los saldados no pesan en la consulta)
+    const abiertos = await db.movimientoCuentaCorriente.findMany({ where: { anulado: false, origenTipo: { in: ORIGENES_CLIENTE }, NOT: { saldo: 0 } } });
     const porCliente = new Map<string, MovimientoCuentaCorriente[]>();
-    for (const m of movs) porCliente.set(m.terceroId, [...(porCliente.get(m.terceroId) ?? []), m]);
-    const vencidos = [...porCliente.entries()].map(([id, ms]) => ({ id, ms, s: saldos(ms.filter((m) => !m.saldo.isZero()), corte) })).filter((x) => x.s.vencido.gt(0));
+    for (const m of abiertos) {
+      const l = porCliente.get(m.terceroId);
+      if (l) l.push(m); else porCliente.set(m.terceroId, [m]);
+    }
+    const vencidos = [...porCliente.entries()].map(([id, ms]) => ({ id, s: saldos(ms, corte) })).filter((x) => x.s.vencido.gt(0));
     const ids = vencidos.map((x) => x.id);
     const terceros = new Map((await db.tercero.findMany({ where: { id: { in: ids } }, select: { id: true, razonSocial: true } })).map((t) => [t.id, t.razonSocial]));
     const todas = ids.length ? await db.gestionCobranza.findMany({ where: { terceroId: { in: ids } }, orderBy: [{ fecha: 'desc' }, { creadoEn: 'desc' }] }) : [];
+    const gestionesDe = new Map<string, GestionCobranza[]>();
+    for (const g of todas) {
+      const l = gestionesDe.get(g.terceroId);
+      if (l) l.push(g); else gestionesDe.set(g.terceroId, [g]);
+    }
+    // Cobros y rechazos solo de los clientes con promesas, desde la gestión con promesa más vieja
+    const desde = new Map<string, Date>();
+    for (const g of todas) if (g.promesaFecha && (!desde.has(g.terceroId) || g.fecha < desde.get(g.terceroId)!)) desde.set(g.terceroId, g.fecha);
+    const cobros = desde.size
+      ? await db.movimientoCuentaCorriente.findMany({
+          where: { anulado: false, origenTipo: { in: ['RECIBO', 'COBRO', 'CHEQUE_RECHAZADO_CLIENTE'] }, OR: [...desde.entries()].map(([terceroId, fecha]) => ({ terceroId, fecha: { gte: fecha } })) },
+          select: { terceroId: true, origenTipo: true, fecha: true, importePesos: true },
+        })
+      : [];
+    const cobrosDe = new Map<string, typeof cobros>();
+    for (const m of cobros) {
+      const l = cobrosDe.get(m.terceroId);
+      if (l) l.push(m); else cobrosDe.set(m.terceroId, [m]);
+    }
     const f2 = (x: Dec) => x.toFixed(2);
-    let filas = vencidos.map(({ id, ms, s }) => {
-      const gs = todas.filter((g) => g.terceroId === id);
-      const { estados, vigente } = promesas(gs, ms, corte);
-      const proxima = gs.find((g) => g.proximaAccion)?.proximaAccion ?? null;
+    let filas = vencidos.map(({ id, s }) => {
+      const gs = gestionesDe.get(id) ?? [];
+      const { estados, vigente } = promesas(gs, cobrosDe.get(id) ?? [], corte);
+      // La próxima acción es la de la última gestión: una gestión sin próxima acción cierra la anterior
       const ultima = gs[0] ?? null;
+      const proxima = ultima?.proximaAccion ?? null;
       return {
         terceroId: id, cliente: terceros.get(id) ?? '', vencido: f2(s.vencido), porVencer: f2(s.porVencer), aFavor: f2(s.aFavor), dias: s.dias,
         ultimaGestion: ultima ? { fecha: iso(ultima.fecha), medio: ultima.medio, nota: ultima.nota } : null,
@@ -96,7 +120,7 @@ export class AgendaCobranzasService {
         movimientoId: m.id, origenTipo: m.origenTipo, descripcion: describir(m), fecha: iso(m.fecha), fechaVencimiento: iso(m.fechaVencimiento),
         dias: Math.max(0, Math.round((corte.getTime() - m.fechaVencimiento.getTime()) / DIA)), importe: f2(m.importePesos), saldo: f2(m.saldoPesos), vencido: m.fechaVencimiento < corte,
       })),
-      gestiones: gs.map((g) => ({ ...gestionSalida(g), promesaEstado: estados.get(g.id) ?? null })),
+      gestiones: gs.map((g) => ({ ...gestionSalida(g), promesaEstado: estados.get(g.id) ?? null, eliminable: diaArgentina(g.creadoEn) === iso(corte) })),
     };
   }
 }

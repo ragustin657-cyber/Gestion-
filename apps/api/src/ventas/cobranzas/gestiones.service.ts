@@ -8,7 +8,7 @@ import { DatosGestion } from './dto';
 
 const fecha = (s: string) => new Date(`${s}T00:00:00Z`);
 /** Día (AAAA-MM-DD) de un instante en la hora argentina. */
-const diaArgentina = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(d);
+export const diaArgentina = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' }).format(d);
 const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 /** Gestión para la API: fechas AAAA-MM-DD e importe con dos decimales. */

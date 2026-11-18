@@ -13,7 +13,7 @@ export interface FilaAgenda {
   ultimaGestion: { fecha: string; medio: string; nota: string } | null; proximaAccion: string | null; accionAtrasada: boolean;
   promesa: { fecha: string; importe: string; estado: Estado } | null;
 }
-interface Gestion { id: string; fecha: string; medio: string; nota: string; proximaAccion: string | null; promesaFecha: string | null; promesaImporte: string | null; promesaEstado: Estado | null; creadoEn: string }
+interface Gestion { id: string; fecha: string; medio: string; nota: string; proximaAccion: string | null; promesaFecha: string | null; promesaImporte: string | null; promesaEstado: Estado | null; creadoEn: string; eliminable: boolean }
 interface Ficha {
   cliente: { id: string; razonSocial: string; cuit: string; telefono: string | null; email: string | null };
   vencido: string; porVencer: string; aFavor: string; dias: number;
@@ -114,7 +114,6 @@ export function FichaCobranzaPage() {
   const f = q.data;
   if (!f) return null;
   const gestionar = puede('cobranzas.gestionar');
-  const hoyIso = hoy();
   return (
     <Stack>
       <Paper withBorder p="md" radius="md">
@@ -169,7 +168,7 @@ export function FichaCobranzaPage() {
                     {g.promesaFecha && g.promesaImporte && <Group gap={4}><Text size="xs">{`Promesa: ${formatoMoneda(g.promesaImporte)} el ${formatoFecha(g.promesaFecha)}`}</Text>{g.promesaEstado && <BadgePromesa estado={g.promesaEstado} />}</Group>}
                   </Group>
                 </div>
-                {gestionar && g.creadoEn.slice(0, 10) === hoyIso && (
+                {gestionar && g.eliminable && (
                   <Button size="compact-xs" variant="subtle" color="red" onClick={() => { if (window.confirm('¿Eliminar la gestión?')) void op.ejecutar(() => api(`/ventas/cobranzas/gestiones/${g.id}`, { metodo: 'DELETE' }), () => 'Gestión eliminada'); }}>Eliminar</Button>
                 )}
               </Group>

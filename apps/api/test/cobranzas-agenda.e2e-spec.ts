@@ -146,4 +146,24 @@ describe('cobranzas: agenda y ficha', () => {
     const n = await otroUsuario(app, prisma, x.empresaId, ['tesoreria.ver']);
     expect((await n.http.get('/api/ventas/cobranzas')).status).toBe(403);
   });
+
+  it('revisión: una gestión sin próxima acción cierra la acción anterior', async () => {
+    const x = await escenario();
+    await x.vencida();
+    await x.gestion(x.clienteRI.id, { fecha: '2026-11-04', proximaAccion: '2026-11-05' });
+    expect((await x.agenda())[0].accionAtrasada).toBe(true);
+    await x.gestion(x.clienteRI.id, { nota: 'Llamé, no atendió' });
+    const [f] = await x.agenda();
+    expect([f.proximaAccion, f.accionAtrasada]).toEqual([null, false]);
+    expect(await x.agenda('?soloHoy=true')).toEqual([]);
+  });
+
+  it('revisión: la ficha indica qué gestiones se pueden eliminar (día argentino)', async () => {
+    const x = await escenario();
+    await x.vencida();
+    await x.gestion(x.clienteRI.id, { nota: 'Hoy' });
+    await prisma.gestionCobranza.create({ data: { empresaId: x.empresaId, terceroId: x.clienteRI.id, fecha: new Date('2026-11-05'), medio: 'MAIL', nota: 'Ayer', creadoPor: 't', creadoEn: new Date('2026-11-05T12:00:00Z') } });
+    const f = (await x.http.get(`/api/ventas/cobranzas/${x.clienteRI.id}`)).body as { gestiones: { nota: string; eliminable: boolean }[] };
+    expect(f.gestiones.map((g) => [g.nota, g.eliminable])).toEqual([['Hoy', true], ['Ayer', false]]);
+  });
 });
