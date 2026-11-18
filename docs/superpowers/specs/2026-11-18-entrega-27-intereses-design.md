@@ -52,13 +52,15 @@ Solo se pueden liquidar meses ya terminados (anteriores al mes actual). Si no: 4
 
 Las notas de débito de intereses no generan intereses.
 
-**Saldo al cierre:** el saldo actual de la factura (en su moneda) **más** lo que se le aplicó después del fin de mes. Lo aplicado después es la suma de `importe` de las `AplicacionCobro` no anuladas cuyo débito es la factura y con fecha posterior al fin de mes. Así, liquidar noviembre el 3 de diciembre no pierde la deuda pagada el 1° de diciembre.
+**Saldo al cierre:** el saldo actual de la factura (en su moneda) **más** lo que se le aplicó después del fin de mes. Lo aplicado después es la suma de `importe` de las `AplicacionCobro` no anuladas cuyo débito es la factura y cuyo **movimiento crédito** (el pago o la nota de crédito) tiene fecha posterior al fin de mes. Cuenta la fecha del crédito y no la de la aplicación: un anticipo recibido antes del cierre y aplicado después se toma como pagado a tiempo. Así, liquidar noviembre el 3 de diciembre no pierde la deuda pagada el 1° de diciembre.
 
 **Días:** del día siguiente al vencimiento, o del 1° del mes si venció antes, hasta el último día del mes inclusive.
 - Ejemplo: vence el 10/11 → 20 días en noviembre.
 - Ejemplo: vencida en octubre → 30 días en noviembre.
 
-**Interés:** `saldo al cierre × tasa / 100 × días / 30`, redondeado al centavo, en la moneda de la factura. Es interés simple: cada mes cobra solo sus días.
+**Interés:** `saldo al cierre × tasa / 100 × días / 30`, redondeado al centavo, en la moneda de la factura. Es el **neto** del renglón, y el IVA va encima (decisión del usuario). Es interés simple: cada mes cobra solo sus días.
+
+**Ejemplo:** factura de $ 1.210 (1.000 + 21 %), 5 % y 30 días → interés de 60,50 + IVA 12,71 = nota de 73,21.
 
 **IVA del interés:** el de la factura que lo origina, es decir la alícuota con mayor base gravada de esa factura. Si la factura es toda exenta o no gravada, el interés también lo es.
 
@@ -98,7 +100,9 @@ Dos confirmaciones simultáneas del mismo mes se serializan con un bloqueo por e
 - La migración lo agrega al rol Administrador de las empresas existentes.
 - En la demo, también lo tiene el rol Facturación.
 
-**Emisión:** las notas de débito se emiten con este permiso. No hace falta además `venta.emitir`.
+**Emisión:**
+- al confirmar, las notas de débito se emiten con este permiso; no hace falta además `venta.emitir`;
+- reintentar, corregir o eliminar una nota pendiente se hace desde *Comprobantes de venta*, con `venta.emitir`, como cualquier comprobante.
 
 ## 8. Enfoques considerados
 
@@ -122,7 +126,14 @@ Dos confirmaciones simultáneas del mismo mes se serializan con un bloqueo por e
 - permiso nuevo `intereses.liquidar`;
 - en la demo, una tasa del 5 %.
 
-**Del builder, según la revisión:** *(se completa con el control del builder)*
+**Del usuario, según la revisión:**
+- el interés es el neto y el IVA va encima.
+
+**Del builder, según la revisión:**
+- **Cuenta contable:** los renglones de interés van a la cuenta del concepto nuevo `INTERESES_GANADOS` (por defecto *4.2.02 Intereses ganados*), no a Ventas. La migración lo crea en las empresas con esa cuenta, y en las nuevas lo trae la precarga.
+- **Nota rechazada por ARCA:** queda `RECHAZADO`, como cualquier comprobante. Su renglón sigue vigente hasta que se elimine el borrador.
+- **Edición:** una nota de intereses no se puede modificar: 400 `Las notas de débito de intereses no se modifican: elimínela y vuelva a liquidar`. Sí se puede eliminar mientras no esté autorizada. El renglón guarda el id de la nota sin clave foránea, y el historial la muestra como "eliminada".
+- **Pagos posteriores al cierre:** cuenta la fecha del movimiento crédito (§4).
 
 ## 10. Pruebas
 
@@ -130,7 +141,8 @@ Dos confirmaciones simultáneas del mismo mes se serializan con un bloqueo por e
 - **Cálculo:**
   - días con vencimiento dentro del mes y antes del mes;
   - saldo al cierre con un pago posterior al fin de mes;
-  - IVA (21 %, 10,5 % y exento);
+  - IVA (21 %, 10,5 % y exento) sobre el interés neto;
+  - anticipo anterior al cierre aplicado después: no suma;
   - factura en dólares;
   - cliente exceptuado;
   - mes no terminado.
@@ -139,7 +151,9 @@ Dos confirmaciones simultáneas del mismo mes se serializan con un bloqueo por e
   - no se liquida dos veces;
   - liberación por nota de crédito;
   - dos confirmaciones simultáneas;
-  - nota rechazada por ARCA que queda pendiente.
+  - nota rechazada por ARCA: queda rechazada y bloquea el mes hasta eliminarla;
+  - una nota de intereses no se modifica;
+  - la cuenta contable es la de `INTERESES_GANADOS`.
 - Permisos.
 
 **Web:**
