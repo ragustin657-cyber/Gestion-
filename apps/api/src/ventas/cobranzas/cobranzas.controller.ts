@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { AgendaCobranzasService } from './agenda.service';
 import { RequiereAlguno, RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
@@ -11,6 +12,13 @@ export class CobranzasController {
 
   @Get() @RequiereAlguno('venta.ver', 'cobranzas.gestionar')
   listar(@Query() q: { soloHoy?: string; incumplidas?: string; minDias?: string; q?: string }) { return this.agenda.agenda(q); }
+
+  @Get(':terceroId/resumen.pdf') @RequiereAlguno('venta.ver', 'cobranzas.gestionar')
+  async resumen(@Param('terceroId', ParseUUIDPipe) terceroId: string, @Res({ passthrough: true }) res: Response) {
+    const { nombre, contenido } = await this.agenda.resumenPdf(terceroId);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${nombre}"` });
+    return new StreamableFile(contenido);
+  }
 
   @Get(':terceroId') @RequiereAlguno('venta.ver', 'cobranzas.gestionar')
   ficha(@Param('terceroId', ParseUUIDPipe) terceroId: string) { return this.agenda.ficha(terceroId); }

@@ -6,6 +6,7 @@ import { hoy } from '../../tesoreria/operaciones/tesoreria-comun';
 import { ConsultasVentasService } from '../consultas/consultas-ventas.service';
 import { diaArgentina, gestionSalida, GestionesService } from './gestiones.service';
 import { EstadoPromesa, estadoPromesa } from './promesas';
+import { pdfResumen } from './pdf-resumen';
 
 type Dec = Prisma.Decimal;
 const D = Prisma.Decimal;
@@ -124,5 +125,17 @@ export class AgendaCobranzasService {
       })),
       gestiones: gs.map((g) => ({ ...gestionSalida(g), promesaEstado: estados.get(g.id) ?? null, usuario: usuarios.get(g.creadoPor) ?? '', eliminable: diaArgentina(g.creadoEn) === iso(corte) })),
     };
+  }
+
+  /** Resumen de cuenta en PDF (spec E28 §4), con los datos de la ficha. */
+  async resumenPdf(terceroId: string) {
+    const f = await this.ficha(terceroId);
+    const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    const contenido = await pdfResumen({
+      empresa: { razonSocial: empresa.razonSocial, cuit: empresa.cuit }, cliente: { razonSocial: f.cliente.razonSocial, cuit: f.cliente.cuit }, fecha: iso(hoy()),
+      comprobantes: f.comprobantes, vencido: f.vencido, porVencer: f.porVencer, aFavor: f.aFavor,
+    });
+    const slug = f.cliente.razonSocial.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return { nombre: `resumen-de-cuenta-${slug || 'cliente'}.pdf`, contenido, ficha: f };
   }
 }
