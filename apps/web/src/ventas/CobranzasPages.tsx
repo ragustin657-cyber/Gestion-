@@ -1,6 +1,6 @@
 import { Alert, Badge, Button, Checkbox, Chip, Modal, Group, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
@@ -85,12 +85,19 @@ export function FormGestion({ onGuardar, enviando }: { onGuardar: (d: DatosGesti
   );
 }
 
-export interface ResultadoMasivo { enviados: { terceroId: string; cliente: string; destinatario: string }[]; omitidos: { terceroId: string; cliente: string; motivo: string }[] }
+export interface ResultadoMasivo { enviados: { terceroId: string; cliente: string; destinatario: string; aviso?: string }[]; omitidos: { terceroId: string; cliente: string; motivo: string }[] }
+
+/** Aviso de un mail que salió pero cuya gestión no se registró (spec E28 §5). */
+export const avisoEnvio = (r: { aviso?: string }): string | null => r.aviso || null;
+
+/** Selección de la agenda al cambiar los filtros: se vacía, así no se envía a clientes que ya no se ven. */
+export const seleccionTrasFiltro = (): string[] => [];
 
 /** Resultado del envío masivo: cuántos salieron y por qué se omitieron los demás. */
 export function ResultadoEnvio({ enviados, omitidos }: ResultadoMasivo) {
   return (
     <Alert color={omitidos.length ? 'yellow' : 'green'} title={`${enviados.length} ${enviados.length === 1 ? 'enviado' : 'enviados'}`}>
+      {enviados.filter((e) => avisoEnvio(e)).map((e) => <Text key={e.terceroId} size="sm" c="orange">{`${e.cliente}: ${avisoEnvio(e)}`}</Text>)}
       {omitidos.length > 0 && <Text size="sm" fw={500}>{`${omitidos.length} sin enviar:`}</Text>}
       {omitidos.map((o) => <Text key={o.terceroId} size="sm">{`${o.cliente || o.terceroId}: ${o.motivo}`}</Text>)}
     </Alert>
@@ -106,6 +113,7 @@ export function AgendaCobranzasPage() {
   const [filtros, setFiltros] = useState<string[]>([]);
   const [minDias, setMinDias] = useState<number | string>('');
   const [busqueda, setBusqueda] = useState('');
+  useEffect(() => setSeleccion(seleccionTrasFiltro()), [filtros, minDias, busqueda]);
   const query = { soloHoy: filtros.includes('hoy') ? 'true' : undefined, incumplidas: filtros.includes('incumplidas') ? 'true' : undefined, minDias: minDias === '' ? undefined : minDias, q: busqueda || undefined };
   const q = useQuery({ queryKey: ['/ventas/cobranzas', query], queryFn: () => api<{ clientes: FilaAgenda[] }>('/ventas/cobranzas', { query }) });
   return (
@@ -190,7 +198,7 @@ export function FichaCobranzaPage() {
             {op.error && <Alert color="red">{op.error}</Alert>}
             <Group justify="flex-end">
               <Button loading={op.enviando} disabled={!mail.destinatario} onClick={async () => {
-                if (await op.ejecutar(() => api(`/ventas/cobranzas/${terceroId}/mail`, { metodo: 'POST', body: mail }), () => 'Mail enviado')) setMail(null);
+                if (await op.ejecutar(() => api<{ destinatario: string; aviso?: string }>(`/ventas/cobranzas/${terceroId}/mail`, { metodo: 'POST', body: mail }), (r) => avisoEnvio(r) ?? 'Mail enviado')) setMail(null);
               }}>Enviar</Button>
             </Group>
           </Stack>
