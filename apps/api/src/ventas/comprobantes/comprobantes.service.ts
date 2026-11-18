@@ -29,6 +29,9 @@ export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: t
 export const numeroVenta = (puntoVenta: number, numero: number | null) => `${String(puntoVenta).padStart(4, '0')}-${String(numero ?? 0).padStart(8, '0')}`;
 export const emisionEnCurso = (c: Pick<ComprobanteVenta, 'emisionEnCurso'>) => !!c.emisionEnCurso && Date.now() - c.emisionEnCurso.getTime() < EN_CURSO_MS;
 
+/** Opciones internas del alta: cuenta contable fija para los renglones y sin vendedor (intereses por mora, E27). */
+export interface OpcionesComprobante { cuentaContableId?: string; sinVendedor?: boolean }
+
 @Injectable()
 export class ComprobantesVentaService {
   constructor(
@@ -72,7 +75,7 @@ export class ComprobantesVentaService {
   }
 
   /** Valida y calcula: letra, cuenta de cada renglón, importes y cotización. Lanza 400 con los mensajes de la spec. */
-  async preparar(tx: TxEmpresa, d: DatosComprobanteVenta, id?: string) {
+  async preparar(tx: TxEmpresa, d: DatosComprobanteVenta, id?: string, opciones: OpcionesComprobante = {}) {
     const tercero = await tx.tercero.findUnique({ where: { id: d.terceroId } });
     if (!tercero || !tercero.esCliente || !tercero.activo) throw new BadRequestException('Cliente inexistente o inactivo');
     const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
@@ -111,10 +114,10 @@ export class ComprobantesVentaService {
       return {
         empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota),
         neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, bienUsoId: r.bienUsoId ?? null,
-        cuentaContableId: r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas),
+        cuentaContableId: opciones.cuentaContableId ?? (r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas)),
       };
     });
-    const vendedor = await this.vendedor(tx, d, tercero.vendedorId, origenes, id);
+    const vendedor = opciones.sinVendedor ? { vendedorId: null, comisionPct: null } : await this.vendedor(tx, d, tercero.vendedorId, origenes, id);
     const depositoId = d.depositoId ?? pv.depositoId ?? null;
     // Los renglones de remito ya salieron del stock: no se controlan ni se mueven
     const advertencias = await this.stock.controlar(tx, {
@@ -169,8 +172,13 @@ export class ComprobantesVentaService {
   }
 
   crear(d: DatosComprobanteVenta) {
-    return this.tenant.transaccion(async (tx) => {
-      const p = await this.preparar(tx, d);
+    return this.tenant.transaccion((tx) => this.crearEnTx(tx, d));
+  }
+
+  /** Alta dentro de una transacción; las opciones las usan los procesos internos (p. ej. intereses por mora). */
+  async crearEnTx(tx: TxEmpresa, d: DatosComprobanteVenta, opciones: OpcionesComprobante = {}) {
+    {
+      const p = await this.preparar(tx, d, undefined, opciones);
       const numeroInterno = await this.numeracion.siguiente(tx, 'VENTA-INTERNO', 0);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const c = await tx.comprobanteVenta.create({
@@ -178,7 +186,7 @@ export class ComprobantesVentaService {
       });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: c.id, accion: 'CREAR', datos: { numeroInterno, tipo: c.tipo, letra: c.letra, total: c.total } });
       return { ...(await this.obtener(c.id, tx)), advertencias: p.advertencias };
-    });
+    }
   }
 
   /** Bloquea un comprobante que todavía se puede editar o eliminar. */
@@ -195,6 +203,7 @@ export class ComprobantesVentaService {
   modificar(id: string, version: number, d: DatosComprobanteVenta) {
     return this.tenant.transaccion(async (tx) => {
       const c = await this.editable(tx, id);
+      if (await tx.liquidacionInteresesRenglon.findFirst({ where: { notaDebitoId: id } })) throw new BadRequestException('Las notas de débito de intereses no se modifican: elimínela y vuelva a liquidar');
       if (c.version !== version) throw new ConflictException(MODIFICADO);
       const p = await this.preparar(tx, d, id);
       await tx.comprobanteVentaRenglon.deleteMany({ where: { comprobanteId: id } });
