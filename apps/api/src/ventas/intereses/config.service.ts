@@ -13,9 +13,12 @@ export class ConfigInteresesService {
   }
 
   async guardar(d: DatosConfigIntereses) {
-    const actual = await this.tenant.db.configIntereses.findFirst();
-    if (actual) await this.tenant.db.configIntereses.update({ where: { id: actual.id }, data: { tasaMensual: d.tasaMensual, descripcion: d.descripcion ?? actual.descripcion } });
-    else await this.tenant.db.configIntereses.create({ data: { empresaId: this.tenant.empresaId, tasaMensual: d.tasaMensual, descripcion: d.descripcion ?? 'Intereses por mora' } });
+    // Upsert por empresa: dos guardados simultáneos no chocan con la clave única
+    await this.tenant.db.configIntereses.upsert({
+      where: { empresaId: this.tenant.empresaId },
+      update: { tasaMensual: d.tasaMensual, ...(d.descripcion !== undefined ? { descripcion: d.descripcion } : {}) },
+      create: { empresaId: this.tenant.empresaId, tasaMensual: d.tasaMensual, descripcion: d.descripcion ?? 'Intereses por mora' },
+    });
     return this.ver();
   }
 

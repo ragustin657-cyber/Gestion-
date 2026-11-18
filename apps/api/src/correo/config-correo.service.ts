@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigCorreo } from '@prisma/client';
 import { cifrar, descifrar } from '../arca/cifrado';
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { DatosConfigCorreo } from './dto';
 import { ASUNTO_POR_DEFECTO, CUERPO_POR_DEFECTO } from './plantilla';
@@ -16,7 +17,7 @@ const SIN_CLAVE_MAESTRA = 'El servidor no tiene configurada la clave de cifrado 
 /** Correo saliente de la empresa (spec E28 §3): la clave se guarda cifrada y nunca se devuelve. */
 @Injectable()
 export class ConfigCorreoService {
-  constructor(private readonly tenant: TenantPrisma, private readonly transporte: TransporteCorreo) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly transporte: TransporteCorreo, private readonly auditoria: AuditoriaService) {}
 
   async ver() {
     const c = await this.tenant.db.configCorreo.findFirst();
@@ -39,8 +40,15 @@ export class ConfigCorreoService {
     }
     if (!claveCifrada) throw new BadRequestException('Indique la clave del correo');
     const { clave: _c, ...datos } = d;
-    if (actual) await this.tenant.db.configCorreo.update({ where: { id: actual.id }, data: { ...datos, claveCifrada } });
-    else await this.tenant.db.configCorreo.create({ data: { ...datos, claveCifrada, empresaId: this.tenant.empresaId } });
+    await this.tenant.transaccion(async (tx) => {
+      // Upsert por empresa (dos guardados simultáneos no chocan); se audita sin la clave
+      const c = await tx.configCorreo.upsert({
+        where: { empresaId: this.tenant.empresaId },
+        update: { ...datos, claveCifrada },
+        create: { ...datos, claveCifrada, empresaId: this.tenant.empresaId },
+      });
+      await this.auditoria.registrar(tx, { entidad: 'ConfigCorreo', entidadId: c.id, accion: actual ? 'MODIFICAR' : 'CREAR', datos: { ...datos, claveCambiada: !!d.clave } });
+    });
     return this.ver();
   }
 

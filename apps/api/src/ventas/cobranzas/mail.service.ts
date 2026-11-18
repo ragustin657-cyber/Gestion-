@@ -1,6 +1,6 @@
 import { BadRequestException, HttpException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ClsService } from 'nestjs-cls';
-import { ConfigCorreo } from '@prisma/client';
+import { ConfigCorreo, Empresa } from '@prisma/client';
 import { ConfigCorreoService, ErrorConexionCorreo } from '../../correo/config-correo.service';
 import { SIN_CONEXION } from '../../correo/transporte';
 import { reemplazar } from '../../correo/plantilla';
@@ -24,24 +24,30 @@ export class MailCobranzasService {
     private readonly cls: ClsService,
   ) {}
 
-  private async valores(f: { cliente: { razonSocial: string }; vencido: string; porVencer: string; dias: number }) {
-    const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+  private empresa() {
+    return this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+  }
+
+  private valores(f: { cliente: { razonSocial: string }; vencido: string; porVencer: string; dias: number }, empresa: { razonSocial: string }) {
     return { cliente: f.cliente.razonSocial, vencido: pesos(f.vencido), porVencer: pesos(f.porVencer), diasAtraso: String(f.dias), empresa: empresa.razonSocial };
   }
 
   async previsualizar(terceroId: string) {
     const cfg = await this.correo.requerida();
     const f = await this.agenda.ficha(terceroId);
-    const v = await this.valores(f);
+    const v = this.valores(f, await this.empresa());
     return { destinatario: f.cliente.email || null, asunto: reemplazar(cfg.asunto, v), cuerpo: reemplazar(cfg.cuerpo, v) };
   }
 
   /** Arma y manda el mail con el PDF; si sale, lo registra como gestión MAIL. */
-  private async enviarA(cfg: ConfigCorreo & { clave: string }, terceroId: string, d: { asunto?: string | null; cuerpo?: string | null; destinatario?: string | null }) {
-    const { nombre, contenido, ficha } = await this.agenda.resumenPdf(terceroId);
+  private async enviarA(
+    cfg: ConfigCorreo & { clave: string }, terceroId: string, d: { asunto?: string | null; cuerpo?: string | null; destinatario?: string | null },
+    ya: { ficha?: Awaited<ReturnType<AgendaCobranzasService['ficha']>>; empresa: Empresa },
+  ) {
+    const { nombre, contenido, ficha } = await this.agenda.resumenPdf(terceroId, ya);
     const para = d.destinatario?.trim() || ficha.cliente.email?.trim();
     if (!para) throw new BadRequestException('El cliente no tiene email');
-    const v = await this.valores(ficha);
+    const v = this.valores(ficha, ya.empresa);
     // Las variables se reemplazan siempre, también en un texto retocado
     await this.correo.enviar(cfg, { para, asunto: reemplazar(d.asunto || cfg.asunto, v), texto: reemplazar(d.cuerpo || cfg.cuerpo, v), adjuntos: [{ nombre, contenido }] });
     // El mail ya salió: si el registro falla, se informa como enviado con un aviso (no se reintenta y duplica)
@@ -59,7 +65,7 @@ export class MailCobranzasService {
 
   async enviar(terceroId: string, d: { asunto?: string | null; cuerpo?: string | null; destinatario?: string | null }) {
     const cfg = await this.correo.requerida();
-    const r = await this.enviarA(cfg, terceroId, d);
+    const r = await this.enviarA(cfg, terceroId, d, { empresa: await this.empresa() });
     return { destinatario: r.destinatario, ...(r.aviso ? { aviso: r.aviso } : {}) };
   }
 
@@ -67,6 +73,7 @@ export class MailCobranzasService {
     const ids = [...new Set(terceroIds)];
     if (ids.length > MAX_MASIVO) throw new BadRequestException(`Se envían hasta ${MAX_MASIVO} clientes por vez`);
     const cfg = await this.correo.requerida();
+    const empresa = await this.empresa();
     const enviados: { terceroId: string; cliente: string; destinatario: string; aviso?: string }[] = [];
     const omitidos: { terceroId: string; cliente: string; motivo: string }[] = [];
     let sinConexion = false;
@@ -79,7 +86,7 @@ export class MailCobranzasService {
         cliente = f.cliente.razonSocial;
         if (!f.cliente.email?.trim()) { omitidos.push({ terceroId, cliente, motivo: 'Sin email' }); continue; }
         if (Number(f.vencido) <= 0 && Number(f.porVencer) <= 0) { omitidos.push({ terceroId, cliente, motivo: 'Sin saldo pendiente' }); continue; }
-        const r = await this.enviarA(cfg, terceroId, {});
+        const r = await this.enviarA(cfg, terceroId, {}, { ficha: f, empresa });
         enviados.push({ terceroId, cliente: r.cliente, destinatario: r.destinatario, ...(r.aviso ? { aviso: r.aviso } : {}) });
       } catch (e) {
         // Un cliente con problemas no corta el envío de los demás (salvo una caída del servidor de correo)

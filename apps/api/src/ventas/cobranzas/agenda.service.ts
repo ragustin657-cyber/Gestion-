@@ -128,9 +128,10 @@ export class AgendaCobranzasService {
   }
 
   /** Resumen de cuenta en PDF (spec E28 §4), con los datos de la ficha. */
-  async resumenPdf(terceroId: string) {
-    const f = await this.ficha(terceroId);
-    const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+  /** PDF del resumen; el envío masivo pasa la ficha y la empresa ya leídas, para no consultarlas de nuevo. */
+  async resumenPdf(terceroId: string, ya?: { ficha?: Awaited<ReturnType<AgendaCobranzasService['ficha']>>; empresa?: { razonSocial: string; cuit: string } }) {
+    const f = ya?.ficha ?? (await this.ficha(terceroId));
+    const empresa = ya?.empresa ?? (await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } }));
     const contenido = await pdfResumen({
       empresa: { razonSocial: empresa.razonSocial, cuit: empresa.cuit }, cliente: { razonSocial: f.cliente.razonSocial, cuit: f.cliente.cuit }, fecha: iso(hoy()),
       comprobantes: f.comprobantes, vencido: f.vencido, porVencer: f.porVencer, aFavor: f.aFavor,
