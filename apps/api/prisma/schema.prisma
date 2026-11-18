@@ -2623,3 +2623,18 @@ model LiquidacionInteresesRenglon {
   @@index([empresaId, comprobanteId])
   @@index([notaDebitoId])
 }
+
+/// Correo saliente de la empresa (Entrega 28). La clave se guarda cifrada con ARCA_CLAVE_MAESTRA.
+model ConfigCorreo {
+  id              String  @id @default(uuid()) @db.Uuid
+  empresaId       String  @unique @db.Uuid
+  servidor        String
+  puerto          Int     @default(587)
+  seguro          Boolean @default(false)
+  usuario         String
+  claveCifrada    String
+  remitenteNombre String
+  remitenteEmail  String
+  asunto          String
+  cuerpo          String
+}
