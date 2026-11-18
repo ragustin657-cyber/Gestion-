@@ -304,6 +304,13 @@ Correcciones de las entregas 9 a 11: validaciones de depósitos, listas y client
 - **Liquidación:** se tildan o destildan clientes y facturas; al confirmar se emite una nota de débito por cliente y moneda, asociada a su factura vencida más vieja, con un renglón por factura. El interés es el neto y lleva encima el IVA de la factura de origen; va a la cuenta *4.2.02 Intereses ganados* (concepto `INTERESES_GANADOS`) y sin vendedor (no genera comisión).
 - Un mes no se factura dos veces: la factura queda libre solo si su nota se elimina sin autorizar o se cancela con notas de crédito. Las notas de intereses no se modifican; las que fallan en ARCA se reintentan o eliminan desde *Comprobantes de venta*.
 
+## Recordatorios por mail (Entrega 28)
+
+- **Configuración de correo** (*Ventas → Configuración de correo*, permiso `correo.configurar`): servidor SMTP, puerto, usuario y clave, remitente, y el asunto y el texto estándar con variables (`{cliente}`, `{vencido}`, `{porVencer}`, `{diasAtraso}`, `{empresa}`). La clave se guarda cifrada con `ARCA_CLAVE_MAESTRA` (la misma variable que los certificados de ARCA) y nunca se muestra; vacía, se conserva. Botón para enviar un mail de prueba.
+- **Resumen de cuenta en PDF:** se descarga desde la ficha de cobranza (comprobantes pendientes, vencidos resaltados, y totales).
+- **Envío** (permiso `cobranzas.gestionar`): desde la ficha, el mail armado se puede retocar antes de mandarlo; desde la agenda, se tildan hasta 50 clientes y se envía a todos con el texto estándar (se omiten, con su motivo, los inexistentes, los que no deben nada, los que no tienen email y los que fallan en el servidor). Cada mail enviado queda como gestión de cobranza de tipo *Mail*.
+- **Modo de prueba:** con `TRANSPORTE_CORREO=prueba` la API guarda los mails en memoria en vez de enviarlos (lo usan las pruebas de API y las e2e).
+
 ## Requisitos
 
 - Node 22 y pnpm 10 (`corepack enable`)
