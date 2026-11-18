@@ -11,7 +11,7 @@ export const CATEGORIAS_COMERCIO = [
   'Auxiliar especializado A', 'Auxiliar especializado B',
   'Vendedor A', 'Vendedor B', 'Vendedor C', 'Vendedor D',
 ];
-type ConceptoModelo = { codigo: string; nombre: string; clase: 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO'; tipo: 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES'; parametros: Record<string, unknown>; soloAfiliados?: boolean; destino?: 'SEGURIDAD_SOCIAL' | 'OBRA_SOCIAL' | 'SINDICAL' };
+type ConceptoModelo = { codigo: string; nombre: string; clase: 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO'; tipo: 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES' | 'GANANCIAS'; parametros: Record<string, unknown>; soloAfiliados?: boolean; destino?: 'SEGURIDAD_SOCIAL' | 'OBRA_SOCIAL' | 'SINDICAL' };
 /** Conceptos precargados de Comercio (spec §4), editables. */
 export const CONCEPTOS_COMERCIO: ConceptoModelo[] = [
   { codigo: '100', nombre: 'Sueldo básico', clase: 'REMUNERATIVO', tipo: 'BASICO', parametros: {} },
@@ -28,6 +28,7 @@ export const CONCEPTOS_COMERCIO: ConceptoModelo[] = [
   { codigo: '520', nombre: 'Obra social', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 3, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO', tope: 'BASE_MAXIMA' }, destino: 'OBRA_SOCIAL' },
   { codigo: '530', nombre: 'FAECYS', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 0.5, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO' }, destino: 'SINDICAL' },
   { codigo: '540', nombre: 'Sindicato', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 2, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO' }, soloAfiliados: true, destino: 'SINDICAL' },
+  { codigo: '560', nombre: 'Impuesto a las ganancias', clase: 'DESCUENTO', tipo: 'GANANCIAS', parametros: {} },
 ];
 
 /** Carga el convenio de Comercio, sus categorías y los conceptos en una empresa nueva. */
@@ -39,11 +40,12 @@ export async function cargarSueldosModelo(tx: Prisma.TransactionClient, empresaI
     empresaId, cuentaSueldosId: await cuenta('5.2.09'), cuentaContribucionesId: await cuenta('5.2.10'), cuentaSueldosAPagarId: await cuenta('2.1.03.001'),
     cuentaCargasSocialesId: await cuenta('2.1.03.002'), cuentaRetencionesSindicalesId: await cuenta('2.1.03.003'), cuentaIndemnizacionesId: await cuenta('5.2.11'), anioInicioVacaciones: new Date().getUTCFullYear(),
   } });
+  const cuentaGanancias = await cuenta('2.1.02.002');
   await tx.concepto.createMany({ data: CONCEPTOS_COMERCIO.map((c) => ({
     // Presentismo, FAECYS y sindicato son de Comercio: no se aplican a otros convenios (E22 §2.8)
     convenioId: ['120', '530', '540'].includes(c.codigo) ? conv.id : null,
     empresaId, codigo: c.codigo, nombre: c.nombre, clase: c.clase, tipo: c.tipo, parametros: c.parametros as Prisma.InputJsonValue, orden: Number(c.codigo), soloAfiliados: !!c.soloAfiliados,
-    destino: c.destino ?? 'OTRO', codigoArca: codigoArcaPorDefecto({ ...c, destino: c.destino ?? 'OTRO' }), cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : null,
+    destino: c.destino ?? 'OTRO', codigoArca: codigoArcaPorDefecto({ ...c, destino: c.destino ?? 'OTRO' }), cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : c.tipo === 'GANANCIAS' ? cuentaGanancias : null,
   })) });
   // Concepto de comisiones de vendedores (E24 §7)
   const comisiones = await tx.concepto.findFirst({ where: { empresaId, codigo: '210' }, select: { id: true } });

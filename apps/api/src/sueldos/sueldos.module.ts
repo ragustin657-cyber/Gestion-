@@ -7,6 +7,8 @@ import { EgresosController } from './egresos.controller';
 import { EgresosService } from './egresos.service';
 import { F931Controller } from './f931.controller';
 import { F931Service } from './f931.service';
+import { TablasGananciasController } from './ganancias/tablas.controller';
+import { TablasGananciasService } from './ganancias/tablas.service';
 import { LsdController } from './lsd.controller';
 import { LsdService } from './lsd.service';
 import { PagosSueldosController } from './pagos.controller';
@@ -21,8 +23,8 @@ import { SalidasSueldosController } from './salidas.controller';
 
 @Module({
   imports: [AsientosModule],
-  controllers: [LsdController, VacacionesController, EgresosController, F931Controller, PagosSueldosController, ContribucionesController, MaestrosSueldosController, LiquidacionesController, SalidasSueldosController],
-  providers: [LsdService, VacacionesService, EgresosService, F931Service, PagosSueldosService, ContabilizacionService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
-  exports: [ContribucionesService, MaestrosSueldosService, LiquidacionesService],
+  controllers: [TablasGananciasController, LsdController, VacacionesController, EgresosController, F931Controller, PagosSueldosController, ContribucionesController, MaestrosSueldosController, LiquidacionesController, SalidasSueldosController],
+  providers: [TablasGananciasService, LsdService, VacacionesService, EgresosService, F931Service, PagosSueldosService, ContabilizacionService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
+  exports: [TablasGananciasService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
 })
 export class SueldosModule {}

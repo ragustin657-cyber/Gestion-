@@ -7,6 +7,7 @@ const num = (p: unknown, k: string) => Number((p as Record<string, unknown> | nu
 
 /** Código ARCA (Anexo I del Libro de Sueldos Digital) por defecto de un concepto. */
 export function codigoArcaPorDefecto(c: ConceptoArca): string {
+  if (c.tipo === 'GANANCIAS') return '810008';
   if (c.clase === 'DESCUENTO') {
     if (c.destino === 'SEGURIDAD_SOCIAL') return c.codigo === '510' ? '810001' : '810000';
     if (c.destino === 'OBRA_SOCIAL') return '810002';
