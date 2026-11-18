@@ -122,6 +122,17 @@ export function TablaLiquidacion({ datos, onElegir, onCerrar, puedeLiquidar = tr
   );
 }
 
+/** Descarga del Libro de Sueldos Digital de una liquidación cerrada, con su número del Libro (spec E30 §6). */
+export function AccionesLibro({ estado, numeroLsd, onDescargar }: { estado: string; numeroLsd?: number | null; onDescargar: () => void }) {
+  if (estado !== 'CERRADA') return null;
+  return (
+    <>
+      <Button size="xs" variant="light" onClick={onDescargar}>Libro de Sueldos Digital</Button>
+      {numeroLsd ? <Text size="sm" c="dimmed">{`Liquidación N° ${numeroLsd} del Libro`}</Text> : null}
+    </>
+  );
+}
+
 export function LiquidacionPage() {
   const { id = '' } = useParams();
   const { puede } = useAuth();
@@ -192,6 +203,11 @@ export function LiquidacionPage() {
           {l.asiento ? <Text size="sm">Asiento N° <Text span fw={600} c="blue" style={{ cursor: 'pointer' }} onClick={() => navegar(`/contabilidad/asientos/${l.asiento!.id}`)}>{l.asiento.numero}</Text></Text>
             : liquidar && <Button size="xs" variant="light" loading={op.enviando} onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/contabilizar`, { metodo: 'POST' }), 'Liquidación contabilizada')}>Contabilizar</Button>}
           <Button size="xs" variant="light" onClick={() => bajar('/sueldos/f931', { anio: String(l.anio), mes: String(l.mes) }, `F931-${l.anio}${String(l.mes).padStart(2, '0')}.txt`)}>Descargar F.931</Button>
+          <AccionesLibro estado={l.estado} numeroLsd={l.numeroLsd} onDescargar={async () => {
+            await bajar(`/sueldos/liquidaciones/${id}/lsd`, {}, `LSD-${l.anio}${String(l.mes).padStart(2, '0')}.txt`);
+            // La primera descarga asigna el número del Libro
+            void qc.invalidateQueries({ queryKey: clave });
+          }} />
         </Group>
       )}
       <Tabs defaultValue="recibos">

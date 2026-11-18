@@ -1,17 +1,42 @@
-import { Alert, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Textarea, TextInput, Title } from '@mantine/core';
+import { Alert, Autocomplete, Badge, Button, Checkbox, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Textarea, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { api } from '../api/cliente';
+import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { useCuentasImputables } from '../abm/opciones';
-import { Clase, CLASES, Concepto, DESTINOS_DESCUENTO, TIPOS_CONCEPTO, useConceptos } from './comun';
+import { Clase, CLASES, CODIGOS_ARCA, Concepto, DESTINOS_DESCUENTO, TIPOS_CONCEPTO, useConceptos } from './comun';
 
-type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean; destino: string; cuentaContableId: string | null };
-const vacio: Form = { codigo: '', nombre: '', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{ "importe": 0 }', orden: 300, soloAfiliados: false, activo: true, destino: 'OTRO', cuentaContableId: null };
+type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean; destino: string; cuentaContableId: string | null; codigoArca: string };
+const vacio: Form = { codigo: '', nombre: '', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{ "importe": 0 }', orden: 300, soloAfiliados: false, activo: true, destino: 'OTRO', cuentaContableId: null, codigoArca: '' };
 
 /** Parámetros en una línea: "porcentaje: 11 · base: REMUNERATIVO". */
 const resumenParametros = (p: Record<string, unknown>) => Object.entries(p).map(([k, v]) => `${k}: ${String(v)}`).join(' · ');
+
+/** Código de concepto ARCA: sugerencias del Anexo I o cualquier código de 6 dígitos (vacío = el de defecto). */
+export function CampoCodigoArca({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Autocomplete label="Código ARCA" placeholder="Vacío = según el tipo" value={value} data={CODIGOS_ARCA.map((c) => `${c.value} - ${c.label}`)}
+      onChange={(v) => onChange(/^\d{6} - /.test(v) ? v.slice(0, 6) : v.trim())} />
+  );
+}
+
+export function TablaConceptos({ conceptos, onEditar }: { conceptos: Concepto[]; onEditar?: (c: Concepto) => void }) {
+  return (
+    <Table withTableBorder striped highlightOnHover>
+      <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Concepto</Table.Th><Table.Th>Clase</Table.Th><Table.Th>Código ARCA</Table.Th><Table.Th>Cálculo</Table.Th><Table.Th>Parámetros</Table.Th><Table.Th>Estado</Table.Th></Table.Tr></Table.Thead>
+      <Table.Tbody>
+        {conceptos.map((c) => (
+          <Table.Tr key={c.id} style={{ cursor: onEditar ? 'pointer' : undefined }} onClick={() => onEditar?.(c)}>
+            <Table.Td>{c.codigo}</Table.Td><Table.Td>{c.nombre}{c.soloAfiliados ? ' (solo afiliados)' : ''}</Table.Td><Table.Td>{CLASES[c.clase]}</Table.Td><Table.Td>{c.codigoArca}</Table.Td>
+            <Table.Td>{TIPOS_CONCEPTO[c.tipo] ?? c.tipo}</Table.Td><Table.Td>{resumenParametros(c.parametros)}</Table.Td>
+            <Table.Td>{c.activo ? <Badge color="green" variant="light">Activo</Badge> : <Badge color="gray" variant="light">Inactivo</Badge>}</Table.Td>
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  );
+}
 
 export function ConceptosPage() {
   const { puede } = useAuth();
@@ -27,7 +52,8 @@ export function ConceptosPage() {
     if (!form) return;
     let parametros: unknown;
     try { parametros = JSON.parse(form.parametros || '{}'); } catch { op.setError('Parámetros inválidos: deben estar en formato JSON'); return; }
-    const { id, ...d } = form;
+    const { id, codigoArca, ...resto } = form;
+    const d = { ...resto, ...(codigoArca ? { codigoArca } : {}) };
     const r = await op.ejecutar(() => api(id ? `/sueldos/conceptos/${id}` : '/sueldos/conceptos', { metodo: id ? 'PUT' : 'POST', body: { ...d, parametros } }), () => 'Concepto guardado');
     if (r) { setForm(null); void qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('/sueldos/conceptos') }); }
   };
@@ -35,22 +61,14 @@ export function ConceptosPage() {
     <Paper withBorder p="md" radius="md">
       <Group justify="space-between" mb="md">
         <Title order={3}>Conceptos de liquidación</Title>
-        {editable && <Button size="xs" onClick={() => setForm({ ...vacio })}>Nuevo concepto</Button>}
+        <Group gap="xs">
+          <Button size="xs" variant="light" onClick={() => void op.ejecutar(() => descargar('/sueldos/lsd/conceptos', {}, 'LSD-conceptos.txt'), () => 'Archivo descargado')}>Archivo de conceptos para ARCA</Button>
+          {editable && <Button size="xs" onClick={() => setForm({ ...vacio })}>Nuevo concepto</Button>}
+        </Group>
       </Group>
       {(avisos.data ?? []).map((a) => <Alert key={a} color="yellow" mb="sm">{a}</Alert>)}
       {errorConsulta(conceptos.error)}
-      <Table withTableBorder striped highlightOnHover>
-        <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Concepto</Table.Th><Table.Th>Clase</Table.Th><Table.Th>Cálculo</Table.Th><Table.Th>Parámetros</Table.Th><Table.Th>Estado</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {(conceptos.data ?? []).map((c) => (
-            <Table.Tr key={c.id} style={{ cursor: editable ? 'pointer' : undefined }} onClick={() => editable && editar(c)}>
-              <Table.Td>{c.codigo}</Table.Td><Table.Td>{c.nombre}{c.soloAfiliados ? ' (solo afiliados)' : ''}</Table.Td><Table.Td>{CLASES[c.clase]}</Table.Td>
-              <Table.Td>{TIPOS_CONCEPTO[c.tipo] ?? c.tipo}</Table.Td><Table.Td>{resumenParametros(c.parametros)}</Table.Td>
-              <Table.Td>{c.activo ? <Badge color="green" variant="light">Activo</Badge> : <Badge color="gray" variant="light">Inactivo</Badge>}</Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+      <TablaConceptos conceptos={conceptos.data ?? []} onEditar={editable ? editar : undefined} />
       <Modal opened={!!form} onClose={() => setForm(null)} size="lg" title={form?.id ? 'Editar concepto' : 'Nuevo concepto'}>
         {form && (
           <Stack>
@@ -59,6 +77,7 @@ export function ConceptosPage() {
               <TextInput label="Nombre" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.currentTarget.value })} />
               <Select label="Clase" data={Object.entries(CLASES).map(([value, label]) => ({ value, label }))} value={form.clase} onChange={(v) => setForm({ ...form, clase: (v ?? 'REMUNERATIVO') as Clase })} />
               <Select label="Cálculo" data={Object.entries(TIPOS_CONCEPTO).map(([value, label]) => ({ value, label }))} value={form.tipo} onChange={(v) => setForm({ ...form, tipo: v ?? 'FIJO' })} />
+              <CampoCodigoArca value={form.codigoArca} onChange={(v) => setForm({ ...form, codigoArca: v })} />
               <NumberInput label="Orden" value={form.orden} onChange={(v) => setForm({ ...form, orden: Number(v) || 0 })} />
               {form.clase === 'DESCUENTO' && <Select label="Destino del descuento" data={Object.entries(DESTINOS_DESCUENTO).map(([value, label]) => ({ value, label }))} value={form.destino} onChange={(v) => setForm({ ...form, destino: v ?? 'OTRO' })} />}
               {form.clase === 'DESCUENTO' && <Select label="Cuenta (vacío = según el destino)" clearable searchable data={cuentas} value={form.cuentaContableId} onChange={(v) => setForm({ ...form, cuentaContableId: v })} />}
