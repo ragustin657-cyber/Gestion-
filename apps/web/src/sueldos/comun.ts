@@ -8,7 +8,7 @@ export interface Empleado {
   id: string; legajo: number; apellido: string; nombre: string; cuil: string; domicilio: string; fechaIngreso: string; fechaEgreso: string | null;
   categoriaId: string; categoria: string; centroCostoId: string | null; afiliadoSindicato: boolean; obraSocial: string; formaPago: 'EFECTIVO' | 'TRANSFERENCIA'; cbu: string | null; activo: boolean;
 }
-export interface Concepto { id: string; convenioId: string | null; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean; activo: boolean; destino?: string; cuentaContableId?: string | null }
+export interface Concepto { id: string; convenioId: string | null; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean; activo: boolean; destino?: string; cuentaContableId?: string | null; codigoArca: string }
 export interface Novedad { tipo: 'HORAS_EXTRA_50' | 'HORAS_EXTRA_100' | 'AUSENCIA_INJUSTIFICADA' | 'IMPORTE'; conceptoId?: string | null; cantidad?: number | null; importe?: number | null; detalle?: string | null; liquidacionComisionesId?: string | null }
 export interface RenglonRecibo { codigo: string; nombre: string; clase: Clase; cantidad: string | null; base: string | null; porcentaje: string | null; importe: string; orden: number }
 export interface Recibo {
@@ -18,11 +18,21 @@ export interface Recibo {
 export interface LiquidacionLista { empleado?: { legajo: number; apellido: string; nombre: string } | null; id: string; numero: number; tipo: 'MENSUAL' | 'SAC' | 'FINAL'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA'; empleados: number; totalNeto: string }
 export interface LiquidacionDetalle {
   id: string; numero: number; tipo: 'MENSUAL' | 'SAC' | 'FINAL'; anio: number; mes: number; fechaPago: string; estado: 'BORRADOR' | 'CERRADA'; egreso?: Egreso | null;
-  ultimoDepositoFecha: string | null; ultimoDepositoBanco: string | null; ultimoDepositoPeriodo: string | null;
+  ultimoDepositoFecha: string | null; ultimoDepositoBanco: string | null; ultimoDepositoPeriodo: string | null; numeroLsd?: number | null;
   errores: { empleadoId: string; mensaje: string }[]; aviso?: string; recibos: Recibo[];
   asiento?: { id: string; numero: number } | null; contribuciones?: ResumenContribuciones; pagos?: PagoSueldos[]; pendientePago?: string;
   totales: { remunerativo: string; noRemunerativo: string; descuentos: string; neto: string };
 }
+
+/** Códigos de concepto ARCA más usados (Anexo I del Libro de Sueldos Digital); se acepta cualquier otro de 6 dígitos. */
+export const CODIGOS_ARCA: { value: string; label: string }[] = [
+  { value: '110000', label: 'Sueldo' }, { value: '120000', label: 'Sueldo anual complementario' }, { value: '120003', label: 'SAC proporcional' },
+  { value: '130001', label: 'Horas extras al 50 %' }, { value: '130002', label: 'Horas extras al 100 %' }, { value: '150000', label: 'Adelanto vacacional' },
+  { value: '160000', label: 'Adicionales' }, { value: '160001', label: 'Adicional por antigüedad' }, { value: '170001', label: 'Premio por presentismo' },
+  { value: '170003', label: 'Comisiones (remunerativas)' }, { value: '520014', label: 'Indemnización por despido' }, { value: '550000', label: 'Importes no remunerativos especiales' },
+  { value: '810000', label: 'Sistema previsional' }, { value: '810001', label: 'INSSJyP' }, { value: '810002', label: 'Obra social' }, { value: '810004', label: 'Cuota sindical' },
+  { value: '820000', label: 'Otros descuentos' },
+];
 
 export const CLASES: Record<Clase, string> = { REMUNERATIVO: 'Remunerativo', NO_REMUNERATIVO: 'No remunerativo', DESCUENTO: 'Descuento' };
 export const TIPOS_CONCEPTO: Record<string, string> = {

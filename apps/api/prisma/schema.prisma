@@ -2136,6 +2136,8 @@ model Concepto {
   activo           Boolean          @default(true)
   destino          DestinoDescuento @default(OTRO)
   cuentaContableId String?          @db.Uuid
+  // Código de concepto ARCA del Libro de Sueldos Digital (Anexo I)
+  codigoArca       String
 
   @@unique([empresaId, codigo])
 }
@@ -2159,6 +2161,8 @@ model Liquidacion {
   asientoId             String?           @db.Uuid
   baseMaximaAportes     Decimal?          @db.Decimal(18, 2)
   detraccion            Decimal?          @db.Decimal(18, 2)
+  // Número de liquidación del Libro de Sueldos Digital: se asigna en la primera descarga (E30 §5)
+  numeroLsd             Int?
   novedades             Novedad[]
   pagos                 PagoSueldos[]
   recibos               ReciboSueldo[]

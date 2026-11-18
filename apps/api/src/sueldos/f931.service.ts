@@ -3,12 +3,11 @@ import { Prisma } from '@prisma/client';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 import { ContribucionesService } from './contribuciones.service';
 import { DatosF931, lineaF931 } from './f931-diseno';
+import { importesRecibo } from './importes-recibo';
 
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
-const r2 = (x: Dec) => x.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 const mmaaaa = (anio: number, mes: number) => `${String(mes).padStart(2, '0')}/${anio}`;
-const TIPOS_SUELDO = ['BASICO', 'ANTIGUEDAD', 'PORCENTAJE', 'AUSENCIA', 'FIJO'];
 
 /** Archivo de importación de SICOSS con las liquidaciones cerradas del mes (spec E19 §5, §9.3). */
 @Injectable()
@@ -55,33 +54,11 @@ export class F931Service {
         };
         porEmpleado.set(e.id, d);
       }
-      const final = esFinal.has(r.liquidacionId);
-      const rem = D.max(new D(r.totalRemunerativo), 0);
-      // Los conceptos indemnizatorios de la final (300 a 340) no se informan
-      const noRem = new D(r.totalNoRemunerativo).minus(r.renglones.filter((x) => !x.conceptoId && Number(x.codigo) >= 300 && Number(x.codigo) < 400).reduce((s2, x) => s2.plus(x.importe), new D(0)));
-      const sacFinal = final ? r.renglones.filter((x) => x.codigo === '200' && !x.conceptoId).reduce((s2, x) => s2.plus(x.importe), new D(0)) : new D(0);
-      // Parámetros copiados al cerrar; los vigentes solo para liquidaciones cerradas antes de la Entrega 22
       const liq = cerradas.find((x) => x.id === r.liquidacionId)!;
-      const baseMaxima = liq.baseMaximaAportes ?? (liq.detraccion !== null ? null : param.baseMaxima);
-      const detraccion = liq.detraccion ?? param.detraccion;
-      const tope = baseMaxima ? (esSac ? baseMaxima.div(2) : final ? baseMaxima.times(1.5) : baseMaxima) : null;
-      const conTope = tope ? D.min(rem, tope) : rem;
-      const det = D.min(rem, r2(esSac ? detraccion.div(2) : detraccion.times(r.diasTrabajados).div(30).plus(sacFinal.gt(0) ? detraccion.div(2) : 0)));
-      d.remuneracionTotal = d.remuneracionTotal.plus(rem).plus(noRem);
-      d.imponible1 = d.imponible1.plus(conTope); d.imponible4 = d.imponible4.plus(conTope); d.imponible5 = d.imponible5.plus(conTope);
-      for (const k of ['imponible2', 'imponible3', 'imponible8', 'imponible9'] as const) d[k] = d[k].plus(rem);
-      d.imponible11 = d.imponible11.plus(rem.minus(det));
-      d.detraccion = d.detraccion.plus(det);
-      d.noRemunerativo = d.noRemunerativo.plus(noRem);
+      const im = importesRecibo(r, liq, param, conceptos, { esSac, esFinal: esFinal.has(r.liquidacionId) });
+      for (const k of ['remuneracionTotal', 'imponible1', 'imponible2', 'imponible3', 'imponible4', 'imponible5', 'imponible8', 'imponible9', 'imponible11', 'detraccion', 'noRemunerativo', 'sueldoAdicionales', 'sac', 'horasExtrasImporte'] as const) d[k] = d[k].plus(im[k]);
+      if (!im.vacaciones.isZero()) d.vacaciones = (d.vacaciones ?? new D(0)).plus(im.vacaciones);
       if (!esSac) d.diasTrabajados = r.diasTrabajados;
-      for (const x of r.renglones.filter((y) => y.clase === 'REMUNERATIVO')) {
-        if (x.codigo === '200' && !x.conceptoId) { d.sac = d.sac.plus(x.importe); continue; }
-        const tipo = x.conceptoId ? conceptos.get(x.conceptoId)?.tipo : undefined;
-        // Vacaciones (E21): el 150 va al campo 40; el descuento de días (151, negativo) resta en sueldo + adicionales
-        if (tipo === 'VACACIONES') { if (new D(x.importe).gt(0)) d.vacaciones = (d.vacaciones ?? new D(0)).plus(x.importe); else d.sueldoAdicionales = d.sueldoAdicionales.plus(x.importe); continue; }
-        if (tipo === 'HORAS_EXTRA') d.horasExtrasImporte = d.horasExtrasImporte.plus(x.importe);
-        else if (tipo && TIPOS_SUELDO.includes(tipo)) d.sueldoAdicionales = d.sueldoAdicionales.plus(x.importe);
-      }
     }
     const lineas = [...porEmpleado.values()].sort((a, b) => a.cuil.localeCompare(b.cuil)).map((d) => {
       let l: string;

@@ -25,6 +25,7 @@ export const esquemaConcepto = z.object({
   tipo: z.enum(['BASICO', 'ANTIGUEDAD', 'PORCENTAJE', 'HORAS_EXTRA', 'AUSENCIA', 'FIJO', 'DESCUENTO_LEY', 'VACACIONES']),
   parametros: z.record(z.unknown()).default({}), orden: z.number().int(), soloAfiliados: z.boolean().default(false), activo: z.boolean().optional(),
   destino: z.enum(['SEGURIDAD_SOCIAL', 'OBRA_SOCIAL', 'SINDICAL', 'OTRO']).default('OTRO'), cuentaContableId: uuid.nullish(),
+  codigoArca: z.string().trim().optional(),
 }).superRefine((c, ctx) => {
   const error = validarConcepto(c.tipo, c.clase, c.parametros);
   if (error) ctx.addIssue({ code: z.ZodIssueCode.custom, message: error, path: ['parametros'] });

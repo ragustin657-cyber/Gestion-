@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { codigoArcaPorDefecto } from './lsd-conceptos';
 
 /** Convenio de Comercio precargado (spec §3): categorías sin básicos (se cargan las escalas vigentes). */
 export const CONVENIO_COMERCIO = { codigo: 'CCT130-75', nombre: 'Comercio (CCT 130/75)', horasMensuales: 200 };
@@ -42,7 +43,7 @@ export async function cargarSueldosModelo(tx: Prisma.TransactionClient, empresaI
     // Presentismo, FAECYS y sindicato son de Comercio: no se aplican a otros convenios (E22 §2.8)
     convenioId: ['120', '530', '540'].includes(c.codigo) ? conv.id : null,
     empresaId, codigo: c.codigo, nombre: c.nombre, clase: c.clase, tipo: c.tipo, parametros: c.parametros as Prisma.InputJsonValue, orden: Number(c.codigo), soloAfiliados: !!c.soloAfiliados,
-    destino: c.destino ?? 'OTRO', cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : null,
+    destino: c.destino ?? 'OTRO', codigoArca: codigoArcaPorDefecto({ ...c, destino: c.destino ?? 'OTRO' }), cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : null,
   })) });
   // Concepto de comisiones de vendedores (E24 §7)
   const comisiones = await tx.concepto.findFirst({ where: { empresaId, codigo: '210' }, select: { id: true } });

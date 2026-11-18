@@ -82,7 +82,7 @@ describe('comisiones: revisión final', () => {
     const x = await escenario();
     const cfg = (await x.http.get('/api/sueldos/configuracion')).body;
     const conv = await prisma.convenio.findFirstOrThrow({ where: { empresaId: x.empresaId } });
-    const c = await prisma.concepto.create({ data: { empresaId: x.empresaId, convenioId: conv.id, codigo: '211', nombre: 'Comisiones Comercio', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', orden: 211 } });
+    const c = await prisma.concepto.create({ data: { empresaId: x.empresaId, convenioId: conv.id, codigo: '211', nombre: 'Comisiones Comercio', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', orden: 211, codigoArca: '550000' } });
     const body = { cuentaSueldosId: cfg.cuentaSueldosId, cuentaContribucionesId: cfg.cuentaContribucionesId, cuentaSueldosAPagarId: cfg.cuentaSueldosAPagarId, cuentaCargasSocialesId: cfg.cuentaCargasSocialesId, cuentaRetencionesSindicalesId: cfg.cuentaRetencionesSindicalesId, conceptoComisionesId: c.id };
     const r = await x.http.put('/api/sueldos/configuracion', body);
     expect([r.status, r.body.message]).toEqual([400, 'Concepto de comisiones inválido: debe ser fijo, activo, no de descuento, sin convenio y para todos los empleados']);
