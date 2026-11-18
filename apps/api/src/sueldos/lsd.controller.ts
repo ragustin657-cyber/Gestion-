@@ -1,4 +1,4 @@
-import { Controller, Get, Res, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Put, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { LsdService } from './lsd.service';
@@ -16,5 +16,15 @@ export class LsdController {
   @Get('lsd/conceptos') @RequierePermiso('sueldos.ver')
   async conceptos(@Res({ passthrough: true }) res: Response) {
     return descarga(res, await this.lsd.conceptos());
+  }
+
+  @Get('liquidaciones/:id/lsd') @RequierePermiso('sueldos.ver')
+  async liquidacion(@Param('id', ParseUUIDPipe) id: string, @Res({ passthrough: true }) res: Response) {
+    return descarga(res, await this.lsd.liquidacion(id));
+  }
+
+  @Put('liquidaciones/:id/numero-lsd') @RequierePermiso('sueldos.liquidar')
+  fijarNumero(@Param('id', ParseUUIDPipe) id: string, @Body() d: { numero?: unknown }) {
+    return this.lsd.fijarNumero(id, Number(d?.numero));
   }
 }
