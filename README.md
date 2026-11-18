@@ -350,6 +350,8 @@ e2e               pruebas Playwright
 - **Índice único parcial `Liquidacion_mensual_sac_unica`:** garantiza una sola liquidación mensual y una de SAC por mes. Prisma no lo modela, así que `prisma migrate diff` propone borrarlo: quitá ese `DROP INDEX` a mano antes de aplicar una migración nueva.
 - **Migraciones de datos que crean cuentas:** verificá el nombre y el tipo de la cuenta padre (no solo el código), porque los planes de cuentas propios pueden usar el mismo código para otra cosa.
 - **Enums de Postgres:** un valor nuevo no se puede usar en la misma migración que lo agrega; los datos van en una migración aparte.
+- **Permisos nuevos:** los roles se guardan en la base, así que un permiso nuevo no llega solo a los Administrador de las empresas existentes. Agregalo en la migración con `array_append` (como hacen las Entregas 25 y 26), sin duplicarlo.
+- **Índices únicos parciales de comisiones** (`LiquidacionComisiones_mes_confirmada` y los de renglones): igual que el de sueldos, si `migrate diff` propone borrarlos hay que quitar esos `DROP` a mano.
 
 ## Reglas para nuevos módulos
 
