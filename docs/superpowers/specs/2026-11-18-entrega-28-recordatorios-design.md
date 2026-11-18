@@ -121,7 +121,7 @@ Si el envío falla, no se registra.
 - Ninguna prueba manda mails reales.
 
 **API:**
-- configuración: clave cifrada, nunca devuelta; clave vacía conserva la anterior; sin `CLAVE_CIFRADO` → 400;
+- configuración: clave cifrada, nunca devuelta; clave vacía conserva la anterior; sin `ARCA_CLAVE_MAESTRA` → 400;
 - envío de prueba, correcto y con falla;
 - variables;
 - envío individual con texto retocado y PDF adjunto, y la gestión registrada;
