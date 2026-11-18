@@ -199,9 +199,16 @@ export class MaestrosSueldosService {
   }
 
   async modificarConcepto(id: string, d: DatosConcepto) {
-    if (!(await this.tenant.db.concepto.findUnique({ where: { id } }))) throw new NotFoundException('Concepto inexistente');
-    if (d.activo === false && (await this.tenant.db.configuracionSueldos.findFirst({ where: { conceptoComisionesId: id } })))
-      throw new BadRequestException('Es el concepto de comisiones de vendedores: elija otro en la configuración de sueldos antes de desactivarlo');
+    const actual = await this.tenant.db.concepto.findUnique({ where: { id } });
+    if (!actual) throw new NotFoundException('Concepto inexistente');
+    if (await this.tenant.db.configuracionSueldos.findFirst({ where: { conceptoComisionesId: id } })) {
+      // Solo se bloquea pasar de activo a inactivo (uno que ya estaba inactivo se puede editar), E29 §2.2
+      if (actual.activo && d.activo === false)
+        throw new BadRequestException('Es el concepto de comisiones de vendedores: elija otro en la configuración de sueldos antes de desactivarlo');
+      // Tiene que seguir sirviendo para las comisiones (E29 §2.1)
+      if (d.tipo !== 'FIJO' || d.clase === 'DESCUENTO' || d.convenioId || d.soloAfiliados)
+        throw new BadRequestException('Es el concepto de comisiones de vendedores: debe seguir siendo fijo, sin convenio, para todos los empleados y no de descuento');
+    }
     await this.validarCuentaConcepto(d.cuentaContableId);
     return this.tenant.db.concepto.update({ where: { id }, data: { ...d, parametros: d.parametros as Prisma.InputJsonValue } });
   }

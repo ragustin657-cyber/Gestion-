@@ -114,7 +114,7 @@ export class AgendaCobranzasService {
     const describir = await this.consultas.describir(pendientes);
     const gs = await this.gestiones.deCliente(db, terceroId);
     const { estados } = promesas(gs, movs, corte);
-    const usuarios = new Map((await db.usuario.findMany({ where: { id: { in: [...new Set(gs.map((g) => g.creadoPor))].filter((id) => /^[0-9a-f-]{36}$/i.test(id)) } }, select: { id: true, nombre: true } })).map((u) => [u.id, u.nombre]));
+    const usuarios = new Map((await db.usuario.findMany({ where: { id: { in: [...new Set(gs.map((g) => g.creadoPor))].filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) } }, select: { id: true, nombre: true } })).map((u) => [u.id, u.nombre]));
     const f2 = (x: Dec) => x.toFixed(2);
     const { esCliente: _c, ...cliente } = t;
     return {
