@@ -71,7 +71,7 @@ test('recordatorios: el administrador configura el correo, envía el resumen a u
 
   // 3. Desde la agenda, la ficha del cliente: enviar el resumen por mail
   await page.goto('/ventas/cobranzas');
-  await page.getByRole('cell', { name: nombre }).click();
+  await page.getByRole('cell', { name: nombre, exact: true }).click();
   await page.getByRole('button', { name: 'Enviar resumen por mail' }).click();
   const mail = page.getByRole('dialog');
   await expect(mail.getByLabel('Para')).toHaveValue('cliente@prueba.local');
