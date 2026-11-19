@@ -1,0 +1,1607 @@
+IMPUESTO A LAS GANANCIAS
+         - 4TA. CATEGORÍA
+    RELACIÓN DE DEPENDENCIA
+
+
+
+                  F. 1359 Versión 2.0
+
+           MANUAL PARA LA GENERACIÓN DE LAS
+            DECLARACIONES JURADAS ANUALES,
+      INFORMATIVAS Y FINALES PARA EL AÑO 2025
+
+
+
+
+V. 9 Abril 2026
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+
+ÍNDICE
+
+1.- INTRODUCCIÓN .................................................................................................................................. 1
+   1.1.- Objetivo ....................................................................................................................................... 1
+   1.2.- Visión General ............................................................................................................................. 1
+   1.3.- Alcance ........................................................................................................................................ 1
+   1.4.- Novedades .................................................................................................................................. 1
+   1.5.- Resumen de los cambios respecto a la versión 00100 ............................................................... 2
+2.- TIPOS DE LIQUIDACIÓN ...................................................................................................................... 2
+   2.1.- Liquidación Anual ........................................................................................................................ 2
+   2.2.- Liquidación Final ......................................................................................................................... 2
+   2.3.- Liquidación Informativa .............................................................................................................. 3
+   2.4.- Aplicación .................................................................................................................................... 3
+3.-PRESENTACIÓN DE ARCHIVOS ............................................................................................................ 3
+   3.1.- Método de presentación ............................................................................................................ 3
+   3.2.- Archivo a remitir ......................................................................................................................... 4
+   3.3.- Procedimiento ............................................................................................................................. 7
+   3.4.- Diseño de registro de entrada F.1359......................................................................................... 7
+4.- DISEÑO DE REGISTRO ......................................................................................................................... 7
+   4.1.- Detalles del Registro Cabecera (Reg. Tipo 01). ........................................................................... 7
+   4.2.- Detalles del Registro Datos del Trabajador (Reg. Tipo 02). ........................................................ 9
+   4.3.- Detalles del Registro Remuneraciones Gravadas (Reg. Tipo 03). ............................................. 10
+   4.4.- Detalles del Registro Remuneraciones Exentas o No Alcanzadas (Reg. Tipo 04). .................... 12
+   4.5.- Detalles del Registro Deducciones Generales (Reg. Tipo 05). .................................................. 14
+   4.6.- Detalles del Registro Deducciones Art. 30 (Reg. Tipo 06). ........................................................ 19
+   4.7.- Detalles del Registro Pagos a Cuenta (Reg. Tipo 07). ............................................................... 20
+   4.8.- Detalles del Registro Cálculo del Impuesto (Reg. Tipo 08). ...................................................... 23
+5.- ACUSE DE RECIBO DE LA PRESENTACIÓN ........................................................................................ 24
+6.- TABLAS DEL SISTEMA ....................................................................................................................... 24
+       TABLA 1 – TIPO DE PRESENTACIÓN ............................................................................................... 24
+       TABLA 2 – BENEFICIO .................................................................................................................... 25
+       TABLA 3 – ALÍCUOTAS ART. 94 LIG ................................................................................................ 25
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+      TABLA 4 – TOPES 2025 .................................................................................................................. 25
+      TABLA 5 - Año 2025 ....................................................................................................................... 26
+      TABLA 5 - Año 2025 ANUAL........................................................................................................... 28
+      TABLA 6 – TOPES PARA LIQUIDACIÓN FINAL 2025 ....................................................................... 28
+7.- ARCHIVO DE PRESENTACIÓN - EJEMPLO ......................................................................................... 29
+8.- LIQUIDACIÓN CERTIFICADO ............................................................................................................. 29
+9.- MESA DE AYUDA AL USUARIO ......................................................................................................... 31
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+1.- INTRODUCCIÓN
+
+Esta Agencia tiene como misión fundamental el gestionar de forma efectiva, simple y equitativa el
+sistema tributario, aduanero y de los recursos de la seguridad social promoviendo en la ciudadanía
+la cultura del cumplimiento voluntario, la formalización de la economía y la inclusión social.
+
+
+Por ello, se ha creado esta aplicación para que los empleadores con carácter de agentes de
+retención remitan con «Clave Fiscal» a través del sitio ≪web≫ institucional, la «Liquidación de
+Impuesto a las Ganancias – 4ta. Categoría Relación de Dependencia» la que luego será puesta a
+disposición de sus empleados por medio del SiRADIG.
+
+1.1.- Objetivo
+El propósito de este documento es poder brindarle al agente de retención obligado a realizar las
+liquidaciones establecidas por el artículo 21° de la Resolución General 4003 / 2017 y
+modificatorias y complementarias, una guía que le permita generar y presentar ante esta Agencia
+las mismas.
+
+
+Este documento estará sujeto a actualizaciones y modificaciones periódicas por parte de ARCA,
+ante eventuales cambios, actualizaciones o futuros desarrollos de esta herramienta.
+
+1.2.- Visión General
+Es una herramienta que potencia el control cruzado entre trabajadores ↔ agente de retención
+respecto al cumplimiento de las obligaciones en el impuesto a las ganancias de este régimen
+retentivo, llevando certeza y transparencia a la misma.
+
+1.3.- Alcance
+Definir en función de cada uno de los métodos de remisión de información, el procedimiento, el
+diseño de registro y las validaciones de negocio que se realizarán en cada campo.
+
+1.4.- Novedades
+Esta versión 2.0. del F. 1359 surge como consecuencia de las modificaciones establecidas por la
+Resolución General AFIP 5683/2025 a su par 4003/2017, debiéndose utilizar para generar e
+informar las declaraciones juradas anuales, finales e informativas para el período 2025 y
+siguientes.
+
+
+La versión 1.0. de esta herramienta se deberá utilizar solamente para generar e informar el
+período 2024, y el F. 1357 se utilizará para generar e informar los períodos 2018 a 2023, inclusive.
+
+
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025              1
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+1.5.- Resumen de los cambios respecto a la versión 00100
+Registro 1: Se adecuaron los campos para poder identificar esta nueva versión.
+Registro 2: Se incorporaron 2 campos para una mejor identificación del trabajador, debiéndose
+indicar si el trabajador labora en la justicia, y/o si tiene incoada una acción cautelar por no ser
+retenido por aplicación de este régimen.
+Registro 3: Sin cambios.
+Registro 4: Se agregaron dos campos por la identificación de si el trabajador labora en la Justicia,
+para exteriorizar los ingresos exentos de corresponder.
+Registro 5: Sin cambios.
+Registro 6: Sin cambios.
+Registro 7: Se renombraron los campos pertenecientes a de la RG 4815 por su continuadora RG
+5617/2024. No modifica al cálculo respecto a la versión 00100.
+Registro 8: Se adecuó al año fiscal 2025. Se incorporó un campo para exteriorizar la auto-
+retención.
+
+
+2.- TIPOS DE LIQUIDACIÓN
+Para una mejor comprensión de la información a remitir, haremos un breve resumen sobre los
+tipos de liquidaciones a generar:
+
+2.1.- Liquidación Anual
+La misma será practicada por quien actúe como agente de retención al 31 de diciembre del
+período fiscal por el cual se realiza, a efectos de determinar la obligación anual del beneficiario
+que hubiera sido pasible de retenciones durante dicho período, y se practicará utilizando los
+montos actualizados de acuerdo con lo establecido en el inciso c) del quinto párrafo del artículo
+7°de la resolución general 4003.
+Esta liquidación deberá ser efectuada hasta el último día hábil del mes de abril inmediato siguiente
+a aquél por el cual se está efectuando la liquidación, excepto que entre el 1º de enero y el 31 de
+marzo inmediato siguiente al que se declara, se produjera la baja o retiro del trabajador, o el
+cambio de agente de retención, en cuyo caso deberá ser realizada juntamente con la liquidación
+final o informativa, según corresponda.
+
+2.2.- Liquidación Final
+Debe ser realizada por el agente de retención que cese en su función como tal, por producirse la
+extinción de la relación laboral, cualquiera sea el motivo, durante el transcurso del período fiscal, y
+siempre que no exista otro u otros sujetos susceptibles de reemplazarlo en tal carácter. Deberá
+practicarla según lo establecido en el inciso b) del artículo 21 de la resolución general 4003.
+
+
+
+
+      V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                2
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Si la finalización de la relación laboral se produce durante el primer semestre del año fiscal y
+confecciona la liquidación final y pago durante ese primer semestre, se aplicarán los montos
+anuales vigentes al momento del pago.
+En cambio, si la finalización de la relación se lleva a cabo durante el segundo semestre y/o el pago
+de las cuotas en el segundo semestre, corresponde aplicar los montos anuales actualizados
+consignados en el inciso c) del quinto párrafo del artículo 7°.
+Deberá presentarse dentro de los 5 (CINCO) días hábiles inmediatos siguientes de realizada.
+
+
+
+2.3.- Liquidación Informativa
+Es aquel certificado que contiene el impuesto determinado y retenido hasta el mes en que actuó
+como agente de retención. Deberá efectuarla cuando -dentro del período fiscal- cese su función
+en tal carácter, con motivo de:
+a)    La finalización de la relación laboral, en la medida que el beneficiario perciba rentas
+gravadas de otro u otros sujetos pagadores.
+b)      El inicio de una nueva relación laboral en los términos del inciso a) del segundo párrafo del
+Artículo 3° de la RG 4003/2017 y sus modificatorias, sin que ello implique el fin de la relación
+laboral preexistente.
+Deberá generarse según las previsiones establecidas en el inciso c) del artículo 21 de la resolución
+general 4003.
+Para ello, el agente de retención cesante deberá considerar los montos actualizados y acumulados
+que corresponda aplicar al momento de efectuarla en los términos de los incisos a) o b) del quinto
+párrafo del artículo 7° de la precitada resolución general.
+Deberá presentarse dentro de los 5 (CINCO) días hábiles inmediatos siguientes de realizada.
+
+2.4.- Aplicación
+El F. 1359 - «Liquidación de Impuesto a las Ganancias – 4ta. Categoría Relación de Dependencia» -
+versión 2.0, resultará de aplicación obligatoria para las liquidaciones anuales, finales e
+informativas del período fiscal 2025.
+
+
+3.-PRESENTACIÓN DE ARCHIVOS
+A continuación, una breve descripción sobre la preparación de los archivos, generación y los
+métodos de presentación frente al organismo fiscal.
+
+3.1.- Método de presentación
+Los sujetos obligados deben remitir la información requerida generando un archivo TXT, ZIP o GZ
+respetando la estructura del Diseño de Registro indicada en el punto 4.
+Dado el tamaño que pueden tener estos archivos, sería recomendable remitir el archivo
+«zippeado».
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                3
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+El envío deberá realizarse mediante una de las siguientes opciones:
+•       Transferencia electrónica de datos mediante el servicio denominado «Presentación de
+DDJJ y Pagos» a través del sitio ≪web≫ institucional (http://www.arca.gob.ar), ingresando con
+clave fiscal con nivel de seguridad 2 como mínimo.
+•        Intercambio de información mediante ≪webservice≫ denominado «Presentación de DDJJ
+- perfil contribuyente».
+Se detalla a continuación la documentación necesaria para acceder al ≪webservice≫:
+•      WebService: WSAA Autenticación y Autorización. La especificación se encuentra disponible
+en:https://www.arca.gob.ar/ws/documentacion/wsaa.asp
+•      WebService: PRESENTACION DE DDJJ – Perfil Contribuyente. La especificación se encuentra
+disponible en:
+https://www.arca.gob.ar/ws/wsddjj/WSPresentaciondeDDJJManualparaelDesarrollador.pdf
+
+•      Catálogo de WebService: La especificación                 se   encuentra   disponible   en:
+https://www.arca.gob.ar/ws/documentacion/catalogo.asp
+
+
+
+3.2.- Archivo a remitir
+1. Número de formulario: 1359
+2. Formato del Nombre del archivo:
+
+F(\d{4})\.CUIT\.(\d{11})\.período\.\d{8}\secuencia{4}\.(txt|ZIP|GZ) Ejemplo Nombre del archivo:
+F1359.<CUIT>.<PERIODO>.<SECUENCIA>.txt F1359.30999999995.20250000.0000.txt
+3. Aclaraciones y Definiciones:
+
+(1)    Los campos alfanuméricos se alinean a izquierda, se rellenan con espacios a derecha.
+(2)   Separador de registros: CR (CarriageReturn, 0x0D, 13 decimal) + LF (LineFeed, 0x0A, 10
+decimal) o solo LF.
+(3)    Los campos numéricos se alinean a derecha, se rellenan con ceros a izquierda y no
+contienen separadores de miles ni de decimales.
+(4)    El archivo no puede contener líneas en blanco al final del mismo.
+(5)    Los siguientes valores no pueden estar contenidos dentro de un archivo de DJ:
+Tabla ASCII
+Caracteres de control C0 (salvo el 10-LF y 13-CR)
+Decimal Octal Hexa Binario Valor
+0      0         0       0      NUL (Nullchar)
+1      1         1       1      SOH (Start of Header)
+
+      V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025            4
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+2     2         2       10     STX (Start of Text)
+3     3         3       11     ETX (End of Text)
+4     4         4       100    EOT (End of Transmission)
+5     5         5       101    ENQ (Enquiry)
+6     6         6       110    ACK (Acknowledgment)
+7     7         7       111    BEL (Bell)
+8     10 8      1000 BS (Backspace)
+9     11 9      1001 HT (Horizontal Tab)
+10    12        0A      1010 LF (Line Feed)
+11    13        0B      1011 VT (Vertical Tab)
+12    14        0C      1100 FF (Form Feed)
+13    15        0D      1101 CR (Carriage Return)
+14    16        0E      1110 SO (Shift Out)
+15    17        0F      1111 SI (Shift In)
+16    20        10      10000 DLE (Data Link Escape)
+17    21        11      10001 DC1 (XON) (Device Control 1)
+18    22        12      10010 DC2 (Device Control 2)
+19    23        13      10011 DC3 (XOFF)(Device Control 3)
+20    24        14      10100 DC4 (Device Control 4)
+21    25        15      10101 NAK (Negative Acknowledgement)
+22    26        16      10110 SYN (Synchronous Idle)
+23    27        17      10111 ETB (End of Trans. Block)
+24    30        18      11000 CAN (Cancel)
+25    31        19      11001 EM (End of Medium)
+26    32        1A      11010 SUB (Substitute)
+27    33        1B      11011 ESC (Escape)
+28    34        1C      11100 FS (File Separator)
+29    35        1D      11101 GS (Group Separator)
+30    36        1E      11110 RS (Request to Send)(Record Separator)
+
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025   5
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+31     37        1F      11111 US (Unit Separator)
+128    200 0x80 10000000 Padding Character
+129    201 0x81 10000001 High Octet Preset
+130    202 0x82 10000010 Break Permitted Here
+131    203 0x83 10000011 No Break Here
+132    204 0x84 10000100 Index
+133    205 0x85 10000101 Next Line
+134    206 0x86 10000110 Start of Selected Area
+135    207 0x87 10000111 End of Selected Area
+136    210 0x88 10001000 Horizontal Tab Set
+137    211 0x89 10001001 Horizontal Tab Justified
+138    212 0x8A 10001010 Vertical Tab Set
+139    213 0x8B 10001011 Partial Line Forward
+140    214 0x8C 10001100 Partial Line Backward
+141    215 0x8D 10001101 Reverse Line Feed
+142    216 0x8E 10001110 Single-Shift 2
+143    217 0x8F 10001111 Single-Shift 3
+144    220 0x90 10010000 Device Control String
+145    221 0x91 10010001 Private Use 1
+146    222 0x92 10010010 Private Use 2
+147    223 0x93 10010011 Set Transmit State
+148    224 0x94 10010100 Cancel character
+149    225 0x95 10010101 Message Waiting
+150    226 0x96 10010110 Start of Protected Area
+151    227 0x97 10010111 End of Protected Area
+152    230 0x98 10011000 Start of String
+153    231 0x99 10011001 Single Graphic Char Intro
+154    232 0x9A 10011010 Single Char Intro
+155    233 0x9B 10011011 Control Sequence Intro
+
+
+
+      V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025   6
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+156    234 0x9C 10011100 String Terminator
+157    235 0x9D 10011101 OS Command
+158    236 0x9E 10011110 Private Message
+159    237 0x9F 10011111 App Program Command
+
+3.3.- Procedimiento
+Al momento del ingreso de la información se realizarán controles de consistencia de los campos
+que integran el diseño de registro detallado en el punto 4.
+
+3.4.- Diseño de registro de entrada F.1359
+El archivo debe contener 8 (ocho) tipos de registro:
+
+           Cabecera
+           Datos del Trabajador
+           Remuneraciones Gravadas
+           Remuneraciones Exentas o No Alcanzadas
+           Deducciones Generales
+           Deducciones Art. 30
+           Pagos a Cuenta
+           Cálculo del Impuesto
+
+El archivo se deberá generar con el siguiente ordenamiento:
+           El primer registro deberá ser el 01, y luego conformará el archivo con los registros del
+            02 al 08 inclusive en el ese orden.
+           En caso de informar más de un trabajador, deberá informar tantos registros 02 a 08
+            inclusive, como trabajadores a informar, siguiendo el orden numérico secuencial.
+           Todos los registros son obligatorios.
+
+
+4.- DISEÑO DE REGISTRO
+A continuación, un breve resumen sobre la conformación de los registros que componen el
+archivo y sus respectivos campos.
+
+4.1.- Detalles del Registro Cabecera (Reg. Tipo 01).
+El registro «Cabecera» debe ser el primer registro del archivo, con una longitud de 38 (treinta y
+ocho) caracteres.
+
+
+
+
+      V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025             7
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+   Registro Nº 1
+   CABECERA ENCRIPTADA
+   Campo Posición                      Descripción          Obligatorio           Tipo           Longitud
+      1         [1, 2]      Tipo De Registro                    Sí        Valor fijo (01)           2
+      2        [3, 13]      CUIT Agente de Retención            Sí        CUIT                     11
+
+                                                                          Numérico
+
+                                                                          (Formato
+      3        [14, 19] Periodo Informado                       Sí        presentación Anual        6
+                                                                          = AAAA00 / Resto
+                                                                          de presentaciones
+                                                                          =AAAAMM)
+
+                                                                          Numérico
+                                                                          (00 = Original /
+      4        [20, 21] Secuencia                               Sí        Rectificativas en         2
+                                                                          forma
+                                                                          secuencial 01, etc.)
+      5        [22, 25] Código De Impuesto                      Sí        Valor fijo (0103)         4
+      6        [26, 28] Código De Concepto                      Sí        Valor fijo (593)          3
+      7        [29, 32] Numero De Formulario                    Sí        Valor fijo (1359)         4
+                                                                          Numérico - Tabla
+                                                                          valores (Tabla 1 -
+      8        [33, 33] Tipo De Presentación                    Sí        Tipos de                  1
+                                                                          Presentación)
+      9        [34, 38] Versión Del Sistema                     Sí        Valor fijo (00200)        5
+
+Se validará:
+
+La cantidad de registros «Cabecera» deberá ser 1 (una) por archivo.
+Si la presentación es ANUAL (Reg. 1 - Campo «TIPO DE PRESENTACIÓN» = 1):
+          •      El período debe ser con el siguiente formato: «AAAA00».
+          •      El valor mínimo es 202500.
+          •      Desde el 01-04-AAAA al 31-12-AAAA, se permitirá dar de alta la presentación
+                 ORIGINAL AAAA-1, siendo el valor mínimo 202500.
+
+Si la presentación es ANUAL - DISTRACTO (ENE-MAR) (Reg. 1 - Campo «TIPO DE PRESENTACIÓN»
+= 4):
+          •      El período debe ser con el siguiente formato: «AAAA00».
+          •      El valor mínimo es 202500.
+
+      V. 9 Abr 2026      F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                      8
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+         •      Desde el 01-01-AAAA al 31-03-AAAA, se permitirá dar de alta la presentación
+                ORIGINAL AAAA-1, siendo el valor mínimo 202500.
+         •      Desde el 01-04-AAAA, se permitirá presentar solamente RECTIFICATIVAS con este
+                tipo de presentación.
+         •      Los trabajadores informados en esta presentación excepcional, NO DEBERÁN ser
+                incluidos en la declaración jurada ANUAL con vencimiento 30/04/AAAA+1. (Reg. 1
+                – Campo «TIPO DE PRESENTACIÓN» = 1)
+
+Si la presentación es FINAL / INFORMATIVAS (Reg. 1 – Campo «TIPO DE PRESENTACIÓN» = 2 / 3)
+
+
+         •      El periodo es AAAAMM donde AAAA es el año calendario en curso y MM debe estar
+                entre 1 y 12.
+         •      El valor mínimo es 202501.
+         •      El Período tope es el del mes de presentación.
+
+En el campo «Secuencia» del registro Cabecera se validará que haya una original presentada
+anteriormente, en caso de querer presentar una rectificativa.
+
+                              IMPORTANTE CONSIDERACIÓN:
+La declaración jurada rectificativa de un mismo «TIPO DE PRESENTACIÓN»
+reemplaza en su totalidad a la presentación anterior.
+Por lo tanto, NO SE DEBEN PRESENTAR DECLARACIONES JURADAS RECTIFICATIVAS
+POR «NOVEDAD».
+
+4.2.- Detalles del Registro Datos del Trabajador (Reg. Tipo 02).
+El registro «Datos del Trabajador» debe ser el segundo registro del archivo, con una longitud de
+36 (treinta y seis) caracteres.
+
+
+
+   Registro Nº 2
+   DATOS DEL TRABAJADOR
+   Campo Posición            Descripción                Obligatorio         Tipo      Longitud
+     1      [1, 2] Tipo de Registro                          Sí     Valor fijo (02)      2
+     2     [3, 13] CUIL                                      Sí     CUIT                 11
+                                                                     Numérico -
+     3       [14, 21]   Periodo Trabajado Desde              Sí      (Formato =          8
+                                                                     AAAAMMDD)
+                                                                     Numérico -
+     4       [22, 29]   Periodo Trabajado Hasta              Sí      (Formato =          8
+                                                                     AAAAMMDD)
+                                                                     Numérico -
+     5       [30, 31]   Meses                                Sí                          2
+                                                                     (Formato = 00)
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025            9
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+   Registro Nº 2
+   DATOS DEL TRABAJADOR
+   Campo Posición                     Descripción             Obligatorio          Tipo          Longitud
+                                                                            Numérico - Tabla
+      6        [32, 32]   Beneficio                               Sí        valores (Tabla 2 -      1
+                                                                            Tipo de Beneficio)
+                          ¿El trabajador percibe sus
+                          remuneraciones en concepto de
+                                                                            MARCA -
+                          "Personal de Pozo" bajo el CCT
+      7        [33, 33]                                           Sí        Numérico -( 1 = Sí      1
+                          396/2004 correspondiente al
+                                                                            / 0 = No
+                          personal petroleros? (Ley 26.176
+                          - Art. 1°)
+                          ¿El trabajador percibe sus
+                          retribuciones por medio de la                     MARCA -
+      8        [34, 34]   Asociación Argentina de Actores         Sí        Numérico -( 1 = Sí      1
+                          en calidad de actor? (RG                          / 0 = No
+                          2442/08)
+                          ¿El trabajador se encuentra
+                          alcanzado por una medida                          MARCA -
+      9        [35, 35]   cautelar que afecte el régimen          Sí        Numérico -( 1 = Sí      1
+                          de retención del Impuesto?                        / 0 = No
+
+                          ¿El trabajador corresponde al
+                          poder judicial, no encontrándose
+                                                                            MARCA -
+                          alcanzado por el Segundo Párrafo
+     10        [36, 36]                                           Sí        Numérico -( 1 = Sí      1
+                          del inc. A) del Art. 82 de la Ley
+                                                                            / 0 = No
+                          del Impuesto?
+
+
+Se validará:
+
+La cantidad de registros «Datos del Trabajador» deberá ser 1 (una) por cada Trabajador
+informado.
+La CUIL del trabajador debe ser válida y corresponder a una persona humana.
+El período trabajado desde / hasta, se encuentre dentro del año informado en el Registro 1 –
+Campo «Período Informado».
+Que el número del campo «Meses», no sea 0 (cero) o superior a 12 (doce).
+
+
+4.3.- Detalles del Registro Remuneraciones Gravadas (Reg.
+Tipo 03).
+El registro «Remuneraciones Gravadas» debe ser el tercer registro del archivo, con una longitud
+de 178 (ciento setenta y ocho) caracteres.
+
+
+
+
+      V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                     10
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+Registro Nº 3
+REMUNERACIONES GRAVADAS
+Campo          Posición                Descripción            Obligatorio          Tipo       Longitud
+   1            [1, 2]       Tipo de Registro                     Sí        Valor fijo (03)        2
+   2            [3, 13]      CUIL                                 Sí        CUIT                   11
+
+   3           [14, 28]      Remuneración Bruta                   Sí        Numérico               15
+
+   4           [29, 43]      Retribuciones No Habituales          Sí        Numérico               15
+
+   5           [44, 58]      SAC Primera Cuota                    Sí        Numérico               15
+   6           [59, 73]      SAC Segunda Cuota                    Sí        Numérico               15
+                             Otros Empleos - Remuneración
+   7           [74, 88]                                           Sí        Numérico               15
+                             Bruta
+
+                             Otros Empleos - Retribuciones
+   8           [89, 103]                                          Sí        Numérico               15
+                             No Habituales
+
+                             Otros Empleos - SAC Primera
+   9          [104, 118]                                          Sí        Numérico               15
+                             Cuota
+                             Otros Empleos - SAC Segunda
+  10          [119, 133]                                          Sí        Numérico               15
+                             Cuota
+                             Ajustes de Períodos Anteriores
+  11          [134, 148]     sobre Remuneraciones                 Sí        Numérico               15
+                             Gravadas
+                             Otros Empleos - Ajustes de
+  12          [149, 163]     Períodos Anteriores sobre            Sí        Numérico               15
+                             Remuneraciones Gravadas
+                             TOTAL REMUNERACIÓN
+  13          [164, 178]                                          Sí        Numérico               15
+                             GRAVADA
+
+
+Se validará:
+La cantidad de registros «Remuneraciones Gravadas» deberá ser 1 (una) por cada Trabajador
+informado en el Registro 2.
+La CUIL del trabajador debe ser válida y corresponder a una persona humana.
+Los campos numéricos a informar deben ser cero o positivos.
+Al campo «TOTAL REMUNERACIÓN GRAVADA», se le realizará el siguiente control:
+Se verificará la sumatoria de los siguientes campos:
+
+
+
+
+       V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025              11
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Remuneración Bruta + Retribuciones No Habituales + SAC Primera Cuota + SAC Segunda Cuota +
+Otros Empleos - Remuneración Bruta + Otros Empleos - Retribuciones No Habituales + Otros
+Empleos - SAC Primera Cuota + Otros Empleos - SAC Segunda Cuota + Ajustes de Períodos
+Anteriores sobre Remuneraciones Gravadas + Otros Empleos - Ajustes de Períodos Anteriores sobre
+Remuneraciones Gravadas
+
+4.4.- Detalles del Registro Remuneraciones Exentas o No
+Alcanzadas (Reg. Tipo 04).
+El registro «Remuneraciones Exentas o No Alcanzadas» debe ser el cuarto registro del archivo,
+con una longitud de 313 (trescientos trece) caracteres.
+
+
+
+Registro Nº 4
+REMUNERACIONES EXENTAS O NO ALCANZADAS
+Campo      Posición           Descripción                       Obligatorio       Tipo          Longitud
+  1          [1, 2] Tipo de Registro                                 Sí       Valor Fijo (04)      2
+  2         [3, 13] CUIL                                             Sí           CUIT             11
+
+  3            [14, 28]      Asignaciones Familiares                Sí          Numérico             15
+
+                             Intereses por préstamos al
+  4            [29, 43]                                             Sí          Numérico             15
+                             empleador
+                             Indemnizaciones establecidas
+                             en los inc. c), d) y e) del
+  5            [44, 58]                                             Sí          Numérico             15
+                             Apartado "A" - Anexo II de la RG
+                             4003/2017
+                             Remuneraciones bajo el Art. 1°
+                             de la Ley N° 19.640 "Territorio
+  6            [59, 73]                                             Sí          Numérico             15
+                             Nacional de Tierra del Fuego
+                             A.I.A.S."
+                             Remuneraciones bajo el CCT
+                             396/2204 "Petroleros →
+  7            [74, 88]                                             Sí          Numérico             15
+                             Personal de Pozo" - Art. 1° Ley
+                             N° 26.176
+                             Cursos y Seminarios
+                             establecidos en el inc. o) del
+  8           [89, 103]                                             Sí          Numérico             15
+                             Apartado "A" - Anexo II de la RG
+                             4003/2017
+                             Indumentaria y equipamiento
+  9           [104, 118]                                            Sí          Numérico             15
+                             provistos por el empleador
+                             Ajustes de Períodos Anteriores
+  10          [119, 133]     sobre Remuneraciones Exentas           Sí          Numérico             15
+                             o No Alcanzadas
+                             Otros Empleos → Asignaciones
+  11          [134, 148]                                            Sí          Numérico             15
+                             Familiares
+                             Otros Empleos → Intereses por
+  12          [149, 163]                                            Sí          Numérico             15
+                             préstamos al empleador
+
+
+
+       V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                12
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Registro Nº 4
+REMUNERACIONES EXENTAS O NO ALCANZADAS
+Campo      Posición              Descripción                  Obligatorio          Tipo   Longitud
+                     Otros Empleos →
+                     Indemnizaciones establecidas
+  13      [164, 178] en los inc. c), d) y e) del                  Sí         Numérico          15
+                     Apartado "A" - Anexo II de la RG
+                     4003/2017
+                     Otros Empleos →
+                     Remuneraciones bajo el Art. 1°
+  14      [179, 193] de la Ley N° 19.640 "Territorio              Sí         Numérico          15
+                     Nacional de Tierra del Fuego
+                     A.I.A.S."
+                     Otros Empleos →
+                     Remuneraciones bajo el CCT
+  15      [194, 208] 396/2204 "Petroleros →                       Sí         Numérico          15
+                     Personal de Pozo" - Art. 1° Ley
+                     N° 26.176
+                     Otros Empleos → Cursos y
+                     Seminarios establecidos en el
+  16      [209, 223]                                              Sí         Numérico          15
+                     inc. o) del Apartado "A" - Anexo
+                     II de la RG 4003/2017
+                     Otros Empleos → Indumentaria
+  17      [224, 238] y equipamiento provistos por el              Sí         Numérico          15
+                     empleador
+                     Otros Empleos → Ajustes de
+                     Períodos Anteriores sobre
+  18      [239, 253]                                              Sí         Numérico          15
+                     Remuneraciones Exentas o No
+                     Alcanzadas
+                     TOTAL REMUNERACIÓN NO
+  19      [254, 268] GRAVADA / NO ALCANZADA /                     Sí         Numérico          15
+                     EXENTA
+
+  20          [269, 283]     TOTAL REMUNERACIONES                 Sí         Numérico          15
+
+                             Remuneraciones del Poder
+                             Judicial no alcanzadas por el
+  21          [284, 298]                                          Sí         Numérico          15
+                             segundo párrafo del Inc a) del
+                             Art. 82 de la LIG
+                             Otros Empleos →
+                             Remuneraciones del Poder
+  22          [299, 313]     Judicial no alcanzadas por el        Sí         Numérico          15
+                             segundo párrafo del Inc a) del
+                             Art. 82 de la LIG
+
+Se validará:
+
+La cantidad de registros «Remuneraciones Exentas o No Alcanzadas» deberá ser 1 (una) por cada
+Trabajador informado en el Registro 2.
+La CUIL del trabajador debe ser válida y corresponder a una persona humana.
+
+
+       V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025          13
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Los campos numéricos a informar deben ser cero o positivos.
+Al campo «Total Remuneración no gravada, no alcanzada o exenta», se le realizará el siguiente
+control:
+Se verificará la sumatoria de los siguientes campos:
+Asignaciones Familiares + Intereses por préstamos al empleador + Indemnizaciones establecidas en
+los inc. c), d) y e) del Apartado "A" - Anexo II de la RG 4003/2017 + Remuneraciones bajo el Art. 1°
+de la Ley N° 19.640 "Territorio Nacional de Tierra del Fuego A.I.A.S." + Remuneraciones bajo el CCT
+396/2204 "Petroleros → Personal de Pozo" - Art. 1° Ley N° 26.176 + Cursos y Seminarios
+establecidos en el inc. o) del Apartado "A" - Anexo II de la RG 4003/2017 + Indumentaria y
+equipamiento provistos por el empleador + Ajustes de Períodos Anteriores sobre Remuneraciones
+Exentas o No Alcanzadas + Otros Empleos → Asignaciones Familiares + Otros Empleos → Intereses
+por préstamos al empleador + Otros Empleos → Indemnizaciones establecidas en los inc. c), d) y e)
+del Apartado "A" - Anexo II de la RG 4003/2017 + Otros Empleos → Remuneraciones bajo el Art. 1°
+de la Ley N° 19.640 "Territorio Nacional de Tierra del Fuego A.I.A.S." + Otros Empleos →
+Remuneraciones bajo el CCT 396/2204 "Petroleros → Personal de Pozo" - Art. 1° Ley N° 26.176 +
+Otros Empleos → Cursos y Seminarios establecidos en el inc. o) del Apartado "A" - Anexo II de la RG
+4003/2017 + Otros Empleos → Indumentaria y equipamiento provistos por el empleador + Otros
+Empleos → Ajustes de Períodos Anteriores sobre Remuneraciones Exentas o No Alcanzadas+
+Remuneraciones del Poder Judicial no alcanzadas por el segundo párrafo del Inc. a) del Art. 82 de
+la LIG + Otros Empleos → Remuneraciones del Poder Judicial no alcanzadas por el segundo párrafo
+del Inc. a) del Art. 82 de la LIG
+Al campo «TOTAL DE REMUNERACIONES» (Reg. 4 Campo 20), se le realizará el siguiente control:
+Se verificará la sumatoria de los siguientes campos:
+TOTAL REMUNERACIÓN GRAVADA (Reg. 3 Campo 13) + TOTAL REMUNERACIÓN NO GRAVADA /
+NO ALCANZADA / EXENTA (Reg. 4 Campo 19)
+Adicionalmente, la sumatoria no puede ser menor a cero. En ese caso, se deberá informar con
+valor cero.
+
+
+
+Aclaración: El subsidio que perciben los Veteranos de la Guerra de Malvinas NO se informan en
+este formulario, por no estar alcanzado en el impuesto a las ganancias por ser un
+reconocimiento honorifico.
+
+
+
+
+4.5.- Detalles del Registro Deducciones Generales (Reg. Tipo
+05).
+El registro «Deducciones Generales» debe ser el quinto registro del archivo, con una longitud de
+478 (cuatrocientos setenta y ocho) caracteres.
+
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025             14
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Registro Nº 5
+DEDUCCIONES GENERALES
+Campo         Posición                    Descripción                 Obligatorio        Tipo         Longitud
+  1            [1, 2]        Tipo de Registro                             Sí        Valor fijo (05)        2
+  2            [3, 13]       CUIL                                         Sí            CUIT               11
+                             Aportes para fondos de Jubilaciones,
+  3           [14, 28]       retiros, pensiones o subsidios -             Sí          Numérico             15
+                             ANSES
+                             Otros Empleos - Aportes para fondos
+  4           [29, 43]       de Jubilaciones, retiros, pensiones o        Sí          Numérico             15
+                             subsidios - ANSES
+                             Aportes para fondos de Jubilaciones,
+                             retiros, pensiones o subsidios - Cajas
+  5           [44, 58]                                                    Sí          Numérico             15
+                             Previsionales Provinciales,
+                             Municipales o para Profesionales
+                             Otros Empleos - Aportes para fondos
+                             de Jubilaciones, retiros, pensiones o
+  6           [59, 73]       subsidios - Cajas Previsionales              Sí          Numérico             15
+                             Provinciales, Municipales o para
+                             Profesionales
+  7           [74, 88]       Aportes a Obras Sociales                     Sí          Numérico             15
+                             Otros Empleos - Aportes a Obras
+  8          [89, 103]                                                    Sí          Numérico             15
+                             Sociales
+  9          [104, 118]      Cuotas Sindicales                            Sí          Numérico             15
+
+  10         [119, 133]      Otros Empleos - Cuotas Sindicales            Sí          Numérico             15
+
+  11         [134, 148]      Cuotas Médico Asistenciales                  Sí          Numérico             15
+
+                             Primas de Seguro para el caso de
+  12         [149, 163]                                                   Sí          Numérico             15
+                             Muerte
+                             Seguro de Muerte/Mixtos Sujetos al
+  13         [164, 178]                                                   Sí          Numérico             15
+                             control de la SSN
+                             Adquisición de Cuotapartes de FCI
+  14         [179, 193]                                                   Sí          Numérico             15
+                             con fines de Retiro
+
+  15         [194, 208]      Gastos de Sepelio                            Sí          Numérico             15
+
+                             Amortización Impositiva e Intereses
+  16         [209, 223]      por adquisición de Rodados para              Sí          Numérico             15
+                             Corredores y Viajantes de Comercio
+                             Donaciones a Fiscos
+  17         [224, 238]      Nac./Prov./Mun./Inst. Art. 26 Inc e)         Sí          Numérico             15
+                             y f) LIG
+
+       V. 9 Abr 2026     F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                    15
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Registro Nº 5
+DEDUCCIONES GENERALES
+Campo         Posición                 Descripción                Obligatorio      Tipo    Longitud
+                           Alquileres de Inmuebles destinados
+  18         [239, 253]    a Casa-Habitación para Inquilinos No       Sí        Numérico        15
+                           Propietarios - Art. 85 inc. h) - 40%
+                           Descuentos Obligatorios por Ley
+  19         [254, 268]                                               Sí        Numérico        15
+                           Nacional, Provincial o Municipal
+                           Honorarios por Servicios de
+  20         [269, 283]    Asistencia Sanitaria, Médica y             Sí        Numérico        15
+                           Paramédica
+
+  21         [284, 298]    Intereses Créditos Hipotecarios            Sí        Numérico        15
+
+
+                           Aportes al Cap. Soc./Fondo Riesgo
+  22         [299, 313]                                               Sí        Numérico        15
+                           de Socios Protectores de SGR
+
+  23         [314, 328]    Empleados del Servicio Doméstico           Sí        Numérico        15
+
+  24         [329, 343]    Cajas Complementarias de Previsión         Sí        Numérico        15
+
+
+  25         [344, 358]    Fondos Compensadores de Previsión          Sí        Numérico        15
+
+                           Otros Aportes para fondos de
+                           Jubilaciones, retiros, pensiones o
+  26         [359, 373]                                               Sí        Numérico        15
+                           subsidios - incluido ANSES
+                           Autónomos
+                           Seguros de Retiro Privados -Sujetos
+  27         [374, 388]                                               Sí        Numérico        15
+                           al Control de la SSN
+                           Indumentaria/ y Equipamiento -Uso
+  28         [389, 403]    exclusivo y carácter obligatorio -         Sí        Numérico        15
+                           Adquiridos por empleado
+
+                           Servicios y Herramientas con Fines
+  29         [404, 418]                                               Sí        Numérico        15
+                           Educativos para Cargas de Familia
+
+                           Alquileres de Inmuebles destinados
+  30         [419, 433]    a Casa-Habitación para Inquilinos y        Sí        Numérico        15
+                           Propietarios - Art. 85 inc. k) - 10%
+                           Antártida Argentina - Adicional
+  31         [434, 448]    remunerativo para personal civil y         Sí        Numérico        15
+                           militar
+
+
+
+
+       V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025           16
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Registro Nº 5
+DEDUCCIONES GENERALES
+Campo          Posición                 Descripción                Obligatorio          Tipo         Longitud
+
+                            Actores - Retribución pagada a los
+  32           [449, 463]                                               Sí           Numérico             15
+                            representantes - RG 2442/08
+
+  33           [464, 478]   TOTAL DEDUCCIONES GENERALES                 Sí           Numérico             15
+
+
+
+Se validará:
+
+La cantidad de registros «Deducciones Generales» deberá ser 1 (una) por cada Trabajador informado en el
+Registro 2.
+
+La CUIL del trabajador debe ser válida y corresponder a una persona humana.
+
+Los campos numéricos a informar deben ser cero o positivos.
+
+El campo «Adquisición de cuotas partes FCI con fines de retiro» deberá consignarse en cero (0), hasta que
+la Autoridad de Aplicación – CNV – autorice a las Entidades a funcionar e implemente el citado régimen.
+
+Los campos «Primas de seguro para el caso de muerte», «Seguros muerte/mixtos sujetos al control de la
+SSN», «Seguro de retiros privados – sujetos al control de la SSN», «Adquisición de cuota partes de FCI con
+fines de retiro», «Intereses créditos hipotecarios», «Gastos de Sepelio», «Alquileres de Inmuebles
+destinados a Casa-Habitación para Inquilinos No Propietarios - Art. 85 inc. h) - 40%», «Empleados del
+servicio doméstico» y «Servicios y Herramientas con Fines Educativos para Cargas de Familia » no deben
+superar el tope legal, según lo consignado en Tabla 4.
+
+Los campos «Cuotas médico asistenciales», «Donac. Fiscos nac/prov/muni/inst. Art. 26 inc e) y f) LIG» y
+«Honorarios serv. Asistencia sanitaria, médica y paramédica», no debe superar el 5% (cinco por ciento) de
+la ganancia neta del ejercicio.
+
+El cálculo de la ganancia neta es el siguiente:
+
+'TOTAL REMUNERACIÓN GRAVADA' - Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios -
+ANSES' - Otros Empleos - Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - ANSES' -
+Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - Cajas Previsionales Provinciales,
+Municipales o para Profesionales' - Otros Empleos - Aportes para fondos de Jubilaciones, retiros, pensiones
+o subsidios - Cajas Previsionales Provinciales, Municipales o para Profesionales' - Aportes a Obras Sociales' -
+Otros Empleos - Aportes a Obras Sociales' - Cuotas Sindicales' - Otros Empleos - Cuotas Sindicales' - Primas
+de Seguro para el caso de Muerte' - Seguro de Muerte/Mixtos Sujetos al control de la SSN' - Adquisición de
+Cuotapartes de FCI con fines de Retiro' - Gastos de Sepelio' - Amortización Impositiva e Intereses por
+adquisición de Rodados para Corredores y Viajantes de Comercio' - Alquileres de Inmuebles destinados a
+Casa-Habitación para Inquilinos No Propietarios - Art. 85 inc. h) - 40%' - Descuentos Obligatorios por Ley
+Nacional, Provincial o Municipal' - Intereses Créditos Hipotecarios' - Aportes al Cap.Soc./Fondo Riesgo de
+Socios Protectores de SGR' - Empleados del Servicio Doméstico' - Cajas Complementarias de Previsión' -
+Fondos Compensadores de Previsión' - Otros Aportes para fondos de Jubilaciones, retiros, pensiones o
+subsidios - incluido ANSES Autónomos' - Seguros de Retiro Privados -Sujetos al Control de la SSN' -
+Indumentaria/ y Equipamiento -Uso exclusivo y carácter obligatorio - Adquiridos por empleado' - Servicios y
+Herramientas con Fines Educativos para Cargas de Familia' - Alquileres de Inmuebles destinados a Casa-
+
+       V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                     17
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Habitación para Inquilinos y Propietarios - Art. 85 inc. k) - 10%' - Antártida Argentina - Adicional
+remunerativo para personal civil y militar' - Actores - Retribución pagada a los representantes - RG 2442/08
+
+Los siguientes campos no puede ser mayor o igual a la suma de los campos «TOTAL
+REMUNERACIÓN GRAVADA» + campo «TOTAL REMUNERACIÓN NO GRAVADA / NO ALCANZADA
+/ EXENTA »:
+
+        •        Amortización Impositiva e Intereses por adquisición de Rodados para Corredores y
+                 Viajantes de Comercio
+        •        Descuentos Obligatorios por Ley Nacional, Provincial o Municipal
+        •        Aportes al Cap. Soc./Fondo Riesgo de Socios Protectores de SGR
+        •        Cajas Complementarias de Previsión
+        •        Fondos Compensadores de Previsión
+        •        Otros Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - incluido
+                 ANSES Autónomos
+        •        Indumentaria/ y Equipamiento -Uso exclusivo y carácter obligatorio - Adquiridos por
+                 empleado
+
+En el caso de confeccionar una liquidación del tipo «Informativa» → Registro 1 – Campo «Tipo de
+Presentación» – Valor de Tabla 1 igual a 3 (tres), los campos «Primas de seguro para el caso de
+muerte», «Seguros muerte/mixtos sujetas al control de la SSN», «Seguro de retiros privados –
+sujetas al control de la SSN», «Adquisición de cuota partes de FCI con fines de retiro» y «Honorarios
+serv. asistencia sanitaria, médica y paramédica» deben ser consignados con valor 0 (cero).
+La sumatoria del campo «Total Deducciones Generales» no puede ser cero o valor negativo.
+
+
+                                   IMPORTANTE - a tener en cuenta:
+En los campos 3 → “Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - ANSES”
+y 4 → “Otros Empleos - Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios -
+ANSES”, deberá consignarse lo aportado por el trabajador al Sistema Integrado Previsional
+Argentino (SIPA).
+En caso que el trabajador realice aportes a Cajas Provinciales, Cajas Municipales o Cajas de
+Previsión para Profesionales, se deberá exteriorizar en los campos 5 y/o 6 según corresponda al
+Agente de Retención o a Pluriempleo. Ejemplo, si el aporte se realizó en el Instituto de Previsión
+Social de la Provincia de Buenos Aires (IPS) siendo retenido por el Agente de Retención, deberá
+informarse en el citado campo 4 de este registro.
+De la misma forma, deberá procederse con las “CAJAS COMPLEMENTARIAS DE PREVISIÓN”,
+incorporando el dato en el campo 24 de este registro. Ejemplo, si el aporte se realizó en la Caja
+Complementaria para la Actividad Docente, deberá utilizarse el precitado campo.
+Los aportes a los Fondos Compensadores de Previsión, deberán informarse en el campo 25 de
+este registro. Ejemplo, si los trabajadores de la UNNE aportaron a dicho fondo, deberá
+informarse en este campo 25 del registro 5.
+
+
+      V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                   18
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+4.6.- Detalles del Registro Deducciones Art. 30 (Reg. Tipo 06).
+El registro «Deducciones Art. 30» debe ser el sexto registro del archivo, con una longitud de 160
+(ciento sesenta) caracteres.
+
+Registro Nº 6
+DEDUCCIONES ART. 30
+Campo        Posición                   Descripción             Obligatorio        Tipo         Longitud
+  1            [1, 2]        Tipo de Registro                       Sí        Valor fijo (06)      2
+  2            [3, 13]       CUIL                                   Sí            CUIT            11
+  3          [14, 28]        Ganancia No Imponible                  Sí          Numérico          15
+  4          [29, 43]        Cónyuge / Unión Convivencial           Sí          Numérico          15
+                             Cantidad de Hijos / Hijastros al                 Numérico sin
+  5          [44, 45]                                               Sí                             2
+                             50%                                               decimales
+                             Cantidad de Hijos / Hijastros al                 Numérico sin
+  6          [46, 47]                                               Sí                             2
+                             100%                                              decimales
+
+  7          [48, 62]        Hijos / Hijastros ($)                  Sí          Numérico          15
+
+                             Cantidad de Hijos / Hijastros
+                                                                              Numérico sin
+  8          [63, 64]        incapacitados para el trabajo al       Sí                             2
+                                                                               decimales
+                             50%
+                             Cantidad de Hijos / Hijastros
+                                                                              Numérico sin
+  9          [65, 66]        incapacitados para el trabajo al       Sí                             2
+                                                                               decimales
+                             100%
+                             Hijos / Hijastros incapacitados
+  10         [67, 81]                                               Sí          Numérico          15
+                             para el trabajo ($)
+
+  11         [82, 96]        TOTAL DE CARGAS DE FAMILIA             Sí          Numérico          15
+
+  12         [97, 111]       Deducción Especial                     Sí          Numérico          15
+
+                             Deducción Especial Adicional
+  13        [112, 126]                                              Sí          Numérico          15
+                             Doceava Parte
+
+  14        [127, 141]       Deducción Específica                   Sí          Numérico          15
+
+  15        [142, 156]       TOTAL DEDUCCIONES ART. 30              Sí          Numérico          15
+
+                             Cantidad de Hijos entre 18 y 24                  Numérico sin
+  16        [157, 158]                                              Sí                             2
+                             años - Gastos Educación al 50%                    decimales
+
+                             Cantidad de Hijos entre 18 y 24                  Numérico sin
+  17        [159, 160]                                              Sí                             2
+                             años - Gastos Educación al 100%                   decimales
+
+
+
+Se validará:
+
+       V. 9 Abr 2026     F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                19
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+La cantidad de registros «Deducciones Art. 30» deberá ser 1 (una) por cada Trabajador informado
+en el Registro 2.
+La CUIL del trabajador debe ser válida y corresponder a una persona humana. Los campos
+numéricos a informar deben ser cero o positivos.
+En los campos «Ganancias No Imponible», «Deducción Especial», «Deducción Específica»,
+«Cónyuge / Unión Convivencial», «Hijos / Hijastros ($)» e «Hijos / Hijastros incapacitados para el
+trabajo ($)», se verificará que no superen los topes legales.
+Se verificará que el campo «Total de Cargas de Familia» sea igual a la sumatoria de los campos:
+
+CÓNYUGE / UNIÓN CONVIVENCIAL + HIJOS/HIJASTROS ($) + HIJOS/HIJASTROS INCAPACITADOS
+PARA EL TRABAJO ($)
+
+Se controlará que el campo «Total Deducciones Art. 30» sea igual a la sumatoria de los campos:
+
+«Ganancia No Imponible» + «Deducción Especial» + «Deducción Especial Adicional Doceava
+Parte» + «Deducción Específica» + «Total de Cargas de Familia»
+
+En caso de que por una limitación sistémica no se pueda precisar fehacientemente la cantidad de
+hijos mayores a 18 hasta 24 años en los campos «CANTIDAD DE HIJOS ENTRE 18 y 24 AÑOS -
+EDUCACIÓN al 50%» y «CANTIDAD DE HIJOS ENTRE 18 y 24 AÑOS - EDUCACIÓN al 100% », podrá
+completarse con valor cero dado que son campos meramente informativos.
+
+En el caso que se declaren cargas de familia de “Hijos / Hijastros al 50%” y/o “Hijos / Hijastros
+incapacitados para el trabajo al 50%”, el tope establecido por el sistema redondeará a 2
+decimales en más, el resultado del siguiente producto:
+                      “N cantidad de hijos” * “Deducción Hijos/Hijastros” * 50%
+
+                                          RECORDATORIO:
+La ley del impuesto a las ganancias indica en el cuarto párrafo de su artículo 25, que no se
+considerarán pérdidas los importes que la ley autoriza a deducir por los conceptos indicados en
+el artículo 30.
+
+Por lo expuesto en el recordatorio anterior, se validará que el campo denominado «Total
+deducciones artículo 30» no supere la sumatoria de los campos de los registros anteriores «Total
+Remuneración Gravada» y «Total Remuneración no gravada / no alcanzada / exenta».
+
+
+
+
+4.7.- Detalles del Registro Pagos a Cuenta (Reg. Tipo 07).
+El registro «Pagos a Cuenta» debe ser el séptimo registro del archivo, con una longitud de 178
+(ciento setenta y ocho) caracteres.
+
+
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025            20
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+Registro Nº 7
+PAGOS A CUENTA
+Campo       Posición                  Descripción                Obligatorio        Tipo         Longitud
+  1           [1, 2]       Tipo de Registro                          Sí        Valor fijo (07)      2
+  2          [3, 13]       CUIL                                      Sí            CUIT            11
+                           Resolución General (AFIP)
+  3         [14, 28]       2281/2007 -Retenciones /                  Sí          Numérico          15
+                           Percepciones Aduaneras
+                           Resolución General (AFIP)
+                           2111/2006 - Impuesto sobre
+  4         [29, 43]                                                 Sí          Numérico          15
+                           créditos y débitos en cuenta
+                           bancaria
+                           Resolución General (AFIP)
+                           2111/2006 - Impuesto sobre
+  5         [44, 58]       créditos y débitos - sobre                Sí          Numérico          15
+                           movimientos de fondos propios o
+                           de terceros
+                           Resolución General (AFIP)
+                           3819/2015 - Cancelaciones en
+  6         [59, 73]       Efectivo - Servicios en el exterior       Sí          Numérico          15
+                           por medio de agencias de viajes y
+                           turismo
+                           Resolución General (AFIP)
+                           3819/2015 - Cancelaciones en
+                           Efectivo - Servicios de transporte
+  7         [74, 88]                                                 Sí          Numérico          15
+                           terrestre, aéreo y por vía
+                           acuática de pasajeros con
+                           destino fuera del país
+                           Resolución General (AFIP)
+                           5617/2024 - Ley 27.541 Art. 35
+                           inciso a) - Compra de billetes y
+  8         [89, 103]                                                Sí          Numérico          15
+                           divisas en moneda extranjera
+                           para atesoramiento o sin destino
+                           específico.
+                           Resolución General (AFIP)
+                           5617/2024 - Ley 27.541 Art. 35
+                           inciso b) - Adquisición de bienes
+  9        [104, 118]                                                Sí          Numérico          15
+                           o prestaciones y locaciones de
+                           servicios efectuadas en el
+                           exterior.
+                           Resolución General (AFIP)
+                           5617/2024 - Ley 27.541 Art. 35
+ 10        [119, 133]                                                Sí          Numérico          15
+                           inciso c) - Servicios prestados por
+                           sujetos no residentes en el país
+
+
+      V. 9 Abr 2026    F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                   21
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Registro Nº 7
+PAGOS A CUENTA
+Campo        Posición                 Descripción               Obligatorio     Tipo     Longitud
+                           Resolución General (AFIP)
+                           5617/2024 - Ley 27.541 Art. 35
+                           inciso d) - Adquisición de
+  11        [134, 148]                                              Sí        Numérico      15
+                           servicios en el exterior
+                           contratados a través de agencias
+                           de viajes y turismo
+                           Resolución General (AFIP)
+                           5617/2024 - Ley 27.541 Art. 35
+                           inciso e) - Adquisición de
+  12        [149, 163]     servicios de transporte terrestre,       Sí        Numérico      15
+                           aéreo y por vía acuática, de
+                           pasajeros con destino fuera del
+                           país
+                           TOTAL PAGOS A CUENTA
+  13        [164, 178]                                              Sí        Numérico      15
+                           (Apartado "G" Anexo II)
+
+
+Se validará:
+La cantidad de registros «Pagos a Cuenta» deberá ser 1 (una) por cada Trabajador informado en el
+Registro 2.
+La CUIL del trabajador debe ser válida y corresponder a una persona humana.
+En el caso de informar una liquidación del tipo «Informativa» – Registro 1 – Campo «Tipo de
+Presentación» – Valor de Tabla 1 igual a 3 (tres), se verificará que el campo «TOTAL PAGOS A
+CUENTA (Apartado "G" Anexo II)» sea igual a 0 (cero).
+Se controlará que el campo «PAGOS A CUENTA (Total)» sea igual a la suma de los siguientes
+campos:
+Resolución General (AFIP) 2281/2007 -Retenciones / Percepciones Aduaneras + Resolución General
+(AFIP) 2111/2006 - Impuesto sobre créditos y débitos en cuenta bancaria + Resolución General
+(AFIP) 2111/2006 - Impuesto sobre créditos y débitos - sobre movimientos de fondos propios o de
+terceros + Resolución General (AFIP) 3819/2015 - Cancelaciones en Efectivo - Servicios en el
+exterior por medio de agencias de viajes y turismo + Resolución General (AFIP) 3819/2015 -
+Cancelaciones en Efectivo - Servicios de transporte terrestre, aéreo y por vía acuática de pasajeros
+con destino fuera del país + Resolución General (AFIP) 5617/2024 - Ley 27.541 Art. 35 inciso a) -
+Compra de billetes y divisas en moneda extranjera para atesoramiento o sin destino específico. +
+Resolución General (AFIP) 5617/2024 - Ley 27.541 Art. 35 inciso b) - Adquisición de bienes o
+prestaciones y locaciones de servicios efectuadas en el exterior. + Resolución General (AFIP)
+5617/2024 - Ley 27.541 Art. 35 inciso c) - Servicios prestados por sujetos no residentes en el país +
+Resolución General (AFIP) 5617/2024 - Ley 27.541 Art. 35 inciso d) - Adquisición de servicios en el
+exterior contratados a través de agencias de viajes y turismo + Resolución General (AFIP)
+
+
+       V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025            22
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+5617/2024 - Ley 27.541 Art. 35 inciso e) - Adquisición de servicios de transporte terrestre, aéreo y
+por vía acuática, de pasajeros con destino fuera del país
+
+
+
+4.8.- Detalles del Registro Cálculo del Impuesto (Reg. Tipo 08).
+El registro «Cálculo del Impuesto» debe ser el octavo registro del archivo, con una longitud de 105
+(ciento cinco) caracteres.
+
+Registro Nº 8
+PAGOS A CUENTA
+Campo        Posición                   Descripción             Obligatorio          Tipo         Longitud
+   1            [1, 2]       Tipo de Registro                       Sí          Valor fijo (08)        2
+   2           [3, 13]       CUIL                                   Sí              CUIT            11
+                             REMUNERACION          SUJETA   A
+   3           [14, 28]                                             Sí            Numérico          15
+                             IMPUESTO
+                                                                              Numérico → Tabla
+   4           [29, 30]      Alícuota – Art. 94 - LIG               Sí                                 2
+                                                                                     3
+   5           [31, 45]      Impuesto Determinado                   Sí            Numérico          15
+   6           [46, 60]      Impuesto Retenido                      Sí            Numérico          15
+                             Subtotal saldo determinado
+   7           [61, 75]      antes de Auto-retención / Pagos        Sí            Numérico          15
+                             a Cuenta
+   8           [76, 90]      Impuesto Auto-retenido RG 5683         Sí            Numérico          15
+
+   9         [91, 105]       SALDO DETERMINADO                      Sí            Numérico          15
+
+Se validará:
+
+La cantidad de registros «Cálculo del Impuesto» deberá ser 1 (una) por cada Trabajador informado
+en el Registro 2.
+La CUIL del trabajador debe ser válida y corresponder a una persona humana.
+
+Se controlará que el campo «REMUNERACION SUJETA A IMPUESTO» sea igual a la suma de los
+siguientes campos:
+
+«TOTAL REMUNERACIÓN GRAVADA» - «TOTAL DEDUCCIONES GENERALES» - «TOTAL
+DEDUCCIONES ART. 30».
+
+Si resultado del cálculo aritmético es menor a cero, se deberá consignar valor cero
+
+El campo «Subtotal saldo determinado antes de Auto-retención / Pagos a Cuenta» deberá ser
+igual al siguiente cálculo aritmético:
+
+                               «Impuesto Determinado» - «Impuesto Retenido»
+
+       V. 9 Abr 2026     F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                23
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Se controlará que el campo «SALDO DETERMINADO» sea igual a la operación matemática de los
+siguientes campos:
+
+«Subtotal saldo determinado antes de Auto-retención / Pagos a Cuenta» - «Impuesto Auto-
+retenido RG 5683» -«TOTAL PAGOS A CUENTA (Apartado "G" Anexo II)»
+
+
+5.- ACUSE DE RECIBO DE LA PRESENTACIÓN
+Si el archivo remitido ingresa correctamente, el sistema emitirá un Acuse de Recibo.
+
+
+A partir de la aceptación del formulario, se comprobarán errores o inconsistencias relacionadas a
+los datos informados. Las mismas serán notificadas a los agentes de retención informantes, a fin
+de que procedan a rectificar la información presentada.
+
+
+
+
+                                          IMPORTANTE:
+    Las rectificativas deben ser totales. NO SE ACEPTARÁN RECTIFICATIVAS POR NOVEDAD.
+
+
+
+El «Web Service» denominado «PRESENTACIÓN DE DDJJ - PERFIL CONTRIBUYENTE» no devuelve
+un archivo, sino un mensaje SOAP con el número de transacción o un mensaje de error en caso de
+que la DJ no pase alguna validación de negocio o formato del archivo presentado.
+
+
+Si la presentación se realizó por Intercambio de información mediante el «Web Service»
+denominado: «PRESENTACIÓN DE DDJJ - PERFIL CONTRIBUYENTE», el sistema emitirá un mensaje
+SOAP con el número de transacción o un mensaje de error en caso de que la DJ no pase alguna
+validación de negocio o formato del archivo presentado.
+
+
+6.- TABLAS DEL SISTEMA
+
+                                  TABLA 1 – TIPO DE PRESENTACIÓN
+                             VALOR                DESCRIPCIÓN
+                               1        ANUAL
+                               2        FINAL
+                               3        INFORMATIVA
+                               4        ANUAL → DISTRACTO ENE - MAR
+
+
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025          24
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+
+                                           TABLA 2 – BENEFICIO
+      VALOR                                           DESCRIPCIÓN
+        1           SIN BENEFICIO
+                    J/P/R - Deducción especifica equivalente a ocho (8) veces la suma de los haberes
+         2          mínimos garantizados, definidos en el artículo 125 de la ley 24.241 y sus mod. y
+                    comp.
+
+
+
+
+                                    TABLA 3 – ALÍCUOTAS ART. 94 LIG
+                                  VALOR             DESCRIPCIÓN
+                                    00                  0%
+                                    01                  5%
+                                    02                  9%
+                                    03                  12%
+                                    04                  15%
+                                    05                  19%
+                                    06                  23%
+                                    07                  27%
+                                    08                  31%
+                                    09                  35%
+
+
+                                           Año fiscal 2025
+
+
+                             TABLA 4 – TOPES 2025                       AÑO 2025
+                     VALOR               DESCRIPCIÓN                     MONTO
+                       1       Ganancia No Imponible                     $ 4.507.505,52
+                               Cuarenta Por Ciento Ganancia
+                        2                                                 $ 1.803.002,21
+                               No Imponible
+                               Seguros para casos de muerte,
+                        3      Seguros Mixtos y Adquisición                 $ 573.817,13
+                               FCI con fines de Retiro
+                        4      Seguros de Retiro Privados                   $ 573.817,13
+                        5      Intereses Hipotecarios                        $ 20.000,00
+                        6      Gastos de Sepelio                                $ 996,23
+
+
+
+
+    V. 9 Abr 2026    F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                     25
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+                                         TABLA 5 - Año 2025
+                                          Acumulado                               Acumulado
+   VALOR            DESCRIPCIÓN                            Acumulado Feb/25
+                                            Ene/25                                 Mar/25
+              Ganancias no
+      1       imponibles [art. 30,          $ 326.355,70        $ 652.711,40        $ 979.067,09
+              inc. a)]
+              C.F. - Cónyuge /
+      2                                     $ 307.361,61        $ 614.723,22        $ 922.084,83
+              Unión Convivencial
+      3       C.F. – Hijo/ Hijastro         $ 155.003,58        $ 310.007,16        $ 465.010,74
+              C.F. - Hijo / Hijastro
+      4       Incapacitado para el          $ 310.007,16        $ 620.014,32        $ 930.021,49
+              Trabajo
+              Deducción especial
+      5       [art. 30, inc. c); art.     $ 1.566.507,35      $ 3.133.014,70      $ 4.699.522,05
+              82, incs. a), b) y c)]
+      6       Deducción Específica        $ 2.127.256,08      $ 4.311.948,08      $ 6.544.921,76
+
+
+
+
+                                         TABLA 5 - Año 2025
+
+                                        Acumulado Abr/     Acumulado May/       Acumulado Jun/
+   VALOR            DESCRIPCIÓN
+                                             25                  25                  25
+              Ganancias no
+      1       imponibles [art. 30,        $ 1.305.422,79      $ 1.631.778,49      $ 1.958.134,19
+              inc. a)]
+              C.F. - Cónyuge /            $ 1.229.446,44      $ 1.536.808,05      $ 1.844.169,66
+      2
+              Unión Convivencial
+      3       C.F. - Hijo/ Hijastro         $ 620.014,33        $ 775.017,91        $ 930.021,49
+
+              C.F. - Hijo / Hijastro
+      4       Incapacitado para el        $ 1.240.028,65      $ 1.550.035,81      $ 1.860.042,97
+              Trabajo
+              Deducción especial
+      5       [art. 30, inc. c); art.     $ 6.266.029,40      $ 7.832.536,75      $ 9.399.044,10
+              82, incs. a), b) y c)]
+      6       Deducción Específica        $ 8.831.486,80     $ 11.203.340,72     $ 13.641.132,16
+
+
+
+
+    V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025               26
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+                                          TABLA 5 - Año 2025
+
+                                                            Acumulado Ago/       Acumulado Sep/
+   VALOR            DESCRIPCIÓN         Acumulado Jul/ 25
+                                                                 25                   25
+              Ganancias no
+      1       imponibles [art. 30,         $ 2.333.759,65      $ 2.709.385,11       $ 3.085.010,57
+              inc. a)]
+              C.F. - Cónyuge /             $ 2.197.933,50      $ 2.551.697,35       $ 2.905.461,19
+      2
+              Unión Convivencial
+      3       C.F. - Hijo/ Hijastro        $ 1.108.425,89      $ 1.286.830,28       $ 1.465.234,68
+
+              C.F. - Hijo / Hijastro
+      4       Incapacitado para el         $ 2.216.851,77      $ 2.573.660,56       $ 2.930.469,56
+              Trabajo
+              Deducción especial
+      5       [art. 30, inc. c); art.     $ 11.202.046,31    $ 13.005.048,52      $ 14.808.050,52
+              82, incs. a), b) y c)]
+      6       Deducción Específica        $ 16.115.490,48    $ 18.629.933,44      $ 21.192.150,80
+
+
+
+
+                                          TABLA 5 - Año 2025
+
+                                        Acumulado Oct/      Acumulado Nov/      Acumulado Dic/ 25
+   VALOR            DESCRIPCIÓN
+                                             25                  25                 - FINAL
+              Ganancias no
+      1       imponibles [art. 30,         $ 3.460.636,02      $ 3.836.261,48       $ 4.211.886,94
+              inc. a)]
+              C.F. - Cónyuge /             $ 3.259.225,03      $ 3.612.988,88       $ 3.966.752,72
+      2
+              Unión Convivencial
+      3       C.F. - Hijo/ Hijastro        $ 1.643.639,08      $ 1.822.043,48       $ 2.000.447,87
+
+              C.F. - Hijo / Hijastro
+      4       Incapacitado para el         $ 3.287.278,15      $ 3.644.086,94       $ 4.000.895,74
+              Trabajo
+              Deducción especial
+      5       [art. 30, inc. c); art.     $ 16.611.052,93    $ 18.414.055,14      $ 20.217.057,35
+              82, incs. a), b) y c)]
+      6        Deducción Específica       $ 23.802.537,84    $ 26.467.220,96      $ 29.194.257,68
+
+
+
+
+    V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                 27
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+                                          TABLA 5 - Año 2025 ANUAL
+                  VALOR                     DESCRIPCIÓN                           ANUAL
+                       1     Ganancias no imponibles [art. 30, inc. a)]          $ 4.507.505,52
+
+                       2     C.F. - Cónyuge / Unión Convivencial                 $ 4.245.166,13
+
+                       3     C.F. - Hijo/ Hijastro                               $ 2.140.852,77
+
+                             C.F. - Hijo / Hijastro Incapacitado para el         $ 4.281.705,53
+                       4
+                             Trabajo
+                             Deducción especial [art. 30, inc. c); art.         $ 21.636.026,50
+                       5
+                             82, incs. a), b) y c)]
+                       6     Deducción Específica                               $ 29.194.257,68
+
+
+
+
+                           TABLA 6 – TOPES PARA LIQUIDACIÓN FINAL 2025
+                                                     1er. SEMESTRE 2025            2do. SEMESTRE 2025
+VALOR                  DESCRIPCIÓN
+                                                             (*)                           (**)
+          Ganancias no imponibles [art. 30,
+   1                                                           $ 3.916.268,37              $ 4.507.505,52
+          inc. a)]
+          C.F. - Cónyuge / Unión
+   2                                                           $ 3.688.339,32              $ 4.245.166,13
+          Convivencial
+   3      C.F. - Hijo                                          $ 1.860.042,98              $ 2.140.852,77
+          C.F. - Hijo / Hijastro Incapacitado
+   4                                                           $ 3.720.085,95              $ 4.281.705,53
+          para el Trabajo
+          Deducción especial [art. 30, inc.
+   5                                                         $ 18.798.088,20              $ 21.636.026,50
+          c); art. 82, incs. a), b) y c)]
+                                                                                          $ 29.194.257,68
+   6      Deducción Específica                               $ 28.267.880,80
+
+
+
+(*) Montos a utilizar para la confección de las «Liquidaciones Finales» comprendidas entre enero y
+junio de cada año, incluso sus rectificativas de corresponder.
+(**) Montos a utilizar para la generación de las «Liquidaciones Finales» comprendidas entre julio y
+diciembre de cada año, incluso sus rectificativas de corresponder.
+Tablas confeccionadas al 27 de noviembre de 2025.
+
+
+
+
+       V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                        28
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+
+
+
+7.- ARCHIVO DE PRESENTACIÓN - EJEMPLO
+
+
+
+
+8.- LIQUIDACIÓN CERTIFICADO
+Les adjuntamos el diseño del certificado de la «LIQUIDACIÓN DE IMPUESTO A LAS GANANCIAS - 4TA.
+CATEGORÍA RELACIÓN DE DEPENDENCIA»
+
+    “LIQUIDACIÓN DE IMPUESTO A LAS GANANCIAS - 4TA. CATEGORÍA RELACIÓN DE DEPENDENCIA"
+Fecha:
+Beneficiario: “CUIL”, “apellido y nombres” (1), “datos adicionales" (2)
+Agente de Retención: “CUIT”, “denominación legal”
+Período Fiscal: “AAAA”.
+
+REMUNERACIONES GRAVADAS
+Abonadas por el agente de retención
+Remuneración bruta y no habituales                                                                        $
+SAC                                                                                                       $
+Ajustes de Períodos Anteriores sobre Remuneraciones Gravadas                                              $
+Otros Empleos
+Otros Empleos - Remuneración Bruta y no habituales                                                        $
+Otros Empleos - SAC                                                                                       $
+Otros Empleos - Ajustes de Períodos Anteriores sobre Remuneraciones Gravadas                              $
+TOTAL REMUNERACIÓN GRAVADA                                                                                $
+REMUNERACIONES EXENTAS o NO ALCANZADAS
+Abonadas por el agente de retención
+Asignaciones Familiares                                                                                   $
+Intereses por préstamos al empleador                                                                      $
+Indemnizaciones establecidas en los inc. c), d) y e) del Apartado "A" - Anexo II de la RG 4003/2017       $
+Remuneraciones bajo el Art. 1° de la Ley N° 19.640 "Territorio Nacional de Tierra del Fuego A.I.A.S."     $
+Remuneraciones bajo el CCT 396/2204 "Petroleros → Personal de Pozo" - Art. 1° Ley N° 26.176               $
+Cursos y Seminarios establecidos en el inc. o) del Apartado "A" - Anexo II de la RG 4003/2017             $
+Indumentaria y equipamiento provistos por el empleador                                                    $
+Ajustes de Períodos Anteriores sobre Remuneraciones Exentas o No Alcanzadas                               $
+Remuneraciones del Poder Judicial no alcanzadas por el segundo párrafo del Inc a) del Art. 82 de la LIG   $
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                    29
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Otros Empleos
+Otros Empleos → Asignaciones Familiares                                                                     $
+Otros Empleos → Intereses por préstamos al empleador                                                        $
+Otros Empleos → Indemnizaciones establecidas en los inc. c), d) y e) del Apartado "A" - Anexo II de la RG
+                                                                                                            $
+4003/2017
+Otros Empleos → Remuneraciones bajo el Art. 1° de la Ley N° 19.640 "Territorio Nacional de Tierra del
+                                                                                                            $
+Fuego A.I.A.S."
+Otros Empleos → Remuneraciones bajo el CCT 396/2204 "Petroleros → Personal de Pozo" - Art. 1° Ley
+                                                                                                            $
+N° 26.176
+Otros Empleos → Cursos y Seminarios establecidos en el inc. o) del Apartado "A" - Anexo II de la RG
+                                                                                                            $
+4003/2017
+Otros Empleos → Indumentaria y equipamiento provistos por el empleador                                      $
+Otros Empleos → Ajustes de Períodos Anteriores sobre Remuneraciones Exentas o No Alcanzadas                 $
+Otros Empleos → Remuneraciones del Poder Judicial no alcanzadas por el segundo párrafo del Inc a) del
+                                                                                                            $
+Art. 82 de la LIG
+TOTAL REMUNERACIÓN NO GRAVADA / NO ALCANZADA / EXENTA                                                       $
+TOTAL REMUNERACIONES                                                                                        $
+DEDUCCIONES GENERALES
+Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - ANSES                                 $
+Otros Empleos - Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - ANSES                 $
+Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - Cajas Previsionales Provinciales,
+                                                                                                            $
+Municipales o para Profesionales
+Otros Empleos - Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - Cajas Previsionales
+                                                                                                            $
+Provinciales, Municipales o para Profesionales
+Aportes a Obras Sociales                                                                                    $
+Otros Empleos - Aportes a Obras Sociales                                                                    $
+Cuotas Sindicales                                                                                           $
+Otros Empleos - Cuotas Sindicales                                                                           $
+Cuotas Médico Asistenciales                                                                                 $
+Primas de Seguro para el caso de Muerte                                                                     $
+Seguro de Muerte/Mixtos Sujetos al control de la SSN                                                        $
+Adquisición de Cuotapartes de FCI con fines de Retiro                                                       $
+Gastos de Sepelio                                                                                           $
+Amortización Impositiva e Intereses por adquisición de Rodados para Corredores y Viajantes de
+                                                                                                            $
+Comercio
+Donaciones a Fiscos Nac./Prov./Mun./Inst. Art. 26 Inc e) y f) LIG                                           $
+Alquileres de Inmuebles destinados a Casa-Habitación para Inquilinos No Propietarios - Art. 85 inc. h) -
+                                                                                                            $
+40%
+Descuentos Obligatorios por Ley Nacional, Provincial o Municipal                                            $
+Honorarios por Servicios de Asistencia Sanitaria, Médica y Paramédica                                       $
+Intereses Créditos Hipotecarios                                                                             $
+Aportes al Cap.Soc./Fondo Riesgo de Socios Protectores de SGR                                               $
+Empleados del Servicio Doméstico                                                                            $
+Cajas Complementarias de Previsión                                                                          $
+Fondos Compensadores de Previsión                                                                           $
+Otros Aportes para fondos de Jubilaciones, retiros, pensiones o subsidios - incluido ANSES Autónomos        $
+Seguros de Retiro Privados -Sujetos al Control de la SSN                                                    $
+
+
+     V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                    30
+Liquidación del Imp. Ganancias –
+4ta. Categoría Relación de Dependencia
+Indumentaria/ y Equipamiento -Uso exclusivo y carácter obligatorio - Adquiridos por empleado              $
+Servicios y Herramientas con Fines Educativos para Cargas de Familia                                      $
+Alquileres de Inmuebles destinados a Casa-Habitación para Inquilinos y Propietarios - Art. 85 inc. k) -
+                                                                                                          $
+10%
+Antártida Argentina - Adicional remunerativo para personal civil y militar                                $
+Actores - Retribución pagada a los representantes - RG AFIP 2442/08                                       $
+TOTAL DEDUCCIONES GENERALES                                                                               $
+DEDUCCIONES PERSONALES
+Ganancia No Imponible                                                                                     $
+Cargas de familia                                                                                         $
+Deducción Especial                                                                                        $
+Deducción especial 2do párrafo artículo 30 de la ley del gravamen (12° parte)                             $
+Deducción Específica                                                                                      $
+TOTAL DEDUCCIONES PERSONALES                                                                              $
+DETERMINACIÓN DEL IMPUESTO
+REMUNERACIÓN SUJETA A IMPUESTO                                                                            $
+Alícuota aplicable artículo 94 de la Ley de Impuesto a las Ganancias                                      %
+IMPUESTO DETERMINADO                                                                                      $
+Impuesto retenido                                                                                         $
+Impuesto Autorretenido - RG ARCA 5683/25                                                                  $
+Pagos a cuenta                                                                                            $
+SALDO A PAGAR                                                                                             $
+
+(1) Vgr. “Número de legajo”, “Código de identificación interno del empleado”
+(2) "Tipo de certificado (anual / final / informativo)", "Beneficio: Sin / Jubilado", "Percibe o no
+remuneraciones en concepto de 'Personal de Pozo - Petroleros' CCT 396/2004" , "Percibe retribuciones
+por medio de la Asociación Argentina de Actores (RG 2442/08 )", "Indicar si ha iniciado alguna medida
+cautelar que afecte este régimen retentivo", "Indicar si labora en el Poder Judicial y si se encuentra
+alcanzado o no por el segundo párrafo del inciso a) del artículo 82 de la Ley de Ganancias", "Período
+trabajado desde DD/MM/AAAA hasta DD/MM/AAAA"
+
+
+
+
+9.- MESA DE AYUDA AL USUARIO
+Les recordamos nuestras vías de comunicación para efectuar cualquier consulta:
+
+                0810-999-2722de lunes a viernes de 9 a 16 horas.
+                Vía Web: CONSULTA WEB
+
+
+
+
+      V. 9 Abr 2026   F. 1359 V.2.0 DJ Anuales, Finales e Informativas Año 2025                     31
+
