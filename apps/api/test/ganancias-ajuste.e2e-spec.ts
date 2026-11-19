@@ -131,6 +131,25 @@ describe('ganancias: ajuste anual y distracto', () => {
     expect(x.r561(await x.recibo(sac.id))).toBeUndefined();
   });
 
+  it('no se cierra la anual con finales de enero a marzo sin cerrar', async () => {
+    const x = await escenario(null);
+    jest.setSystemTime(new Date('2026-03-31T15:00:00Z'));
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: x.e.id, causa: 'RENUNCIA', fechaEgreso: '2026-03-15', preavisoOtorgado: true, fechaPago: '2026-03-31' })).body as { id: string };
+    jest.setSystemTime(new Date('2026-11-06T15:00:00Z'));
+    expect((await x.http.post('/api/sueldos/ganancias/anual/2025/calcular')).status).toBe(201);
+    const r = await x.http.post('/api/sueldos/ganancias/anual/2025/cerrar');
+    expect([r.status, r.body.message]).toEqual([400, 'Cierre primero las liquidaciones finales pendientes de los egresos de enero a marzo de 2026']);
+    await x.cerrar(f.id);
+    expect((await x.http.post('/api/sueldos/ganancias/anual/2025/cerrar')).status).toBe(201);
+    expect(await prisma.liquidacionAnualGananciasEmpleado.count({ where: { empleadoId: x.e.id, distracto: true } })).toBe(1);
+  });
+
+  it('egreso de marzo con la final pagada después del cierre de la anual: ajuste en la final', async () => {
+    const x = await escenario(1000000);
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: x.e.id, causa: 'RENUNCIA', fechaEgreso: '2026-03-20', preavisoOtorgado: true, fechaPago: '2026-11-10' })).body as { id: string };
+    expect(x.r561(await x.recibo(f.id))!.importe).toBe('1000000.00');
+  });
+
   it('devolución sin tope', async () => {
     const x = await escenario(-5000000);
     const nov = await x.crear('MENSUAL', 2026, 11);
