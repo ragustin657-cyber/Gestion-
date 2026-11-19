@@ -211,7 +211,7 @@ describe('ganancias: retención en la liquidación', () => {
 
   it('concepto exento', async () => {
     const x = await escenario();
-    const c = await x.http.post('/api/sueldos/conceptos', { codigo: '900', nombre: 'Viático exento', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 500000 }, orden: 900, exentoGanancias: true });
+    const c = await x.http.post('/api/sueldos/conceptos', { codigo: '900', nombre: 'Viático exento', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 500000 }, orden: 900, exentoGanancias: true, rubroExentoGanancias: 'INDUMENTARIA' });
     expect(c.status).toBe(201);
     const l = await x.crear('MENSUAL', 2026, 11);
     const r = await x.recibo(l.id);

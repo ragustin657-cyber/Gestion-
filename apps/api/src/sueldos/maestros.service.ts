@@ -194,6 +194,8 @@ export class MaestrosSueldosService {
     // Ganancias de cuarta (E31 §6): descuentos manuales de ganancias cargados antes del cálculo automático
     const viejos = await this.tenant.db.concepto.findMany({ where: { activo: true, clase: 'DESCUENTO', tipo: { not: 'GANANCIAS' }, nombre: { contains: 'ganancia', mode: 'insensitive' } }, orderBy: { codigo: 'asc' } });
     for (const c of viejos) avisos.push(`El concepto ${c.codigo} ${c.nombre} parece una retención de Ganancias cargada a mano: sume lo retenido en el acumulado previo de cada empleado y desactívelo`);
+    const porDefecto = await this.tenant.db.concepto.findMany({ where: { activo: true, exentoGanancias: true, rubroExentoPorDefecto: true }, orderBy: { codigo: 'asc' } });
+    if (porDefecto.length) avisos.push(`Revise el rubro exento de Ganancias de los conceptos ${porDefecto.map((c) => `${c.codigo} ${c.nombre}`).join(', ')}`);
     return avisos;
   }
 
@@ -203,7 +205,8 @@ export class MaestrosSueldosService {
     await this.validarCuentaConcepto(d.cuentaContableId);
     const codigoArca = d.codigoArca || codigoArcaPorDefecto(d);
     this.validarArca(codigoArca, d.clase);
-    return this.tenant.db.concepto.create({ data: { ...d, codigoArca, parametros: d.parametros as Prisma.InputJsonValue, empresaId: this.tenant.empresaId } });
+    this.validarRubro(d);
+    return this.tenant.db.concepto.create({ data: { ...d, rubroExentoGanancias: d.exentoGanancias ? d.rubroExentoGanancias : null, codigoArca, parametros: d.parametros as Prisma.InputJsonValue, empresaId: this.tenant.empresaId } });
   }
 
   async modificarConcepto(id: string, d: DatosConcepto) {
@@ -222,12 +225,18 @@ export class MaestrosSueldosService {
     // Sin código ARCA se conserva el actual; si cambió la clase y ya no corresponde, se toma el de defecto
     const codigoArca = d.codigoArca || (validarCodigoArca(actual.codigoArca, d.clase) ? codigoArcaPorDefecto(d) : actual.codigoArca);
     this.validarArca(codigoArca, d.clase);
-    return this.tenant.db.concepto.update({ where: { id }, data: { ...d, codigoArca, parametros: d.parametros as Prisma.InputJsonValue } });
+    this.validarRubro(d);
+    return this.tenant.db.concepto.update({ where: { id }, data: { ...d, rubroExentoGanancias: d.exentoGanancias ? d.rubroExentoGanancias : null, rubroExentoPorDefecto: false, codigoArca, parametros: d.parametros as Prisma.InputJsonValue } });
   }
 
   /** Los códigos de los renglones fijos del cálculo (SAC y final) no se usan en conceptos: chocarían en el Libro (revisión E30). */
   private validarCodigoLibre(codigo: string) {
     if (RENGLONES_FIJOS.some((r) => r.codigo === codigo.trim())) throw new BadRequestException(`El código ${codigo.trim()} está reservado para los renglones del cálculo (SAC y liquidación final)`);
+  }
+
+  /** Un concepto exento de Ganancias necesita su rubro del registro 04 del F.1359 (E32 §7). */
+  private validarRubro(d: DatosConcepto) {
+    if (d.exentoGanancias && !d.rubroExentoGanancias) throw new BadRequestException('Elija el rubro exento de Ganancias');
   }
 
   private validarArca(codigo: string, clase: DatosConcepto['clase']) {

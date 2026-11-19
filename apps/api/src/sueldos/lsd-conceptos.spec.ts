@@ -4,7 +4,7 @@ import { codigoArcaPorDefecto, RENGLONES_FIJOS, validarCodigoArca } from './lsd-
 describe('LSD: códigos ARCA', () => {
   it('por defecto de la precarga', () => {
     const r = Object.fromEntries(CONCEPTOS_COMERCIO.map((c) => [c.codigo, codigoArcaPorDefecto({ ...c, destino: c.destino ?? 'OTRO' })]));
-    expect(r).toEqual({ 100: '110000', 110: '160001', 120: '170001', 130: '130001', 131: '130002', 140: '110000', 150: '150000', 151: '110000', 210: '550000', 500: '810000', 510: '810001', 520: '810002', 530: '810004', 540: '810004', 560: '810008' });
+    expect(r).toEqual({ 100: '110000', 110: '160001', 120: '170001', 130: '130001', 131: '130002', 140: '110000', 150: '150000', 151: '110000', 210: '550000', 500: '810000', 510: '810001', 520: '810002', 530: '810004', 540: '810004', 560: '810008', 561: '810008' });
   });
 
   it('por defecto genéricos', () => {
