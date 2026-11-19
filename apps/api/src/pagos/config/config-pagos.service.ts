@@ -113,14 +113,13 @@ export class ConfigPagosService {
     return rs.filter((r) => r.activo && !r.codigoSire).map((r) => `Cargue el código SIRE del régimen ${r.descripcion}`);
   }
 
+  /** Lista de regímenes, cada uno con su aviso si está activo y sin código SIRE (como la lista de Ganancias, para el ABM). */
   async regimenesIva() {
-    const regimenes = await this.tenant.db.regimenIva.findMany({ orderBy: { descripcion: 'asc' } });
-    return { regimenes, avisos: this.avisosSire(regimenes) };
+    return (await this.tenant.db.regimenIva.findMany({ orderBy: { descripcion: 'asc' } })).map((r) => ({ ...r, aviso: this.avisosSire([r])[0] ?? null }));
   }
 
   async regimenesSuss() {
-    const regimenes = await this.tenant.db.regimenSuss.findMany({ orderBy: { descripcion: 'asc' } });
-    return { regimenes, avisos: this.avisosSire(regimenes) };
+    return (await this.tenant.db.regimenSuss.findMany({ orderBy: { descripcion: 'asc' } })).map((r) => ({ ...r, aviso: this.avisosSire([r])[0] ?? null }));
   }
 
   guardarRegimenIva(id: string | null, d: Partial<DatosRegimenIva>) {

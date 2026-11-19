@@ -40,12 +40,19 @@ const CAMPOS_GENERALES: CampoAbm[] = [
   { nombre: 'activo', etiqueta: 'Activo', tipo: 'booleano' },
 ];
 
-const camposImpuestos = (regimenes: { codigo: string; descripcion: string }[]): CampoAbm[] => [
+type RegimenSire = { id: string; descripcion: string };
+export const camposImpuestos = (regimenes: { codigo: string; descripcion: string }[], iva: RegimenSire[] = [], suss: RegimenSire[] = []): CampoAbm[] => [
   { nombre: 'regimenGanancias', etiqueta: 'Régimen de Ganancias (RG 830)', tipo: 'select', opciones: regimenes.map((r) => ({ value: r.codigo, label: `${r.codigo} - ${r.descripcion}` })), ayuda: 'Vacío: no se retiene Ganancias' },
   { nombre: 'inscriptoGanancias', etiqueta: 'Inscripto en Ganancias', tipo: 'booleano' },
   { nombre: 'exencionHasta', etiqueta: 'Exención vigente hasta', tipo: 'fecha' },
   { nombre: 'exentoGanancias', etiqueta: 'Exento de retención de Ganancias', tipo: 'booleano' },
   { nombre: 'exentoIva', etiqueta: 'Exento de retención de IVA', tipo: 'booleano' },
+  // Retenciones de IVA y SUSS (E35)
+  { nombre: 'regimenIvaId', etiqueta: 'Régimen de retención de IVA', tipo: 'select', opciones: iva.map((r) => ({ value: r.id, label: r.descripcion })), ayuda: 'Vacío: no se retiene IVA' },
+  { nombre: 'exclusionIvaPorcentaje', etiqueta: 'Exclusión de IVA', tipo: 'select', numerico: true, opciones: [{ value: '50', label: '50 %' }, { value: '100', label: '100 %' }], ayuda: 'Certificado de exclusión publicado por ARCA' },
+  { nombre: 'exclusionIvaPublicacion', etiqueta: 'Exclusión: fecha de publicación', tipo: 'fecha' },
+  { nombre: 'exclusionIvaHasta', etiqueta: 'Exclusión vigente hasta', tipo: 'fecha' },
+  { nombre: 'regimenSussId', etiqueta: 'Régimen de retención de SUSS', tipo: 'select', opciones: suss.map((r) => ({ value: r.id, label: r.descripcion })), ayuda: 'Vacío: no se retiene SUSS' },
   { nombre: 'situacionIibb', etiqueta: 'Situación en Ingresos Brutos', tipo: 'select', opciones: [{ value: 'LOCAL', label: 'Local' }, { value: 'CONVENIO', label: 'Convenio Multilateral' }, { value: 'NO_INSCRIPTO', label: 'No inscripto' }, { value: 'SIMPLIFICADO', label: 'Régimen simplificado' }], ayuda: 'Lo pide la presentación de AGIP' },
   { nombre: 'numeroIibb', etiqueta: 'Número de inscripción en IIBB', tipo: 'texto' },
 ];
@@ -103,7 +110,9 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
   const qc = useQueryClient();
   const detalle = useQuery({ queryKey: ['/terceros', id], queryFn: () => api<Tercero>(`/terceros/${id}`), enabled: !!id });
   const regimenes = useQuery({ queryKey: ['/pagos/config/regimenes', 'ficha'], queryFn: () => api<{ codigo: string; descripcion: string }[]>('/pagos/config/regimenes').catch(() => []) });
-  const CAMPOS_IMPUESTOS = camposImpuestos(regimenes.data ?? []);
+  const regIva = useQuery({ queryKey: ['/pagos/config/regimenes-iva', 'ficha'], queryFn: () => api<RegimenSire[]>('/pagos/config/regimenes-iva').catch(() => []) });
+  const regSuss = useQuery({ queryKey: ['/pagos/config/regimenes-suss', 'ficha'], queryFn: () => api<RegimenSire[]>('/pagos/config/regimenes-suss').catch(() => []) });
+  const CAMPOS_IMPUESTOS = camposImpuestos(regimenes.data ?? [], regIva.data ?? [], regSuss.data ?? []);
   const listas = (useQuery({ queryKey: ['/ventas/listas', 'tercero'], queryFn: () => api<{ id: string; nombre: string }[]>('/ventas/listas').catch(() => []) }).data ?? []).map((l) => ({ value: l.id, label: l.nombre }));
   const vendedores = useVendedores().filter((v) => v.activo || v.id === detalle.data?.vendedorId).map((v) => ({ value: v.id, label: v.nombre }));
   const refrescar = () => qc.invalidateQueries({ queryKey: ['/terceros'] });

@@ -120,6 +120,41 @@ function General() {
   );
 }
 
+interface RegimenSireFila { id: string; codigoSire: string | null; descripcion: string; porcentaje: string; minimoComprobante?: string; minimoNoSujeto?: string; minimoRetencion: string; condicionSire?: number | null; activo: boolean; aviso: string | null }
+
+/** Regímenes de retención de IVA o SUSS (E35): código SIRE, porcentaje y mínimos; avisa los activos sin código SIRE. */
+export function RegimenesSire({ impuesto }: { impuesto: 'IVA' | 'SUSS' }) {
+  const iva = impuesto === 'IVA';
+  const ruta = iva ? '/pagos/config/regimenes-iva' : '/pagos/config/regimenes-suss';
+  const q = useQuery({ queryKey: [ruta], queryFn: () => api<RegimenSireFila[]>(ruta).catch(() => []) });
+  const avisos = (q.data ?? []).map((r) => r.aviso).filter((x): x is string => !!x);
+  return (
+    <Stack>
+      <Alert color="yellow">{`Los porcentajes precargados son de referencia y el código de régimen del SIRE se carga a mano (tabla REGIMEN de ARCA, impuesto ${iva ? '216' : '353'}). Verifíquelos antes de operar.`}</Alert>
+      {avisos.map((a) => <Alert key={a} color="orange">{a}</Alert>)}
+      <Maestro<RegimenSireFila> sinMarco config={{
+        titulo: `Régimen de ${impuesto}`, ruta, permisoEditar: 'retenciones.config', valoresNuevos: { activo: true, minimoRetencion: 0, ...(iva ? { minimoComprobante: 0 } : { minimoNoSujeto: 0 }) },
+        campos: [
+          { nombre: 'codigoSire', etiqueta: 'Código SIRE (3 dígitos)', tipo: 'texto' },
+          { nombre: 'descripcion', etiqueta: 'Descripción', tipo: 'texto', requerido: true },
+          { nombre: 'porcentaje', etiqueta: iva ? 'Porcentaje sobre el IVA' : 'Porcentaje sobre el importe sin IVA', tipo: 'numero', requerido: true },
+          iva ? { nombre: 'minimoComprobante', etiqueta: 'Mínimo de la factura', tipo: 'numero', requerido: true } : { nombre: 'minimoNoSujeto', etiqueta: 'Mínimo no sujeto', tipo: 'numero', requerido: true },
+          { nombre: 'minimoRetencion', etiqueta: 'Mínimo de retención', tipo: 'numero', requerido: true },
+          ...(iva ? [{ nombre: 'condicionSire', etiqueta: 'Condición (si el régimen la exige)', tipo: 'numero' as const }] : []),
+          { nombre: 'activo', etiqueta: 'Activo', tipo: 'booleano' },
+        ],
+        columnas: [
+          { campo: 'codigoSire', titulo: 'Código SIRE', render: (r) => r.codigoSire ?? <Badge size="xs" color="orange" variant="light">Falta</Badge> },
+          { campo: 'descripcion', titulo: 'Descripción' },
+          { campo: 'porcentaje', titulo: 'Porcentaje', render: (r) => pct(r.porcentaje) },
+          { campo: 'minimoRetencion', titulo: 'Mínimo retención', render: (r) => pesos(r.minimoRetencion) },
+          { campo: 'activo', titulo: 'Estado', render: (r) => estado(r.activo) },
+        ],
+      }} />
+    </Stack>
+  );
+}
+
 export function ConfigRetencionesPage() {
   return (
     <Paper withBorder p="md" radius="md">
@@ -128,6 +163,8 @@ export function ConfigRetencionesPage() {
         <Tabs.List mb="md">
           <Tabs.Tab value="ganancias">Ganancias</Tabs.Tab>
           <Tabs.Tab value="iibb">Ingresos Brutos</Tabs.Tab>
+          <Tabs.Tab value="iva">IVA</Tabs.Tab>
+          <Tabs.Tab value="suss">SUSS</Tabs.Tab>
           <Tabs.Tab value="general">General</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="ganancias">
@@ -159,6 +196,8 @@ export function ConfigRetencionesPage() {
           </Stack>
         </Tabs.Panel>
         <Tabs.Panel value="iibb"><Jurisdicciones /></Tabs.Panel>
+        <Tabs.Panel value="iva"><RegimenesSire impuesto="IVA" /></Tabs.Panel>
+        <Tabs.Panel value="suss"><RegimenesSire impuesto="SUSS" /></Tabs.Panel>
         <Tabs.Panel value="general"><General /></Tabs.Panel>
       </Tabs>
     </Paper>

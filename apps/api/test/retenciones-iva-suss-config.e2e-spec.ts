@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, datosCompras, limpiarBase, sesionConPlan } from './helpers';
 
-interface Regimen { id: string; codigoSire: string | null; descripcion: string; porcentaje: string }
+interface Regimen { id: string; codigoSire: string | null; descripcion: string; porcentaje: string; aviso: string | null }
 
 describe('retenciones de IVA y SUSS: configuración', () => {
   let app: INestApplication;
@@ -16,13 +16,13 @@ describe('retenciones de IVA y SUSS: configuración', () => {
 
   it('precarga de regímenes', async () => {
     const { http } = await sesionConPlan(app, prisma);
-    const iva = (await http.get('/api/pagos/config/regimenes-iva')).body as { regimenes: Regimen[]; avisos: string[] };
-    expect(iva.regimenes.map((r) => Number(r.porcentaje)).sort((a, b) => a - b)).toEqual([50, 80, 100]);
-    expect(iva.regimenes.every((r) => r.codigoSire === null)).toBe(true);
-    expect(iva.avisos).toContain('Cargue el código SIRE del régimen Compraventa de cosas muebles');
-    const suss = (await http.get('/api/pagos/config/regimenes-suss')).body as { regimenes: Regimen[]; avisos: string[] };
-    expect(suss.regimenes.map((r) => Number(r.porcentaje)).sort((a, b) => a - b)).toEqual([1.2, 2, 6, 6]);
-    expect(suss.avisos).toHaveLength(4);
+    const iva = (await http.get('/api/pagos/config/regimenes-iva')).body as Regimen[];
+    expect(iva.map((r) => Number(r.porcentaje)).sort((a, b) => a - b)).toEqual([50, 80, 100]);
+    expect(iva.every((r) => r.codigoSire === null)).toBe(true);
+    expect(iva.map((r) => r.aviso)).toContain('Cargue el código SIRE del régimen Compraventa de cosas muebles');
+    const suss = (await http.get('/api/pagos/config/regimenes-suss')).body as Regimen[];
+    expect(suss.map((r) => Number(r.porcentaje)).sort((a, b) => a - b)).toEqual([1.2, 2, 6, 6]);
+    expect(suss.filter((r) => r.aviso)).toHaveLength(4);
   });
 
   it('alta y edición de régimen de IVA', async () => {
@@ -37,8 +37,8 @@ describe('retenciones de IVA y SUSS: configuración', () => {
   it('ficha del proveedor con régimen y exclusión', async () => {
     const s = await sesionConPlan(app, prisma);
     const { proveedorId } = await datosCompras(prisma, s.empresaId);
-    const iva = ((await s.http.get('/api/pagos/config/regimenes-iva')).body.regimenes as Regimen[])[0];
-    const suss = ((await s.http.get('/api/pagos/config/regimenes-suss')).body.regimenes as Regimen[])[0];
+    const iva = ((await s.http.get('/api/pagos/config/regimenes-iva')).body as Regimen[])[0];
+    const suss = ((await s.http.get('/api/pagos/config/regimenes-suss')).body as Regimen[])[0];
     const r = await s.http.patch(`/api/terceros/${proveedorId}`, { regimenIvaId: iva.id, regimenSussId: suss.id, exclusionIvaPorcentaje: 50, exclusionIvaPublicacion: '2026-10-01', exclusionIvaHasta: '2026-12-31' });
     expect(r.status).toBe(200);
     expect([r.body.regimenIvaId, r.body.regimenSussId, r.body.exclusionIvaPorcentaje]).toEqual([iva.id, suss.id, 50]);
