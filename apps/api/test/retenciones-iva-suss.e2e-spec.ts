@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararPagos } from './helpers-pagos';
@@ -152,6 +153,67 @@ describe('retenciones de IVA y SUSS', () => {
     const r = await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(op.netoPagar), cuentaBancariaId: x.ars.id }]);
     expect((await x.http.post(`/api/pagos/ordenes/${op.id}/anular`, { version: r.body.version, motivo: 'Error' })).status).toBe(200);
     expect(await prisma.ordenPagoRetencion.count({ where: { ordenPagoId: op.id, impuesto: { in: ['IVA', 'SUSS'] }, anulada: false } })).toBe(0);
+  });
+
+  /** Paga una OP con una factura de 100.000 + IVA y genera el SIRE del tipo pedido. */
+  const conSire = async (tipo: 'SIRE_IVA' | 'SIRE_SUSS', o: { codigos?: boolean } = {}) => {
+    const x = await escenario();
+    if (o.codigos !== false) {
+      await prisma.regimenIva.update({ where: { id: x.iva.id }, data: { codigoSire: '499' } });
+      await prisma.regimenSuss.update({ where: { id: x.suss.id }, data: { codigoSire: '755' } });
+    }
+    const a = await x.comprobante({ neto: 100000 });
+    const { op } = await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }]);
+    const pago = await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(op.netoPagar), cuentaBancariaId: x.ars.id }]);
+    const generar = () => x.http.post('/api/impuestos/presentaciones', { tipo, periodo: '202611' });
+    const lineas = async () => {
+      const g = await generar();
+      if (g.status !== 201) return { g, ls: [] as string[] };
+      const b = await request(app.getHttpServer()).get(`/api/impuestos/presentaciones/${g.body.id}/archivo`).set('Authorization', `Bearer ${x.token}`).buffer(true)
+        .parse((res, cb) => { const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p))); });
+      return { g, ls: (b.body as Buffer).toString('latin1').split('\r\n').filter(Boolean) };
+    };
+    const comp = await prisma.comprobanteCompra.findUniqueOrThrow({ where: { id: a.id } });
+    return { ...x, a, comp, op, pago, generar, lineas };
+  };
+  const pos = (l: string, desde: number, hasta: number) => l.slice(desde - 1, hasta);
+
+  it('SIRE F.2005 (IVA)', async () => {
+    const x = await conSire('SIRE_IVA');
+    const { g, ls } = await x.lineas();
+    expect(g.body.nombreArchivo).toBe('SIRE-F2005_30712345671_202611.txt'.replace('30712345671', (await prisma.empresa.findUniqueOrThrow({ where: { id: x.empresaId } })).cuit.replace(/\D/g, '')));
+    expect(ls).toHaveLength(1);
+    const [l] = ls;
+    expect(l).toHaveLength(305);
+    expect([pos(l, 1, 4), pos(l, 5, 40).trimEnd(), pos(l, 41, 43), pos(l, 44, 46), pos(l, 47, 56), pos(l, 57, 58), pos(l, 59, 59)]).toEqual(['0100', '00000001', '216', '499', '15/11/2026', '  ', '0']);
+    expect([pos(l, 90, 103), pos(l, 104, 117), pos(l, 118, 118), pos(l, 119, 124), pos(l, 135, 136), pos(l, 137, 146)]).toEqual(['00000010500.00', '00000021000.00', '0', '      ', '01', '02/11/2026']);
+    expect(pos(l, 147, 162)).toBe(`00003-${String(x.comp.numero).padStart(8, '0')}  `);
+    expect([pos(l, 201, 214), pos(l, 245, 255)]).toEqual(['00000121000.00', (await prisma.tercero.findUniqueOrThrow({ where: { id: x.proveedorId } })).cuit.replace(/\D/g, '')]);
+    expect(D(g.body.total).toFixed(2)).toBe('10500.00');
+  });
+
+  it('SIRE F.2004 (SUSS)', async () => {
+    const x = await conSire('SIRE_SUSS');
+    const { ls } = await x.lineas();
+    const [l] = ls;
+    expect(l).toHaveLength(191);
+    const cuitEmpresa = (await prisma.empresa.findUniqueOrThrow({ where: { id: x.empresaId } })).cuit.replace(/\D/g, '');
+    expect([pos(l, 1, 4), pos(l, 5, 8), pos(l, 9, 18).trimEnd(), pos(l, 19, 29), pos(l, 30, 32), pos(l, 33, 35), pos(l, 47, 56), pos(l, 57, 58)]).toEqual(['2004', '0100', '00000001', cuitEmpresa, '353', '755', '15/11/2026', '01']);
+    expect([pos(l, 85, 98), pos(l, 99, 112)]).toEqual(['00000121000.00', '00000006000.00']);
+  });
+
+  it('SIRE sin código de régimen', async () => {
+    const x = await conSire('SIRE_IVA', { codigos: false });
+    const r = await x.generar();
+    expect([r.status, r.body.message]).toEqual([400, 'Cargue el código SIRE del régimen Compraventa de cosas muebles']);
+  });
+
+  it('SIRE: la OP anulada no va y no hay quincenas', async () => {
+    const x = await conSire('SIRE_IVA');
+    expect((await x.http.post(`/api/pagos/ordenes/${x.op.id}/anular`, { version: x.pago.body.version, motivo: 'Error' })).status).toBe(200);
+    const { g } = await x.lineas();
+    expect(g.body.registros).toBe(0);
+    expect((await x.http.post('/api/impuestos/presentaciones', { tipo: 'SIRE_IVA', periodo: '202611', quincena: 1 })).status).toBe(400);
   });
 
   it('ticket no retiene', async () => {

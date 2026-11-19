@@ -123,3 +123,29 @@ export const AGIP_RETENCION: Campo[] = [
   { nombre: 'retencion', largo: 16, tipo: 'IMPORTE', separador: ',' },
   { nombre: 'montoTotal', largo: 16, tipo: 'IMPORTE', separador: ',' },
 ];
+
+/* SIRE (E35): docs/referencias/arca-SIRE-emision-por-lote.txt. Decimales con punto; opcionales vacíos en espacios (los arma el generador). */
+const impSire = (nombre: string): Campo => ({ nombre, largo: 14, tipo: 'IMPORTE', separador: '.' });
+const txt = (nombre: string, largo: number): Campo => ({ nombre, largo, tipo: 'TXT' });
+
+/** SIRE F.2005 — certificados de retención impositiva (IVA, impuesto 216), §5.1 (305). */
+export const SIRE_F2005: Campo[] = [
+  { nombre: 'version', largo: 4, tipo: 'FIJO', valor: '0100' }, txt('trazabilidad', 36), { nombre: 'impuesto', largo: 3, tipo: 'FIJO', valor: '216' },
+  { nombre: 'regimen', largo: 3, tipo: 'NUM' }, { nombre: 'fechaRetencion', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
+  txt('condicion', 2), { nombre: 'imposibilidad', largo: 1, tipo: 'FIJO', valor: '0' }, txt('motivoNoRetencion', 30),
+  impSire('importeRetencion'), impSire('baseCalculo'), { nombre: 'regimenExclusion', largo: 1, tipo: 'NUM' }, txt('porcentajeExclusion', 6),
+  { nombre: 'fechaPublicacion', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' }, { nombre: 'tipoComprobante', largo: 2, tipo: 'NUM' },
+  { nombre: 'fechaComprobante', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' }, txt('numeroComprobante', 16), txt('coe', 12), txt('coeOriginal', 12), txt('cae', 14),
+  impSire('importeComprobante'), txt('motivoNotaCredito', 30), { nombre: 'retenidoClave', largo: 11, tipo: 'NUM' }, txt('certificadoOriginal', 25),
+  { nombre: 'certificadoOriginalFecha', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' }, txt('certificadoOriginalImporte', 14), txt('motivoAnulacion', 1),
+];
+
+/** SIRE F.2004 — certificados de seguridad social (SUSS, impuesto 353), §4.1 (191). */
+export const SIRE_F2004: Campo[] = [
+  { nombre: 'formulario', largo: 4, tipo: 'FIJO', valor: '2004' }, { nombre: 'version', largo: 4, tipo: 'FIJO', valor: '0100' }, txt('trazabilidad', 10),
+  { nombre: 'cuitAgente', largo: 11, tipo: 'NUM' }, { nombre: 'impuesto', largo: 3, tipo: 'FIJO', valor: '353' }, { nombre: 'regimen', largo: 3, tipo: 'NUM' },
+  { nombre: 'cuitRetenido', largo: 11, tipo: 'NUM' }, { nombre: 'fechaRetencion', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
+  { nombre: 'tipoComprobante', largo: 2, tipo: 'NUM' }, { nombre: 'fechaComprobante', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' }, txt('numeroComprobante', 16),
+  impSire('importeComprobante'), impSire('importeRetencion'), txt('certificadoOriginal', 25), { nombre: 'certificadoOriginalFecha', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
+  txt('certificadoOriginalImporte', 14), txt('otrosDatos', 30),
+];

@@ -1,11 +1,11 @@
 import { linea } from './escritor';
-import { AGIP_RETENCION, ARBA_ALTA, LIVA_COMPRAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_VENTAS_ALICUOTAS, LIVA_VENTAS_CBTE, SICORE } from './formatos';
+import { AGIP_RETENCION, ARBA_ALTA, LIVA_COMPRAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_VENTAS_ALICUOTAS, LIVA_VENTAS_CBTE, SICORE, SIRE_F2004, SIRE_F2005 } from './formatos';
 
 const largo = (cs: { largo: number }[]) => cs.reduce((s, c) => s + c.largo, 0);
 
 describe('diseños oficiales', () => {
   it('largos de registro', () => {
-    expect([LIVA_VENTAS_CBTE, LIVA_VENTAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_COMPRAS_ALICUOTAS, SICORE, ARBA_ALTA, AGIP_RETENCION].map(largo)).toEqual([266, 62, 325, 84, 145, 67, 215]);
+    expect([LIVA_VENTAS_CBTE, LIVA_VENTAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_COMPRAS_ALICUOTAS, SICORE, ARBA_ALTA, AGIP_RETENCION, SIRE_F2005, SIRE_F2004].map(largo)).toEqual([266, 62, 325, 84, 145, 67, 215, 305, 191]);
   });
   it('nombres únicos por diseño', () => {
     for (const d of [LIVA_VENTAS_CBTE, LIVA_VENTAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_COMPRAS_ALICUOTAS, SICORE, ARBA_ALTA, AGIP_RETENCION])
