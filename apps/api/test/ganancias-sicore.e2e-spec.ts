@@ -70,6 +70,17 @@ describe('ganancias: retenciones de empleados en el SICORE', () => {
     expect(ls[0].slice(2, 12)).toBe('30/11/2026');
   });
 
+  it('misma fecha de pago: la de mayor número', async () => {
+    const x = await escenario();
+    const { id: _l, numero, ...datosLiq } = x.liq;
+    const l2 = await prisma.liquidacion.create({ data: { ...datosLiq, numero: numero + 1, tipo: 'SAC' } as Prisma.LiquidacionUncheckedCreateInput });
+    const { id: _r, renglones: _rs, ...datosRecibo } = x.recibo;
+    const r2 = await prisma.reciboSueldo.create({ data: { ...datosRecibo, liquidacionId: l2.id } as Prisma.ReciboSueldoUncheckedCreateInput });
+    const c560 = await prisma.concepto.findFirstOrThrow({ where: { empresaId: x.empresaId, codigo: '560' } });
+    await prisma.reciboSueldoRenglon.create({ data: { empresaId: x.empresaId, reciboId: r2.id, conceptoId: c560.id, codigo: '560', nombre: 'x', clase: 'DESCUENTO', importe: 1000, orden: 999 } });
+    for (let i = 0; i < 3; i++) expect(Number((await x.lineas()).ls[0].slice(12, 28))).toBe(numero + 1);
+  });
+
   it('devolución resta y ajuste anual suma', async () => {
     const x = await escenario();
     const c560 = await prisma.concepto.findFirstOrThrow({ where: { empresaId: x.empresaId, codigo: '560' } });

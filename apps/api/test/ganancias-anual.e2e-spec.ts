@@ -89,6 +89,34 @@ describe('ganancias: liquidación anual', () => {
     expect(filas.filter((f) => f.distracto).map((f) => f.empleadoId)).toEqual([conDistracto.id]);
   });
 
+  it('final de abril cerrada: aviso en la anual', async () => {
+    const x = await escenario(1);
+    const [abril] = x.otros;
+    // Saldo distinto de cero (sin saldo no hay nada que avisar)
+    await x.http.put(`/api/sueldos/ganancias/acumulado/${abril.id}/2025`, { bruta: 0, aportes: 0, retenido: 500000 });
+    jest.setSystemTime(new Date('2026-04-05T15:00:00Z'));
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: abril.id, causa: 'RENUNCIA', fechaEgreso: '2026-03-20', preavisoOtorgado: true, fechaPago: '2026-04-05' })).body as { id: string };
+    await x.cerrar(f.id);
+    jest.setSystemTime(new Date('2026-11-06T15:00:00Z'));
+    const filas = (await x.calcular()).body.empleados as (Fila & { aviso: string | null })[];
+    expect(filas.find((y) => y.empleadoId === abril.id)!.aviso).toBe('Su final ya está cerrada: el saldo se retiene o devuelve fuera del sistema');
+    expect(filas.find((y) => y.empleadoId === x.e.id)!.aviso).toBeNull();
+  });
+
+  it('final cerrada antes que la anual con pago posterior: aviso', async () => {
+    const x = await escenario(1);
+    const [otro] = x.otros;
+    await x.http.put(`/api/sueldos/ganancias/acumulado/${otro.id}/2025`, { bruta: 0, aportes: 0, retenido: 500000 });
+    await x.calcular();
+    // La final se cierra hoy (6/11) con pago el 20/11; la anual se cierra después, pero antes del pago
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: otro.id, causa: 'RENUNCIA', fechaEgreso: '2026-11-05', preavisoOtorgado: true, fechaPago: '2026-11-20' })).body as { id: string };
+    await x.cerrar(f.id);
+    const r = await x.http.post('/api/sueldos/ganancias/anual/2025/cerrar');
+    expect(r.status).toBe(201);
+    const fila = (r.body.empleados as (Fila & { aviso: string | null })[]).find((y) => y.empleadoId === otro.id)!;
+    expect(fila.aviso).toBe('Su final ya está cerrada: el saldo se retiene o devuelve fuera del sistema');
+  });
+
   it('cerrar desde el 1/4', async () => {
     const x = await escenario();
     await x.calcular();
@@ -114,6 +142,21 @@ describe('ganancias: liquidación anual', () => {
     const x = await escenario();
     const rs = await Promise.all([x.calcular(), x.calcular()]);
     expect(rs.map((r) => r.status)).toEqual([201, 201]);
+  });
+
+  it('calcular simultáneo sin configuración de sueldos', async () => {
+    const x = await escenario();
+    await prisma.configuracionSueldos.deleteMany({ where: { empresaId: x.empresaId } });
+    const rs = await Promise.all([x.calcular(), x.calcular()]);
+    expect(rs.map((r) => r.status)).toEqual([201, 201]);
+  });
+
+  it('pasar a descuento por API lo desmarca exento', async () => {
+    const s = await prepararSueldos(app, prisma);
+    const base = { codigo: '900', nombre: 'Viático', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 100 }, orden: 900 };
+    const c = await s.http.post('/api/sueldos/conceptos', { ...base, exentoGanancias: true, rubroExentoGanancias: 'CURSOS_SEMINARIOS' });
+    const r = await s.http.put(`/api/sueldos/conceptos/${c.body.id}`, { ...base, clase: 'DESCUENTO', destino: 'OTRO', rubroExentoGanancias: 'CURSOS_SEMINARIOS' });
+    expect([r.status, r.body.exentoGanancias, r.body.rubroExentoGanancias]).toEqual([200, false, null]);
   });
 
   it('reabrir', async () => {

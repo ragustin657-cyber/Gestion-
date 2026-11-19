@@ -58,6 +58,8 @@ export class AnualGananciasService {
   /** Mismo lock que el cierre de liquidaciones (E33): serializa la anual con los cierres que aplican el ajuste. */
   private async bloquear(tx: TxEmpresa) {
     await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
+    // Sin fila de ConfiguracionSueldos el FOR UPDATE no bloquea: la anual se serializa además con un lock propio por empresa (E34)
+    await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `ganancias-anual:${this.tenant.empresaId}`);
   }
 
   private async encabezado(tx: TxEmpresa, anio: number) {
@@ -69,11 +71,20 @@ export class AnualGananciasService {
     if (!l) return { anio, estado: null, cerradoEn: null, empleados: [] };
     const filas = await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { anualId: l.id } });
     const emps = new Map((await tx.empleado.findMany({ where: { id: { in: filas.map((x) => x.empleadoId) } } })).map((e) => [e.id, e]));
+    // E34 (revisión): una final ya cerrada en el año siguiente que no lleva el renglón de ajuste de este año no lo aplicará:
+    // se avisa si el empleado tiene saldo. No depende de fechas (la final pudo cerrarse antes que la anual con pago posterior).
+    const conSaldo = filas.filter((x) => !x.distracto && !new D(x.saldo).isZero()).map((x) => x.empleadoId);
+    const recibosFinales = conSaldo.length ? await tx.reciboSueldo.findMany({
+      where: { empleadoId: { in: conSaldo }, liquidacion: { tipo: 'FINAL', estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio + 1, 0, 1)), lt: new Date(Date.UTC(anio + 2, 0, 1)) } } },
+      select: { empleadoId: true, renglones: { where: { anioAjusteGanancias: anio }, select: { id: true } } },
+    }) : [];
+    const sinAjuste = new Set(recibosFinales.filter((r) => !r.renglones.length).map((r) => r.empleadoId));
     return {
       anio, estado: l.estado, cerradoEn: l.cerradoEn,
       empleados: filas.map((x) => {
         const e = emps.get(x.empleadoId)!;
-        return { empleadoId: x.empleadoId, legajo: e.legajo, apellido: e.apellido, nombre: e.nombre, distracto: x.distracto, hoja: x.hoja, impuesto: f(x.impuesto), retenido: f(x.retenido), pagosACuenta: f(x.pagosACuenta), saldo: f(x.saldo) };
+        return { empleadoId: x.empleadoId, legajo: e.legajo, apellido: e.apellido, nombre: e.nombre, distracto: x.distracto, hoja: x.hoja, impuesto: f(x.impuesto), retenido: f(x.retenido), pagosACuenta: f(x.pagosACuenta), saldo: f(x.saldo),
+          aviso: !x.distracto && sinAjuste.has(x.empleadoId) ? 'Su final ya está cerrada: el saldo se retiene o devuelve fuera del sistema' : null };
       }).sort((p, q) => p.legajo - q.legajo),
     };
   }
@@ -84,7 +95,8 @@ export class AnualGananciasService {
       await this.bloquear(tx);
       const previo = await this.encabezado(tx, anio);
       if (previo?.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} está cerrada`);
-      const l = previo ?? (await tx.liquidacionAnualGanancias.create({ data: { empresaId: this.tenant.empresaId, anio } }));
+      // upsert: sin fila de ConfiguracionSueldos el lock no serializa y dos primeros 'calcular' no chocan (E34)
+      const l = previo ?? (await tx.liquidacionAnualGanancias.upsert({ where: { empresaId_anio: { empresaId: this.tenant.empresaId, anio } }, update: {}, create: { empresaId: this.tenant.empresaId, anio } }));
       await this.recalcular(tx, l.id, anio);
       return this.ver(anio, tx);
     }, { timeout: 60000 });

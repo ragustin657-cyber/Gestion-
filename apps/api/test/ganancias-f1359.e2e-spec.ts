@@ -99,6 +99,8 @@ describe('ganancias: F.1359 y certificados', () => {
     await prisma.reciboSueldoRenglon.deleteMany({ where: { clase: 'DESCUENTO', recibo: { empleadoId: x.e.id } } });
     await x.anual();
     const e = await prisma.empleado.findUniqueOrThrow({ where: { id: x.e.id } });
+    // CUIL corregido después del cierre de la anual: el mensaje sigue nombrando al empleado (E34)
+    await prisma.empleado.update({ where: { id: x.e.id }, data: { cuil: '20-99999999-0' } });
     const r = await x.http.get('/api/sueldos/ganancias/f1359/anual/2025');
     expect([r.status, r.body.message]).toEqual([400, `El F.1359 no admite deducciones generales en cero (sin aportes): ${e.apellido}, ${e.nombre}`]);
   });
