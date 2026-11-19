@@ -18,20 +18,22 @@ El diseño original del sistema prometía retenciones con exportación SICORE / 
 ## 4. Configuración
 - **Empresa:** `agenteRetencionIva`, `agenteRetencionSuss` (booleanos, por defecto falso), junto a `agenteRetencionGanancias`, editables en la pantalla de la empresa.
 - **Regímenes de IVA** (`RegimenIva`, por empresa, permiso de configuración de pagos): `codigoSire` (texto de 3 dígitos, opcional hasta presentar), `descripcion`, `porcentaje` (sobre el IVA de la factura), `minimoComprobante` (si el total de la factura es menor, no se retiene), `minimoRetencion` (si la retención es menor, no se retiene), `condicionSire` (entero opcional: se informa en el campo CONDICIÓN del F.2005 cuando el régimen lo exige), `activo`.
-- **Regímenes de SUSS** (`RegimenSuss`): `codigoSire`, `descripcion`, `porcentaje` (sobre el importe pagado sin IVA), `minimoNoSujeto` (base del pago por debajo de la cual no se retiene), `minimoRetencion`, `activo`.
+- **Regímenes de SUSS** (`RegimenSuss`): `codigoSire`, `descripcion`, `porcentaje` (sobre el importe pagado sin IVA), `minimoNoSujeto` (base de la factura en ese pago por debajo de la cual no se retiene), `minimoRetencion`, `activo`.
 - **Precarga** (editable, con `codigoSire` vacío y un aviso «Cargue el código SIRE…» en la pantalla de regímenes):
   - IVA: «Compraventa de cosas muebles» 50 %; «Locaciones de obras y servicios» 80 %; «Proveedor con incumplimientos (100 %)» 100 %; mínimos en 0.
   - SUSS: «Construcción» 1,2 %; «Limpieza de inmuebles» 6 %; «Investigación y seguridad» 6 %; «Empresas de servicios eventuales» 2 %; mínimos en 0.
   - Los porcentajes son de referencia y quedan a verificar por el usuario (§12).
-- **Ficha del proveedor:** `regimenIvaId?`, `regimenSussId?`; exclusión de IVA: `exclusionIvaPorcentaje` (50 o 100, opcional), `exclusionIvaPublicacion` (fecha), `exclusionIvaHasta` (fecha). El campo existente `exentoIva` pasa a significar «no se le retiene IVA» y se respeta.
+- **Ficha del proveedor:** `regimenIvaId?`, `regimenSussId?`; exclusión de IVA: `exclusionIvaPorcentaje` (50 o 100, opcional), `exclusionIvaPublicacion` (fecha), `exclusionIvaHasta` (fecha). El campo existente `exentoIva` pasa a significar «no se le retiene IVA» y se respeta **sin fecha de fin**: `exencionHasta` sigue limitando solo a Ganancias (*decisión del constructor*; una exención de IVA con vencimiento se carga como exclusión del 100 % con su fecha).
 
 ## 5. Cálculo (en la orden de pago, al calcular las retenciones)
-Para cada imputación de la OP a un comprobante de compra (no notas de crédito ni anticipos):
+Para cada imputación de la OP a una **factura o nota de débito** de compra (no tickets, notas de crédito ni anticipos; *decisión del constructor*: los tickets no discriminan IVA y el SIRE no tiene un tipo con su formato):
+- **Notas de crédito en la misma OP** (*decisión del constructor*): la parte imputada de una nota de crédito reduce la base de IVA y de SUSS de su factura asociada (`comprobanteAsociadoId`) si esa factura está en la misma OP; si no, se reparte en proporción a lo imputado entre las facturas de la OP. Una base que queda en cero o negativa no retiene. Así una OP neteada con notas de crédito no retiene sobre lo que no se paga.
 - **IVA** — si la empresa es agente, el proveedor es Responsable Inscripto, tiene régimen de IVA activo, no es `exentoIva`, sin exclusión del 100 % vigente a la fecha de pago, y la factura tiene IVA > 0 y `total ≥ minimoComprobante`:
   - base = IVA de la factura × (importe imputado en pesos / total en pesos de la factura), a 2 decimales;
   - retención = base × porcentaje; con exclusión del 50 % vigente, la mitad;
   - si la retención < `minimoRetencion`, no se retiene.
-- **SUSS** — si la empresa es agente, el proveedor no es Monotributo y tiene régimen de SUSS activo:
+- **Facturas M** (*decisión del constructor*): no se fuerza el 100 % automáticamente; se asigna el régimen del 100 % al proveedor.
+- **SUSS** — por factura, igual que IVA (el F.2004 informa la factura) — si la empresa es agente, el proveedor no es Monotributo y tiene régimen de SUSS activo:
   - base = parte sin IVA del importe imputado (la misma `baseSujeta` de Ganancias);
   - si la base < `minimoNoSujeto`, no se retiene; retención = base × porcentaje; si < `minimoRetencion`, no se retiene.
 - Cada retención de IVA y SUSS es una fila de `OrdenPagoRetencion` con `impuesto` `IVA` o `SUSS`, `regimen` = id del régimen, `comprobanteCompraId` (nuevo, opcional) y `detalle` con base, porcentaje, exclusión y datos de la factura.
@@ -41,7 +43,7 @@ Para cada imputación de la OP a un comprobante de compra (no notas de crédito 
 ## 6. Pago, certificado y contabilidad
 - Al pagar, cada retención > 0 recibe número de certificado de los talonarios `RET-IVA` y `RET-SUSS`.
 - Asiento: haber en `RETENCION_IVA` (2.1.02.003) y `RETENCION_SUSS` (2.1.02.005), que se agregan a los conceptos contables.
-- PDF de certificado: el existente, con título «Certificado de retención de IVA» / «… de SUSS», régimen, factura retenida (tipo, número, fecha, total), base y porcentaje.
+- PDF: con el SIRE, el certificado oficial lo emite ARCA al importar el lote (su número es otro; el nuestro va en el código de trazabilidad, de uso no fiscal). El PDF del sistema se titula «Constancia de retención de IVA» / «… de SUSS», con la leyenda «El certificado oficial se emite en el SIRE de ARCA», régimen, factura retenida (tipo, número, fecha, total), base y porcentaje (*decisión del constructor*). Guardar el número de certificado del SIRE queda fuera de alcance.
 - Anular la OP marca las retenciones como anuladas (como hoy); si ya se presentaron en el SIRE, la anulación del certificado en SIRE la hace el usuario (fuera de alcance).
 - Las consultas de retenciones practicadas incluyen IVA y SUSS.
 
@@ -66,7 +68,7 @@ Nuevas presentaciones `SIRE_IVA` y `SIRE_SUSS`, mensuales (el SIRE exige un úni
 - Demo: la empresa no es agente de IVA ni SUSS (las e2e existentes no cambian); la e2e nueva la activa desde la pantalla.
 
 ## 10. No objetivos
-Percepciones de IVA; notas de crédito de retenciones y anulaciones por lote en el SIRE; F.2003 (Ganancias a no residentes); retenciones sobre anticipos; régimen por factura; quincenas.
+Percepciones de IVA; guardar el número de certificado que emite el SIRE; 100 % automático para facturas M; notas de crédito de retenciones y anulaciones por lote en el SIRE; F.2003 (Ganancias a no residentes); retenciones sobre anticipos; régimen por factura; quincenas.
 
 ## 11. Casos a vigilar
 Factura pagada en varias OP (cada pago retiene su proporción); factura en dólares (pesos del pago sobre total en pesos); proveedor que cambia de régimen entre OP; exclusión vencida a la fecha de pago; OP con retenciones de los cuatro impuestos y el tope del neto.
