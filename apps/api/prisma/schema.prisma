@@ -2018,6 +2018,7 @@ enum TipoConcepto {
   DESCUENTO_LEY
   VACACIONES
   GANANCIAS
+  GANANCIAS_AJUSTE
 }
 
 enum FormaPagoSueldo {
@@ -2124,23 +2125,26 @@ model Empleado {
 }
 
 model Concepto {
-  id               String           @id @default(uuid()) @db.Uuid
-  empresaId        String           @db.Uuid
-  convenioId       String?          @db.Uuid
-  codigo           String
-  nombre           String
-  clase            ClaseConcepto
-  tipo             TipoConcepto
-  parametros       Json             @default("{}")
-  orden            Int
-  soloAfiliados    Boolean          @default(false)
-  activo           Boolean          @default(true)
-  destino          DestinoDescuento @default(OTRO)
-  cuentaContableId String?          @db.Uuid
+  id                    String                @id @default(uuid()) @db.Uuid
+  empresaId             String                @db.Uuid
+  convenioId            String?               @db.Uuid
+  codigo                String
+  nombre                String
+  clase                 ClaseConcepto
+  tipo                  TipoConcepto
+  parametros            Json                  @default("{}")
+  orden                 Int
+  soloAfiliados         Boolean               @default(false)
+  activo                Boolean               @default(true)
+  destino               DestinoDescuento      @default(OTRO)
+  cuentaContableId      String?               @db.Uuid
   // Código de concepto ARCA del Libro de Sueldos Digital (Anexo I)
-  codigoArca       String
+  codigoArca            String
   // Ganancias de cuarta: concepto exento (no suma a la ganancia bruta, E31 §6)
-  exentoGanancias  Boolean          @default(false)
+  exentoGanancias       Boolean               @default(false)
+  // Rubro del registro 04 del F.1359 (E32 §7); obligatorio si es exento
+  rubroExentoGanancias  RubroExentoGanancias?
+  rubroExentoPorDefecto Boolean               @default(false)
 
   @@unique([empresaId, codigo])
 }
@@ -2225,20 +2229,22 @@ model ReciboSueldo {
 }
 
 model ReciboSueldoRenglon {
-  id                String        @id @default(uuid()) @db.Uuid
-  empresaId         String        @db.Uuid
-  reciboId          String        @db.Uuid
-  recibo            ReciboSueldo  @relation(fields: [reciboId], references: [id], onDelete: Cascade)
-  conceptoId        String?       @db.Uuid
-  codigo            String
-  nombre            String
-  clase             ClaseConcepto
-  cantidad          Decimal?      @db.Decimal(18, 4)
-  base              Decimal?      @db.Decimal(18, 2)
-  porcentaje        Decimal?      @db.Decimal(9, 4)
-  importe           Decimal       @db.Decimal(18, 2)
-  orden             Int
-  vacacionPeriodoId String?       @db.Uuid
+  id                  String        @id @default(uuid()) @db.Uuid
+  empresaId           String        @db.Uuid
+  reciboId            String        @db.Uuid
+  recibo              ReciboSueldo  @relation(fields: [reciboId], references: [id], onDelete: Cascade)
+  conceptoId          String?       @db.Uuid
+  codigo              String
+  nombre              String
+  clase               ClaseConcepto
+  cantidad            Decimal?      @db.Decimal(18, 4)
+  base                Decimal?      @db.Decimal(18, 2)
+  porcentaje          Decimal?      @db.Decimal(9, 4)
+  importe             Decimal       @db.Decimal(18, 2)
+  orden               Int
+  vacacionPeriodoId   String?       @db.Uuid
+  // Ajuste anual de Ganancias (concepto GANANCIAS_AJUSTE): año que cancela (E32 §5)
+  anioAjusteGanancias Int?
 }
 
 enum DestinoContribucion {
@@ -2710,5 +2716,46 @@ model AcumuladoGanancias {
   retenido   Decimal @default(0) @db.Decimal(18, 2)
 
   @@unique([empleadoId, anio])
+  @@index([empresaId])
+}
+
+enum RubroExentoGanancias {
+  ASIGNACIONES_FAMILIARES
+  INTERESES_PRESTAMOS
+  INDEMNIZACIONES
+  CURSOS_SEMINARIOS
+  INDUMENTARIA
+}
+
+// Liquidación anual de Ganancias de cuarta (E32 §5)
+model LiquidacionAnualGanancias {
+  id         String                              @id @default(uuid()) @db.Uuid
+  empresaId  String                              @db.Uuid
+  anio       Int
+  estado     String                              @default("BORRADOR")
+  cerradoEn  DateTime?
+  cerradoPor String?
+  empleados  LiquidacionAnualGananciasEmpleado[]
+
+  @@unique([empresaId, anio])
+}
+
+model LiquidacionAnualGananciasEmpleado {
+  id                 String                    @id @default(uuid()) @db.Uuid
+  empresaId          String                    @db.Uuid
+  anualId            String                    @db.Uuid
+  anual              LiquidacionAnualGanancias @relation(fields: [anualId], references: [id], onDelete: Cascade)
+  empleadoId         String                    @db.Uuid
+  // Distracto (egreso de enero a marzo del año siguiente): se liquida con la final (E32 §6)
+  distracto          Boolean                   @default(false)
+  liquidacionFinalId String?                   @db.Uuid
+  hoja               Json
+  f1359              Json
+  impuesto           Decimal                   @db.Decimal(18, 2)
+  retenido           Decimal                   @db.Decimal(18, 2)
+  pagosACuenta       Decimal                   @db.Decimal(18, 2)
+  saldo              Decimal                   @db.Decimal(18, 2)
+
+  @@unique([anualId, empleadoId])
   @@index([empresaId])
 }

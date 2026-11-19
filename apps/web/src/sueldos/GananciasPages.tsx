@@ -21,7 +21,7 @@ export interface HojaGanancias {
   deducciones: { tipo: string; nombre: string; informado: string; computado: string }[];
   personales: { gni: string; especial: string; cargas: string };
   sujeta: string; tramo: { desde: string; fijo: string; porcentaje: string }; impuesto: string;
-  retenidoAnterior: string; calculado: string; topeMes: string; importe: string; noRetenido: string; avisos: string[];
+  retenidoAnterior: string; pagosACuenta?: string; calculado: string; topeMes: string; importe: string; noRetenido: string; avisos: string[];
 }
 export interface ResultadoF572 { importados: { archivo: string; empleado: string; avisos: string[] }[]; omitidos: { archivo: string; motivo: string }[]; pendientes: { archivo: string; empleado: string }[] }
 
@@ -141,6 +141,7 @@ export function HojaGananciasVista({ hoja }: { hoja: HojaGanancias }) {
           {fila('Ganancia sujeta a impuesto', formatoMoneda(hoja.sujeta), true)}
           {fila(`Escala: ${formatoMoneda(hoja.tramo.fijo)} más el ${porc(hoja.tramo.porcentaje)} sobre el excedente de ${formatoMoneda(hoja.tramo.desde)}`, formatoMoneda(hoja.impuesto))}
           {fila('Retenido anteriormente', menos(hoja.retenidoAnterior))}
+          {Number(hoja.pagosACuenta ?? 0) !== 0 && fila('Pagos a cuenta', menos(hoja.pagosACuenta!))}
           {fila('Tope del mes (35 % del bruto)', formatoMoneda(hoja.topeMes))}
           {fila(devolucion ? 'Devolución del mes' : 'Retención del mes', formatoMoneda(Math.abs(Number(hoja.importe))), true)}
           {Number(hoja.noRetenido) > 0 && fila('Excedente no retenido (se retiene después)', formatoMoneda(hoja.noRetenido))}
@@ -189,6 +190,40 @@ interface DatosF572Web {
   cargas: { parentesco: string; documento: string; nombre: string; mesDesde: number; mesHasta: number; porcentaje: number }[];
   otrosEmpleadores: { cuit: string; nombre: string; meses: { mes: number; bruta: string; aportes: string; retenido: string }[] }[];
   deducciones: { tipo: string; codigo: string; prestador: string; meses: { mes: number; importe: string }[] }[];
+  pagosACuenta?: PagoACuentaWeb[];
+}
+export interface PagoACuentaWeb { tipo: string; codigo: string; meses: { mes: number; importe: string }[] }
+
+/** Pagos a cuenta del F.572 (percepciones computables, spec E32 §3). */
+export const TIPOS_PAGO = [
+  ['ADUANERAS', 'Percepciones aduaneras'], ['CHEQUE_BANCARIO', 'Impuesto sobre créditos y débitos bancarios'], ['CHEQUE_MOVIMIENTOS', 'Impuesto sobre movimientos de fondos'],
+  ['EFECTIVO_AGENCIAS', 'Compras en efectivo en agencias de viaje'], ['EFECTIVO_TRANSPORTE', 'Pasajes en efectivo'], ['DOLAR_ATESORAMIENTO', 'Compra de moneda extranjera'],
+  ['DOLAR_BIENES_EXTERIOR', 'Bienes y servicios en el exterior'], ['DOLAR_SERVICIOS_NO_RESIDENTES', 'Servicios de no residentes'], ['DOLAR_AGENCIAS', 'Agencias de viaje en moneda extranjera'],
+  ['DOLAR_TRANSPORTE', 'Transporte al exterior'], ['OTRO', 'Otro (no se computa)'],
+].map(([value, label]) => ({ value, label }));
+
+/** Editor de pagos a cuenta: tipo e importe por mes (los meses sin importe no se cargan). */
+export function EditorPagosACuenta({ pagos, onChange }: { pagos: PagoACuentaWeb[]; onChange: (p: PagoACuentaWeb[]) => void }) {
+  const set = (i: number, p: PagoACuentaWeb) => onChange(pagos.map((y, j) => (j === i ? p : y)));
+  return (
+    <Stack gap="xs">
+      <Text fw={600}>Pagos a cuenta</Text>
+      {pagos.map((p, i) => (
+        <Group key={i} gap="xs" wrap="nowrap">
+          <Select aria-label="Tipo de pago a cuenta" w={290} data={TIPOS_PAGO} value={p.tipo} onChange={(x) => set(i, { ...p, tipo: x ?? 'OTRO' })} />
+          {p.meses.map((m, k) => (
+            <Group key={k} gap={4} wrap="nowrap">
+              <NumberInput aria-label="Mes del pago" w={70} min={1} max={12} value={m.mes} onChange={(x) => set(i, { ...p, meses: p.meses.map((y, j) => (j === k ? { ...y, mes: Number(x) || 1 } : y)) })} />
+              <NumberInput aria-label="Importe del pago" w={130} min={0} decimalScale={2} value={m.importe} onChange={(x) => set(i, { ...p, meses: p.meses.map((y, j) => (j === k ? { ...y, importe: String(x || 0) } : y)) })} />
+            </Group>
+          ))}
+          <Button size="compact-xs" variant="subtle" onClick={() => set(i, { ...p, meses: [...p.meses, { mes: Math.min(12, (p.meses[p.meses.length - 1]?.mes ?? 0) + 1), importe: '0' }] })}>+ mes</Button>
+          <ActionIcon variant="subtle" color="red" aria-label="Quitar pago a cuenta" onClick={() => onChange(pagos.filter((_, j) => j !== i))}>×</ActionIcon>
+        </Group>
+      ))}
+      <Group><Button size="xs" variant="light" onClick={() => onChange([...pagos, { tipo: 'DOLAR_ATESORAMIENTO', codigo: '', meses: [{ mes: 1, importe: '0' }] }])}>Agregar pago a cuenta</Button></Group>
+    </Stack>
+  );
 }
 interface F572Web { nroPresentacion: number; origen: string; modificadoAMano: boolean; datos: DatosF572Web }
 
@@ -236,11 +271,11 @@ export function GananciasEmpleado({ empleadoId, editable }: { empleadoId: string
         <Group gap="xs"><Text fw={600}>Ganancias</Text><Select aria-label="Año de Ganancias" w={90} size="xs" data={[anio - 1, anio, anio + 1].map(String)} value={String(anio)} onChange={(x) => setAnio(Number(x))} /></Group>
         {editable && <Group gap="xs">
           <ImportarF572 onImportado={refrescar} />
-          <Button size="xs" variant="light" onClick={() => setEdicion(structuredClone(datos ?? { cargas: [], otrosEmpleadores: [], deducciones: [] }))}>Editar F.572</Button>
+          <Button size="xs" variant="light" onClick={() => setEdicion(structuredClone(datos ?? { cargas: [], otrosEmpleadores: [], deducciones: [], pagosACuenta: [] }))}>Editar F.572</Button>
         </Group>}
       </Group>
       {!datos && <Text size="sm" c="dimmed">Sin F.572 del año: se computan solo la ganancia no imponible, la deducción especial y los aportes.</Text>}
-      {datos && <Text size="sm">{`F.572 ${f.data!.origen === 'IMPORTADO' ? `presentación ${f.data!.nroPresentacion}` : 'cargado a mano'}${f.data!.modificadoAMano ? ' (corregido a mano)' : ''}: ${datos.cargas.length} carga(s) de familia, ${datos.deducciones.length} deducción(es), ${datos.otrosEmpleadores.length} otro(s) empleador(es)`}</Text>}
+      {datos && <Text size="sm">{`F.572 ${f.data!.origen === 'IMPORTADO' ? `presentación ${f.data!.nroPresentacion}` : 'cargado a mano'}${f.data!.modificadoAMano ? ' (corregido a mano)' : ''}: ${datos.cargas.length} carga(s) de familia, ${datos.deducciones.length} deducción(es), ${datos.otrosEmpleadores.length} otro(s) empleador(es), ${(datos.pagosACuenta ?? []).length} pago(s) a cuenta`}</Text>}
       {datos?.deducciones.map((d, i) => <Text key={i} size="xs" c="dimmed">{`${TIPOS.find((t) => t.value === d.tipo)?.label ?? d.tipo}${d.prestador ? ` (${d.prestador})` : ''}: ${formatoMoneda(total(d.meses))}`}</Text>)}
       <Group gap="xs" align="end">
         <Text size="sm">{`Acumulado previo (fuera del sistema): bruto ${formatoMoneda(a.data?.bruta)}, aportes ${formatoMoneda(a.data?.aportes)}, retenido ${formatoMoneda(a.data?.retenido)}`}</Text>
@@ -285,6 +320,7 @@ export function GananciasEmpleado({ empleadoId, editable }: { empleadoId: string
             );
           })}
           <Group><Button size="xs" variant="light" onClick={() => setEdicion({ ...edicion, deducciones: [...edicion.deducciones, { tipo: 'CUOTAS_MEDICAS', codigo: '', prestador: '', meses: Array.from({ length: 12 }, (_, k) => ({ mes: k + 1, importe: '0' })) }] })}>Agregar deducción</Button></Group>
+          <EditorPagosACuenta pagos={edicion.pagosACuenta ?? []} onChange={(p) => setEdicion({ ...edicion, pagosACuenta: p })} />
           {edicion.otrosEmpleadores.length > 0 && <Text size="sm" c="dimmed">{`Otros empleadores: ${edicion.otrosEmpleadores.map((o) => o.nombre || o.cuit).join(', ')} (se editan reimportando el F.572)`}</Text>}
           <Group justify="flex-end"><Button loading={op.enviando} onClick={async () => { if (await op.ejecutar(() => api(rutaF, { metodo: 'PUT', body: { datos: edicion } }), () => 'F.572 guardado')) { setEdicion(null); void refrescar(); } }}>Guardar</Button></Group>
         </Stack>}

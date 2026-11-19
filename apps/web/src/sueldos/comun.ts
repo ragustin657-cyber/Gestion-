@@ -10,7 +10,7 @@ export interface Empleado {
 }
 import type { HojaGanancias } from './GananciasPages';
 
-export interface Concepto { id: string; convenioId: string | null; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean; activo: boolean; destino?: string; cuentaContableId?: string | null; codigoArca: string; exentoGanancias?: boolean }
+export interface Concepto { id: string; convenioId: string | null; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean; activo: boolean; destino?: string; cuentaContableId?: string | null; codigoArca: string; exentoGanancias?: boolean; rubroExentoGanancias?: string | null }
 export interface Novedad { tipo: 'HORAS_EXTRA_50' | 'HORAS_EXTRA_100' | 'AUSENCIA_INJUSTIFICADA' | 'IMPORTE'; conceptoId?: string | null; cantidad?: number | null; importe?: number | null; detalle?: string | null; liquidacionComisionesId?: string | null }
 export interface RenglonRecibo { codigo: string; nombre: string; clase: Clase; cantidad: string | null; base: string | null; porcentaje: string | null; importe: string; orden: number }
 export interface Recibo {

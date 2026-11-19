@@ -12,7 +12,7 @@ export default defineConfig({
   projects: [
     // Intereses factura en el mes anterior: corre antes de que la prueba de contabilidad (general) cierre ese mes
     { name: 'intereses', testMatch: /intereses\.spec\.ts/ },
-    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias)\.spec\.ts/ },
+    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias|ganancias-anual)\.spec\.ts/ },
     // La baja crea un empleado que no debe quedar en las mensuales que cierran las pruebas de sueldos: corre después de ellas
     // Comisiones reabre la mensual del mes (que cerró la prueba de sueldos), carga la comisión y la vuelve a cerrar
     { name: 'comisiones', testMatch: /comisiones\.spec\.ts/, dependencies: ['general'] },
@@ -23,7 +23,8 @@ export default defineConfig({
     { name: 'tarjetas', testMatch: /tarjetas\.spec\.ts/, dependencies: ['libro-sueldos'] },
     { name: 'tesoreria', testMatch: /tesoreria\.spec\.ts/, dependencies: ['tarjetas'] },
     { name: 'conciliacion', testMatch: /conciliacion\.spec\.ts/, dependencies: ['tesoreria'] },
-    { name: 'ganancias', testMatch: /ganancias\.spec\.ts/, dependencies: ['conciliacion'] },
+    { name: 'ganancias', testMatch: /\/ganancias\.spec\.ts/, dependencies: ['conciliacion'] },
+    { name: 'ganancias-anual', testMatch: /ganancias-anual\.spec\.ts/, dependencies: ['ganancias'] },
   ],
   webServer: [
     {

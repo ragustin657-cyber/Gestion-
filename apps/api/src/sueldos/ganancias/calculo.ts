@@ -24,18 +24,21 @@ export interface TablaCalc {
   tramos: { desde: Dec; hasta: Dec | null; fijo: Dec; porcentaje: Dec }[];
 }
 
-/** Datos acumulados a los meses 1..mes del año fiscal (spec E31 §5). */
+/** Datos acumulados a los meses 1..mes del año fiscal (spec E31 §5). La tabla llega ya acumulada (E32 §3). */
 export interface DatosGanancias {
   mes: number;
   tabla: TablaCalc;
   bruta: Dec;
   aportes: Dec;
   deducciones: { tipo: TipoDeduccion; importe: Dec }[];
-  cargas: { parentesco: 'CONYUGE' | 'HIJO' | 'HIJO_INCAPACITADO' | 'OTRO'; meses: number; porcentaje: number }[];
+  /** Cargas de familia con su importe ya acumulado (E32 §3). */
+  cargas: { parentesco: 'CONYUGE' | 'HIJO' | 'HIJO_INCAPACITADO' | 'OTRO'; importe: Dec }[];
   retenidoAnterior: Dec;
   /** Lo retenido en el año por esta empresa (límite de la devolución). */
   retenidoEmpresa: Dec;
   brutaRecibo: Dec;
+  /** Pagos a cuenta del F.572 acumulados al mes (E32 §4). */
+  pagosACuenta?: Dec;
   /** Neto del recibo antes de la retención: la retención no lo deja negativo (revisión E31). */
   netoRecibo?: Dec;
 }
@@ -45,7 +48,7 @@ export interface HojaGanancias {
   deducciones: { tipo: TipoDeduccion; nombre: string; informado: string; computado: string }[];
   personales: { gni: string; especial: string; cargas: string };
   sujeta: string; tramo: { desde: string; fijo: string; porcentaje: string }; impuesto: string;
-  retenidoAnterior: string; calculado: string; topeMes: string; importe: string; noRetenido: string;
+  retenidoAnterior: string; pagosACuenta: string; calculado: string; topeMes: string; importe: string; noRetenido: string;
   avisos: string[];
 }
 
@@ -57,7 +60,8 @@ const CON_TOPE_PORCENTUAL: TipoDeduccion[] = ['CUOTAS_MEDICAS', 'GASTOS_MEDICOS'
  */
 export function retencionGanancias(d: DatosGanancias): { importe: Dec; hoja: HojaGanancias } {
   const t = d.tabla;
-  const p = (x: Dec) => x.times(d.mes).div(12);
+  // La tabla llega acumulada al mes (o anual): no se prorratea acá (E32 §3)
+  const p = (x: Dec) => x;
   const avisos: string[] = [];
   const informado = new Map<TipoDeduccion, Dec>();
   for (const x of d.deducciones) informado.set(x.tipo, (informado.get(x.tipo) ?? cero()).plus(x.importe));
@@ -93,17 +97,14 @@ export function retencionGanancias(d: DatosGanancias): { importe: Dec; hoja: Hoj
   // Deducciones personales (art. 30) prorrateadas
   const gni = r2(p(t.gni));
   const especial = r2(p(t.deduccionEspecial));
-  const importeCarga: Record<string, Dec | null> = { CONYUGE: t.conyuge, HIJO: t.hijo, HIJO_INCAPACITADO: t.hijoIncapacitado, OTRO: null };
-  const cargas = r2(d.cargas.reduce((s, c) => {
-    const anual = importeCarga[c.parentesco];
-    return anual ? s.plus(anual.times(Math.min(Math.max(c.meses, 0), d.mes)).div(12).times(c.porcentaje).div(100)) : s;
-  }, cero()));
+  const cargas = r2(d.cargas.reduce((s, c) => (c.parentesco === 'OTRO' ? s : s.plus(c.importe)), cero()));
   const sujeta = r2(D.max(gananciaNeta.minus(conPorcentual).minus(gni).minus(especial).minus(cargas), 0));
   // Escala del art. 94 con los límites prorrateados
   const tramos = t.tramos.map((x) => ({ desde: p(x.desde), hasta: x.hasta ? p(x.hasta) : null, fijo: p(x.fijo), porcentaje: x.porcentaje }));
   const tramo = [...tramos].reverse().find((x) => sujeta.gt(x.desde)) ?? tramos[0];
   const impuesto = sujeta.gt(0) ? r2(tramo.fijo.plus(sujeta.minus(tramo.desde).times(tramo.porcentaje).div(100))) : cero();
-  const calculado = r2(impuesto.minus(d.retenidoAnterior));
+  const pagos = d.pagosACuenta ?? cero();
+  const calculado = r2(impuesto.minus(d.retenidoAnterior).minus(pagos));
   const tope35 = D.max(d.brutaRecibo, 0).times(0.35);
   const topeMes = r2(d.netoRecibo ? D.min(tope35, D.max(d.netoRecibo, 0)) : tope35);
   let importe: Dec;
@@ -119,7 +120,7 @@ export function retencionGanancias(d: DatosGanancias): { importe: Dec; hoja: Hoj
       deducciones: [...informado.entries()].map(([tipo, v]) => ({ tipo, nombre: NOMBRE_DEDUCCION[tipo], informado: f(v), computado: f(computado.get(tipo) ?? cero()) })),
       personales: { gni: f(gni), especial: f(especial), cargas: f(cargas) },
       sujeta: f(sujeta), tramo: { desde: f(tramo.desde), fijo: f(tramo.fijo), porcentaje: tramo.porcentaje.toFixed(2) }, impuesto: f(impuesto),
-      retenidoAnterior: f(d.retenidoAnterior), calculado: f(calculado), topeMes: f(topeMes), importe: f(importe), noRetenido: f(noRetenido), avisos,
+      retenidoAnterior: f(d.retenidoAnterior), pagosACuenta: f(pagos), calculado: f(calculado), topeMes: f(topeMes), importe: f(importe), noRetenido: f(noRetenido), avisos,
     },
   };
 }

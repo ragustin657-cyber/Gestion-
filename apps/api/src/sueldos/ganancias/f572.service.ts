@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
-import { DatosF572, ErrorF572, leerF572, TIPOS_DEDUCCION_VALIDOS } from './f572-xml';
+import { DatosF572, ErrorF572, leerF572, TIPOS_DEDUCCION_VALIDOS, TIPOS_PAGO_A_CUENTA } from './f572-xml';
 
 const mes = z.number().int().min(1).max(12);
 const monto = z.union([z.string(), z.number()]).transform((v) => Number(v)).refine((v) => Number.isFinite(v) && v >= 0, 'Importe inválido').transform((v) => v.toFixed(2));
@@ -11,6 +11,7 @@ export const esquemaDatosF572 = z.object({
   cargas: z.array(z.object({ parentesco: z.enum(['CONYUGE', 'HIJO', 'HIJO_INCAPACITADO', 'OTRO']), documento: z.string().max(20).default(''), nombre: z.string().max(100).default(''), mesDesde: mes, mesHasta: mes, porcentaje: z.union([z.literal(50), z.literal(100)]) })).default([]),
   otrosEmpleadores: z.array(z.object({ cuit: z.string().max(13).default(''), nombre: z.string().max(100).default(''), meses: z.array(z.object({ mes, bruta: monto, aportes: monto, retenido: monto })) })).default([]),
   deducciones: z.array(z.object({ tipo: z.enum(TIPOS_DEDUCCION_VALIDOS as [string, ...string[]]), codigo: z.string().max(10).default(''), prestador: z.string().max(100).default(''), meses: z.array(z.object({ mes, importe: monto })) })).default([]),
+  pagosACuenta: z.array(z.object({ tipo: z.enum(TIPOS_PAGO_A_CUENTA as [string, ...string[]]), codigo: z.string().max(10).default(''), meses: z.array(z.object({ mes, importe: monto })) })).default([]),
 });
 export const esquemaAcumulado = z.object({ bruta: z.number().min(0), aportes: z.number().min(0), retenido: z.number().min(0) });
 

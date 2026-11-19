@@ -6,11 +6,11 @@ const r2 = (x: Dec) => x.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 const DIA = 86400000;
 
 export type ClaseConcepto = 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO';
-export type TipoConcepto = 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES' | 'GANANCIAS';
+export type TipoConcepto = 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES' | 'GANANCIAS' | 'GANANCIAS_AJUSTE';
 export interface ConceptoCalc { id: string; codigo: string; nombre: string; clase: ClaseConcepto; tipo: TipoConcepto; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean }
 export interface EmpleadoCalc { fechaIngreso: Date; fechaEgreso: Date | null; afiliadoSindicato: boolean; basicoMensual: Dec; horasMensuales: number }
 export interface NovedadCalc { tipo: 'HORAS_EXTRA_50' | 'HORAS_EXTRA_100' | 'AUSENCIA_INJUSTIFICADA' | 'IMPORTE'; conceptoId?: string | null; cantidad?: Dec | null; importe?: Dec | null }
-export interface RenglonCalc { conceptoId: string; codigo: string; nombre: string; clase: ClaseConcepto; cantidad: Dec | null; base: Dec | null; porcentaje: Dec | null; importe: Dec; orden: number; vacacionPeriodoId?: string }
+export interface RenglonCalc { conceptoId: string; codigo: string; nombre: string; clase: ClaseConcepto; cantidad: Dec | null; base: Dec | null; porcentaje: Dec | null; importe: Dec; orden: number; vacacionPeriodoId?: string; anioAjusteGanancias?: number }
 export interface VacacionCalc { periodoId: string; dias: number }
 export interface ResultadoCalc { renglones: RenglonCalc[]; totalRemunerativo: Dec; totalNoRemunerativo: Dec; totalDescuentos: Dec; neto: Dec; diasTrabajados: number; antiguedadAnios: number }
 
@@ -140,12 +140,12 @@ export function liquidarSac(e: EmpleadoCalc, conceptos: ConceptoCalc[], mejorRem
 }
 
 const ETIQUETA_TIPO: Record<ConceptoCalc['tipo'], string> = {
-  BASICO: 'Sueldo básico', ANTIGUEDAD: 'Antigüedad', PORCENTAJE: 'Porcentaje', HORAS_EXTRA: 'Horas extra', AUSENCIA: 'Ausencia', FIJO: 'Importe fijo', DESCUENTO_LEY: 'Descuento de ley', VACACIONES: 'Vacaciones', GANANCIAS: 'Impuesto a las ganancias',
+  BASICO: 'Sueldo básico', ANTIGUEDAD: 'Antigüedad', PORCENTAJE: 'Porcentaje', HORAS_EXTRA: 'Horas extra', AUSENCIA: 'Ausencia', FIJO: 'Importe fijo', DESCUENTO_LEY: 'Descuento de ley', VACACIONES: 'Vacaciones', GANANCIAS: 'Impuesto a las ganancias', GANANCIAS_AJUSTE: 'Ajuste anual de Ganancias',
 };
 const ETIQUETA_CLASE: Record<ConceptoCalc['clase'], string> = { REMUNERATIVO: 'Remunerativo', NO_REMUNERATIVO: 'No remunerativo', DESCUENTO: 'Descuento' };
 const CLASES_POR_TIPO: Record<ConceptoCalc['tipo'], ConceptoCalc['clase'][]> = {
   BASICO: ['REMUNERATIVO'], ANTIGUEDAD: ['REMUNERATIVO'], HORAS_EXTRA: ['REMUNERATIVO'], AUSENCIA: ['REMUNERATIVO'],
-  PORCENTAJE: ['REMUNERATIVO', 'NO_REMUNERATIVO'], FIJO: ['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO'], DESCUENTO_LEY: ['DESCUENTO'], VACACIONES: ['REMUNERATIVO'], GANANCIAS: ['DESCUENTO'],
+  PORCENTAJE: ['REMUNERATIVO', 'NO_REMUNERATIVO'], FIJO: ['REMUNERATIVO', 'NO_REMUNERATIVO', 'DESCUENTO'], DESCUENTO_LEY: ['DESCUENTO'], VACACIONES: ['REMUNERATIVO'], GANANCIAS: ['DESCUENTO'], GANANCIAS_AJUSTE: ['DESCUENTO'],
 };
 
 /** Valida la clase y los parámetros de un concepto según su cálculo; devuelve el mensaje de error o null. */

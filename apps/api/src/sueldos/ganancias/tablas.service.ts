@@ -21,6 +21,12 @@ export class TablasGananciasService {
     return tx.tablaGanancias.findUnique({ where: { empresaId_anio_semestre: { empresaId: this.tenant.empresaId, anio, semestre: semestreDe(mes) } }, include: { tramos: { orderBy: { desde: 'asc' } } } });
   }
 
+  /** Las dos tablas del año fiscal (para acumular por semestre, E32 §3). */
+  async tablasDelAnio(tx: TxEmpresa, anio: number): Promise<{ t1: TablaConTramos | null; t2: TablaConTramos | null }> {
+    const ts = await tx.tablaGanancias.findMany({ where: { anio }, include: { tramos: { orderBy: { desde: 'asc' } } } });
+    return { t1: ts.find((t) => t.semestre === 1) ?? null, t2: ts.find((t) => t.semestre === 2) ?? null };
+  }
+
   async ver(anio: number, semestre: number) {
     this.validar(anio, semestre);
     const t = await this.tenant.db.tablaGanancias.findUnique({ where: { empresaId_anio_semestre: { empresaId: this.tenant.empresaId, anio, semestre } }, include: { tramos: { orderBy: { desde: 'asc' } } } });

@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { retencionGanancias } from '../src/sueldos/ganancias/calculo';
+import { tablaAcumulada } from '../src/sueldos/ganancias/tablas';
+
 import { crearApp, limpiarBase } from './helpers';
 import { prepararSueldos } from './helpers-sueldos';
 import { f572, TABLA_PRUEBA } from './helpers-ganancias';
@@ -50,7 +52,7 @@ describe('ganancias: retención en la liquidación', () => {
     const l = await x.crear('MENSUAL', 2026, 11);
     const r = await x.recibo(l.id);
     const bruta = D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
-    const esperado = retencionGanancias({ mes: 11, tabla: x.tablaCalc(), bruta, aportes: x.aportes(r), deducciones: [], cargas: [], retenidoAnterior: D(0), retenidoEmpresa: D(0), brutaRecibo: bruta });
+    const esperado = retencionGanancias({ mes: 11, tabla: tablaAcumulada(null, x.tablaCalc(), 11).tabla, bruta, aportes: x.aportes(r), deducciones: [], cargas: [], retenidoAnterior: D(0), retenidoEmpresa: D(0), brutaRecibo: bruta });
     expect(esperado.importe.gt(0)).toBe(true);
     expect(x.ganancias(r)!.importe).toBe(esperado.importe.toFixed(2));
     expect(D(r.neto).toFixed(2)).toBe(bruta.minus(r.totalDescuentos).toFixed(2));
@@ -153,6 +155,37 @@ describe('ganancias: retención en la liquidación', () => {
     expect(r.body.aviso).toContain('para volver a cerrarla, reabra primero las posteriores que retuvieron Ganancias');
   });
 
+  it('revisión E32: julio acumula por semestre', async () => {
+    const x = await escenario();
+    await x.escala('Vendedor B', '2026-07', 30000000);
+    await x.http.put('/api/sueldos/ganancias/tablas/2026/1', { ...TABLA_PRUEBA, gni: 1200000 });
+    await x.http.put('/api/sueldos/ganancias/tablas/2026/2', { ...TABLA_PRUEBA, gni: 2400000 });
+    const jul = await x.crear('MENSUAL', 2026, 7);
+    const h = (await x.recibo(jul.id)).hojaGanancias as unknown as { personales: { gni: string } };
+    expect(h.personales.gni).toBe('800000.00');
+  });
+
+  it('revisión E32: la final usa los valores anuales del semestre de pago', async () => {
+    const x = await escenario();
+    await x.escala('Vendedor B', '2026-08', 30000000);
+    await x.http.put('/api/sueldos/ganancias/tablas/2026/2', { ...TABLA_PRUEBA, gni: 2400000 });
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: x.e.id, causa: 'RENUNCIA', fechaEgreso: '2026-08-15', preavisoOtorgado: true, fechaPago: '2026-08-20' })).body as { id: string };
+    const h = (await x.recibo(f.id)).hojaGanancias as unknown as { personales: { gni: string } };
+    expect(h.personales.gni).toBe('2400000.00');
+  });
+
+  it('revisión E32: pagos a cuenta bajan la retención', async () => {
+    const x = await escenario();
+    const l = await x.crear('MENSUAL', 2026, 11);
+    const antes = D(x.ganancias(await x.recibo(l.id))!.importe);
+    const extra = '</deducciones><retPerPagos><retPerPago tipo="6"><periodos><periodo mesDesde="3" mesHasta="3" montoMensual="50000.00"/></periodos></retPerPago></retPerPagos><deducciones>';
+    // F.572 solo con el pago a cuenta (sin cargas ni deducciones que también bajarían la retención)
+    const xml = f572({ extra }).replace(/<cargasFamilia>[\s\S]*<\/cargasFamilia>/, '').replace(/<deduccion tipo="1">[\s\S]*?<\/deduccion>/, '').replace(/<ganLiqOtrosEmpEnt>[\s\S]*<\/ganLiqOtrosEmpEnt>/, '');
+    expect((await x.importar(xml)).body.importados.length).toBe(1);
+    await x.http.post(`/api/sueldos/liquidaciones/${l.id}/recalcular`);
+    expect(antes.minus(x.ganancias(await x.recibo(l.id))!.importe).toFixed(2)).toBe('50000.00');
+  });
+
   it('reabrir con posteriores cerradas avisa', async () => {
     const x = await escenario();
     const nov = await x.crear('MENSUAL', 2026, 11);
@@ -178,7 +211,7 @@ describe('ganancias: retención en la liquidación', () => {
 
   it('concepto exento', async () => {
     const x = await escenario();
-    const c = await x.http.post('/api/sueldos/conceptos', { codigo: '900', nombre: 'Viático exento', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 500000 }, orden: 900, exentoGanancias: true });
+    const c = await x.http.post('/api/sueldos/conceptos', { codigo: '900', nombre: 'Viático exento', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 500000 }, orden: 900, exentoGanancias: true, rubroExentoGanancias: 'INDUMENTARIA' });
     expect(c.status).toBe(201);
     const l = await x.crear('MENSUAL', 2026, 11);
     const r = await x.recibo(l.id);

@@ -11,7 +11,7 @@ export const CATEGORIAS_COMERCIO = [
   'Auxiliar especializado A', 'Auxiliar especializado B',
   'Vendedor A', 'Vendedor B', 'Vendedor C', 'Vendedor D',
 ];
-type ConceptoModelo = { codigo: string; nombre: string; clase: 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO'; tipo: 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES' | 'GANANCIAS'; parametros: Record<string, unknown>; soloAfiliados?: boolean; destino?: 'SEGURIDAD_SOCIAL' | 'OBRA_SOCIAL' | 'SINDICAL' };
+type ConceptoModelo = { codigo: string; nombre: string; clase: 'REMUNERATIVO' | 'NO_REMUNERATIVO' | 'DESCUENTO'; tipo: 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA' | 'AUSENCIA' | 'FIJO' | 'DESCUENTO_LEY' | 'VACACIONES' | 'GANANCIAS' | 'GANANCIAS_AJUSTE'; parametros: Record<string, unknown>; soloAfiliados?: boolean; destino?: 'SEGURIDAD_SOCIAL' | 'OBRA_SOCIAL' | 'SINDICAL' };
 /** Conceptos precargados de Comercio (spec §4), editables. */
 export const CONCEPTOS_COMERCIO: ConceptoModelo[] = [
   { codigo: '100', nombre: 'Sueldo básico', clase: 'REMUNERATIVO', tipo: 'BASICO', parametros: {} },
@@ -29,6 +29,7 @@ export const CONCEPTOS_COMERCIO: ConceptoModelo[] = [
   { codigo: '530', nombre: 'FAECYS', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 0.5, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO' }, destino: 'SINDICAL' },
   { codigo: '540', nombre: 'Sindicato', clase: 'DESCUENTO', tipo: 'DESCUENTO_LEY', parametros: { pct: 2, base: 'REMUNERATIVO_MAS_NO_REMUNERATIVO' }, soloAfiliados: true, destino: 'SINDICAL' },
   { codigo: '560', nombre: 'Impuesto a las ganancias', clase: 'DESCUENTO', tipo: 'GANANCIAS', parametros: {} },
+  { codigo: '561', nombre: 'Ajuste anual de Ganancias', clase: 'DESCUENTO', tipo: 'GANANCIAS_AJUSTE', parametros: {} },
 ];
 
 /** Carga el convenio de Comercio, sus categorías y los conceptos en una empresa nueva. */
@@ -45,7 +46,7 @@ export async function cargarSueldosModelo(tx: Prisma.TransactionClient, empresaI
     // Presentismo, FAECYS y sindicato son de Comercio: no se aplican a otros convenios (E22 §2.8)
     convenioId: ['120', '530', '540'].includes(c.codigo) ? conv.id : null,
     empresaId, codigo: c.codigo, nombre: c.nombre, clase: c.clase, tipo: c.tipo, parametros: c.parametros as Prisma.InputJsonValue, orden: Number(c.codigo), soloAfiliados: !!c.soloAfiliados,
-    destino: c.destino ?? 'OTRO', codigoArca: codigoArcaPorDefecto({ ...c, destino: c.destino ?? 'OTRO' }), cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : c.tipo === 'GANANCIAS' ? cuentaGanancias : null,
+    destino: c.destino ?? 'OTRO', codigoArca: codigoArcaPorDefecto({ ...c, destino: c.destino ?? 'OTRO' }), cuentaContableId: c.destino === 'SINDICAL' ? cfg.cuentaRetencionesSindicalesId : c.tipo === 'GANANCIAS' || c.tipo === 'GANANCIAS_AJUSTE' ? cuentaGanancias : null,
   })) });
   // Concepto de comisiones de vendedores (E24 §7)
   const comisiones = await tx.concepto.findFirst({ where: { empresaId, codigo: '210' }, select: { id: true } });
