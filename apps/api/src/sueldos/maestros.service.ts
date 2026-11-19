@@ -225,8 +225,11 @@ export class MaestrosSueldosService {
     // Sin código ARCA se conserva el actual; si cambió la clase y ya no corresponde, se toma el de defecto
     const codigoArca = d.codigoArca || (validarCodigoArca(actual.codigoArca, d.clase) ? codigoArcaPorDefecto(d) : actual.codigoArca);
     this.validarArca(codigoArca, d.clase);
-    this.validarRubro(d);
-    return this.tenant.db.concepto.update({ where: { id }, data: { ...d, rubroExentoGanancias: d.exentoGanancias ? d.rubroExentoGanancias : null, rubroExentoPorDefecto: false, codigoArca, parametros: d.parametros as Prisma.InputJsonValue } });
+    // Sin exentoGanancias o sin rubro en el cuerpo se conservan los actuales (E33)
+    const exentoGanancias = d.exentoGanancias ?? actual.exentoGanancias;
+    const rubroExentoGanancias = exentoGanancias ? (d.rubroExentoGanancias ?? actual.rubroExentoGanancias) : null;
+    this.validarRubro({ ...d, exentoGanancias, rubroExentoGanancias });
+    return this.tenant.db.concepto.update({ where: { id }, data: { ...d, exentoGanancias, rubroExentoGanancias, rubroExentoPorDefecto: false, codigoArca, parametros: d.parametros as Prisma.InputJsonValue } });
   }
 
   /** Los códigos de los renglones fijos del cálculo (SAC y final) no se usan en conceptos: chocarían en el Libro (revisión E30). */

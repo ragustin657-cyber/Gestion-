@@ -133,6 +133,14 @@ describe('ganancias: liquidación anual', () => {
     expect([con.status, con.body.rubroExentoGanancias]).toEqual([201, 'CURSOS_SEMINARIOS']);
   });
 
+  it('editar sin exentoGanancias conserva el rubro', async () => {
+    const s = await prepararSueldos(app, prisma);
+    const base = { codigo: '900', nombre: 'Viático', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 100 }, orden: 900 };
+    const c = await s.http.post('/api/sueldos/conceptos', { ...base, exentoGanancias: true, rubroExentoGanancias: 'CURSOS_SEMINARIOS' });
+    const r = await s.http.put(`/api/sueldos/conceptos/${c.body.id}`, { ...base, nombre: 'Viático 2' });
+    expect([r.status, r.body.exentoGanancias, r.body.rubroExentoGanancias]).toEqual([200, true, 'CURSOS_SEMINARIOS']);
+  });
+
   it('concepto 561 en la precarga', async () => {
     const s = await prepararSueldos(app, prisma);
     const c = await prisma.concepto.findFirstOrThrow({ where: { empresaId: s.empresaId, codigo: '561' } });
