@@ -23,6 +23,12 @@ const base = z.object({
   exentoGanancias: z.boolean().optional(),
   exentoIva: z.boolean().optional(),
   exencionHasta: z.coerce.date().optional().nullable(),
+  // Retenciones de IVA y SUSS (E35)
+  regimenIvaId: z.string().uuid('Valor inválido').nullish(),
+  regimenSussId: z.string().uuid('Valor inválido').nullish(),
+  exclusionIvaPorcentaje: z.union([z.literal(50), z.literal(100)], { errorMap: () => ({ message: 'La exclusión es del 50 o del 100 %' }) }).nullish(),
+  exclusionIvaPublicacion: z.coerce.date().nullish(),
+  exclusionIvaHasta: z.coerce.date().nullish(),
   inscriptoGanancias: z.boolean().optional(),
   activo: z.boolean().optional(),
   listaPreciosId: z.string().uuid('Valor inválido').nullish(),

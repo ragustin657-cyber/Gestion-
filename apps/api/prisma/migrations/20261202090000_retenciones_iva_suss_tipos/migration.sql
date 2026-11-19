@@ -1,0 +1,2 @@
+ALTER TYPE "TipoPresentacion" ADD VALUE 'SIRE_IVA';
+ALTER TYPE "TipoPresentacion" ADD VALUE 'SIRE_SUSS';
