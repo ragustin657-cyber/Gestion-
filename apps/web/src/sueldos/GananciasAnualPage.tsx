@@ -8,7 +8,7 @@ import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { HojaGananciasVista, type HojaGanancias } from './GananciasPages';
 
 /** Fila de un empleado en la liquidación anual de Ganancias (spec E32 §5). */
-export interface FilaAnualGanancias { empleadoId: string; legajo: number; apellido: string; nombre: string; distracto: boolean; hoja: HojaGanancias; impuesto: string; retenido: string; pagosACuenta: string; saldo: string }
+export interface FilaAnualGanancias { empleadoId: string; legajo: number; apellido: string; nombre: string; distracto: boolean; hoja: HojaGanancias; aviso?: string | null; impuesto: string; retenido: string; pagosACuenta: string; saldo: string }
 interface AnualGanancias { anio: number; estado: 'BORRADOR' | 'CERRADA' | null; cerradoEn: string | null; empleados: FilaAnualGanancias[] }
 
 const saldo = (s: string) => (Number(s) < 0 ? `Devolución ${formatoMoneda(Math.abs(Number(s)))}` : formatoMoneda(s));
@@ -29,7 +29,7 @@ export function TablaAnualGanancias({ filas }: { filas: FilaAnualGanancias[] }) 
           {filas.map((x) => (
             <Table.Tr key={x.empleadoId}>
               <Table.Td>{x.legajo}</Table.Td>
-              <Table.Td>{`${x.apellido}, ${x.nombre}`}{x.distracto && <Badge ml="xs" size="xs" variant="light">Distracto</Badge>}</Table.Td>
+              <Table.Td>{`${x.apellido}, ${x.nombre}`}{x.distracto && <Badge ml="xs" size="xs" variant="light">Distracto</Badge>}{x.aviso && <Text size="xs" c="orange">{x.aviso}</Text>}</Table.Td>
               <Table.Td ta="right">{formatoMoneda(x.hoja.bruta)}</Table.Td><Table.Td ta="right">{formatoMoneda(deduccionesDe(x.hoja))}</Table.Td>
               <Table.Td ta="right">{formatoMoneda(x.impuesto)}</Table.Td><Table.Td ta="right">{formatoMoneda(x.retenido)}</Table.Td>
               <Table.Td ta="right">{formatoMoneda(x.pagosACuenta)}</Table.Td><Table.Td ta="right" c={Number(x.saldo) < 0 ? 'green' : undefined}>{saldo(x.saldo)}</Table.Td>

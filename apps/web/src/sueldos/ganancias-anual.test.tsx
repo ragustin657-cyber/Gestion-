@@ -28,6 +28,11 @@ describe('Ganancias: liquidación anual (web)', () => {
     expect(await screen.findByText('Ganancia sujeta a impuesto')).toBeTruthy();
   });
 
+  it('aviso de final cerrada en la fila', () => {
+    envolver(<TablaAnualGanancias filas={[fila({ aviso: 'Su final ya está cerrada: el saldo se retiene o devuelve fuera del sistema' })]} />);
+    expect(screen.getByText('Su final ya está cerrada: el saldo se retiene o devuelve fuera del sistema')).toBeTruthy();
+  });
+
   it('rubro exento obligatorio', () => {
     expect(faltaRubroExento({ exentoGanancias: true, rubroExentoGanancias: null })).toBe(true);
     expect(faltaRubroExento({ exentoGanancias: true, rubroExentoGanancias: 'INDUMENTARIA' })).toBe(false);

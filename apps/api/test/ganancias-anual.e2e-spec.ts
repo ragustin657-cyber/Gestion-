@@ -89,6 +89,18 @@ describe('ganancias: liquidación anual', () => {
     expect(filas.filter((f) => f.distracto).map((f) => f.empleadoId)).toEqual([conDistracto.id]);
   });
 
+  it('final de abril cerrada: aviso en la anual', async () => {
+    const x = await escenario(1);
+    const [abril] = x.otros;
+    jest.setSystemTime(new Date('2026-04-05T15:00:00Z'));
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: abril.id, causa: 'RENUNCIA', fechaEgreso: '2026-03-20', preavisoOtorgado: true, fechaPago: '2026-04-05' })).body as { id: string };
+    await x.cerrar(f.id);
+    jest.setSystemTime(new Date('2026-11-06T15:00:00Z'));
+    const filas = (await x.calcular()).body.empleados as (Fila & { aviso: string | null })[];
+    expect(filas.find((y) => y.empleadoId === abril.id)!.aviso).toBe('Su final ya está cerrada: el saldo se retiene o devuelve fuera del sistema');
+    expect(filas.find((y) => y.empleadoId === x.e.id)!.aviso).toBeNull();
+  });
+
   it('cerrar desde el 1/4', async () => {
     const x = await escenario();
     await x.calcular();
