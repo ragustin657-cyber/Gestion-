@@ -116,6 +116,21 @@ describe('ganancias: liquidación anual', () => {
     expect(rs.map((r) => r.status)).toEqual([201, 201]);
   });
 
+  it('calcular simultáneo sin configuración de sueldos', async () => {
+    const x = await escenario();
+    await prisma.configuracionSueldos.deleteMany({ where: { empresaId: x.empresaId } });
+    const rs = await Promise.all([x.calcular(), x.calcular()]);
+    expect(rs.map((r) => r.status)).toEqual([201, 201]);
+  });
+
+  it('pasar a descuento por API lo desmarca exento', async () => {
+    const s = await prepararSueldos(app, prisma);
+    const base = { codigo: '900', nombre: 'Viático', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 100 }, orden: 900 };
+    const c = await s.http.post('/api/sueldos/conceptos', { ...base, exentoGanancias: true, rubroExentoGanancias: 'CURSOS_SEMINARIOS' });
+    const r = await s.http.put(`/api/sueldos/conceptos/${c.body.id}`, { ...base, clase: 'DESCUENTO', destino: 'OTRO', rubroExentoGanancias: 'CURSOS_SEMINARIOS' });
+    expect([r.status, r.body.exentoGanancias, r.body.rubroExentoGanancias]).toEqual([200, false, null]);
+  });
+
   it('reabrir', async () => {
     const x = await escenario();
     await x.calcular();

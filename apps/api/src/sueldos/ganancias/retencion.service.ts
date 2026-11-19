@@ -111,8 +111,16 @@ export class RetencionGananciasService {
   /** Hay ajuste anual pendiente para alguno de los empleados (para avisar si no hay concepto de ajuste activo, E33). */
   async pendientesSinConcepto(tx: TxEmpresa, empleadoIds: string[], l: Liquidacion): Promise<boolean> {
     if (l.tipo !== 'MENSUAL' && l.tipo !== 'FINAL') return false;
-    for (const id of empleadoIds) if ((await this.pendientes(tx, id, l)).some((p) => !p.pendiente.isZero())) return true;
-    return false;
+    // Dos consultas agrupadas para todos los empleados (E34)
+    const filas = await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { empleadoId: { in: empleadoIds }, distracto: false, anual: { estado: 'CERRADA', cerradoEn: { lt: l.fechaPago } } }, include: { anual: true } });
+    if (!filas.length) return false;
+    const aplicados = await tx.reciboSueldoRenglon.findMany({
+      where: { anioAjusteGanancias: { in: [...new Set(filas.map((f) => f.anual.anio))] }, recibo: { empleadoId: { in: filas.map((f) => f.empleadoId) }, liquidacionId: { not: l.id }, liquidacion: { estado: 'CERRADA' } } },
+      select: { anioAjusteGanancias: true, importe: true, recibo: { select: { empleadoId: true } } },
+    });
+    const aplicado = new Map<string, Dec>();
+    for (const a of aplicados) { const k = `${a.recibo.empleadoId}:${a.anioAjusteGanancias}`; aplicado.set(k, (aplicado.get(k) ?? cero()).plus(a.importe)); }
+    return filas.some((f) => !new D(f.saldo).minus(aplicado.get(`${f.empleadoId}:${f.anual.anio}`) ?? 0).isZero());
   }
 
   /** Distracto (E32 §6): final pagada de enero a marzo, empleado con recibos cerrados del año anterior y fuera de una anual cerrada. */

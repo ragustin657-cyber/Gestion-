@@ -20,10 +20,11 @@ export async function sicore(tx: TxEmpresa, ctx: ContextoGeneracion): Promise<Ge
       fechaBoletin: null, tipoDocumento: 80, numeroDocumento: normalizarCuit(op.tercero.cuit), certificadoOriginal: 0,
     }, i + 1));
   });
-  // Retenciones de Ganancias de cuarta a empleados (E32 §9): una línea por recibo con su neto de retenciones del período
+  // Retenciones de Ganancias de cuarta a empleados (E32 §9, E33): una línea por empleado con su neto de retenciones del período
   const renglones = await tx.reciboSueldoRenglon.findMany({
     where: { conceptoId: { in: (await tx.concepto.findMany({ where: { tipo: { in: ['GANANCIAS', 'GANANCIAS_AJUSTE'] } }, select: { id: true } })).map((c) => c.id) }, recibo: { liquidacion: { estado: 'CERRADA', fechaPago: { gte: ctx.desde, lte: ctx.hasta } } } },
     include: { recibo: { include: { liquidacion: true } } },
+    orderBy: [{ recibo: { liquidacion: { fechaPago: 'asc' } } }, { recibo: { liquidacion: { numero: 'asc' } } }, { id: 'asc' }],
   });
   // Neto por empleado (CUIL) dentro del período (E33): una devolución en una liquidación compensa la retención de otra
   type Recibo = (typeof renglones)[number]['recibo'];
@@ -32,7 +33,9 @@ export async function sicore(tx: TxEmpresa, ctx: ContextoGeneracion): Promise<Ge
     const k = x.recibo.cuil.replace(/\D/g, '');
     const p = porEmpleado.get(k) ?? { ultimo: x.recibo, recibos: new Map(), total: new D(0) };
     p.recibos.set(x.reciboId, x.recibo);
-    if (x.recibo.liquidacion.fechaPago > p.ultimo.liquidacion.fechaPago) p.ultimo = x.recibo;
+    // La última liquidación del período; a igual fecha de pago, la de mayor número (archivo estable entre generaciones, E34)
+    const u = p.ultimo.liquidacion, n = x.recibo.liquidacion;
+    if (n.fechaPago > u.fechaPago || (n.fechaPago.getTime() === u.fechaPago.getTime() && n.numero > u.numero)) p.ultimo = x.recibo;
     p.total = p.total.plus(x.importe);
     porEmpleado.set(k, p);
   }

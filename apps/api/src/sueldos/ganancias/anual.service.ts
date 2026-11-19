@@ -58,6 +58,8 @@ export class AnualGananciasService {
   /** Mismo lock que el cierre de liquidaciones (E33): serializa la anual con los cierres que aplican el ajuste. */
   private async bloquear(tx: TxEmpresa) {
     await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
+    // Sin fila de ConfiguracionSueldos el FOR UPDATE no bloquea: la anual se serializa además con un lock propio por empresa (E34)
+    await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `ganancias-anual:${this.tenant.empresaId}`);
   }
 
   private async encabezado(tx: TxEmpresa, anio: number) {
@@ -84,7 +86,8 @@ export class AnualGananciasService {
       await this.bloquear(tx);
       const previo = await this.encabezado(tx, anio);
       if (previo?.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} está cerrada`);
-      const l = previo ?? (await tx.liquidacionAnualGanancias.create({ data: { empresaId: this.tenant.empresaId, anio } }));
+      // upsert: sin fila de ConfiguracionSueldos el lock no serializa y dos primeros 'calcular' no chocan (E34)
+      const l = previo ?? (await tx.liquidacionAnualGanancias.upsert({ where: { empresaId_anio: { empresaId: this.tenant.empresaId, anio } }, update: {}, create: { empresaId: this.tenant.empresaId, anio } }));
       await this.recalcular(tx, l.id, anio);
       return this.ver(anio, tx);
     }, { timeout: 60000 });

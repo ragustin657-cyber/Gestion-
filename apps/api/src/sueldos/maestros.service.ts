@@ -226,7 +226,8 @@ export class MaestrosSueldosService {
     const codigoArca = d.codigoArca || (validarCodigoArca(actual.codigoArca, d.clase) ? codigoArcaPorDefecto(d) : actual.codigoArca);
     this.validarArca(codigoArca, d.clase);
     // Sin exentoGanancias o sin rubro en el cuerpo se conservan los actuales (E33)
-    const exentoGanancias = d.exentoGanancias ?? actual.exentoGanancias;
+    // Un descuento no es exento de Ganancias (E34)
+    const exentoGanancias = d.clase === 'DESCUENTO' ? false : (d.exentoGanancias ?? actual.exentoGanancias);
     const rubroExentoGanancias = exentoGanancias ? (d.rubroExentoGanancias ?? actual.rubroExentoGanancias) : null;
     this.validarRubro({ ...d, exentoGanancias, rubroExentoGanancias });
     return this.tenant.db.concepto.update({ where: { id }, data: { ...d, exentoGanancias, rubroExentoGanancias, rubroExentoPorDefecto: false, codigoArca, parametros: d.parametros as Prisma.InputJsonValue } });

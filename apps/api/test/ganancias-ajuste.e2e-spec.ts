@@ -123,6 +123,14 @@ describe('ganancias: ajuste anual y distracto', () => {
     expect(det.body.aviso).toContain('Hay saldos de la liquidación anual de Ganancias sin aplicar: active un concepto de ajuste anual de Ganancias');
   });
 
+  it('aviso sin concepto con varios empleados', async () => {
+    const x = await escenario(1000000);
+    await x.empleado();
+    await prisma.concepto.updateMany({ where: { codigo: '561' }, data: { activo: false } });
+    const r = await x.http.post('/api/sueldos/liquidaciones', { tipo: 'MENSUAL', anio: 2026, mes: 11, fechaPago: '2026-11-28' });
+    expect((await x.http.get(`/api/sueldos/liquidaciones/${r.body.id}`)).body.aviso).toContain('Hay saldos de la liquidación anual de Ganancias sin aplicar');
+  });
+
   it('el SAC no lleva ajuste', async () => {
     // Saldo grande: después de noviembre sigue quedando ajuste pendiente
     const x = await escenario(100000000);

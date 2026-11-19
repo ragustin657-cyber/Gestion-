@@ -36,14 +36,17 @@ export class F1359Service {
     if (errores.length) throw new InternalServerErrorException(`Error interno en el F.1359 de ${d.cuil}: ${errores.join(', ')}`);
   }
 
-  private async archivo(cab: DatosCabecera, datos: DatosF1359Empleado[], periodoNombre: string) {
+  private async archivo(cab: DatosCabecera, items: { empleadoId: string; datos: DatosF1359Empleado }[], periodoNombre: string) {
+    const datos = items.map((x) => x.datos);
     const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
     cab.cuit = empresa.cuit.replace(/\D/g, '');
     // El manual no admite «Total deducciones generales» en cero (empleado sin aportes): ARCA rechazaría el archivo (E33)
-    const sinGenerales = datos.filter((d) => new D(d.r05.total).isZero()).map((d) => d.cuil);
+    const sinGenerales = items.filter((x) => new D(x.datos.r05.total).isZero());
     if (sinGenerales.length) {
-      const emps = await this.tenant.db.empleado.findMany({ orderBy: { legajo: 'asc' } });
-      const nombres = emps.filter((e) => sinGenerales.includes(e.cuil.replace(/\D/g, ''))).map((e) => `${e.apellido}, ${e.nombre}`);
+      // Por los empleados de las filas (el CUIL del archivo puede haber cambiado después del cierre); sin empleado, el CUIL (E34)
+      const emps = new Map((await this.tenant.db.empleado.findMany({ where: { id: { in: sinGenerales.map((x) => x.empleadoId) } } })).map((e) => [e.id, e]));
+      const nombres = sinGenerales.map((x) => ({ e: emps.get(x.empleadoId), cuil: x.datos.cuil }))
+        .sort((a, b) => (a.e?.legajo ?? Infinity) - (b.e?.legajo ?? Infinity)).map(({ e, cuil }) => (e ? `${e.apellido}, ${e.nombre}` : cuil));
       throw new BadRequestException(`El F.1359 no admite deducciones generales en cero (sin aportes): ${nombres.join(', ')}`);
     }
     const lineas = [linea(F1359_01, cab)];
@@ -63,7 +66,7 @@ export class F1359Service {
 
   async anual(anio: number) {
     const fs = await this.filas(anio, false);
-    return this.archivo({ cuit: '', periodo: `${anio}00`, tipo: 1 }, fs.map((x) => x.f1359 as unknown as DatosF1359Empleado), `${anio}0000`);
+    return this.archivo({ cuit: '', periodo: `${anio}00`, tipo: 1 }, fs.map((x) => ({ empleadoId: x.empleadoId, datos: x.f1359 as unknown as DatosF1359Empleado })), `${anio}0000`);
   }
 
   async distracto(anio: number) {
@@ -71,7 +74,7 @@ export class F1359Service {
     if (h < new Date(Date.UTC(anio + 1, 0, 1)) || h > new Date(Date.UTC(anio + 1, 2, 31))) throw new BadRequestException('El F.1359 de distracto se presenta del 1/1 al 31/3');
     const fs = await this.filas(anio, true);
     if (!fs.length) throw new BadRequestException(`No hay distractos de ${anio}`);
-    return this.archivo({ cuit: '', periodo: `${anio}00`, tipo: 4 }, fs.map((x) => x.f1359 as unknown as DatosF1359Empleado), `${anio}0000`);
+    return this.archivo({ cuit: '', periodo: `${anio}00`, tipo: 4 }, fs.map((x) => ({ empleadoId: x.empleadoId, datos: x.f1359 as unknown as DatosF1359Empleado })), `${anio}0000`);
   }
 
   /** Datos de la final de un empleado, recalculados desde los recibos con las reglas vigentes (E32 §7). */
@@ -96,9 +99,9 @@ export class F1359Service {
   async final(anio: number, mes: number) {
     const ls = await this.tenant.db.liquidacion.findMany({ where: { tipo: 'FINAL', estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio, mes - 1, 1)), lt: new Date(Date.UTC(anio, mes, 1)) } } });
     if (!ls.length) throw new BadRequestException(`No hay liquidaciones finales cerradas en ${mm(mes)}/${anio}`);
-    const datos: DatosF1359Empleado[] = [];
-    for (const l of ls) datos.push(...(await this.datosFinal(l.id)).out.map((x) => x.datos));
-    return this.archivo({ cuit: '', periodo: `${anio}${mm(mes)}`, tipo: 2 }, datos, `${anio}${mm(mes)}00`);
+    const items: { empleadoId: string; datos: DatosF1359Empleado }[] = [];
+    for (const l of ls) items.push(...(await this.datosFinal(l.id)).out);
+    return this.archivo({ cuit: '', periodo: `${anio}${mm(mes)}`, tipo: 2 }, items, `${anio}${mm(mes)}00`);
   }
 
   private async certificados(items: { empleadoId: string; datos: DatosF1359Empleado }[], anio: number, tipo: string) {
