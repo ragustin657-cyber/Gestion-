@@ -46,9 +46,12 @@ export class ConsultasPagosService {
       include: { ordenPago: { include: { tercero: { select: { razonSocial: true, cuit: true } } } } },
       orderBy: [{ impuesto: 'asc' }, { jurisdiccion: 'asc' }, { certificadoNumero: 'asc' }],
     });
+    // IVA y SUSS guardan el id del régimen: se muestra su descripción (revisión E35)
+    const ids = filas.filter((r) => (r.impuesto === 'IVA' || r.impuesto === 'SUSS') && r.regimen).map((r) => r.regimen!);
+    const nombres = new Map([...(await this.tenant.db.regimenIva.findMany({ where: { id: { in: ids } } })), ...(await this.tenant.db.regimenSuss.findMany({ where: { id: { in: ids } } }))].map((g) => [g.id, g.descripcion]));
     return filas.map((r) => ({
       id: r.id, ordenPagoId: r.ordenPagoId, fechaPago: r.ordenPago.fechaPago, certificado: numeroCertificado(r.impuesto, r.jurisdiccion, r.certificadoNumero!),
-      impuesto: r.impuesto, jurisdiccion: r.jurisdiccion, regimen: r.regimen, razonSocial: r.ordenPago.tercero.razonSocial, cuit: r.ordenPago.tercero.cuit,
+      impuesto: r.impuesto, jurisdiccion: r.jurisdiccion, regimen: (r.regimen && nombres.get(r.regimen)) ?? r.regimen, razonSocial: r.ordenPago.tercero.razonSocial, cuit: r.ordenPago.tercero.cuit,
       base: r.base.toFixed(2), alicuota: r.alicuota, importe: r.importe.toFixed(2), ordenPagoNumero: numeroOP(r.ordenPago.numero), anulada: r.anulada,
     }));
   }

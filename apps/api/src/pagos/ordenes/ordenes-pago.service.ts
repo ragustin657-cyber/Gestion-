@@ -195,13 +195,19 @@ export class OrdenesPagoService {
     const out: ImputacionComprobante[] = [];
     for (const i of op.imputaciones) {
       const m = movs.find((x) => x.id === i.movimientoId);
+      if (m?.origenTipo === 'ANTICIPO' && !i.importe.isZero()) {
+        // Anticipo aplicado (revisión E35): reduce lo que se paga ahora, como una nota de crédito sin factura asociada
+        out.push({ comprobanteCompraId: m.id, tipo: 'ANTICIPO', letra: '', asociadaId: null, puntoVenta: 0, numero: 0, fecha: m.fecha, ivaPesos: '0', totalPesos: '0', totalFacturaPesos: '0',
+          imputadoPesos: i.importePesos.abs().toFixed(2), sinIva: { netoGravado: '0', noGravado: '0', exento: '0', total: '0' } });
+        continue;
+      }
       const c = m?.origenTipo === 'COMPRA' ? comps.find((x) => x.id === m.origenId) : undefined;
       if (!c || i.importe.isZero()) continue;
       // Pesos a la cotización de la OP: el IVA y el total se llevan con la misma relación que la imputación
       const k = i.importePesos.div(i.importe).abs();
       out.push({
         comprobanteCompraId: c.id, tipo: c.tipo, letra: c.letra, asociadaId: c.comprobanteAsociadoId, puntoVenta: c.puntoVenta, numero: c.numero, fecha: c.fechaEmision,
-        ivaPesos: c.iva.mul(k).toFixed(2), totalPesos: c.total.mul(k).toFixed(2), imputadoPesos: i.importePesos.abs().toFixed(2),
+        ivaPesos: c.iva.mul(k).toFixed(2), totalPesos: c.total.mul(k).toFixed(2), totalFacturaPesos: c.totalPesos.toFixed(2), imputadoPesos: i.importePesos.abs().toFixed(2),
         sinIva: { netoGravado: c.netoGravado.toString(), noGravado: c.noGravado.toString(), exento: c.exento.toString(), total: c.total.toString() },
       });
     }

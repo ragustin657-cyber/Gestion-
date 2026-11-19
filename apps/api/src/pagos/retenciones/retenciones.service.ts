@@ -11,6 +11,8 @@ const D = Prisma.Decimal;
 export interface ImputacionComprobante {
   comprobanteCompraId: string; tipo: string; letra: string; asociadaId: string | null; puntoVenta: number; numero: number; fecha: Date;
   ivaPesos: string; totalPesos: string; imputadoPesos: string;
+  /** Total de la factura en pesos a su propia cotización (lo que se informa en el SIRE y se compara con el mínimo) */
+  totalFacturaPesos: string;
   sinIva: { netoGravado: string; noGravado: string; exento: string; total: string };
 }
 
@@ -61,14 +63,15 @@ export class RetencionesService {
     if (!tercero) throw new BadRequestException('Proveedor no encontrado');
     const basePago = e.bases.reduce((s, b) => s.plus(b), new D(0));
     const r: RetencionCalculada[] = [];
-    if (basePago.lte(0)) return r;
+    // Ganancias e IIBB solo con base positiva; IVA y SUSS se calculan por factura igual (revisión E35)
+    const conBase = basePago.gt(0);
     const base = basePago.toFixed(2);
 
     // Ganancias
     const regimen = tercero.regimenGanancias ? await this.config.regimen(tx, tercero.regimenGanancias) : null;
     const exento = tercero.exentoGanancias && (!tercero.exencionHasta || tercero.exencionHasta >= e.fechaPago);
     const sujeto = !!regimen?.activo && tercero.condicionIva !== 'MONOTRIBUTO' && !exento;
-    if (sujeto && regimen) {
+    if (conBase && sujeto && regimen) {
       const desde = new Date(Date.UTC(e.fechaPago.getUTCFullYear(), e.fechaPago.getUTCMonth(), 1));
       const hasta = new Date(Date.UTC(e.fechaPago.getUTCFullYear(), e.fechaPago.getUTCMonth() + 1, 0));
       const previo = await this.acumuladoGanancias(tx, tercero.id, regimen.codigo, desde, hasta, e.excluirOrdenPagoId);
@@ -95,7 +98,7 @@ export class RetencionesService {
     }
 
     // IIBB
-    for (const j of await this.config.jurisdicciones(tx)) {
+    for (const j of conBase ? await this.config.jurisdicciones(tx) : []) {
       const ficha = tercero.iibb.find((x) => x.jurisdiccion === j.jurisdiccion);
       const padron = j.usaPadron ? await this.padron.alicuotaRetencion(j.jurisdiccion, tercero.cuit, e.fechaPago) : null;
       const alicuota = alicuotaIibb({
@@ -131,17 +134,20 @@ export class RetencionesService {
     const sujetoSuss = !!regSuss?.activo && t.condicionIva !== 'MONOTRIBUTO';
     if (!sujetoIva && !sujetoSuss) return [];
     const facturas = imputaciones.filter((x) => x.tipo === 'FACTURA' || x.tipo === 'NOTA_DEBITO');
-    const notas = imputaciones.filter((x) => x.tipo === 'NOTA_CREDITO');
+    // Notas de crédito y anticipos aplicados en la misma OP reducen lo que se paga ahora (revisión E35: los anticipos no retuvieron)
+    const notas = imputaciones.filter((x) => x.tipo === 'NOTA_CREDITO' || x.tipo === 'ANTICIPO');
     const pagado = new Map(netearNotasCredito(facturas.map((f) => ({ id: f.comprobanteCompraId, imputado: f.imputadoPesos })), notas.map((n) => ({ asociadaId: n.asociadaId, imputado: n.imputadoPesos }))).map((x) => [x.id, x.imputado]));
-    const vigente = t.exclusionIvaPorcentaje && (!t.exclusionIvaHasta || t.exclusionIvaHasta >= fechaPago);
+    // Exclusión vigente: publicada a la fecha de pago y no vencida (revisión E35)
+    const vigente = t.exclusionIvaPorcentaje && (!t.exclusionIvaPublicacion || t.exclusionIvaPublicacion <= fechaPago) && (!t.exclusionIvaHasta || t.exclusionIvaHasta >= fechaPago);
     const exclusion = (vigente ? t.exclusionIvaPorcentaje : 0) as 0 | 50 | 100;
     const r: RetencionCalculada[] = [];
     for (const f of facturas) {
       const imputado = pagado.get(f.comprobanteCompraId) ?? '0';
-      const factura = { tipo: f.tipo, letra: f.letra, puntoVenta: String(f.puntoVenta), numero: String(f.numero), fecha: f.fecha.toISOString().slice(0, 10), total: f.totalPesos };
+      // El total informado (y el del mínimo) es el de la factura en pesos; la proporción usa la cotización de la OP
+      const factura = { tipo: f.tipo, letra: f.letra, puntoVenta: String(f.puntoVenta), numero: String(f.numero), fecha: f.fecha.toISOString().slice(0, 10), total: f.totalFacturaPesos };
       if (sujetoIva && regIva) {
-        const x = retencionIva({ ivaFactura: f.ivaPesos, totalFactura: f.totalPesos, imputado, porcentaje: regIva.porcentaje.toString(), minimoComprobante: regIva.minimoComprobante.toString(), minimoRetencion: regIva.minimoRetencion.toString(), exclusion });
-        if (new D(x.importe).gt(0))
+        const x = retencionIva({ ivaFactura: f.ivaPesos, totalFactura: f.totalPesos, imputado, porcentaje: regIva.porcentaje.toString(), minimoComprobante: '0', minimoRetencion: regIva.minimoRetencion.toString(), exclusion });
+        if (new D(x.importe).gt(0) && new D(f.totalFacturaPesos).gte(regIva.minimoComprobante))
           r.push({ impuesto: 'IVA', jurisdiccion: null, regimen: regIva.id, base: x.base, alicuota: regIva.porcentaje.toString(), importe: x.importe, comprobanteCompraId: f.comprobanteCompraId,
             detalle: { ...factura, pagado: imputado, exclusion: String(exclusion), exclusionPublicacion: vigente && t.exclusionIvaPublicacion ? t.exclusionIvaPublicacion.toISOString().slice(0, 10) : '' } });
       }

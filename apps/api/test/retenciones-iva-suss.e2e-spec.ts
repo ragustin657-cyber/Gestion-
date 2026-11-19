@@ -216,6 +216,61 @@ describe('retenciones de IVA y SUSS', () => {
     expect((await x.http.post('/api/impuestos/presentaciones', { tipo: 'SIRE_IVA', periodo: '202611', quincena: 1 })).status).toBe(400);
   });
 
+  // --- Revisión final E35 ---
+
+  /** OP de anticipo pagada: deja un movimiento de anticipo con saldo a aplicar. */
+  const anticipoPagado = async (x: Awaited<ReturnType<typeof escenario>>, importe: number) => {
+    const op = await x.opAprobada([], { anticipo: { monedaCodigo: 'ARS', importe } });
+    expect((await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(op.netoPagar), cuentaBancariaId: x.ars.id }])).status).toBe(200);
+    return prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenTipo: 'ANTICIPO', origenId: op.id } });
+  };
+
+  it('anticipo aplicado: IVA y SUSS sobre lo que se paga ahora y sin bloquear el pago', async () => {
+    const x = await escenario();
+    await prisma.regimenIva.update({ where: { id: x.iva.id }, data: { porcentaje: 100 } });
+    const ant = await anticipoPagado(x, 950000);
+    const a = await x.comprobante({ neto: 1000000 });
+    const { op, rets } = await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }, { movimientoId: ant.id, importe: Number(ant.saldo) }]);
+    // Se pagan 260.000 de 1.210.000: base IVA 210.000 × 260/1210 = 45.123,97 (100 %); SUSS 6 % sobre 214.876,03
+    expect(rets.filter((r) => r.impuesto === 'IVA').map((r) => D(r.importe).toFixed(2))).toEqual(['45123.97']);
+    expect(rets.filter((r) => r.impuesto === 'SUSS').map((r) => D(r.importe).toFixed(2))).toEqual(['12892.56']);
+    expect(D(op.netoPagar).gt(0)).toBe(true);
+  });
+
+  it('anticipo que cubre la base de Ganancias: igual retiene IVA y SUSS sobre lo pagado', async () => {
+    const x = await escenario();
+    const ant = await anticipoPagado(x, 1000000);
+    const a = await x.comprobante({ neto: 1000000 });
+    const { rets } = await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }, { movimientoId: ant.id, importe: Number(ant.saldo) }]);
+    expect(rets.filter((r) => r.impuesto === 'IVA')).toHaveLength(1);
+  });
+
+  it('factura en dólares: el SIRE informa el total en pesos de la factura', async () => {
+    const x = await escenario();
+    const a = await x.comprobante({ neto: 100, moneda: 'USD', cotizacion: 1000 });
+    const op = await x.opAprobada([{ movimientoId: a.movimientoId, importe: a.total }], { cotizacion: 1200 });
+    const r = await prisma.ordenPagoRetencion.findFirstOrThrow({ where: { ordenPagoId: op.id, impuesto: 'IVA' } });
+    expect((r.detalle as Record<string, string>).total).toBe('121000.00');
+  });
+
+  it('exclusión con publicación futura no reduce; exclusión sin publicación no se guarda', async () => {
+    const x = await escenario();
+    await prisma.tercero.update({ where: { id: x.proveedorId }, data: { exclusionIvaPorcentaje: 50, exclusionIvaPublicacion: new Date('2026-12-15T00:00:00Z') } });
+    const a = await x.comprobante({ neto: 100000 });
+    expect(D((await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }])).rets.find((r) => r.impuesto === 'IVA')!.importe).toFixed(2)).toBe('10500.00');
+    const mal = await x.http.patch(`/api/terceros/${x.proveedorId}`, { exclusionIvaPorcentaje: 50, exclusionIvaPublicacion: null });
+    expect([mal.status, mal.body.message]).toEqual([400, 'Indique la fecha de publicación de la exclusión de IVA']);
+  });
+
+  it('la consulta de retenciones muestra el régimen de IVA por su nombre', async () => {
+    const x = await escenario();
+    const a = await x.comprobante({ neto: 100000 });
+    const { op } = await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }]);
+    await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(op.netoPagar), cuentaBancariaId: x.ars.id }]);
+    const c = (await x.http.get('/api/pagos/retenciones?desde=2026-11-01&hasta=2026-11-30&impuesto=IVA')).body as { regimen: string }[];
+    expect(c.map((y) => y.regimen)).toEqual(['Compraventa de cosas muebles']);
+  });
+
   it('ticket no retiene', async () => {
     const x = await escenario();
     const a = await x.comprobante({ neto: 100000, tipo: 'TICKET', letra: null });
