@@ -82,6 +82,14 @@ describe('ganancias: F.1359 y certificados', () => {
     const ls = x.lineas((await x.bin('/api/sueldos/ganancias/f1359/anual/2025')).body as Buffer);
     const r08 = ls.find((l) => l.startsWith('08'))!;
     expect([r08.slice(28, 30), r08.slice(90, 105)]).toEqual(['00', '000000000000000']);
+    // Revisión E32: el art. 30 se limita a gravada + exenta (el manual rechaza el archivo si la supera) y suma sus campos
+    const r03 = ls.find((l) => l.startsWith('03'))!;
+    const r04 = ls.find((l) => l.startsWith('04'))!;
+    const r06 = ls.find((l) => l.startsWith('06'))!;
+    const tope = importe(r03, 164, 178).plus(importe(r04, 284, 298));
+    expect(importe(r06, 142, 156).toFixed(2)).toBe(tope.toFixed(2));
+    const suma = importe(r06, 14, 28).plus(importe(r06, 112, 126)).plus(importe(r06, 127, 141)).plus(importe(r06, 97, 111));
+    expect(suma.toFixed(2)).toBe(tope.toFixed(2));
   });
 
   it('devolución con signo', async () => {

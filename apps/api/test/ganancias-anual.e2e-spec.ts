@@ -85,6 +85,15 @@ describe('ganancias: liquidación anual', () => {
     expect((await x.calcular()).status).toBe(400);
   });
 
+  it('cerrar recalcula la anual con los datos al día', async () => {
+    const x = await escenario();
+    const calculada = ((await x.calcular()).body.empleados as Fila[])[0];
+    // Datos que cambian después de la vista previa: el cierre no congela lo viejo
+    await prisma.liquidacionAnualGananciasEmpleado.updateMany({ where: { empleadoId: x.e.id }, data: { saldo: 12345 } });
+    const r = await x.http.post('/api/sueldos/ganancias/anual/2025/cerrar');
+    expect((r.body.empleados as Fila[])[0].saldo).toBe(calculada.saldo);
+  });
+
   it('reabrir', async () => {
     const x = await escenario();
     await x.calcular();

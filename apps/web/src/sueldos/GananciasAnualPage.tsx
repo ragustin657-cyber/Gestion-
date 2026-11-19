@@ -1,38 +1,52 @@
-import { Alert, Badge, Button, Group, Paper, Select, Table, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Modal, Paper, Select, Table, Text, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, descargar } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { formatoMoneda } from '../compras/formato';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
+import { HojaGananciasVista, type HojaGanancias } from './GananciasPages';
 
 /** Fila de un empleado en la liquidación anual de Ganancias (spec E32 §5). */
-export interface FilaAnualGanancias { empleadoId: string; legajo: number; apellido: string; nombre: string; distracto: boolean; impuesto: string; retenido: string; pagosACuenta: string; saldo: string }
+export interface FilaAnualGanancias { empleadoId: string; legajo: number; apellido: string; nombre: string; distracto: boolean; hoja: HojaGanancias; impuesto: string; retenido: string; pagosACuenta: string; saldo: string }
 interface AnualGanancias { anio: number; estado: 'BORRADOR' | 'CERRADA' | null; cerradoEn: string | null; empleados: FilaAnualGanancias[] }
 
 const saldo = (s: string) => (Number(s) < 0 ? `Devolución ${formatoMoneda(Math.abs(Number(s)))}` : formatoMoneda(s));
 
-/** Tabla de la anual: impuesto determinado, retenido, pagos a cuenta y saldo (positivo = a retener, negativo = a devolver). */
+/** Deducciones de la hoja: aportes, deducciones generales computadas y art. 30. */
+const deduccionesDe = (h: HojaGanancias) => Number(h.aportes) + h.deducciones.reduce((t, d) => t + Number(d.computado), 0) + Number(h.personales.gni) + Number(h.personales.especial) + Number(h.personales.cargas);
+
+/** Tabla de la anual: bruta, deducciones, impuesto, retenido, pagos a cuenta y saldo (positivo = a retener, negativo = a devolver), con la hoja de cada empleado. */
 export function TablaAnualGanancias({ filas }: { filas: FilaAnualGanancias[] }) {
-  const suma = (k: 'impuesto' | 'retenido' | 'pagosACuenta' | 'saldo') => String(filas.reduce((t, x) => t + Number(x[k]), 0));
+  const [vista, setVista] = useState<FilaAnualGanancias | null>(null);
+  const suma = (g: (x: FilaAnualGanancias) => number) => String(filas.reduce((t, x) => t + g(x), 0));
+  const num = (k: 'impuesto' | 'retenido' | 'pagosACuenta' | 'saldo') => (x: FilaAnualGanancias) => Number(x[k]);
   return (
-    <Table withTableBorder striped>
-      <Table.Thead><Table.Tr><Table.Th>Legajo</Table.Th><Table.Th>Empleado</Table.Th><Table.Th ta="right">Impuesto determinado</Table.Th><Table.Th ta="right">Retenido</Table.Th><Table.Th ta="right">Pagos a cuenta</Table.Th><Table.Th ta="right">Saldo</Table.Th></Table.Tr></Table.Thead>
-      <Table.Tbody>
-        {filas.map((x) => (
-          <Table.Tr key={x.empleadoId}>
-            <Table.Td>{x.legajo}</Table.Td>
-            <Table.Td>{`${x.apellido}, ${x.nombre}`}{x.distracto && <Badge ml="xs" size="xs" variant="light">Distracto</Badge>}</Table.Td>
-            <Table.Td ta="right">{formatoMoneda(x.impuesto)}</Table.Td><Table.Td ta="right">{formatoMoneda(x.retenido)}</Table.Td>
-            <Table.Td ta="right">{formatoMoneda(x.pagosACuenta)}</Table.Td><Table.Td ta="right" c={Number(x.saldo) < 0 ? 'green' : undefined}>{saldo(x.saldo)}</Table.Td>
+    <>
+      <Table withTableBorder striped>
+        <Table.Thead><Table.Tr><Table.Th>Legajo</Table.Th><Table.Th>Empleado</Table.Th><Table.Th ta="right">Ganancia bruta</Table.Th><Table.Th ta="right">Deducciones</Table.Th><Table.Th ta="right">Impuesto determinado</Table.Th><Table.Th ta="right">Retenido</Table.Th><Table.Th ta="right">Pagos a cuenta</Table.Th><Table.Th ta="right">Saldo</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+        <Table.Tbody>
+          {filas.map((x) => (
+            <Table.Tr key={x.empleadoId}>
+              <Table.Td>{x.legajo}</Table.Td>
+              <Table.Td>{`${x.apellido}, ${x.nombre}`}{x.distracto && <Badge ml="xs" size="xs" variant="light">Distracto</Badge>}</Table.Td>
+              <Table.Td ta="right">{formatoMoneda(x.hoja.bruta)}</Table.Td><Table.Td ta="right">{formatoMoneda(deduccionesDe(x.hoja))}</Table.Td>
+              <Table.Td ta="right">{formatoMoneda(x.impuesto)}</Table.Td><Table.Td ta="right">{formatoMoneda(x.retenido)}</Table.Td>
+              <Table.Td ta="right">{formatoMoneda(x.pagosACuenta)}</Table.Td><Table.Td ta="right" c={Number(x.saldo) < 0 ? 'green' : undefined}>{saldo(x.saldo)}</Table.Td>
+              <Table.Td><Button size="compact-xs" variant="subtle" aria-label={`Ver hoja de ${x.apellido}, ${x.nombre}`} onClick={() => setVista(x)}>Ver hoja</Button></Table.Td>
+            </Table.Tr>
+          ))}
+          <Table.Tr fw={700}>
+            <Table.Td /><Table.Td>Total</Table.Td><Table.Td ta="right">{formatoMoneda(suma((x) => Number(x.hoja.bruta)))}</Table.Td><Table.Td ta="right">{formatoMoneda(suma((x) => deduccionesDe(x.hoja)))}</Table.Td>
+            <Table.Td ta="right">{formatoMoneda(suma(num('impuesto')))}</Table.Td><Table.Td ta="right">{formatoMoneda(suma(num('retenido')))}</Table.Td>
+            <Table.Td ta="right">{formatoMoneda(suma(num('pagosACuenta')))}</Table.Td><Table.Td ta="right">{saldo(suma(num('saldo')))}</Table.Td><Table.Td />
           </Table.Tr>
-        ))}
-        <Table.Tr fw={700}>
-          <Table.Td /><Table.Td>Total</Table.Td><Table.Td ta="right">{formatoMoneda(suma('impuesto'))}</Table.Td><Table.Td ta="right">{formatoMoneda(suma('retenido'))}</Table.Td>
-          <Table.Td ta="right">{formatoMoneda(suma('pagosACuenta'))}</Table.Td><Table.Td ta="right">{saldo(suma('saldo'))}</Table.Td>
-        </Table.Tr>
-      </Table.Tbody>
-    </Table>
+        </Table.Tbody>
+      </Table>
+      <Modal opened={!!vista} onClose={() => setVista(null)} size="lg" title={vista ? `Liquidación anual: ${vista.apellido}, ${vista.nombre}` : ''}>
+        {vista && <HojaGananciasVista hoja={vista.hoja} />}
+      </Modal>
+    </>
   );
 }
 

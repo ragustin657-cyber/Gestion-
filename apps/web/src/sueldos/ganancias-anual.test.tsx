@@ -7,7 +7,8 @@ import { TablaAnualGanancias } from './GananciasAnualPage';
 import { EditorPagosACuenta, HojaGananciasVista, type HojaGanancias } from './GananciasPages';
 
 const envolver = (n: ReactNode) => render(<MantineProvider><MemoryRouter>{n}</MemoryRouter></MantineProvider>);
-const fila = (o: Record<string, unknown> = {}) => ({ empleadoId: 'e1', legajo: 1, apellido: 'Pérez', nombre: 'Juan', distracto: false, impuesto: '500000.00', retenido: '450000.00', pagosACuenta: '0.00', saldo: '50000.00', ...o });
+const hojaBase = { mes: 12, bruta: '30000000.00', aportes: '5000000.00', gananciaNeta: '25000000.00', deducciones: [{ tipo: 'CUOTAS_MEDICAS', nombre: 'Cuotas médicas', informado: '1000000', computado: '1000000.00' }], personales: { gni: '4000000.00', especial: '15000000.00', cargas: '0.00' }, sujeta: '5000000.00', tramo: { desde: '0', fijo: '0', porcentaje: '10.00' }, impuesto: '500000.00', retenidoAnterior: '450000.00', pagosACuenta: '0.00', calculado: '50000.00', topeMes: '0.00', importe: '50000.00', noRetenido: '0.00', avisos: [] };
+const fila = (o: Record<string, unknown> = {}) => ({ empleadoId: 'e1', legajo: 1, apellido: 'Pérez', nombre: 'Juan', distracto: false, hoja: hojaBase, impuesto: '500000.00', retenido: '450000.00', pagosACuenta: '0.00', saldo: '50000.00', ...o });
 
 describe('Ganancias: liquidación anual (web)', () => {
   it('tabla de la anual con saldo a retener y a devolver', () => {
@@ -16,6 +17,15 @@ describe('Ganancias: liquidación anual (web)', () => {
     expect(screen.getByText('$ 50.000,00')).toBeTruthy();
     expect(screen.getByText('Devolución $ 20.000,00')).toBeTruthy();
     expect(screen.getByText('Total')).toBeTruthy();
+  });
+
+  it('bruta, deducciones y la hoja de cada empleado', async () => {
+    envolver(<TablaAnualGanancias filas={[fila()]} />);
+    expect(screen.getAllByText('$ 30.000.000,00').length).toBeGreaterThan(0);
+    // Deducciones: aportes + generales + art. 30 = 5 + 1 + 4 + 15 millones
+    expect(screen.getAllByText('$ 25.000.000,00').length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Ver hoja de Pérez, Juan' }));
+    expect(await screen.findByText('Ganancia sujeta a impuesto')).toBeTruthy();
   });
 
   it('rubro exento obligatorio', () => {

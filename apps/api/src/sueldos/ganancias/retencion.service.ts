@@ -74,7 +74,8 @@ export class RetencionGananciasService {
     const anio = l.fechaPago.getUTCFullYear();
     const bruta = new D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
     const retMes = r.renglones.filter((x) => x.conceptoId === conceptoGanancias.id).reduce((s, x) => s.plus(x.importe), cero());
-    let disponible = D.max(bruta.times(0.35).minus(retMes), 0);
+    // Tope: 35 % del bruto menos la retención del mes, y nunca más que el neto que queda (revisión E32)
+    let disponible = D.max(D.min(bruta.times(0.35).minus(retMes), new D(r.neto)), 0);
     const agregar = (anioAjuste: number, pendiente: Dec) => {
       const importe = (pendiente.gt(0) ? D.min(pendiente, disponible) : pendiente).toDecimalPlaces(2, D.ROUND_HALF_UP);
       if (importe.isZero()) return;
@@ -89,20 +90,27 @@ export class RetencionGananciasService {
       agregar(f.anual.anio, new D(f.saldo).minus(aplicado._sum.importe ?? 0));
     }
     // Distracto: la final de enero a marzo liquida la anual del año anterior si el empleado no está en una anual cerrada
-    if (l.tipo === 'FINAL' && l.fechaPago.getUTCMonth() < 3 && !filas.some((f) => f.anual.anio === anio - 1)) {
-      const enCerrada = await tx.liquidacionAnualGananciasEmpleado.findFirst({ where: { empleadoId, distracto: false, anual: { anio: anio - 1, estado: 'CERRADA' } } });
-      if (!enCerrada && (await tx.reciboSueldo.count({ where: { empleadoId, liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio - 1, 0, 1)), lt: new Date(Date.UTC(anio, 0, 1)) } } } }))) {
-        agregar(anio - 1, (await this.anual.anualDeEmpleado(tx, empleadoId, anio - 1)).saldo);
-      }
+    if (!filas.some((f) => f.anual.anio === anio - 1) && (await this.esDistracto(tx, l, empleadoId))) {
+      agregar(anio - 1, (await this.anual.anualDeEmpleado(tx, empleadoId, anio - 1)).saldo);
     }
+  }
+
+  /** Distracto (E32 §6): final pagada de enero a marzo, empleado con recibos cerrados del año anterior y fuera de una anual cerrada. */
+  private async esDistracto(tx: TxEmpresa, l: Liquidacion, empleadoId: string) {
+    const anio = l.fechaPago.getUTCFullYear();
+    if (l.tipo !== 'FINAL' || l.fechaPago.getUTCMonth() >= 3) return false;
+    if (await tx.liquidacionAnualGananciasEmpleado.findFirst({ where: { empleadoId, distracto: false, anual: { anio: anio - 1, estado: 'CERRADA' } } })) return false;
+    return (await tx.reciboSueldo.count({ where: { empleadoId, liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio - 1, 0, 1)), lt: new Date(Date.UTC(anio, 0, 1)) } } } })) > 0;
   }
 
   /** Al cerrar una final con distracto, guarda la fila de la anual del año anterior (E32 §6); al reabrir se borra. */
   async guardarDistracto(tx: TxEmpresa, l: Liquidacion) {
     const anio = l.fechaPago.getUTCFullYear() - 1;
-    const renglones = await tx.reciboSueldoRenglon.findMany({ where: { anioAjusteGanancias: anio, recibo: { liquidacionId: l.id } }, include: { recibo: { select: { empleadoId: true } } } });
-    const empleados = [...new Set(renglones.map((x) => x.recibo.empleadoId))];
-    if (l.tipo !== 'FINAL' || !empleados.length) return;
+    if (l.tipo !== 'FINAL') return;
+    // Por los empleados de la final, no por los renglones 561: un distracto con ajuste 0 también va en el F.1359 de distracto
+    const empleados: string[] = [];
+    for (const r of await tx.reciboSueldo.findMany({ where: { liquidacionId: l.id }, select: { empleadoId: true } })) if (await this.esDistracto(tx, l, r.empleadoId)) empleados.push(r.empleadoId);
+    if (!empleados.length) return;
     const encabezado = await tx.liquidacionAnualGanancias.upsert({ where: { empresaId_anio: { empresaId: this.tenant.empresaId, anio } }, update: {}, create: { empresaId: this.tenant.empresaId, anio } });
     for (const empleadoId of empleados) {
       const a = await this.anual.anualDeEmpleado(tx, empleadoId, anio);

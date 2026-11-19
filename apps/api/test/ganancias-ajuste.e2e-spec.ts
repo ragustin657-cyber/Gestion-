@@ -38,8 +38,9 @@ describe('ganancias: ajuste anual y distracto', () => {
     for (const mes of [11, 12]) await cerrar((await crear('MENSUAL', 2025, mes)).id);
     if (saldo !== null) {
       expect((await s.http.post('/api/sueldos/ganancias/anual/2025/calcular')).status).toBe(201);
-      await prisma.liquidacionAnualGananciasEmpleado.updateMany({ where: { empleadoId: e.id }, data: { saldo } });
       expect((await s.http.post('/api/sueldos/ganancias/anual/2025/cerrar')).status).toBe(201);
+      // El cierre recalcula: el saldo del escenario se fija después
+      await prisma.liquidacionAnualGananciasEmpleado.updateMany({ where: { empleadoId: e.id }, data: { saldo } });
     }
     const recibo = async (id: string) => ((await s.http.get(`/api/sueldos/liquidaciones/${id}`)).body.recibos as Recibo[])[0];
     const r561 = (r: Recibo) => r.renglones.find((x) => x.codigo === '561');
@@ -66,6 +67,41 @@ describe('ganancias: ajuste anual y distracto', () => {
     const dic = await x.crear('MENSUAL', 2026, 12);
     const rd = await x.recibo(dic.id);
     expect(x.r561(rd)!.importe).toBe(Prisma.Decimal.min(D(100000000).minus(aplicadoNov), x.tope(rd)).toFixed(2));
+  });
+
+  it('el ajuste no deja el neto negativo', async () => {
+    const x = await escenario(100000000);
+    // Embargo grande: el neto antes del ajuste es menor que el 35 % disponible
+    const c = await x.http.post('/api/sueldos/conceptos', { codigo: '590', nombre: 'Embargo', clase: 'DESCUENTO', tipo: 'FIJO', parametros: { importe: 26000000 }, orden: 590 });
+    expect(c.status).toBe(201);
+    const nov = await x.crear('MENSUAL', 2026, 11);
+    const r = await x.recibo(nov.id);
+    expect(D(x.r561(r)!.importe).gt(0)).toBe(true);
+    expect(D(x.r561(r)!.importe).lt(x.tope(r))).toBe(true);
+    expect(D(r.neto).toFixed(2)).toBe('0.00');
+  });
+
+  it('distracto con saldo cero también queda en el F.1359 de distracto', async () => {
+    const x = await escenario(null);
+    jest.setSystemTime(new Date('2026-02-20T15:00:00Z'));
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: x.e.id, causa: 'RENUNCIA', fechaEgreso: '2026-02-15', preavisoOtorgado: true, fechaPago: '2026-02-20' })).body as { id: string };
+    // Sin acumulado previo la anual 2025 del empleado da saldo 0: no hay renglón 561, pero sigue siendo distracto
+    expect(x.r561(await x.recibo(f.id))).toBeUndefined();
+    await x.cerrar(f.id);
+    expect(await prisma.liquidacionAnualGananciasEmpleado.count({ where: { empleadoId: x.e.id, distracto: true, liquidacionFinalId: f.id } })).toBe(1);
+  });
+
+  it('un distracto cerrado no impide reabrir la anual', async () => {
+    const x = await escenario(null);
+    expect((await x.http.put(`/api/sueldos/ganancias/acumulado/${x.e.id}/2025`, { bruta: 0, aportes: 0, retenido: 500000 })).status).toBe(200);
+    jest.setSystemTime(new Date('2026-02-20T15:00:00Z'));
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: x.e.id, causa: 'RENUNCIA', fechaEgreso: '2026-02-15', preavisoOtorgado: true, fechaPago: '2026-02-20' })).body as { id: string };
+    await x.cerrar(f.id);
+    jest.setSystemTime(new Date('2026-11-06T15:00:00Z'));
+    expect((await x.http.post('/api/sueldos/ganancias/anual/2025/calcular')).status).toBe(201);
+    expect((await x.http.post('/api/sueldos/ganancias/anual/2025/cerrar')).status).toBe(201);
+    const r = await x.http.post('/api/sueldos/ganancias/anual/2025/reabrir');
+    expect([r.status, r.body.estado]).toEqual([201, 'BORRADOR']);
   });
 
   it('devolución sin tope', async () => {

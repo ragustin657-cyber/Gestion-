@@ -61,9 +61,16 @@ export function armarF1359Empleado(
   r05.sindical = a.aportesSindical;
   for (const d of hoja.deducciones) { const k = CAMPO_DEDUCCION[d.tipo]; if (k) r05[k] = r05[k].plus(d.computado); }
   const totalGenerales = Object.values(r05).reduce((s, x) => s.plus(x), new D(0));
-  const totalCargas = cargas.conyuge.plus(cargas.hijos).plus(cargas.incapacitados);
-  const totalArt30 = new D(hoja.personales.gni).plus(hoja.personales.especial).plus(totalCargas);
-  if (totalArt30.gt(totalGravada.plus(exenta))) avisos.push('Las deducciones del art. 30 superan las remuneraciones: ARCA puede observar la presentación');
+  // El manual rechaza un «Total deducciones art. 30» mayor que gravada + exenta (art. 25: no generan quebranto): se limitan los
+  // componentes en orden (deducción especial, GNI, cónyuge, hijos, incapacitados). La sujeta ya es 0 en ese caso, así que nada más cambia.
+  const art30 = { especial: new D(hoja.personales.especial), gni: new D(hoja.personales.gni), conyuge: cargas.conyuge, hijos: cargas.hijos, incapacitados: cargas.incapacitados };
+  let resto = totalGravada.plus(exenta);
+  if (Object.values(art30).reduce((t, x) => t.plus(x), new D(0)).gt(resto)) {
+    avisos.push('Las deducciones del art. 30 superan las remuneraciones: se informan hasta el total de remuneraciones, como pide el manual');
+    for (const k of ['especial', 'gni', 'conyuge', 'hijos', 'incapacitados'] as const) { art30[k] = D.min(art30[k], D.max(resto, 0)); resto = resto.minus(art30[k]); }
+  }
+  const totalCargas = art30.conyuge.plus(art30.hijos).plus(art30.incapacitados);
+  const totalArt30 = art30.gni.plus(art30.especial).plus(totalCargas);
   const sujeta = D.max(totalGravada.minus(totalGenerales).minus(totalArt30), 0);
   const determinado = new D(hoja.impuesto);
   const subtotal = determinado.minus(o.retenido);
@@ -81,9 +88,9 @@ export function armarF1359Empleado(
     },
     r05: { ...(Object.fromEntries(Object.entries(r05).map(([k, v]) => [k, f(v)])) as unknown as DatosF1359Empleado['r05']), total: f(totalGenerales) },
     r06: {
-      gni: f(hoja.personales.gni), conyuge: f(cargas.conyuge), hijos50: cargas.hijos50, hijos100: cargas.hijos100, hijos: f(cargas.hijos),
-      incapacitados50: cargas.incapacitados50, incapacitados100: cargas.incapacitados100, incapacitados: f(cargas.incapacitados), totalCargas: f(totalCargas),
-      especial: f(hoja.personales.especial), total: f(totalArt30),
+      gni: f(art30.gni), conyuge: f(art30.conyuge), hijos50: cargas.hijos50, hijos100: cargas.hijos100, hijos: f(art30.hijos),
+      incapacitados50: cargas.incapacitados50, incapacitados100: cargas.incapacitados100, incapacitados: f(art30.incapacitados), totalCargas: f(totalCargas),
+      especial: f(art30.especial), total: f(totalArt30),
     },
     r07,
     r08: { sujeta: f(sujeta), alicuota, determinado: f(determinado), retenido: f(o.retenido), subtotal: f(subtotal), saldo: f(subtotal.minus(o.pagosACuenta)) },
