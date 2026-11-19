@@ -2,19 +2,21 @@ import { Injectable } from '@nestjs/common';
 import { Concepto, Liquidacion, Prisma } from '@prisma/client';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import type { RenglonCalc, ResultadoCalc } from '../calculo';
-import { HojaGanancias, retencionGanancias, TipoDeduccion } from './calculo';
+import { HojaGanancias, retencionGanancias, TablaCalc, TipoDeduccion } from './calculo';
 import { DatosF572 } from './f572-xml';
-import { semestreDe, TablasGananciasService } from './tablas.service';
+import { TablaConTramos, TablasGananciasService } from './tablas.service';
+import { cargaAcumulada, tablaAcumulada, tablaFinal } from './tablas';
 
 type Dec = Prisma.Decimal;
 const D = Prisma.Decimal;
 const cero = () => new D(0);
+/** Tabla de la base (con tramos) al formato del cálculo. */
+export const aTablaCalc = (t: TablaConTramos): TablaCalc => ({ ...t, tramos: t.tramos.map((x) => ({ desde: x.desde, hasta: x.hasta, fijo: x.fijo, porcentaje: x.porcentaje })) });
 const DESTINOS_APORTE = ['SEGURIDAD_SOCIAL', 'OBRA_SOCIAL', 'SINDICAL'];
 /** Renglones fijos exentos (indemnización por antigüedad, E31 §6). */
 const FIJOS_EXENTOS = ['300'];
 
-/** La tabla del semestre falta: es un error del empleado en el borrador (no deja cerrar). */
-export class SinTablaGanancias extends Error {}
+export { SinTablaGanancias } from './tablas';
 
 /** Renglón mínimo para sumar: el concepto (si tiene), su código y clase, y el importe. */
 interface RenglonSuma { conceptoId: string | null; codigo: string; clase: string; importe: Dec | Prisma.Decimal.Value }
@@ -52,8 +54,15 @@ export class RetencionGananciasService {
   async aplicar(tx: TxEmpresa, l: Liquidacion, empleadoId: string, r: ResultadoCalc, concepto: Concepto): Promise<HojaGanancias> {
     const anio = l.fechaPago.getUTCFullYear();
     const mes = l.fechaPago.getUTCMonth() + 1;
-    const tabla = await this.tablas.tabla(tx, anio, mes);
-    if (!tabla) throw new SinTablaGanancias(`Cargue la tabla de Ganancias de ${semestreDe(mes) === 1 ? '1.er' : '2.º'} semestre ${anio}`);
+    const { t1, t2 } = await this.tablas.tablasDelAnio(tx, anio);
+    const c1 = t1 ? aTablaCalc(t1) : null;
+    const c2 = t2 ? aTablaCalc(t2) : null;
+    // Mensual: acumulada por semestre (E32 §3); final: valores anuales completos del semestre de pago (manual §2.2)
+    const esFinal = l.tipo === 'FINAL';
+    let avisos: string[] = [];
+    let tabla: TablaCalc;
+    if (esFinal) tabla = tablaFinal(c1, c2, mes, anio);
+    else ({ tabla, avisos } = tablaAcumulada(c1, c2, mes, anio));
     const conceptos = new Map((await tx.concepto.findMany()).map((c) => [c.id, c]));
     const previos = await tx.reciboSueldoRenglon.findMany({
       where: { recibo: { empleadoId, liquidacionId: { not: l.id }, liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio, 0, 1)), lte: l.fechaPago } } } },
@@ -68,19 +77,27 @@ export class RetencionGananciasService {
       otrosBruta = otrosBruta.plus(x.bruta); otrosAportes = otrosAportes.plus(x.aportes); otrosRetenido = otrosRetenido.plus(x.retenido);
     }
     const deducciones: { tipo: TipoDeduccion; importe: Dec }[] = datos.deducciones.map((d) => ({ tipo: d.tipo, importe: d.meses.filter((x) => x.mes <= mes).reduce((s, x) => s.plus(x.importe), cero()) }));
-    const cargas = datos.cargas.map((c) => ({
-      parentesco: (['CONYUGE', 'HIJO', 'HIJO_INCAPACITADO'].includes(c.parentesco) ? c.parentesco : 'OTRO') as 'CONYUGE' | 'HIJO' | 'HIJO_INCAPACITADO' | 'OTRO',
-      meses: Math.max(0, Math.min(c.mesHasta, mes) - c.mesDesde + 1), porcentaje: c.porcentaje,
-    }));
+    const campo = { CONYUGE: 'conyuge', HIJO: 'hijo', HIJO_INCAPACITADO: 'hijoIncapacitado' } as const;
+    const cargas = datos.cargas.map((c) => {
+      const parentesco = (c.parentesco in campo ? c.parentesco : 'OTRO') as 'CONYUGE' | 'HIJO' | 'HIJO_INCAPACITADO' | 'OTRO';
+      if (parentesco === 'OTRO') return { parentesco, importe: cero() };
+      const k = campo[parentesco];
+      // Final: importe anual completo del semestre de pago si estuvo vigente en algún mes hasta el egreso
+      const importe = esFinal
+        ? (c.mesDesde <= mes ? tabla[k].times(c.porcentaje).div(100).toDecimalPlaces(2, D.ROUND_HALF_UP) : cero())
+        : cargaAcumulada([(c1 ?? c2)![k], (c2 ?? c1)![k]], c.mesDesde, c.mesHasta, mes, c.porcentaje);
+      return { parentesco, importe };
+    });
     const retenidoEmpresa = ant.retenido.plus(acum?.retenido ?? 0);
     const brutaRecibo = new D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
     const res = retencionGanancias({
       mes, deducciones, cargas, brutaRecibo, retenidoEmpresa, netoRecibo: new D(r.neto),
-      tabla: { ...tabla, tramos: tabla.tramos.map((x) => ({ desde: x.desde, hasta: x.hasta, fijo: x.fijo, porcentaje: x.porcentaje })) },
+      tabla,
       bruta: ant.bruta.plus(actual.bruta).plus(acum?.bruta ?? 0).plus(otrosBruta),
       aportes: ant.aportes.plus(actual.aportes).plus(acum?.aportes ?? 0).plus(otrosAportes),
       retenidoAnterior: retenidoEmpresa.plus(otrosRetenido),
     });
+    res.hoja.avisos.unshift(...avisos);
     if (!res.importe.isZero()) {
       const renglon: RenglonCalc = {
         conceptoId: concepto.id, codigo: concepto.codigo, nombre: concepto.nombre, clase: 'DESCUENTO', cantidad: null,

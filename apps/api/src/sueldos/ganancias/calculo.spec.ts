@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { DatosGanancias, retencionGanancias, TablaCalc } from './calculo';
+import { cargaAcumulada, tablaAcumulada } from './tablas';
 
 const D = (x: number) => new Prisma.Decimal(x);
 const TABLA: TablaCalc = {
@@ -7,8 +8,10 @@ const TABLA: TablaCalc = {
   topeHipotecario: D(120000), topeSeguroMuerte: D(60000), topeSeguroMixto: D(60000), topeSeguroRetiro: D(60000), topeSepelio: D(12000),
   tramos: [{ desde: D(0), hasta: D(1200000), fijo: D(0), porcentaje: D(5) }, { desde: D(1200000), hasta: D(2400000), fijo: D(60000), porcentaje: D(10) }, { desde: D(2400000), hasta: null, fijo: D(180000), porcentaje: D(15) }],
 };
+// La tabla llega acumulada al mes (E32): con la misma tabla en los dos semestres equivale al × mes/12 de la E31
 const base = (o: Partial<DatosGanancias> = {}): DatosGanancias => ({
-  mes: 1, tabla: TABLA, bruta: D(2000000), aportes: D(340000), deducciones: [], cargas: [], retenidoAnterior: D(0), retenidoEmpresa: D(0), brutaRecibo: D(2000000), ...o,
+  mes: 1, bruta: D(2000000), aportes: D(340000), deducciones: [], cargas: [], retenidoAnterior: D(0), retenidoEmpresa: D(0), brutaRecibo: D(2000000), ...o,
+  tabla: tablaAcumulada(TABLA, TABLA, o.mes ?? 1).tabla,
 });
 
 describe('Ganancias de cuarta: cálculo de la retención', () => {
@@ -31,7 +34,7 @@ describe('Ganancias de cuarta: cálculo de la retención', () => {
   });
 
   it('cargas de familia', () => {
-    const r = retencionGanancias(base({ cargas: [{ parentesco: 'CONYUGE', meses: 1, porcentaje: 100 }, { parentesco: 'HIJO', meses: 1, porcentaje: 50 }, { parentesco: 'OTRO', meses: 1, porcentaje: 100 }] }));
+    const r = retencionGanancias(base({ cargas: [{ parentesco: 'CONYUGE', importe: cargaAcumulada([D(1200000), D(1200000)], 1, 12, 1, 100) }, { parentesco: 'HIJO', importe: cargaAcumulada([D(600000), D(600000)], 1, 12, 1, 50) }, { parentesco: 'OTRO', importe: D(99999) }] }));
     expect(r.hoja.personales.cargas).toBe('125000.00');
     expect(r.hoja.sujeta).toBe('1035000.00');
   });

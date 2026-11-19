@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { retencionGanancias } from '../src/sueldos/ganancias/calculo';
+import { tablaAcumulada } from '../src/sueldos/ganancias/tablas';
+
 import { crearApp, limpiarBase } from './helpers';
 import { prepararSueldos } from './helpers-sueldos';
 import { f572, TABLA_PRUEBA } from './helpers-ganancias';
@@ -50,7 +52,7 @@ describe('ganancias: retención en la liquidación', () => {
     const l = await x.crear('MENSUAL', 2026, 11);
     const r = await x.recibo(l.id);
     const bruta = D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
-    const esperado = retencionGanancias({ mes: 11, tabla: x.tablaCalc(), bruta, aportes: x.aportes(r), deducciones: [], cargas: [], retenidoAnterior: D(0), retenidoEmpresa: D(0), brutaRecibo: bruta });
+    const esperado = retencionGanancias({ mes: 11, tabla: tablaAcumulada(null, x.tablaCalc(), 11).tabla, bruta, aportes: x.aportes(r), deducciones: [], cargas: [], retenidoAnterior: D(0), retenidoEmpresa: D(0), brutaRecibo: bruta });
     expect(esperado.importe.gt(0)).toBe(true);
     expect(x.ganancias(r)!.importe).toBe(esperado.importe.toFixed(2));
     expect(D(r.neto).toFixed(2)).toBe(bruta.minus(r.totalDescuentos).toFixed(2));
@@ -151,6 +153,25 @@ describe('ganancias: retención en la liquidación', () => {
     await x.cerrar(dic.id);
     const r = await x.http.post(`/api/sueldos/liquidaciones/${nov.id}/reabrir`);
     expect(r.body.aviso).toContain('para volver a cerrarla, reabra primero las posteriores que retuvieron Ganancias');
+  });
+
+  it('revisión E32: julio acumula por semestre', async () => {
+    const x = await escenario();
+    await x.escala('Vendedor B', '2026-07', 30000000);
+    await x.http.put('/api/sueldos/ganancias/tablas/2026/1', { ...TABLA_PRUEBA, gni: 1200000 });
+    await x.http.put('/api/sueldos/ganancias/tablas/2026/2', { ...TABLA_PRUEBA, gni: 2400000 });
+    const jul = await x.crear('MENSUAL', 2026, 7);
+    const h = (await x.recibo(jul.id)).hojaGanancias as unknown as { personales: { gni: string } };
+    expect(h.personales.gni).toBe('800000.00');
+  });
+
+  it('revisión E32: la final usa los valores anuales del semestre de pago', async () => {
+    const x = await escenario();
+    await x.escala('Vendedor B', '2026-08', 30000000);
+    await x.http.put('/api/sueldos/ganancias/tablas/2026/2', { ...TABLA_PRUEBA, gni: 2400000 });
+    const f = (await x.http.post('/api/sueldos/egresos', { empleadoId: x.e.id, causa: 'RENUNCIA', fechaEgreso: '2026-08-15', preavisoOtorgado: true, fechaPago: '2026-08-20' })).body as { id: string };
+    const h = (await x.recibo(f.id)).hojaGanancias as unknown as { personales: { gni: string } };
+    expect(h.personales.gni).toBe('2400000.00');
   });
 
   it('reabrir con posteriores cerradas avisa', async () => {
