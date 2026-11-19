@@ -92,6 +92,17 @@ describe('ganancias: F.1359 y certificados', () => {
     expect(suma.toFixed(2)).toBe(tope.toFixed(2));
   });
 
+  it('deducciones generales en cero', async () => {
+    const x = await escenario();
+    await x.cerrar((await x.crear('MENSUAL', 2025, 11)).id);
+    // Sin aportes: se quitan los descuentos del recibo cerrado
+    await prisma.reciboSueldoRenglon.deleteMany({ where: { clase: 'DESCUENTO', recibo: { empleadoId: x.e.id } } });
+    await x.anual();
+    const e = await prisma.empleado.findUniqueOrThrow({ where: { id: x.e.id } });
+    const r = await x.http.get('/api/sueldos/ganancias/f1359/anual/2025');
+    expect([r.status, r.body.message]).toEqual([400, `El F.1359 no admite deducciones generales en cero (sin aportes): ${e.apellido}, ${e.nombre}`]);
+  });
+
   it('devolución con signo', async () => {
     const x = await escenario();
     await x.cerrar((await x.crear('MENSUAL', 2025, 11)).id);

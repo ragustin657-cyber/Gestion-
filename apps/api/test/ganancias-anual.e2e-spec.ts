@@ -110,6 +110,12 @@ describe('ganancias: liquidación anual', () => {
     expect((r.body.empleados as Fila[])[0].saldo).toBe(calculada.saldo);
   });
 
+  it('calcular simultáneo no da error', async () => {
+    const x = await escenario();
+    const rs = await Promise.all([x.calcular(), x.calcular()]);
+    expect(rs.map((r) => r.status)).toEqual([201, 201]);
+  });
+
   it('reabrir', async () => {
     const x = await escenario();
     await x.calcular();

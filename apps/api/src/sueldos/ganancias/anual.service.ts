@@ -55,6 +55,11 @@ export class AnualGananciasService {
     return { hoja, impuesto, retenido, pagosACuenta: a.pagosACuenta, saldo, f1359 };
   }
 
+  /** Mismo lock que el cierre de liquidaciones (E33): serializa la anual con los cierres que aplican el ajuste. */
+  private async bloquear(tx: TxEmpresa) {
+    await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
+  }
+
   private async encabezado(tx: TxEmpresa, anio: number) {
     return tx.liquidacionAnualGanancias.findUnique({ where: { empresaId_anio: { empresaId: this.tenant.empresaId, anio } } });
   }
@@ -76,9 +81,10 @@ export class AnualGananciasService {
   calcular(anio: number) {
     if (!Number.isInteger(anio) || anio >= hoy().getUTCFullYear()) throw new BadRequestException('Solo se liquida un año terminado');
     return this.tenant.transaccion(async (tx) => {
-      let l = await this.encabezado(tx, anio);
-      if (l?.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} está cerrada`);
-      l ??= await tx.liquidacionAnualGanancias.create({ data: { empresaId: this.tenant.empresaId, anio } });
+      await this.bloquear(tx);
+      const previo = await this.encabezado(tx, anio);
+      if (previo?.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} está cerrada`);
+      const l = previo ?? (await tx.liquidacionAnualGanancias.create({ data: { empresaId: this.tenant.empresaId, anio } }));
       await this.recalcular(tx, l.id, anio);
       return this.ver(anio, tx);
     }, { timeout: 60000 });
@@ -107,6 +113,7 @@ export class AnualGananciasService {
 
   cerrar(anio: number) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx);
       const l = await this.encabezado(tx, anio);
       if (!l) throw new BadRequestException(`Calcule la liquidación anual de ${anio}`);
       if (l.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} ya está cerrada`);
@@ -121,6 +128,7 @@ export class AnualGananciasService {
 
   reabrir(anio: number) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx);
       const l = await this.encabezado(tx, anio);
       if (!l || l.estado !== 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} no está cerrada`);
       // Los 561 de las finales con distracto liquidan la anual del empleado en su final, no el ajuste de la anual cerrada
