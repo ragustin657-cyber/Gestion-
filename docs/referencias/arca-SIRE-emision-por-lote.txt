@@ -1,0 +1,439 @@
+SIRE
+Especiﬁcación de archivo para
+emisión por lote
+
+
+
+
+                     pag 1 de 10
+                                       Historial de Modificaciones
+
+
+  Fecha                                                Descripción
+             Versión inicial
+11/07/2022   Se actualiza el diseño del F.2003 (3.1)
+
+
+
+
+                                                                     pag 2 de 10
+ 1. Introducción
+
+
+ 1.1.     Objetivo
+
+ Especificar el archivo para utilizar la emisión de certificados por lote disponible en el servicio con clave fiscal “Sistema
+ Integrado de Retenciones Electrónicas - SIRE”.
+
+ 1.2.     Alcance
+
+ Especificar el diseño de archivo, el formato de los campos y sus validaciones.
+
+
+ 2. Especificaciones Generales
+
+ 2.1.     Tipo de archivo
+
+ Archivo plano de longitud fija con extensión .txt, compuesto únicamente por texto sin formato, sin caracteres de control
+ (excepto el separador de registro), codificado en ISO 8859-1.
+
+ Separador de registros: CR (CarriageReturn, 0x0D, 13 decimal) + LF (LineFeed, 0x0A, 10 decimal) o solo LF
+
+ Cada registro contiene los datos de un certificado que se necesita emitir.
+
+ Todos los registros de un archivo deben contener los mismos valores en los campos FORMULARIO y CUIT AGENTE
+ (solamente para F2004 y F2003).
+
+ Todos los registros de un archivo deben contener valores en FECHA RETENCION correspondientes al mismo mes.
+
+
+
+ 2.2.     Tipo de campos
+
+Tipo           Descripción
+Integer        Numero Entero
+               Alineado a derecha
+               Relleno a izquierda con ceros o espacios
+Decimal        Numero Decimal
+               Alineado a derecha
+               Relleno a izquierda con ceros o espacios
+               Parte decimal de 2 dígitos obligatoria
+               Separador decimal punto o coma obligatorio
+String         Alfanumérico
+               Alineado a izquierda
+               Relleno con espacios
+Date           Fecha en formato DD/MM/AAAA. Cuando el campo sea NO obligatorio, se deberá
+               completar con espacios.
+Boolean        0: No
+               1: Si
+Filler         Espacios
+
+
+
+                                                                                                                   pag 3 de 10
+3. F2003 CERTIFICADOS SUJETOS DOMICILIADOS EN EL EXTERIOR
+
+3.1.      F2003 - Diseño
+
+#C                        CAMPO                                TIPO      LONG DESDE    HASTA    OBLIGATORIO
+ 1     FORMULARIO                                              Integer       4     1        4              SI
+ 2     VERSION                                                 Integer       4     5        8              SI
+ 3     CODIGO DE TRAZABILIDAD (USO NO FISCAL)                  String       10     9       18             NO
+ 4     CUIT AGENTE                                             Integer      11    19       29              SI
+ 5     IMPUESTO                                                Integer       3    30       32             NO
+ 6     REGIMEN                                                 Integer       3    33       35              SI
+ 7     CUIT ORDENANTE                                          Integer      11    36       46              SI
+ 8     FECHA RETENCION                                         Date         10    47       56              SI
+ 9     TIPO COMPROBANTE                                        Integer       2    57       58              SI
+10     FECHA COMPROBANTE                                       Date         10    59       68              SI
+11     NRO COMPROBANTE                                         String       16    69       84              SI
+12     IMPORTE COMPROBANTE                                     Decimal      14    85       98              SI
+13     FILLER                                                  Filler       14    99      112              SI
+14     CERTIFICADO ORIGINAL NRO                                Integer      25   113      137             NO
+15     CERTIFICADO ORIGINAL FECHA RETEN                        Date         10   138      147             NO
+16     CERTIFICADO ORIGINAL IMPORTE                            Decimal      14   148      161             NO
+17     MOTIVO EMISION NOTA DE CREDITO                          String       30   162      191             NO
+18     NO RETENCION                                            Boolean       1   192      192              SI
+19     NO RETENCION MOTIVO                                     String       30   193      222             NO
+20     APLICA CDI (1)                                          Boolean       1   223      223              SI
+21     CODIGO DE ALICUOTA                                      Integer       4   224      227              SI
+22     APLICA ACRECENTAMIENTO                                  Boolean       1   228      228              SI
+23     RETENIDO CLAVE NIF (2)                                  String       50   229      278              SI
+24     RETENIDO APELLIDO NOMBRE DENOMINACION                   String       60   279      338              SI
+25     RETENIDO DOMICILIO ACTUAL EN EXTERIOR                   String       60   339      398              SI
+26     RETENIDO DOMICILIO ACTUAL EN EXTERIOR PAIS              Integer       3   399      401              SI
+27     RETENIDO TIPO DE PERSONA                                String        1   402      402              SI
+28     RETENIDO NACIMIENTO CONSTITUCION PAIS                   Integer       3   403      405             NO
+29     RETENIDO NACIMIENTO CONSTITUCION FECHA                  Date         10   406      415             NO
+
+(1) CDI: Convenio de Doble Imposición
+(2) NIF: Clave de Identificación Tributaria en el País de Residencia
+
+
+
+
+                                                                                                    pag 4 de 10
+3.2.      F2003 - Validaciones
+
+#C CAMPO                                                VALIDACIONES
+1 FORMULARIO                                            Fijo 2003
+2 VERSION                                               Fijo 0100
+3 CODIGO DE TRAZABILIDAD (USO NO FISCAL)                Texto Libre
+4 CUIT AGENTE                                           CUIT existente en ARCA
+5 IMPUESTO                                              Fijo 218
+6 REGIMEN                                               Existente en la tabla REGIMEN para el impuesto 218
+7 CUIT ORDENANTE                                        CUIT existente en ARCA
+8 FECHA RETENCION                                       Desde 01-marzo-2015
+9 TIPO COMPROBANTE                                      Puede ser: 1, 2, 3, 4, 5, 6 o 9
+                                                        Anterior o igual a C8 (FECHA RETENCION). Si C9 es 3
+10 FECHA COMPROBANTE
+                                                        (NOTA DE CREDITO) entonces el C8 debe ser igual al C10,
+                                                        Debe respetar el formato indicado en la tabla
+11 NRO COMPROBANTE
+                                                        TIPO_COMPROBANTE
+                                                        Si C18 es 0 (Retención efectuada) debe ser mayor que cero.
+12 IMPORTE COMPROBANTE
+                                                        Sino debe ser cero.
+13     FILLER
+14     CERTIFICADO ORIGINAL NRO                         Obligatorio cuando C9 es 3 (NOTA CREDITO)
+15     CERTIFICADO ORIGINAL FECHA RETEN                 Obligatorio cuando C9 es 3 (NOTA CREDITO)
+16     CERTIFICADO ORIGINAL IMPORTE                     Obligatorio cuando C9 es 3 (NOTA CREDITO)
+17     MOTIVO EMISION NOTA DE CREDITO                   Obligatorio cuando C9 es 3 (NOTA CREDITO)
+                                                        0: Retención efectuada
+18 NO RETENCION                                         1: Retención no efectuada
+19 NO RETENCION MOTIVO                                  Obligatorio cuando C18 es 1 (Retención no efectuada)
+                                                        0: No aplica CDI
+20 APLICA CDI
+                                                        1: Aplica CDI
+                                                        Si C20 es 0 debe existir en la tabla ALICUOTA_SIN_CDI
+                                                        Si C20 es 1 debe existir en la tabla ALICUOTA_CON_CDI
+21 CODIGO DE ALICUOTA
+                                                        En ambos casos las alícuotas deben corresponder al régimen
+                                                        informado en C4
+                                                        0: No aplica Acrecentamiento
+22 APLICA ACRECENTAMIENTO
+                                                        1: Aplica Acrecentamiento
+23 RETENIDO CLAVE NIF
+24 RETENIDO APELLIDO NOMBRE DENOMINACION
+25 RETENIDO DOMICILIO ACTUAL EN EXTERIOR
+26 RETENIDO DOMICILIO ACTUAL EN EXTERIOR PAIS Debe existir en la tabla PAIS
+                                              F: Persona Física
+27 RETENIDO TIPO DE PERSONA
+                                              J: Persona Jurídica
+                                              Si C27 = F entonces es Obligatorio y Debe existir en la tabla
+28 RETENIDO NACIMIENTO CONSTITUCION PAIS
+                                              PAIS
+29 RETENIDO NACIMIENTO CONSTITUCION FECHA     Si C27 = F entonces es Obligatorio
+
+
+3.3.      F2003 – Calculo del importe de la retención
+
+SIRE calcula la retención en función de los campos IMPORTE COMPROBANTE, APLICA CDI, CODIGO DE ALICUOTA
+y APLICA ACRECENTAMIENTO.
+
+
+
+
+                                                                                                     pag 5 de 10
+4. F2004 CERTIFICADOS SEGURIDAD SOCIAL
+
+4.1.      F2004 - Diseño
+
+#C                     CAMPO                    TIPO      LONG    DESDE HASTA           OBLIGATORIO
+ 1     FORMULARIO                               Integer       4        1     4                              SI
+ 2     VERSION                                  Integer       4        5     8                              SI
+ 3     CODIGO DE TRAZABILIDAD (USO NO FISCAL)   String       10        9    18                             NO
+ 4     CUIT AGENTE                              Integer      11       19    29                              SI
+ 5     IMPUESTO                                 Integer       3       30    32                              SI
+ 6     REGIMEN                                  Integer       3       33    35                              SI
+ 7     CUIT RETENIDO                            Integer      11       36    46                              SI
+ 8     FECHA RETENCION                          Date         10       47    56                              SI
+ 9     TIPO COMPROBANTE                         Integer       2       57    58                              SI
+10     FECHA COMPROBANTE                        Date         10       59    68                              SI
+11     NRO COMPROBANTE                          String       16       69    84                              SI
+12     IMPORTE COMPROBANTE                      Decimal      14       85    98                              SI
+13     IMPORTE RETENCION                        Decimal      14       99   112                              SI
+14     CERTIFICADO ORIGINAL NRO                 Integer      25      113   137                             NO
+15     CERTIFICADO ORIGINAL FECHA RETEN         Date         10      138   147                             NO
+16     CERTIFICADO ORIGINAL IMPORTE             Decimal      14      148   161                             NO
+17     OTROS DATOS                              String       30      162   191                             NO
+
+
+
+4.2.      F2004 - Validaciones
+
+#C     CAMPO                                        VALIDACIONES
+ 1     FORMULARIO                                   Fijo 2004
+ 2     VERSION                                      Fijo 0100
+ 3     CODIGO DE TRAZABILIDAD (USO NO FISCAL)       Texto Libre
+ 4     CUIT AGENTE                                  CUIT existente en ARCA
+ 5     IMPUESTO                                     Fijo 353
+ 6     REGIMEN                                      Existente en la tabla REGIMEN para el IMPUESTO 353
+ 7     CUIT RETENIDO                                CUIT existente en ARCA
+ 8     FECHA RETENCION                              Desde 01-marzo-2015
+ 9     TIPO COMPROBANTE                             Puede ser: 1, 2, 3, 4, 5 o 6
+                                                    Anterior o igual a C8 (FECHA RETENCION). Si C9 es 3
+10 FECHA COMPROBANTE
+                                                    (NOTA CREDITO) entonces el C8 debe ser igual al C10.
+                                                    Debe respetar el formato indicado en tabla
+11 NRO COMPROBANTE
+                                                    TIPO_COMPROBANTE
+12     IMPORTE COMPROBANTE                          Mayor que cero
+13     IMPORTE RETENCION                            Menor o igual que C12 (IMPORTE COMPROBANTE)
+14     CERTIFICADO ORIGINAL NRO                     Obligatorio cuando C9 es 3 (NOTA CREDITO)
+15     CERTIFICADO ORIGINAL FECHA RETEN             Obligatorio cuando C9 es 3 (NOTA CREDITO)
+16     CERTIFICADO ORIGINAL IMPORTE                 Obligatorio cuando C9 es 3 (NOTA CREDITO)
+17     OTROS DATOS                                  Texto Libre
+
+
+
+
+                                                                                                pag 6 de 10
+5. F2005 CERTIFICADOS DE RETENCIÓN IMPOSITIVA.
+
+5.1.    F2005 – Diseño
+
+ #C                        CAMPO               TIPO      LONG DESDE HASTA OBLIGATORIO
+ 1     VERSIÓN                                 Integer      4      1     4             SI
+
+ 2     CÓDIGO DE TRAZABILIDAD                  String      36      5    40            NO
+
+ 3     IMPUESTO                                Integer      3     41    43             SI
+
+ 4     RÉGIMEN                                 Integer      3     44    46             SI
+
+ 5     FECHA RETENCIÓN                         Date        10     47    56             SI
+
+ 6     CONDICIÓN                               Integer      2     57    58            NO
+
+ 7     IMPOSIBILIDAD DE RETENCIÓN              Boolean      1     59    59             SI
+
+ 8     NO RETENCIÓN MOTIVO                     String      30     60    89            NO
+
+ 9     IMPORTE RETENCIÓN                       Decimal     14     90   103             SI
+
+ 10 IMPORTE DE LA BASE DE CÁLCULO/CANTIDAD     Decimal     14    104   117             SI
+
+ 11 RÉGIMEN DE EXCLUSIÓN                       Boolean      1    118   118             SI
+
+ 12 PORCENTAJE DE EXCLUSIÓN                    Decimal      6    119   124            NO
+
+ 13 FECHA PUBLICACIÓN O FINALIZACIÓN DE LA     Date        10    125   134            NO
+       VIGENCIA
+ 14 TIPO COMPROBANTE                           Integer      2    135   136             SI
+
+ 15 FECHA COMPROBANTE                          Date        10    137   146             SI
+
+ 16 NRO COMPROBANTE                            String      16    147   162            NO
+
+ 17 COE                                        String      12    163   174            NO
+ 18    COE ORIGINAL                            String      12    175   186            NO
+ 19    CAE                                     String      14    187   200            NO
+ 20 IMPORTE COMPROBANTE                        Decimal     14    201   214             SI
+
+ 21 MOTIVO EMISIÓN DE NOTA DE CRÉDITO/AJUSTE   String      30    215   244            NO
+
+ 22 RETENIDO CLAVE                             Integer     11    245   255             SI
+
+ 23 CERTIFICADO ORIGINAL NRO                   String      25    256   280            NO
+
+ 24 CERTIFICADO ORIGINAL FECHA RETEN           Date        10    281   290            NO
+
+ 25 CERTIFICADO ORIGINAL IMPORTE               Decimal     14    291   304            NO
+
+ 26 MOTIVO DE LA ANULACIÓN                     Integer      1    305   305            NO
+
+
+
+
+                                                                             pag 7 de 10
+5.2.    F2005 – Validaciones
+#C     CAMPO                                   VALIDACIONES
+  1    VERSIÓN                                 Fijo 0100
+  2    CÓDIGO DE TRAZABILIDAD                  Texto Libre
+  3    IMPUESTO                                Fijo 216
+  4    RÉGIMEN                                 Existente en la tabla REGIMEN para el IMPUESTO 216
+  5    FECHA RETENCIÓN                         Desde 01-Diciembre-2019
+  6    CONDICIÓN                               Este campo se completará de acuerdo a la tabla
+                                               CONDICIÓN, la cual se encuentra detallada en el punto
+                                               6.4 de este documento. Obligatorio para los Regímenes
+                                               detallados en la tabla REGIMEN_CONDICION, a cual se
+                                               encuentra detallada en el punto 6.5 de este documento.
+  7    IMPOSIBILIDAD DE RETENCIÓN              0: Retención efectuada
+                                               1: Retención no efectuada
+  8    NO RETENCIÓN MOTIVO                     Obligatorio cuando C7 es 1 (Retención no efectuada)
+  9    IMPORTE RETENCIÓN                       Es el Importe correspondiente a la Retención o el Importe
+                                               Retención correspondiente a la Nota de Crédito/Ajustes.
+                                               Cuando es una anulación este campo debe ser 0 (cero).
+ 10 IMPORTE DE LA BASE DE CÁLCULO/CANTIDAD
+ 11 RÉGIMEN DE EXCLUSIÓN                       0: Régimen no excluído
+                                               1: Régimen excluído
+ 12 PORCENTAJE DE EXCLUSIÓN                    Obligatorio si C11 es 1 (Régimen excluído). Los valores
+                                               posibles serán: 50 o 100
+ 13 FECHA PUBLICACIÓN                          Obligatorio si C11 es 1 (Régimen excluído). Corresponde
+                                               a la fecha de publicación en la página de ARCA del
+                                               certificado de exclusión otorgado.
+ 14 TIPO COMPROBANTE                           Este campo se completará de acuerdo a la tabla
+                                               TIPO_COMPROBANTE, la cual se encuentra detallada en
+                                               el punto 6.3 de este documento.
+ 15 FECHA COMPROBANTE                          Anterior o igual a C5 (FECHA RETENCION). Si C14 es
+                                               3,19,20; entonces el C15 debe ser igual al C5.
+ 16 NRO COMPROBANTE                            Debe respetar el formato indicado en tabla
+                                               TIPO_COMPROBANTE. Obligatorio para C14 igual a
+                                               1,2,3,4,5,6,9,11,17,18, 19 y 20.
+ 17 COE                                        Este campo se deberá completar con espacios hasta que
+                                               se incorporen los regímenes correspondientes.
+ 18 COE ORIGINAL                               Este campo se deberá completar con espacios hasta que
+                                               se incorporen los regímenes correspondientes.
+ 19 CAE                                        Este campo se deberá completar con espacios hasta que
+                                               se incorporen los regímenes correspondientes.
+
+ 20 IMPORTE COMPROBANTE
+ 21 MOTIVO EMISIÓN DE NOTA DE CRÉDITO/AJUSTE   Obligatorio cuando C14 es 3.
+ 22 RETENIDO CLAVE                             CUIT/CUIL/CDI existente en ARCA.
+
+                                                                                             pag 8 de 10
+   23 CERTIFICADO ORIGINAL NRO                              Obligatorio cuando C14 es 3,19,20.
+   24 CERTIFICADO ORIGINAL FECHA RETEN                      Obligatorio cuando C14 es 3,19,20.
+   25 CERTIFICADO ORIGINAL IMPORTE                          Obligatorio cuando C14 es 3,19,20.
+  26 MOTIVO DE LA ANULACIÓN                                 Obligatorio para anulación de certificado. Este campo se
+                                                            completará de acuerdo a la tabla
+                                                            MOTIVO_DE_ANULACION, la cual se encuentra detallada
+                                                            en el punto 6.6 de este documento
+
+ Para la anulación por lote, solamente se deberán completar los campos VERSIÓN, CÓDIGO DE TRAZABILIDAD,
+ IMPUESTO, CERTIFICADO ORIGINAL NRO Y MOTIVO DE LA ANULACIÓN.
+
+ 6. Recursos
+ 6.1.     Tablas disponibles en www.arca.gob.ar/sire
+
+
+
+REGIMEN
+
+ALICUOTAS_CON_CDI
+
+ALICUOTAS_SIN_CDI
+
+PAIS
+
+
+
+ 6.2.     Servicios rest de acceso público
+
+Impuestos habilitados en SIRE                https://soa.arca.gob.ar/parametros/sire/v1/impuestos
+
+Regímenes habilitados en SIRE                https://soa.arca.gob.ar/parametros/sire/v1/regimenes
+
+Alícuotas con CDI                            https://soa.arca.gob.ar/parametros/sire/v1/alicuotasconcdi
+
+Alícuotas sin CDI                            https://soa.arca.gob.ar/parametros/sire/v1/alicuotassincdi
+
+Países                                       https://soa.arca.gob.ar/parametros/sire/v1/paises
+
+Tipos de Comprobantes                        https://soa.arca.gob.ar/parametros/sire/v1/comprobantes
+
+
+
+ 6.3.     Tabla TIPO_COMPROBANTE
+
+
+  ID Descripción                                                    Formato
+  1      FACTURA                                                    99999-99999999 (5 dígitos, guión medio, 8 dígitos)
+  2      RECIBO                                                     99999-99999999 (5 dígitos, guión medio, 8 dígitos)
+  3      NOTA CRÉDITO                                               99999-99999999 (5 dígitos, guión medio, 8 dígitos)
+  4      NOTA DÉBITO                                                99999-99999999 (5 dígitos, guión medio, 8 dígitos)
+  5      OTRO COMPROBANTE                                           X(16) (hasta 16 caracteres alfanuméricos)
+
+                                                                                                                pag 9 de 10
+SIRE — Especificacién de archivo para emisién por lote                                                                    11/07/2022
+  6         ORDEN DE PAGO                                                   X(12) (hasta 12 caracteres alfanuméricos)
+  9         ESCRITURA PUBLICA                                               X(16) (hasta 16 caracteres alfanuméricos)
+  11        FACTURA (16 DIGITOS)                                            X(16) (hasta 16 caracteres alfanuméricos)
+  17 LIQUIDACION DE SERVICIOS PUBLICOS - CLASE A                            99999-99999999 (5 digitos, guiñn medio, 8 digitos)
+  18 LIQUIDACION DE SERVICIOS P               LICOS - CLASE B               99999-99999999 (5 digitos, guifin medio, 8 digitos)
+  19 LIQUIDACION DE SERVICIOS PUBLICOS CLASE A— CON                         99999-99999999 (5 digitos, guiñn medio, 8
+     digitos) VALOR NEGATIVO
+  20 LIQUIDACION DE SERVICIOS P               LICOS — CLASE B — CON         99999-99999999 (5 digitos, guifin medio, 8
+     digitos) VALOR NEGATIVO
+
+
+
+ INSCRIPTO
+ NO INSCRIPTO
+
+
+ 6.4.         Tabla CONDICION
+
+ 6.5.         Tabla REGIMEN_CONDICION
+
+
+
+
+ 831              1      2
+
+
+
+
+ 6.6.         Tabla MOTIVO_DE_ANULACION
+
+
+
+
+ 6.7.         Canales de Atencién
+
+        •    Consultas sobre el ambiente de homologacién: Acerca de certificados y accesos, consultar sitio
+             http://www.arca.gob.ar/ws/
+
+
+        •    Consultas especi“ficas de este sistema comunicarse con: consultas-sire@arca.gob.ar
+
+
+        •    Consultas sobre el ambiente de produccién: de caracter normativo y/o relacionadas con el servicio con
+             clave fiscal: a través del sitio Consultas Web: httos://serviciosweb.arca.oob.ar/consuItas/consuIta.aspx?tioid=337.
+
+
+
+
+                                                                                                                        pag 10 de 10
+
