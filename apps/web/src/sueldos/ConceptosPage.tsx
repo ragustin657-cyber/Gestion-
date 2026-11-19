@@ -7,8 +7,25 @@ import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { useCuentasImputables } from '../abm/opciones';
 import { Clase, CLASES, CODIGOS_ARCA, Concepto, DESTINOS_DESCUENTO, TIPOS_CONCEPTO, useConceptos } from './comun';
 
-type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean; destino: string; cuentaContableId: string | null; codigoArca: string; exentoGanancias: boolean };
-const vacio: Form = { codigo: '', nombre: '', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{ "importe": 0 }', orden: 300, soloAfiliados: false, activo: true, destino: 'OTRO', cuentaContableId: null, codigoArca: '', exentoGanancias: false };
+type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean; destino: string; cuentaContableId: string | null; codigoArca: string; exentoGanancias: boolean; rubroExentoGanancias: string | null };
+const vacio: Form = { codigo: '', nombre: '', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{ "importe": 0 }', orden: 300, soloAfiliados: false, activo: true, destino: 'OTRO', cuentaContableId: null, codigoArca: '', exentoGanancias: false, rubroExentoGanancias: null };
+
+/** Rubros del registro 04 del F.1359 para los conceptos exentos (spec E32 §4). */
+export const RUBROS_EXENTOS = [
+  { value: 'ASIGNACIONES_FAMILIARES', label: 'Asignaciones familiares' }, { value: 'INTERESES_PRESTAMOS', label: 'Intereses de préstamos al empleador' },
+  { value: 'INDEMNIZACIONES', label: 'Indemnizaciones' }, { value: 'CURSOS_SEMINARIOS', label: 'Cursos y seminarios' }, { value: 'INDUMENTARIA', label: 'Indumentaria y equipamiento' },
+];
+export const faltaRubroExento = (f: { exentoGanancias: boolean; rubroExentoGanancias: string | null }) => f.exentoGanancias && !f.rubroExentoGanancias;
+
+/** Exento de Ganancias y, si lo es, el rubro del F.1359 (obligatorio). */
+export function CamposExentoGanancias({ exento, rubro, onChange }: { exento: boolean; rubro: string | null; onChange: (c: { exentoGanancias: boolean; rubroExentoGanancias: string | null }) => void }) {
+  return (
+    <>
+      <Checkbox label="Exento de Ganancias" checked={exento} onChange={(e) => onChange({ exentoGanancias: e.currentTarget.checked, rubroExentoGanancias: e.currentTarget.checked ? rubro : null })} />
+      {exento && <Select label="Rubro exento (F.1359)" required data={RUBROS_EXENTOS} value={rubro} error={rubro ? undefined : 'Elija el rubro exento de Ganancias'} onChange={(x) => onChange({ exentoGanancias: true, rubroExentoGanancias: x })} />}
+    </>
+  );
+}
 
 /** Parámetros en una línea: "porcentaje: 11 · base: REMUNERATIVO". */
 const resumenParametros = (p: Record<string, unknown>) => Object.entries(p).map(([k, v]) => `${k}: ${String(v)}`).join(' · ');
@@ -47,7 +64,7 @@ export function ConceptosPage() {
   const cuentas = useCuentasImputables();
   const editable = puede('sueldos.liquidar');
   const [form, setForm] = useState<Form | null>(null);
-  const editar = (c: Concepto) => setForm({ ...c, parametros: JSON.stringify(c.parametros, null, 2), destino: c.destino ?? 'OTRO', cuentaContableId: c.cuentaContableId ?? null, exentoGanancias: c.exentoGanancias ?? false });
+  const editar = (c: Concepto) => setForm({ ...c, parametros: JSON.stringify(c.parametros, null, 2), destino: c.destino ?? 'OTRO', cuentaContableId: c.cuentaContableId ?? null, exentoGanancias: c.exentoGanancias ?? false, rubroExentoGanancias: c.rubroExentoGanancias ?? null });
   const guardar = async () => {
     if (!form) return;
     let parametros: unknown;
@@ -83,11 +100,11 @@ export function ConceptosPage() {
               {form.clase === 'DESCUENTO' && <Select label="Cuenta (vacío = según el destino)" clearable searchable data={cuentas} value={form.cuentaContableId} onChange={(v) => setForm({ ...form, cuentaContableId: v })} />}
             </SimpleGrid>
             <Textarea label="Parámetros (JSON)" autosize minRows={3} value={form.parametros} onChange={(e) => setForm({ ...form, parametros: e.currentTarget.value })} />
-            {form.clase !== 'DESCUENTO' && <Checkbox label="Exento de Ganancias" checked={form.exentoGanancias} onChange={(e) => setForm({ ...form, exentoGanancias: e.currentTarget.checked })} />}
+            {form.clase !== 'DESCUENTO' && <CamposExentoGanancias exento={form.exentoGanancias} rubro={form.rubroExentoGanancias} onChange={(c) => setForm({ ...form, ...c })} />}
             <Checkbox label="Solo afiliados al sindicato" checked={form.soloAfiliados} onChange={(e) => setForm({ ...form, soloAfiliados: e.currentTarget.checked })} />
             <Checkbox label="Activo" checked={form.activo} onChange={(e) => setForm({ ...form, activo: e.currentTarget.checked })} />
             {op.alerta}
-            <Group justify="flex-end"><Button onClick={guardar} loading={op.enviando}>Guardar</Button></Group>
+            <Group justify="flex-end"><Button onClick={guardar} loading={op.enviando} disabled={faltaRubroExento(form)}>Guardar</Button></Group>
           </Stack>
         )}
       </Modal>

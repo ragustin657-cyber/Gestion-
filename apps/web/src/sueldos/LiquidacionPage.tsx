@@ -211,6 +211,8 @@ export function LiquidacionPage() {
         <Group mb="sm">
           {l.asiento ? <Text size="sm">Asiento N° <Text span fw={600} c="blue" style={{ cursor: 'pointer' }} onClick={() => navegar(`/contabilidad/asientos/${l.asiento!.id}`)}>{l.asiento.numero}</Text></Text>
             : liquidar && <Button size="xs" variant="light" loading={op.enviando} onClick={() => accion(() => api(`/sueldos/liquidaciones/${id}/contabilizar`, { metodo: 'POST' }), 'Liquidación contabilizada')}>Contabilizar</Button>}
+          {l.tipo === 'FINAL' && liquidar && <Button size="xs" variant="light" onClick={() => { const [a, m] = l.fechaPago.slice(0, 7).split('-'); void bajar(`/sueldos/ganancias/f1359/final/${a}/${Number(m)}`, {}, `F1359-final-${a}${m}.txt`); }}>F.1359 final del mes</Button>}
+          {l.tipo === 'FINAL' && <Button size="xs" variant="light" onClick={() => bajar(`/sueldos/liquidaciones/${id}/ganancias-certificado.pdf`, {}, `certificado-ganancias-${nombre}.pdf`)}>Certificado de Ganancias</Button>}
           <Button size="xs" variant="light" onClick={() => bajar('/sueldos/f931', { anio: String(l.anio), mes: String(l.mes) }, `F931-${l.anio}${String(l.mes).padStart(2, '0')}.txt`)}>Descargar F.931</Button>
           <AccionesLibro estado={l.estado} numeroLsd={l.numeroLsd} onDescargar={async () => {
             await bajar(`/sueldos/liquidaciones/${id}/lsd`, {}, `LSD-${l.anio}${String(l.mes).padStart(2, '0')}.txt`);

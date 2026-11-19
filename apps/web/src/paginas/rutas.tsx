@@ -71,6 +71,7 @@ import { ComparacionPage } from '../presupuestos/ComparacionPage';
 import { CargasSocialesPage } from '../sueldos/CargasSocialesPage';
 import { ConceptosPage } from '../sueldos/ConceptosPage';
 import { GananciasTablasPage } from '../sueldos/GananciasPages';
+import { GananciasAnualPage } from '../sueldos/GananciasAnualPage';
 import { ContribucionesPage } from '../sueldos/ContribucionesPage';
 import { VacacionesPage } from '../sueldos/VacacionesPage';
 import { ConveniosPage } from '../sueldos/ConveniosPage';
@@ -209,6 +210,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/sueldos/convenios', elemento: <ConveniosPage /> },
   { ruta: '/sueldos/conceptos', elemento: <ConceptosPage /> },
   { ruta: '/sueldos/ganancias/tablas', elemento: <GananciasTablasPage /> },
+  { ruta: '/sueldos/ganancias/anual', elemento: <GananciasAnualPage /> },
   { ruta: '/sueldos/contribuciones', elemento: <ContribucionesPage /> },
   { ruta: '/sueldos/vacaciones', elemento: <VacacionesPage /> },
   { ruta: '/sueldos/cargas-sociales', elemento: <CargasSocialesPage /> },

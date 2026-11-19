@@ -78,11 +78,16 @@ export async function sembrarDemo(prisma: PrismaClient): Promise<'creada' | 'exi
       },
     });
     const e = empresa.id;
-    // Ganancias de cuarta (E31): tablas de EJEMPLO del año en curso y del siguiente (en producción se cargan las que publica ARCA cada semestre)
+    // Ganancias de cuarta (E31/E32): tablas del año en curso y del siguiente con los importes oficiales de 2025 (manual del F.1359 v2.0:
+    // Tabla 6 por semestre y Tabla 4 para los topes); la escala es ilustrativa. En producción se cargan las que publica ARCA cada semestre.
+    const OFICIAL_2025 = {
+      1: { gni: 3916268.37, deduccionEspecial: 18798088.2, conyuge: 3688339.32, hijo: 1860042.98, hijoIncapacitado: 3720085.95 },
+      2: { gni: 4507505.52, deduccionEspecial: 21636026.5, conyuge: 4245166.13, hijo: 2140852.77, hijoIncapacitado: 4281705.53 },
+    } as const;
     for (const [anio, semestre] of [0, 1].flatMap((d) => [1, 2].map((sem) => [new Date().getUTCFullYear() + d, sem]))) {
       const t = await tx.tablaGanancias.create({ data: {
-        empresaId: e, anio, semestre, gni: 4000000, deduccionEspecial: 19200000, conyuge: 3800000, hijo: 1900000, hijoIncapacitado: 3800000,
-        topeHipotecario: 20000, topeSeguroMuerte: 600000, topeSeguroMixto: 600000, topeSeguroRetiro: 600000, topeSepelio: 100000,
+        empresaId: e, anio, semestre, ...OFICIAL_2025[semestre as 1 | 2],
+        topeHipotecario: 20000, topeSeguroMuerte: 573817.13, topeSeguroMixto: 573817.13, topeSeguroRetiro: 573817.13, topeSepelio: 996.23,
       } });
       const tramos: [number, number | null, number, number][] = [[0, 2e6, 0, 5], [2e6, 4e6, 1e5, 9], [4e6, 6e6, 28e4, 12], [6e6, 9e6, 52e4, 15], [9e6, 18e6, 97e4, 19], [18e6, 27e6, 268e4, 23], [27e6, 40e6, 475e4, 27], [40e6, 60e6, 826e4, 31], [60e6, null, 1446e4, 35]];
       await tx.tramoGanancias.createMany({ data: tramos.map(([desde, hasta, fijo, porcentaje]) => ({ empresaId: e, tablaId: t.id, desde, hasta, fijo, porcentaje })) });
