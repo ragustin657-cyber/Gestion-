@@ -7,6 +7,12 @@ import { prepararPagos } from './helpers-pagos';
 const D = (x: Prisma.Decimal.Value) => new Prisma.Decimal(x);
 interface Ret { impuesto: string; importe: string; base: string; comprobanteCompraId?: string | null }
 let numero = 5000;
+/** Texto de un PDF sin comprimir (como en contabilidad-libros). */
+function textoPdf(pdf: Buffer): string {
+  const partes: string[] = [];
+  for (const m of pdf.toString('latin1').matchAll(/\[([^\]]*)\]\s*TJ/g)) partes.push(Buffer.from([...m[1].matchAll(/<([0-9a-fA-F]*)>/g)].map((x) => x[1]).join(''), 'hex').toString('latin1'));
+  return partes.join('');
+}
 
 describe('retenciones de IVA y SUSS', () => {
   let app: INestApplication;
@@ -116,6 +122,36 @@ describe('retenciones de IVA y SUSS', () => {
     const { rets } = await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }]);
     // IVA USD 21 a la cotización de la OP (1000) → base 21.000, 50 % = 10.500
     expect(D(rets.find((r) => r.impuesto === 'IVA')!.importe).toFixed(2)).toBe('10500.00');
+  });
+
+  it('al pagar: constancia, asiento y consulta', async () => {
+    const x = await escenario();
+    const a = await x.comprobante({ neto: 100000 });
+    const b = await x.comprobante({ neto: 50000 });
+    const { op } = await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }, { movimientoId: b.movimientoId, importe: b.total }]);
+    const r = await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(op.netoPagar), cuentaBancariaId: x.ars.id }]);
+    expect(r.status).toBe(200);
+    const rets = await prisma.ordenPagoRetencion.findMany({ where: { ordenPagoId: op.id, impuesto: { in: ['IVA', 'SUSS'] } }, orderBy: [{ impuesto: 'asc' }, { certificadoNumero: 'asc' }] });
+    expect(rets.map((y) => [y.impuesto, y.certificadoNumero])).toEqual([['IVA', 1], ['IVA', 2], ['SUSS', 1], ['SUSS', 2]]);
+    const as = await x.asiento(r.body.asientoId);
+    expect(as['2.1.02.003']).toEqual(['0', '15750']);
+    expect(as['2.1.02.005']).toEqual(['0', '9000']);
+    const pdf = await x.http.get(`/api/pagos/ordenes/${op.id}/certificados/${rets[0].id}/pdf`).buffer(true).parse((res, cb) => { const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p))); });
+    const texto = textoPdf(pdf.body as Buffer);
+    expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
+    expect(texto).toContain('CONSTANCIA DE RETENCIÓN DE IVA');
+    expect(texto).toContain('El certificado oficial se emite en el SIRE de ARCA');
+    const consulta = (await x.http.get('/api/pagos/retenciones?desde=2026-11-01&hasta=2026-11-30&impuesto=IVA')).body as { certificado: string }[];
+    expect(consulta.map((y) => y.certificado)).toEqual(['RET-IVA 00000001', 'RET-IVA 00000002']);
+  });
+
+  it('anular la OP anula sus retenciones de IVA y SUSS', async () => {
+    const x = await escenario();
+    const a = await x.comprobante({ neto: 100000 });
+    const { op } = await x.retenciones([{ movimientoId: a.movimientoId, importe: a.total }]);
+    const r = await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(op.netoPagar), cuentaBancariaId: x.ars.id }]);
+    expect((await x.http.post(`/api/pagos/ordenes/${op.id}/anular`, { version: r.body.version, motivo: 'Error' })).status).toBe(200);
+    expect(await prisma.ordenPagoRetencion.count({ where: { ordenPagoId: op.id, impuesto: { in: ['IVA', 'SUSS'] }, anulada: false } })).toBe(0);
   });
 
   it('ticket no retiene', async () => {

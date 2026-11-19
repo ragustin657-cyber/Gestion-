@@ -10,8 +10,10 @@ import { pdfCertificado, pdfOrdenPago } from './pdf';
 const D = Prisma.Decimal;
 const NOMBRES_JUR: Record<string, string> = { '901': 'CABA', '902': 'Buenos Aires' };
 export const numeroOP = (n: number | null) => `0001-${String(n ?? 0).padStart(8, '0')}`;
+const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS' };
 export const numeroCertificado = (impuesto: string, jurisdiccion: string | null, n: number) =>
-  `${impuesto === 'GANANCIAS' ? 'RET-GAN' : `RET-IIBB-${jurisdiccion}`} ${String(n).padStart(8, '0')}`;
+  `${PREFIJO[impuesto] ?? `RET-IIBB-${jurisdiccion}`} ${String(n).padStart(8, '0')}`;
+const NOMBRE_IMPUESTO: Record<string, string> = { GANANCIAS: 'Impuesto a las Ganancias', IVA: 'IVA', SUSS: 'SUSS (seguridad social)', IIBB: 'Ingresos Brutos' };
 
 @Injectable()
 export class ConsultasPagosService {
@@ -87,7 +89,7 @@ export class ConsultasPagosService {
       empresa: await this.empresa(), proveedor: op.tercero, numero: numeroOP(op.numero), fecha: op.fecha, fechaPago: op.fechaPago, estado: op.estado,
       imputaciones: op.imputaciones.map((i) => ({ comprobante: desc.get(i.movimientoId) ?? '', moneda: movs.find((m) => m.id === i.movimientoId)?.monedaCodigo ?? 'ARS', importe: i.importe.toString(), importePesos: i.importePesos.toString() })),
       retenciones: op.retenciones.filter((r) => r.importe.gt(0)).map((r) => ({
-        descripcion: r.impuesto === 'GANANCIAS' ? `Ganancias (régimen ${r.regimen})` : `IIBB ${NOMBRES_JUR[r.jurisdiccion ?? ''] ?? r.jurisdiccion}`,
+        descripcion: r.impuesto === 'GANANCIAS' ? `Ganancias (régimen ${r.regimen})` : r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? `${r.impuesto} ${String((r.detalle as Record<string, string>).puntoVenta ?? '').padStart(5, '0')}-${String((r.detalle as Record<string, string>).numero ?? '').padStart(8, '0')}` : `IIBB ${NOMBRES_JUR[r.jurisdiccion ?? ''] ?? r.jurisdiccion}`,
         base: r.base.toString(), importe: r.importe.toString(), certificado: r.certificadoNumero ? numeroCertificado(r.impuesto, r.jurisdiccion, r.certificadoNumero) : '',
       })),
       medios: op.medios.map((m) => ({ descripcion: `${m.tipo === 'TRANSFERENCIA' ? 'Transferencia' : m.tipo === 'CHEQUE' ? `Cheque ${m.chequeNumero}` : 'Efectivo'} ${m.monedaCodigo}${m.monedaCodigo === 'USD' ? ` ${m.importe.toString()}` : ''}`, importe: m.importePesos.toString() })),
@@ -103,11 +105,24 @@ export class ConsultasPagosService {
     const certificado = numeroCertificado(r.impuesto, r.jurisdiccion, r.certificadoNumero);
     const contenido = await pdfCertificado({
       empresa: await this.empresa(), proveedor: r.ordenPago.tercero, certificado, fecha: r.ordenPago.fechaPago!,
-      impuesto: r.impuesto === 'GANANCIAS' ? 'Impuesto a las Ganancias' : 'Ingresos Brutos',
-      detalleImpuesto: r.impuesto === 'GANANCIAS' ? `RG 830 régimen ${r.regimen}` : `Jurisdicción ${r.jurisdiccion} ${NOMBRES_JUR[r.jurisdiccion ?? ''] ?? ''}`.trim(),
+      impuesto: NOMBRE_IMPUESTO[r.impuesto] ?? r.impuesto,
+      detalleImpuesto: await this.detalleImpuesto(r),
       base: r.base.toString(), alicuota: r.alicuota, importe: r.importe.toString(), ordenPago: numeroOP(r.ordenPago.numero), anulado: r.anulada,
+      // E35: con el SIRE el certificado oficial lo emite ARCA; el PDF del sistema es una constancia
+      constancia: r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? { titulo: `CONSTANCIA DE RETENCIÓN DE ${r.impuesto}`, leyenda: 'El certificado oficial se emite en el SIRE de ARCA' } : null,
     });
     return { nombre: `certificado-${certificado.replace(' ', '-')}.pdf`, contenido };
+  }
+
+  /** Detalle del impuesto en el PDF: régimen de Ganancias, jurisdicción de IIBB o régimen y factura de IVA/SUSS (E35). */
+  private async detalleImpuesto(r: { impuesto: string; regimen: string | null; jurisdiccion: string | null; detalle: Prisma.JsonValue }) {
+    if (r.impuesto === 'GANANCIAS') return `RG 830 régimen ${r.regimen}`;
+    if (r.impuesto === 'IVA' || r.impuesto === 'SUSS') {
+      const reg = r.regimen ? (r.impuesto === 'IVA' ? await this.tenant.db.regimenIva.findUnique({ where: { id: r.regimen } }) : await this.tenant.db.regimenSuss.findUnique({ where: { id: r.regimen } })) : null;
+      const d = r.detalle as Record<string, string>;
+      return `${reg?.descripcion ?? 'Régimen'} — factura ${d.letra ?? ''} ${String(d.puntoVenta ?? '').padStart(5, '0')}-${String(d.numero ?? '').padStart(8, '0')} del ${d.fecha ?? ''} por $ ${d.total ?? ''}`.replace(/\s+/g, ' ');
+    }
+    return `Jurisdicción ${r.jurisdiccion} ${NOMBRES_JUR[r.jurisdiccion ?? ''] ?? ''}`.trim();
   }
 }
 
