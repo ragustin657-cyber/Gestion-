@@ -88,10 +88,12 @@ export class RetencionGananciasService {
         : cargaAcumulada([(c1 ?? c2)![k], (c2 ?? c1)![k]], c.mesDesde, c.mesHasta, mes, c.porcentaje);
       return { parentesco, importe };
     });
+    // Pagos a cuenta del F.572 (E32 §4): los OTRO no se computan
+    const pagosACuenta = (datos.pagosACuenta ?? []).filter((x) => x.tipo !== 'OTRO').reduce((s, x) => x.meses.filter((y) => y.mes <= mes).reduce((t, y) => t.plus(y.importe), s), cero());
     const retenidoEmpresa = ant.retenido.plus(acum?.retenido ?? 0);
     const brutaRecibo = new D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
     const res = retencionGanancias({
-      mes, deducciones, cargas, brutaRecibo, retenidoEmpresa, netoRecibo: new D(r.neto),
+      mes, deducciones, cargas, brutaRecibo, retenidoEmpresa, pagosACuenta, netoRecibo: new D(r.neto),
       tabla,
       bruta: ant.bruta.plus(actual.bruta).plus(acum?.bruta ?? 0).plus(otrosBruta),
       aportes: ant.aportes.plus(actual.aportes).plus(acum?.aportes ?? 0).plus(otrosAportes),

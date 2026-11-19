@@ -6,7 +6,18 @@ export interface DatosF572 {
   cargas: { parentesco: string; documento: string; nombre: string; mesDesde: number; mesHasta: number; porcentaje: number }[];
   otrosEmpleadores: { cuit: string; nombre: string; meses: { mes: number; bruta: string; aportes: string; retenido: string }[] }[];
   deducciones: { tipo: TipoDeduccion; codigo: string; prestador: string; meses: { mes: number; importe: string }[] }[];
+  /** Sección 4 del F.572 (E32 §4); los F.572 guardados antes de la E32 no la tienen. */
+  pagosACuenta?: { tipo: TipoPagoACuenta; codigo: string; meses: { mes: number; importe: string }[] }[];
 }
+
+/** Pagos a cuenta del registro 07 del F.1359 (E32 §4). */
+export type TipoPagoACuenta = 'ADUANERAS' | 'CHEQUE_BANCARIO' | 'CHEQUE_MOVIMIENTOS' | 'EFECTIVO_AGENCIAS' | 'EFECTIVO_TRANSPORTE' | 'DOLAR_ATESORAMIENTO' | 'DOLAR_BIENES_EXTERIOR' | 'DOLAR_SERVICIOS_NO_RESIDENTES' | 'DOLAR_AGENCIAS' | 'DOLAR_TRANSPORTE' | 'OTRO';
+export const TIPOS_PAGO_A_CUENTA: TipoPagoACuenta[] = ['ADUANERAS', 'CHEQUE_BANCARIO', 'CHEQUE_MOVIMIENTOS', 'EFECTIVO_AGENCIAS', 'EFECTIVO_TRANSPORTE', 'DOLAR_ATESORAMIENTO', 'DOLAR_BIENES_EXTERIOR', 'DOLAR_SERVICIOS_NO_RESIDENTES', 'DOLAR_AGENCIAS', 'DOLAR_TRANSPORTE', 'OTRO'];
+/** Códigos de pagos a cuenta del SiRADIG (PROVISIONAL, E32 §14). */
+export const CODIGOS_PAGO_A_CUENTA: Record<string, TipoPagoACuenta> = {
+  1: 'ADUANERAS', 2: 'CHEQUE_BANCARIO', 3: 'CHEQUE_MOVIMIENTOS', 4: 'EFECTIVO_AGENCIAS', 5: 'EFECTIVO_TRANSPORTE',
+  6: 'DOLAR_ATESORAMIENTO', 7: 'DOLAR_BIENES_EXTERIOR', 8: 'DOLAR_SERVICIOS_NO_RESIDENTES', 9: 'DOLAR_AGENCIAS', 10: 'DOLAR_TRANSPORTE',
+};
 
 /**
  * Mapeo declarativo del XML del SiRADIG (Sección A). PROVISIONAL (spec E31 §11): armado con la estructura conocida del formulario;
@@ -17,6 +28,7 @@ export const XML_F572 = {
   empleado: 'empleado', agente: 'agenteRetencion', cuit: 'cuit',
   cargas: ['cargasFamilia', 'cargaFamilia'], carga: { nroDoc: 'nroDoc', apellido: 'apellido', nombre: 'nombre', mesDesde: 'mesDesde', mesHasta: 'mesHasta', parentesco: 'parentesco', porcentaje: 'porcentajeDeduccion' },
   otros: ['ganLiqOtrosEmpEnt', 'empEnt'], otro: { cuit: 'cuit', nombre: 'denominacion', meses: ['ingresosAportes', 'ingAp'], mes: '@_mes', bruta: 'ganBrut', obraSocial: 'obraSoc', seguridadSocial: 'segSoc', sindicato: 'sind', retenido: 'retGan' },
+  pagos: ['retPerPagos', 'retPerPago'],
   deducciones: ['deducciones', 'deduccion'], deduccion: { tipo: '@_tipo', prestador: 'denominacion', periodos: ['periodos', 'periodo'], desde: '@_mesDesde', hasta: '@_mesHasta', monto: '@_montoMensual' },
 } as const;
 
@@ -88,8 +100,24 @@ export function leerF572(xml: string): { cuil: string; cuitAgente: string; anio:
     }
     return { tipo, codigo, prestador, meses };
   });
+  const meses = (n: Nodo) => {
+    const out: { mes: number; importe: string }[] = [];
+    for (const per of lista(n, m.deduccion.periodos)) {
+      const desde = entero(per, m.deduccion.desde);
+      const hasta = entero(per, m.deduccion.hasta) || desde;
+      const monto = importe(texto(per, m.deduccion.monto) || 0);
+      for (let mes = desde; mes <= hasta; mes++) if (mesValido(mes)) out.push({ mes, importe: monto });
+    }
+    return out;
+  };
+  const pagosACuenta = lista(p, m.pagos).map((x) => {
+    const codigo = texto(x, m.deduccion.tipo);
+    const tipo = CODIGOS_PAGO_A_CUENTA[codigo] ?? 'OTRO';
+    if (tipo === 'OTRO') avisos.push(`Pago a cuenta con código ${codigo} sin equivalente: se guarda y no se computa`);
+    return { tipo, codigo, meses: meses(x) };
+  });
   const fecha = texto(p, m.fecha);
-  return { cuil, cuitAgente, anio, nroPresentacion: entero(p, m.nroPresentacion) || 0, fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null, datos: { cargas, otrosEmpleadores, deducciones }, avisos };
+  return { cuil, cuitAgente, anio, nroPresentacion: entero(p, m.nroPresentacion) || 0, fecha: /^\d{4}-\d{2}-\d{2}$/.test(fecha) ? fecha : null, datos: { cargas, otrosEmpleadores, deducciones, pagosACuenta }, avisos };
 }
 
 export const TIPOS_DEDUCCION_VALIDOS = Object.keys(NOMBRE_DEDUCCION) as TipoDeduccion[];

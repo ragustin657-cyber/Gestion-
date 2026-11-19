@@ -75,4 +75,11 @@ describe('Ganancias de cuarta: cálculo de la retención', () => {
     const r = retencionGanancias(base({ mes: 2, bruta: D(4000000), aportes: D(340000), brutaRecibo: D(1000000), netoRecibo: D(100000) }));
     expect([r.importe.toFixed(2), r.hoja.noRetenido]).toEqual(['100000.00', '269000.00']);
   });
+
+  it('pagos a cuenta', () => {
+    const r = retencionGanancias(base({ pagosACuenta: D(9000) }));
+    expect([r.importe.toFixed(2), r.hoja.pagosACuenta]).toEqual(['150000.00', '9000.00']);
+    // Más pagos a cuenta que impuesto: devolución limitada a lo retenido por la empresa (0)
+    expect(retencionGanancias(base({ pagosACuenta: D(200000) })).importe.toFixed(2)).toBe('0.00');
+  });
 });

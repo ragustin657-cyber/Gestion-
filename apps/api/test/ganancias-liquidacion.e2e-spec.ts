@@ -174,6 +174,18 @@ describe('ganancias: retención en la liquidación', () => {
     expect(h.personales.gni).toBe('2400000.00');
   });
 
+  it('revisión E32: pagos a cuenta bajan la retención', async () => {
+    const x = await escenario();
+    const l = await x.crear('MENSUAL', 2026, 11);
+    const antes = D(x.ganancias(await x.recibo(l.id))!.importe);
+    const extra = '</deducciones><retPerPagos><retPerPago tipo="6"><periodos><periodo mesDesde="3" mesHasta="3" montoMensual="50000.00"/></periodos></retPerPago></retPerPagos><deducciones>';
+    // F.572 solo con el pago a cuenta (sin cargas ni deducciones que también bajarían la retención)
+    const xml = f572({ extra }).replace(/<cargasFamilia>[\s\S]*<\/cargasFamilia>/, '').replace(/<deduccion tipo="1">[\s\S]*?<\/deduccion>/, '').replace(/<ganLiqOtrosEmpEnt>[\s\S]*<\/ganLiqOtrosEmpEnt>/, '');
+    expect((await x.importar(xml)).body.importados.length).toBe(1);
+    await x.http.post(`/api/sueldos/liquidaciones/${l.id}/recalcular`);
+    expect(antes.minus(x.ganancias(await x.recibo(l.id))!.importe).toFixed(2)).toBe('50000.00');
+  });
+
   it('reabrir con posteriores cerradas avisa', async () => {
     const x = await escenario();
     const nov = await x.crear('MENSUAL', 2026, 11);

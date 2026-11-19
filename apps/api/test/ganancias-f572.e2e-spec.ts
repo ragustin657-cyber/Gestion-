@@ -96,6 +96,21 @@ describe('ganancias: F.572 web', () => {
     expect(mal.status).toBe(400);
   });
 
+  it('importa pagos a cuenta', async () => {
+    const x = await escenario();
+    const extra = '</deducciones><retPerPagos><retPerPago tipo="6"><periodos><periodo mesDesde="3" mesHasta="3" montoMensual="50000.00"/></periodos></retPerPago></retPerPagos><deducciones>';
+    await x.importar([{ nombre: 'a.xml', xml: f572({ extra }) }]);
+    expect((await x.ver()).body.datos.pagosACuenta).toEqual([{ tipo: 'DOLAR_ATESORAMIENTO', codigo: '6', meses: [{ mes: 3, importe: '50000.00' }] }]);
+  });
+
+  it('código de pago a cuenta desconocido', async () => {
+    const x = await escenario();
+    const extra = '</deducciones><retPerPagos><retPerPago tipo="77"><periodos><periodo mesDesde="3" mesHasta="3" montoMensual="1.00"/></periodos></retPerPago></retPerPagos><deducciones>';
+    const r = await x.importar([{ nombre: 'a.xml', xml: f572({ extra }) }]);
+    expect(r.body.importados[0].avisos).toEqual(['Pago a cuenta con código 77 sin equivalente: se guarda y no se computa']);
+    expect((await x.ver()).body.datos.pagosACuenta[0].tipo).toBe('OTRO');
+  });
+
   it('acumulado previo', async () => {
     const x = await escenario();
     const vacio = (await x.http.get(`/api/sueldos/ganancias/acumulado/${x.e.id}/2026`)).body;
