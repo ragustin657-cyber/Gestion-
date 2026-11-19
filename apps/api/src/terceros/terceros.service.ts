@@ -72,6 +72,7 @@ export class TercerosService {
       this.tenant.transaccion(async (tx) => {
         await this.verificarLista(tx, d.listaPreciosId);
         await this.verificarVendedor(tx, d.vendedorId);
+        await this.verificarRegimenes(tx, d);
         const codigo = await this.numeracion.siguiente(tx, 'TERCERO', 0);
         const t = await tx.tercero.create({
           data: { ...d, email: d.email || null, empresaId: this.tenant.empresaId, codigo },
@@ -86,6 +87,7 @@ export class TercerosService {
     return conUnicidad(CUIT_DUPLICADO, () =>
       this.tenant.transaccion(async (tx) => {
         await this.verificarLista(tx, d.listaPreciosId);
+        await this.verificarRegimenes(tx, d);
         // Solo se valida un vendedor nuevo: uno que quedó inactivo no traba la edición del resto de los datos
         const actual = await tx.tercero.findUnique({ where: { id }, select: { vendedorId: true } });
         if (d.vendedorId !== actual?.vendedorId) await this.verificarVendedor(tx, d.vendedorId);
@@ -110,5 +112,11 @@ export class TercerosService {
       await this.auditoria.registrar(tx, { entidad: 'Tercero', entidadId: id, accion: 'MODIFICAR', datos: { iibb: lista } });
       return tx.terceroIibb.findMany({ where: { terceroId: id }, orderBy: { jurisdiccion: 'asc' } });
     });
+  }
+
+  /** Los regímenes de IVA y SUSS de la ficha tienen que ser de la empresa (E35). */
+  private async verificarRegimenes(tx: TxEmpresa, d: { regimenIvaId?: string | null; regimenSussId?: string | null }) {
+    if (d.regimenIvaId && !(await tx.regimenIva.findUnique({ where: { id: d.regimenIvaId } }))) throw new BadRequestException('Régimen de IVA inexistente');
+    if (d.regimenSussId && !(await tx.regimenSuss.findUnique({ where: { id: d.regimenSussId } }))) throw new BadRequestException('Régimen de SUSS inexistente');
   }
 }

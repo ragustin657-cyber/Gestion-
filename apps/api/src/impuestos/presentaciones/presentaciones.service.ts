@@ -10,6 +10,7 @@ import { ErrorFormato } from '../formato/escritor';
 import { libroIvaDigital } from '../libros-iva/libro-iva-digital';
 import { agip } from '../retenciones/agip';
 import { arba } from '../retenciones/arba';
+import { sireIva, sireSuss } from '../retenciones/sire';
 import { sicore } from '../retenciones/sicore';
 import { NumeracionService } from '../../numeracion/numeracion.service';
 import { ContextoGeneracion, Generador } from './generado';
@@ -21,7 +22,7 @@ const EN_PARALELO = 4;
 
 @Injectable()
 export class PresentacionesService {
-  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital], ['SICORE', sicore], ['ARBA', arba], ['AGIP', agip]]);
+  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital], ['SICORE', sicore], ['ARBA', arba], ['AGIP', agip], ['SIRE_IVA', sireIva], ['SIRE_SUSS', sireSuss]]);
 
   constructor(
     private readonly tenant: TenantPrisma,

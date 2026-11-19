@@ -12,6 +12,8 @@ export interface DatosRegimen {
   codigo: string; descripcion: string; minimoNoSujeto: number; alicuotaInscripto: number; alicuotaNoInscripto: number;
   usaEscala?: boolean; minimoRetencion: number; activo?: boolean;
 }
+export interface DatosRegimenIva { codigoSire?: string | null; descripcion: string; porcentaje: number; minimoComprobante: number; minimoRetencion: number; condicionSire?: number | null; activo?: boolean }
+export interface DatosRegimenSuss { codigoSire?: string | null; descripcion: string; porcentaje: number; minimoNoSujeto: number; minimoRetencion: number; activo?: boolean }
 export interface DatosJurisdiccion { jurisdiccion: string; alicuotaDefecto: number; minimoRetencion: number; usaPadron: boolean; sinPadron: SinPadron }
 
 @Injectable()
@@ -103,5 +105,40 @@ export class ConfigPagosService {
       await this.auditoria.registrar(tx, { entidad: 'JurisdiccionIibb', entidadId: this.tenant.empresaId, accion: 'MODIFICAR', datos: lista });
       return tx.jurisdiccionIibb.findMany({ orderBy: { jurisdiccion: 'asc' } });
     });
+  }
+
+  // --- Regímenes de IVA y SUSS (E35) ---
+
+  private avisosSire(rs: { codigoSire: string | null; descripcion: string; activo: boolean }[]) {
+    return rs.filter((r) => r.activo && !r.codigoSire).map((r) => `Cargue el código SIRE del régimen ${r.descripcion}`);
+  }
+
+  /** Lista de regímenes, cada uno con su aviso si está activo y sin código SIRE (como la lista de Ganancias, para el ABM). */
+  async regimenesIva() {
+    return (await this.tenant.db.regimenIva.findMany({ orderBy: { descripcion: 'asc' } })).map((r) => ({ ...r, aviso: this.avisosSire([r])[0] ?? null }));
+  }
+
+  async regimenesSuss() {
+    return (await this.tenant.db.regimenSuss.findMany({ orderBy: { descripcion: 'asc' } })).map((r) => ({ ...r, aviso: this.avisosSire([r])[0] ?? null }));
+  }
+
+  guardarRegimenIva(id: string | null, d: Partial<DatosRegimenIva>) {
+    return conUnicidad('Ya existe un régimen con esa descripción', () =>
+      this.tenant.transaccion(async (tx) => {
+        const r = id ? await tx.regimenIva.update({ where: { id }, data: d }) : await tx.regimenIva.create({ data: { ...(d as DatosRegimenIva), empresaId: this.tenant.empresaId } });
+        await this.auditoria.registrar(tx, { entidad: 'RegimenIva', entidadId: r.id, accion: id ? 'MODIFICAR' : 'CREAR', datos: d });
+        return r;
+      }),
+    );
+  }
+
+  guardarRegimenSuss(id: string | null, d: Partial<DatosRegimenSuss>) {
+    return conUnicidad('Ya existe un régimen con esa descripción', () =>
+      this.tenant.transaccion(async (tx) => {
+        const r = id ? await tx.regimenSuss.update({ where: { id }, data: d }) : await tx.regimenSuss.create({ data: { ...(d as DatosRegimenSuss), empresaId: this.tenant.empresaId } });
+        await this.auditoria.registrar(tx, { entidad: 'RegimenSuss', entidadId: r.id, accion: id ? 'MODIFICAR' : 'CREAR', datos: d });
+        return r;
+      }),
+    );
   }
 }

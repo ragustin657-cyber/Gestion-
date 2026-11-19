@@ -35,6 +35,10 @@ export interface MedioPago {
 const MONEDA_DISTINTA = 'La moneda del medio de pago no coincide con la de la cuenta';
 
 /** Ejecuta el pago de una OP aprobada: medios, cheques, tesorería, aplicaciones, certificados y asiento. */
+/** Talonario y cuenta del pasivo de cada retención practicada (IVA y SUSS: E35). */
+const TALONARIO_RETENCION: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS' };
+const CUENTA_RETENCION: Record<string, 'RETENCION_GANANCIAS' | 'RETENCION_IVA' | 'RETENCION_SUSS'> = { GANANCIAS: 'RETENCION_GANANCIAS', IVA: 'RETENCION_IVA', SUSS: 'RETENCION_SUSS' };
+
 @Injectable()
 export class PagoService {
   constructor(
@@ -232,9 +236,9 @@ export class PagoService {
       const guardadas = await tx.ordenPagoRetencion.findMany({ where: { ordenPagoId: id } });
       for (const r of guardadas) {
         if (r.importe.lte(0)) continue;
-        const talonario = r.impuesto === 'GANANCIAS' ? 'RET-GAN' : `RET-IIBB-${r.jurisdiccion}`;
+        const talonario = TALONARIO_RETENCION[r.impuesto] ?? `RET-IIBB-${r.jurisdiccion}`;
         await tx.ordenPagoRetencion.update({ where: { id: r.id }, data: { certificadoNumero: await this.numeracion.siguiente(tx, talonario, 0) } });
-        haber(await cuenta(r.impuesto === 'GANANCIAS' ? 'RETENCION_GANANCIAS' : 'RETENCION_IIBB'), r.importe);
+        haber(await cuenta(CUENTA_RETENCION[r.impuesto] ?? 'RETENCION_IIBB'), r.importe);
       }
 
       // 8. Asiento y estado

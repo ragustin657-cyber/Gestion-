@@ -24,7 +24,7 @@ export function RetencionesPage() {
     <Paper withBorder p="md" radius="md">
       <Title order={3} mb="md">Retenciones practicadas</Title>
       <FiltroFechas desde={desde} hasta={hasta} onDesde={setDesde} onHasta={setHasta}>
-        <Select label="Impuesto" clearable w={160} value={impuesto} onChange={setImpuesto} data={[{ value: 'GANANCIAS', label: 'Ganancias' }, { value: 'IIBB', label: 'IIBB' }]} />
+        <Select label="Impuesto" clearable w={160} value={impuesto} onChange={setImpuesto} data={[{ value: 'GANANCIAS', label: 'Ganancias' }, { value: 'IIBB', label: 'IIBB' }, { value: 'IVA', label: 'IVA' }, { value: 'SUSS', label: 'SUSS' }]} />
         <Checkbox label="Incluir anuladas" checked={anuladas} onChange={(e) => setAnuladas(e.currentTarget.checked)} mb={8} />
         <Button variant="light" leftSection={<IconDownload size={16} />} onClick={() => descargar('/pagos/retenciones', { ...filtros, formato: 'xlsx' }, `retenciones-${desde}-${hasta}.xlsx`).catch((e) => setError(e.mensaje))}>
           Exportar a Excel
@@ -40,7 +40,7 @@ export function RetencionesPage() {
             {(q.data ?? []).map((f) => (
               <Table.Tr key={f.id} style={f.anulada ? { textDecoration: 'line-through' } : undefined}>
                 <Table.Td>{formatoFecha(f.fechaPago)}</Table.Td><Table.Td>{f.certificado}</Table.Td><Table.Td>{f.razonSocial}</Table.Td><Table.Td>{f.cuit}</Table.Td>
-                <Table.Td>{f.impuesto === 'GANANCIAS' ? `Régimen ${f.regimen}` : `Jurisdicción ${f.jurisdiccion}`} · {f.alicuota === 'escala' ? 'Escala' : `${Number(f.alicuota)} %`}</Table.Td>
+                <Table.Td>{f.impuesto === 'GANANCIAS' ? `Régimen ${f.regimen}` : f.impuesto === 'IVA' || f.impuesto === 'SUSS' ? f.impuesto : `Jurisdicción ${f.jurisdiccion}`} · {f.alicuota === 'escala' ? 'Escala' : `${Number(f.alicuota)} %`}</Table.Td>
                 <Table.Td ta="right">{formatoMoneda(f.base)}</Table.Td><Table.Td ta="right">{formatoMoneda(f.importe)}</Table.Td>
                 <Table.Td>
                   <Button size="compact-xs" variant="subtle" onClick={() => void descargar(`/pagos/ordenes/${f.ordenPagoId}/certificados/${f.id}/pdf`, {}, `certificado-${f.certificado.replace(' ', '-')}.pdf`)}>PDF</Button>

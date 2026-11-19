@@ -6,7 +6,7 @@ const fecha = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10).
 
 function documento(cuerpo: (doc: PDFKit.PDFDocument) => void): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ size: 'A4', margin: 40 });
+    const doc = new PDFDocument({ size: 'A4', margin: 40, compress: process.env.NODE_ENV !== 'test' });
     const partes: Buffer[] = [];
     doc.on('data', (c: Buffer) => partes.push(c));
     doc.on('end', () => resolve(Buffer.concat(partes)));
@@ -71,11 +71,14 @@ export function pdfOrdenPago(d: DatosPdfOP): Promise<Buffer> {
 export interface DatosCertificado {
   empresa: Empresa; proveedor: { razonSocial: string; cuit: string; domicilio: string | null }; certificado: string; fecha: Date;
   impuesto: string; detalleImpuesto: string; base: string; alicuota: string; importe: string; ordenPago: string; anulado: boolean;
+  /** IVA y SUSS (SIRE, E35): título de constancia y leyenda */
+  constancia?: { titulo: string; leyenda: string } | null;
 }
 
 export function pdfCertificado(d: DatosCertificado): Promise<Buffer> {
   return documento((doc) => {
-    encabezado(doc, d.empresa, `CERTIFICADO DE RETENCIÓN N° ${d.certificado}`, `Fecha: ${fecha(d.fecha)}   Orden de pago ${d.ordenPago}`);
+    encabezado(doc, d.empresa, `${d.constancia?.titulo ?? 'CERTIFICADO DE RETENCIÓN'} N° ${d.certificado}`, `Fecha: ${fecha(d.fecha)}   Orden de pago ${d.ordenPago}`);
+    if (d.constancia) doc.font('Helvetica-Oblique').text(d.constancia.leyenda).font('Helvetica').moveDown();
     if (d.anulado) doc.fontSize(20).fillColor('red').text('ANULADO', { align: 'center' }).fillColor('black').fontSize(9);
     doc.font('Helvetica-Bold').text('Agente de retención');
     doc.font('Helvetica').text(`${d.empresa.razonSocial} — CUIT ${cuitFmt(d.empresa.cuit)}`);

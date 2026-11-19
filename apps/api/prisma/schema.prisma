@@ -117,41 +117,46 @@ model Talonario {
 }
 
 model Tercero {
-  id                 String              @id @default(uuid()) @db.Uuid
-  empresaId          String              @db.Uuid
-  codigo             Int
-  razonSocial        String
-  nombreFantasia     String?
-  cuit               String
-  tipoDocumento      TipoDocumento       @default(CUIT)
-  situacionIibb      SituacionIibb?
-  numeroIibb         String?
-  condicionIva       CondicionIva
-  esProveedor        Boolean             @default(false)
-  esCliente          Boolean             @default(false)
-  vendedorId         String?             @db.Uuid
+  id                      String              @id @default(uuid()) @db.Uuid
+  empresaId               String              @db.Uuid
+  codigo                  Int
+  razonSocial             String
+  nombreFantasia          String?
+  cuit                    String
+  tipoDocumento           TipoDocumento       @default(CUIT)
+  situacionIibb           SituacionIibb?
+  numeroIibb              String?
+  condicionIva            CondicionIva
+  esProveedor             Boolean             @default(false)
+  esCliente               Boolean             @default(false)
+  vendedorId              String?             @db.Uuid
   /// Exceptuado de los intereses por mora (Entrega 27).
-  sinIntereses       Boolean             @default(false)
-  domicilio          String?
-  localidad          String?
-  provincia          String?
-  email              String?
-  telefono           String?
-  diasPago           Int                 @default(0)
-  regimenGanancias   String?
-  exentoGanancias    Boolean             @default(false)
-  exentoIva          Boolean             @default(false)
-  exencionHasta      DateTime?           @db.Date
-  inscriptoGanancias Boolean             @default(true)
-  activo             Boolean             @default(true)
-  creadoEn           DateTime            @default(now())
-  iibb               TerceroIibb[]
-  ordenesCompra      OrdenCompra[]
-  recepciones        InformeRecepcion[]
-  comprobantesCompra ComprobanteCompra[]
-  ordenesPago        OrdenPago[]
-  comprobantesVenta  ComprobanteVenta[]
-  listaPreciosId     String?             @db.Uuid
+  sinIntereses            Boolean             @default(false)
+  domicilio               String?
+  localidad               String?
+  provincia               String?
+  email                   String?
+  telefono                String?
+  diasPago                Int                 @default(0)
+  regimenGanancias        String?
+  exentoGanancias         Boolean             @default(false)
+  exentoIva               Boolean             @default(false)
+  regimenIvaId            String?             @db.Uuid
+  regimenSussId           String?             @db.Uuid
+  exclusionIvaPorcentaje  Int?
+  exclusionIvaPublicacion DateTime?           @db.Date
+  exclusionIvaHasta       DateTime?           @db.Date
+  exencionHasta           DateTime?           @db.Date
+  inscriptoGanancias      Boolean             @default(true)
+  activo                  Boolean             @default(true)
+  creadoEn                DateTime            @default(now())
+  iibb                    TerceroIibb[]
+  ordenesCompra           OrdenCompra[]
+  recepciones             InformeRecepcion[]
+  comprobantesCompra      ComprobanteCompra[]
+  ordenesPago             OrdenPago[]
+  comprobantesVenta       ComprobanteVenta[]
+  listaPreciosId          String?             @db.Uuid
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
@@ -612,6 +617,35 @@ model RegimenGanancias {
   @@unique([empresaId, codigo])
 }
 
+/// Régimen de retención de IVA (E35): porcentaje sobre el IVA de la factura; código de la tabla REGIMEN del SIRE (impuesto 216).
+model RegimenIva {
+  id                String  @id @default(uuid()) @db.Uuid
+  empresaId         String  @db.Uuid
+  codigoSire        String?
+  descripcion       String
+  porcentaje        Decimal @db.Decimal(9, 4)
+  minimoComprobante Decimal @default(0) @db.Decimal(18, 2)
+  minimoRetencion   Decimal @default(0) @db.Decimal(18, 2)
+  condicionSire     Int?
+  activo            Boolean @default(true)
+
+  @@unique([empresaId, descripcion])
+}
+
+/// Régimen de retención de SUSS (E35): porcentaje sobre el importe sin IVA; código de la tabla REGIMEN del SIRE (impuesto 353).
+model RegimenSuss {
+  id              String  @id @default(uuid()) @db.Uuid
+  empresaId       String  @db.Uuid
+  codigoSire      String?
+  descripcion     String
+  porcentaje      Decimal @db.Decimal(9, 4)
+  minimoNoSujeto  Decimal @default(0) @db.Decimal(18, 2)
+  minimoRetencion Decimal @default(0) @db.Decimal(18, 2)
+  activo          Boolean @default(true)
+
+  @@unique([empresaId, descripcion])
+}
+
 model EscalaGanancias {
   id         String   @id @default(uuid()) @db.Uuid
   empresaId  String   @db.Uuid
@@ -728,19 +762,21 @@ model OrdenPagoAnticipo {
 }
 
 model OrdenPagoRetencion {
-  id                String    @id @default(uuid()) @db.Uuid
-  empresaId         String    @db.Uuid
-  ordenPagoId       String    @db.Uuid
-  impuesto          String
-  jurisdiccion      String?
-  regimen           String?
-  base              Decimal   @db.Decimal(18, 2)
-  alicuota          String
-  importe           Decimal   @db.Decimal(18, 2)
-  detalle           Json
-  certificadoNumero Int?
-  anulada           Boolean   @default(false)
-  ordenPago         OrdenPago @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
+  id                  String    @id @default(uuid()) @db.Uuid
+  empresaId           String    @db.Uuid
+  ordenPagoId         String    @db.Uuid
+  impuesto            String
+  jurisdiccion        String?
+  regimen             String?
+  base                Decimal   @db.Decimal(18, 2)
+  alicuota            String
+  importe             Decimal   @db.Decimal(18, 2)
+  detalle             Json
+  certificadoNumero   Int?
+  anulada             Boolean   @default(false)
+  /// Factura retenida (IVA y SUSS se retienen por comprobante, E35)
+  comprobanteCompraId String?   @db.Uuid
+  ordenPago           OrdenPago @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
 }
 
 enum TipoMedioPago {
@@ -1575,6 +1611,8 @@ enum TipoPresentacion {
   SICORE
   ARBA
   AGIP
+  SIRE_IVA
+  SIRE_SUSS
 }
 
 enum PeriodicidadArba {

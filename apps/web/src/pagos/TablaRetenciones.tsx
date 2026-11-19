@@ -7,7 +7,9 @@ import { descripcionRetencion, numeroCertificado, RetencionOP } from './tipos';
 const DETALLE: Record<string, string> = {
   basePago: 'Base del pago', acumuladoPrevio: 'Acumulado previo del mes', acumulado: 'Acumulado', minimoNoSujeto: 'Mínimo no sujeto',
   sujetoRetencion: 'Sujeto a retención', impuestoDeterminado: 'Impuesto determinado', retenidoPrevio: 'Retenido en el mes', origenAlicuota: 'Origen de la alícuota',
+  pagado: 'Pagado de la factura', total: 'Total de la factura', fecha: 'Fecha de la factura', exclusion: 'Exclusión (%)',
 };
+const OCULTOS = new Set(['tipo', 'letra', 'puntoVenta', 'numero', 'exclusionPublicacion']);
 
 export function TablaRetenciones({ retenciones, opId, certificados }: { retenciones: RetencionOP[]; opId?: string; certificados?: boolean }) {
   const visibles = retenciones.filter((r) => Number(r.importe) > 0);
@@ -21,7 +23,7 @@ export function TablaRetenciones({ retenciones, opId, certificados }: { retencio
         {visibles.map((r) => (
           <Table.Tr key={r.id} style={r.anulada ? { textDecoration: 'line-through' } : undefined}>
             <Table.Td>
-              <Tooltip multiline w={300} label={Object.entries(r.detalle).map(([k, v]) => `${DETALLE[k] ?? k}: ${Number.isNaN(Number(v)) ? v : formatoMoneda(v)}`).join(' · ')}>
+              <Tooltip multiline w={300} label={Object.entries(r.detalle).filter(([k]) => !OCULTOS.has(k)).map(([k, v]) => `${DETALLE[k] ?? k}: ${Number.isNaN(Number(v)) ? v : formatoMoneda(v)}`).join(' · ')}>
                 <Text size="sm" style={{ cursor: 'help' }}>{descripcionRetencion(r)}</Text>
               </Tooltip>
             </Table.Td>

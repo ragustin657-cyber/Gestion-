@@ -11,6 +11,13 @@ const esquemaRegimen = z.object({
   codigo: zTexto, descripcion: zTexto, minimoNoSujeto: noNeg, alicuotaInscripto: noNeg.max(100), alicuotaNoInscripto: noNeg.max(100),
   usaEscala: z.boolean().optional(), minimoRetencion: noNeg, activo: z.boolean().optional(),
 });
+// Código de régimen de la tabla REGIMEN del SIRE: 3 dígitos (E35)
+const codigoSire = z.string().trim().regex(/^\d{3}$/, 'El código SIRE tiene 3 dígitos').nullish();
+const esquemaRegimenIva = z.object({
+  codigoSire, descripcion: zTexto, porcentaje: noNeg.max(100), minimoComprobante: noNeg, minimoRetencion: noNeg,
+  condicionSire: z.number().int().min(0).max(99).nullish(), activo: z.boolean().optional(),
+});
+const esquemaRegimenSuss = z.object({ codigoSire, descripcion: zTexto, porcentaje: noNeg.max(100), minimoNoSujeto: noNeg, minimoRetencion: noNeg, activo: z.boolean().optional() });
 const esquemaEscala = z.array(z.object({ desde: noNeg, hasta: noNeg.nullable(), fijo: noNeg, porcentaje: noNeg.max(100) })).min(1);
 const esquemaJurisdicciones = z.array(z.object({
   jurisdiccion: z.string().regex(/^9\d\d$/, 'Jurisdicción inválida'), alicuotaDefecto: noNeg.max(100), minimoRetencion: noNeg,
@@ -69,5 +76,39 @@ export class ConfigPagosController {
   @Put('jurisdicciones')
   reemplazarJurisdicciones(@Body(new ZodValidationPipe(esquemaJurisdicciones)) d: z.infer<typeof esquemaJurisdicciones>) {
     return this.config.reemplazarJurisdicciones(d);
+  }
+
+  @Get('regimenes-iva')
+  @RequierePermiso()
+  @RequiereAlguno('retenciones.config', 'op.crear', 'tercero.editar')
+  regimenesIva() {
+    return this.config.regimenesIva();
+  }
+
+  @Post('regimenes-iva')
+  crearRegimenIva(@Body(new ZodValidationPipe(esquemaRegimenIva)) d: z.infer<typeof esquemaRegimenIva>) {
+    return this.config.guardarRegimenIva(null, d);
+  }
+
+  @Patch('regimenes-iva/:id')
+  modificarRegimenIva(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegimenIva.partial())) d: Partial<z.infer<typeof esquemaRegimenIva>>) {
+    return this.config.guardarRegimenIva(id, d);
+  }
+
+  @Get('regimenes-suss')
+  @RequierePermiso()
+  @RequiereAlguno('retenciones.config', 'op.crear', 'tercero.editar')
+  regimenesSuss() {
+    return this.config.regimenesSuss();
+  }
+
+  @Post('regimenes-suss')
+  crearRegimenSuss(@Body(new ZodValidationPipe(esquemaRegimenSuss)) d: z.infer<typeof esquemaRegimenSuss>) {
+    return this.config.guardarRegimenSuss(null, d);
+  }
+
+  @Patch('regimenes-suss/:id')
+  modificarRegimenSuss(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegimenSuss.partial())) d: Partial<z.infer<typeof esquemaRegimenSuss>>) {
+    return this.config.guardarRegimenSuss(id, d);
   }
 }

@@ -10,7 +10,7 @@ import { MonedasService } from '../../monedas/monedas.service';
 import { NumeracionService } from '../../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { ConfigPagosService } from '../config/config-pagos.service';
-import { RetencionCalculada, RetencionesService } from '../retenciones/retenciones.service';
+import { ImputacionComprobante, RetencionCalculada, RetencionesService } from '../retenciones/retenciones.service';
 import { comprobantesDe, describirMovimientos } from './describir';
 import { DatosOP } from './dto';
 
@@ -188,11 +188,37 @@ export class OrdenesPagoService {
     return bases;
   }
 
+  /** Imputaciones de la OP a comprobantes de compra, con los datos que necesitan las retenciones de IVA y SUSS (E35). */
+  async imputacionesComprobantes(tx: TxEmpresa, op: { imputaciones: { movimientoId: string; importe: Dec; importePesos: Dec }[] }): Promise<ImputacionComprobante[]> {
+    const movs = await tx.movimientoCuentaCorriente.findMany({ where: { id: { in: op.imputaciones.map((i) => i.movimientoId) } } });
+    const comps = await comprobantesDe(tx, movs);
+    const out: ImputacionComprobante[] = [];
+    for (const i of op.imputaciones) {
+      const m = movs.find((x) => x.id === i.movimientoId);
+      if (m?.origenTipo === 'ANTICIPO' && !i.importe.isZero()) {
+        // Anticipo aplicado (revisión E35): reduce lo que se paga ahora, como una nota de crédito sin factura asociada
+        out.push({ comprobanteCompraId: m.id, tipo: 'ANTICIPO', letra: '', asociadaId: null, puntoVenta: 0, numero: 0, fecha: m.fecha, ivaPesos: '0', totalPesos: '0', totalFacturaPesos: '0',
+          imputadoPesos: i.importePesos.abs().toFixed(2), sinIva: { netoGravado: '0', noGravado: '0', exento: '0', total: '0' } });
+        continue;
+      }
+      const c = m?.origenTipo === 'COMPRA' ? comps.find((x) => x.id === m.origenId) : undefined;
+      if (!c || i.importe.isZero()) continue;
+      // Pesos a la cotización de la OP: el IVA y el total se llevan con la misma relación que la imputación
+      const k = i.importePesos.div(i.importe).abs();
+      out.push({
+        comprobanteCompraId: c.id, tipo: c.tipo, letra: c.letra, asociadaId: c.comprobanteAsociadoId, puntoVenta: c.puntoVenta, numero: c.numero, fecha: c.fechaEmision,
+        ivaPesos: c.iva.mul(k).toFixed(2), totalPesos: c.total.mul(k).toFixed(2), totalFacturaPesos: c.totalPesos.toFixed(2), imputadoPesos: i.importePesos.abs().toFixed(2),
+        sinIva: { netoGravado: c.netoGravado.toString(), noGravado: c.noGravado.toString(), exento: c.exento.toString(), total: c.total.toString() },
+      });
+    }
+    return out;
+  }
+
   /** Calcula las retenciones de la OP a una fecha (sin guardar). */
   async calcularRetenciones(tx: TxEmpresa, opId: string, fechaPago: Date): Promise<RetencionCalculada[]> {
     const op = await tx.ordenPago.findUnique({ where: { id: opId }, include: { imputaciones: true, anticipo: true } });
     if (!op) throw new NotFoundException('Orden de pago no encontrada');
-    return this.retenciones.calcular(tx, { terceroId: op.terceroId, fechaPago, bases: await this.bases(tx, op), excluirOrdenPagoId: op.id, tope: op.totalCancelarPesos.toString() });
+    return this.retenciones.calcular(tx, { terceroId: op.terceroId, fechaPago, bases: await this.bases(tx, op), imputaciones: await this.imputacionesComprobantes(tx, op), excluirOrdenPagoId: op.id, tope: op.totalCancelarPesos.toString() });
   }
 
   /** Vista previa de retenciones a otra fecha de pago, sin guardar. */
@@ -207,7 +233,7 @@ export class OrdenesPagoService {
   async guardarRetenciones(tx: TxEmpresa, opId: string, rets: RetencionCalculada[], total: Dec) {
     await tx.ordenPagoRetencion.deleteMany({ where: { ordenPagoId: opId } });
     await tx.ordenPagoRetencion.createMany({
-      data: rets.map((r) => ({ empresaId: this.tenant.empresaId, ordenPagoId: opId, impuesto: r.impuesto, jurisdiccion: r.jurisdiccion, regimen: r.regimen, base: r.base, alicuota: r.alicuota, importe: r.importe, detalle: r.detalle })),
+      data: rets.map((r) => ({ empresaId: this.tenant.empresaId, ordenPagoId: opId, impuesto: r.impuesto, jurisdiccion: r.jurisdiccion, regimen: r.regimen, base: r.base, alicuota: r.alicuota, importe: r.importe, detalle: r.detalle, comprobanteCompraId: r.comprobanteCompraId ?? null })),
     });
     const totalRet = rets.reduce((s, r) => s.plus(r.importe), new D(0));
     return { totalRetenciones: totalRet, netoPagar: total.minus(totalRet) };

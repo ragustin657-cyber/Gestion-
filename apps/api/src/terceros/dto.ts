@@ -23,6 +23,12 @@ const base = z.object({
   exentoGanancias: z.boolean().optional(),
   exentoIva: z.boolean().optional(),
   exencionHasta: z.coerce.date().optional().nullable(),
+  // Retenciones de IVA y SUSS (E35)
+  regimenIvaId: z.string().uuid('Valor inválido').nullish(),
+  regimenSussId: z.string().uuid('Valor inválido').nullish(),
+  exclusionIvaPorcentaje: z.union([z.literal(50), z.literal(100)], { errorMap: () => ({ message: 'La exclusión es del 50 o del 100 %' }) }).nullish(),
+  exclusionIvaPublicacion: z.coerce.date().nullish(),
+  exclusionIvaHasta: z.coerce.date().nullish(),
   inscriptoGanancias: z.boolean().optional(),
   activo: z.boolean().optional(),
   listaPreciosId: z.string().uuid('Valor inválido').nullish(),
@@ -60,11 +66,17 @@ function iibb<T extends { situacionIibb?: SituacionIibb | null; numeroIibb?: str
   if (n && !(/^\d+$/.test(n) && largos.includes(n.length))) ctx.addIssue({ code: 'custom', path: ['numeroIibb'], message: `Debe tener ${largos.join(' u ')} dígitos` });
 }
 
-export const esquemaAltaTercero = base.refine(tipo, msgTipo).superRefine(iibb).transform(documento);
+/** La exclusión de IVA del SIRE exige su fecha de publicación (F.2005 C13, revisión E35). */
+function exclusion<T extends { exclusionIvaPorcentaje?: number | null; exclusionIvaPublicacion?: Date | null }>(t: T, ctx: z.RefinementCtx): void {
+  if (t.exclusionIvaPorcentaje && !t.exclusionIvaPublicacion) ctx.addIssue({ code: 'custom', path: ['exclusionIvaPublicacion'], message: 'Indique la fecha de publicación de la exclusión de IVA' });
+}
+
+export const esquemaAltaTercero = base.refine(tipo, msgTipo).superRefine(iibb).superRefine(exclusion).transform(documento);
 export const esquemaModTercero = base
   .partial()
   .refine((t) => t.esProveedor === undefined || t.esCliente === undefined || tipo(t), msgTipo)
   .superRefine(iibb)
+  .superRefine(exclusion)
   .transform(documento);
 
 export const esquemaIibb = z.array(

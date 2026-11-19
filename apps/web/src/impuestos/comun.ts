@@ -3,6 +3,8 @@ export const TIPOS_PRESENTACION = [
   { value: 'SICORE', label: 'SICORE (Ganancias)' },
   { value: 'ARBA', label: 'ARBA A-122R (IIBB Buenos Aires)' },
   { value: 'AGIP', label: 'AGIP e-ARCIBA (IIBB CABA)' },
+  { value: 'SIRE_IVA', label: 'SIRE IVA (F.2005)' },
+  { value: 'SIRE_SUSS', label: 'SIRE SUSS (F.2004)' },
 ];
 export const NOMBRE_PRESENTACION: Record<string, string> = Object.fromEntries(TIPOS_PRESENTACION.map((t) => [t.value, t.label]));
 export const periodoTexto = (p: string, quincena = 0) => `${p.slice(4, 6)}/${p.slice(0, 4)}${quincena ? ` (${quincena}ª quincena)` : ''}`;

@@ -24,9 +24,24 @@ export const ESCALA_INICIAL = [
 export const JURISDICCIONES = Array.from({ length: 24 }, (_, i) => String(901 + i));
 export const JURISDICCIONES_CON_PADRON = ['901', '902'];
 
+/** Regímenes de IVA y SUSS precargados (E35): porcentajes de referencia a verificar; el código SIRE se carga a mano. */
+export const REGIMENES_IVA_INICIALES = [
+  { descripcion: 'Compraventa de cosas muebles', porcentaje: 50 },
+  { descripcion: 'Locaciones de obras y servicios', porcentaje: 80 },
+  { descripcion: 'Proveedor con incumplimientos (100 %)', porcentaje: 100 },
+];
+export const REGIMENES_SUSS_INICIALES = [
+  { descripcion: 'Construcción', porcentaje: 1.2 },
+  { descripcion: 'Limpieza de inmuebles', porcentaje: 6 },
+  { descripcion: 'Investigación y seguridad', porcentaje: 6 },
+  { descripcion: 'Empresas de servicios eventuales', porcentaje: 2 },
+];
+
 /** Carga regímenes, escala y jurisdicciones en una empresa nueva. */
 export async function cargarConfigPagos(tx: Prisma.TransactionClient, empresaId: string): Promise<void> {
   await tx.regimenGanancias.createMany({ data: REGIMENES_INICIALES.map((r) => ({ ...r, empresaId })), skipDuplicates: true });
+  await tx.regimenIva.createMany({ data: REGIMENES_IVA_INICIALES.map((r) => ({ ...r, empresaId })), skipDuplicates: true });
+  await tx.regimenSuss.createMany({ data: REGIMENES_SUSS_INICIALES.map((r) => ({ ...r, empresaId })), skipDuplicates: true });
   if (!(await tx.escalaGanancias.count({ where: { empresaId } })))
     await tx.escalaGanancias.createMany({ data: ESCALA_INICIAL.map((e) => ({ ...e, empresaId })) });
   await tx.jurisdiccionIibb.createMany({

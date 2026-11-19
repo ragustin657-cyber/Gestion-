@@ -1,5 +1,5 @@
 export interface RetencionOP {
-  id: string; impuesto: 'GANANCIAS' | 'IIBB'; jurisdiccion: string | null; regimen: string | null; base: string; alicuota: string;
+  id: string; impuesto: 'GANANCIAS' | 'IIBB' | 'IVA' | 'SUSS'; jurisdiccion: string | null; regimen: string | null; base: string; alicuota: string;
   importe: string; detalle: Record<string, string>; certificadoNumero: number | null; anulada: boolean;
 }
 export interface OrdenPago {
@@ -23,7 +23,11 @@ export const ESTADOS_OP: Record<string, { etiqueta: string; color: string }> = {
 
 export const numeroOP = (n: number | null) => (n ? `0001-${String(n).padStart(8, '0')}` : '—');
 const JUR: Record<string, string> = { '901': 'CABA', '902': 'Buenos Aires' };
-export const descripcionRetencion = (r: Pick<RetencionOP, 'impuesto' | 'jurisdiccion' | 'regimen'>) =>
-  r.impuesto === 'GANANCIAS' ? `Ganancias (régimen ${r.regimen})` : `IIBB ${JUR[r.jurisdiccion ?? ''] ?? r.jurisdiccion}`;
+/** IVA y SUSS se retienen por factura (E35): la descripción lleva la factura retenida. */
+export const descripcionRetencion = (r: Pick<RetencionOP, 'impuesto' | 'jurisdiccion' | 'regimen'> & { detalle?: Record<string, string> }) =>
+  r.impuesto === 'GANANCIAS' ? `Ganancias (régimen ${r.regimen})`
+    : r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? `${r.impuesto} factura ${r.detalle?.letra ?? ''} ${String(r.detalle?.puntoVenta ?? '').padStart(5, '0')}-${String(r.detalle?.numero ?? '').padStart(8, '0')}`.replace(/\s+/g, ' ')
+      : `IIBB ${JUR[r.jurisdiccion ?? ''] ?? r.jurisdiccion}`;
+const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS' };
 export const numeroCertificado = (r: Pick<RetencionOP, 'impuesto' | 'jurisdiccion' | 'certificadoNumero'>) =>
-  r.certificadoNumero ? `${r.impuesto === 'GANANCIAS' ? 'RET-GAN' : `RET-IIBB-${r.jurisdiccion}`} ${String(r.certificadoNumero).padStart(8, '0')}` : '';
+  r.certificadoNumero ? `${PREFIJO[r.impuesto] ?? `RET-IIBB-${r.jurisdiccion}`} ${String(r.certificadoNumero).padStart(8, '0')}` : '';
