@@ -68,8 +68,9 @@ El valor acumulado al mes *m* de cada importe de la tabla es la suma, para *k* =
 **Implementación:**
 - El cálculo puro (`retencionGanancias`) deja de prorratear. Recibe una tabla **ya acumulada**.
 - Las funciones nuevas en `ganancias/tablas.ts`:
-  - `tablaAcumulada(t1, t2, mes)`: para el mensual y el final;
-  - `tablaAnual(t2)`: para la anual, con los valores anuales del 2.º semestre sin prorratear. Así lo indica la Tabla 5 *Anual* del manual.
+  - `tablaAcumulada(t1, t2, mes)`: para el mensual;
+  - `tablaAnual(t2)`: para la anual, con los valores anuales del 2.º semestre sin prorratear. Así lo indica la Tabla 5 *Anual* del manual;
+  - `tablaFinal(t1, t2, mesDePago)`: para la liquidación final, con los valores **anuales completos** del semestre de la fecha de pago (`t1` de enero a junio, `t2` de julio a diciembre), sin prorratear. Lo indica el manual (§2.2 y Tabla 6, *Topes para liquidación final*). Esto cambia también el cálculo de la retención de la liquidación final de la Entrega 31, que hoy acumula al mes.
 - **Las tablas de los dos semestres:**
   - sin la del 1.er semestre, un mes de julio a diciembre toma la del 2.º para los meses 1 a 6, con un aviso en la hoja;
   - sin la del semestre del mes, el error es el de la Entrega 31.
@@ -117,7 +118,7 @@ Los tipos son los diez del registro 07 del F.1359:
 - campos: empleado, `hoja` (Json), `impuesto`, `retenido`, `pagosACuenta`, `saldo`, `ajusteAplicado` (Boolean) y los datos del F.1359 del empleado (Json, §7);
 - el saldo es positivo si queda por retener y negativo si hay que devolver.
 
-**Calcular** (`POST …/ganancias/anual/:anio/calcular`) recalcula el borrador. **Quiénes entran:**
+**Calcular** (`POST …/ganancias/anual/:anio/calcular`) recalcula el borrador. Se puede calcular en cualquier momento después del 31/12, como vista previa. **Quiénes entran:**
 - los empleados con recibos en liquidaciones **cerradas** con fecha de pago en el año;
 - **sin** egreso en el año ni entre el 1/1 y el 31/3 del año siguiente (esos van al final o al distracto).
 
@@ -128,7 +129,9 @@ Los tipos son los diez del registro 07 del F.1359:
 
 El año debe estar terminado: si no, 400 `Solo se liquida un año terminado`.
 
-**Cerrar** (`POST …/cerrar`): fija los importes y genera un **ajuste pendiente** por cada empleado con saldo distinto de cero. Reabrir solo se permite si ningún ajuste se aplicó todavía.
+**Cerrar** (`POST …/cerrar`):
+- solo desde el 1/4 del año siguiente; antes: 400 `La liquidación anual se cierra desde el 1/4/AAAA, cuando ya se conocen los egresos de enero a marzo (que van en el distracto)`. ARCA acepta la presentación anual original recién desde esa fecha, y quienes egresan de enero a marzo no pueden estar en la anual;
+- fija los importes y genera un **ajuste pendiente** por cada empleado con saldo distinto de cero. Reabrir solo se permite si ningún ajuste se aplicó todavía.
 
 **Ajuste en el sueldo siguiente:**
 - **Concepto nuevo de la precarga:**
@@ -140,7 +143,8 @@ El año debe estar terminado: si no, 400 `Solo se liquida un año terminado`.
   - El ajuste a retener se limita al 35 % del bruto del recibo, igual que la retención; el resto queda pendiente para la liquidación siguiente.
   - Una devolución no tiene límite: se devuelve lo que la anual determinó.
 - Al cerrar esa liquidación, el ajuste queda aplicado. Si la liquidación se reabre, vuelve a pendiente.
-- **Los renglones `GANANCIAS_AJUSTE` no cuentan** en el retenido ni en la bruta del año en curso (§9 de la Entrega 31). Cuentan como retención del año de la anual: el F.1359 de ese año ya los refleja en su saldo.
+- **Los renglones `GANANCIAS_AJUSTE` no cuentan** en el retenido ni en la bruta del año en curso.
+- **Importes fijos al cerrar:** la anual y su F.1359 quedan con los importes del cierre. El "impuesto retenido" del registro 08 **no** incluye el ajuste aplicado después, y el saldo es el de la anual. El ajuste es la forma de cancelar ese saldo, no una retención del año.
 
 **Pantalla:** tabla por empleado (bruta, deducciones, impuesto, retenido, pagos a cuenta y saldo), con:
 - *Calcular*, *Cerrar* y *Ver hoja*;
@@ -158,8 +162,10 @@ El año debe estar terminado: si no, 400 `Solo se liquida un año terminado`.
 - Sin finales en el mes: 400 `No hay liquidaciones finales cerradas en MM/AAAA`.
 
 **Distracto** (tipo 4, período AAAA00):
-- Comprende a los empleados que egresaron entre enero y marzo del año siguiente y no están en la anual.
-- `GET …/ganancias/f1359/distracto/:anio` arma su anual del año anterior con las mismas reglas de §5, sin generar ajuste: el saldo se informa.
+- Comprende a los empleados que egresaron entre enero y marzo del año siguiente; como la anual se cierra desde el 1/4, nunca están en una anual cerrada.
+- **Su anual del año anterior se liquida junto con la final** (manual §2.1): al calcular una liquidación final con fecha de pago entre el 1/1 y el 31/3, se calcula la anual del año anterior de ese empleado con las reglas de §5. El saldo entra en la misma final como renglón `561` (ajuste anual), con el tope del 35 % si es a retener.
+- Al cerrar la final se guarda como fila de anual con la marca `distracto` y el id de la liquidación final, en un `LiquidacionAnualGanancias` del año anterior que se crea si hace falta. Al reabrir la final se borra.
+- `GET …/ganancias/f1359/distracto/:anio` arma el archivo con esas filas guardadas.
 - Solo se puede descargar del 1/1 al 31/3 del año siguiente, como exige ARCA. Fuera de esas fechas responde 400 con el mensaje del manual.
 
 ## 7. Archivo F.1359 v2.0
@@ -280,6 +286,10 @@ Si no se cumple el último control, el art. 30 se limita y se avisa, como pide e
 
 **Coherencia con la hoja:** los importes del archivo salen de la misma hoja que la anual o la final. La deducción con tope que se informa es la **computada**.
 
+**De dónde salen los datos:** el archivo se arma **recalculando** desde los recibos y el F.572 con las reglas corregidas, no desde las hojas guardadas. Así las finales cerradas antes de esta entrega (con el prorrateo viejo y los aportes sin separar por destino) salen bien en el F.1359. La diferencia con lo que se retuvo queda en el saldo informado. No se rehacen las liquidaciones ya cerradas.
+
+**Importes negativos** (subtotal y saldo cuando hay devolución): el manual no fija una convención de signo. Se escribe un `-` en la primera posición del campo, seguido del número completado con ceros hasta el largo (por ejemplo `-00000001234567` en 15). Los demás importes nunca son negativos. Queda **pendiente de verificar** con la primera presentación real (§14).
+
 ## 8. Certificado
 
 `GET …/ganancias/anual/:anio/certificados.pdf`: un PDF con una hoja por empleado, con el diseño del punto 8 del manual:
@@ -338,6 +348,14 @@ Los códigos 7, 160 y 86 siguen el estándar del aplicativo SICORE y se verifica
 - códigos SICORE 7, 160 y 86 a verificar en el aplicativo;
 - demo: las tablas de ejemplo pasan a los valores oficiales de 2025 del manual (Tabla 4 y Tabla 5 anual: el 2.º semestre; para el 1.er semestre, la Tabla 6). La escala sigue siendo ilustrativa porque el manual no la trae.
 
+**Del builder, según la revisión:**
+- la final usa los valores anuales completos del semestre de pago (`tablaFinal`), según el manual §2.2 y la Tabla 6;
+- la anual se calcula como vista previa en cualquier momento y se cierra desde el 1/4;
+- el distracto liquida la anual del año anterior dentro de la final de enero a marzo (ajuste 561) y se guarda al cerrarla;
+- la anual queda con los importes del cierre: el registro 08 no incluye el ajuste posterior;
+- el F.1359 se recalcula desde los recibos con las reglas corregidas, sin rehacer liquidaciones cerradas;
+- importes negativos con `-` en la primera posición, a verificar.
+
 ## 13. Pruebas
 
 **Cálculo:**
@@ -365,6 +383,13 @@ Los códigos 7, 160 y 86 siguen el estándar del aplicativo SICORE y se verifica
 
 **Certificado:** devuelve un PDF.
 
+**Revisión:**
+- final de marzo con `tablaFinal` (valores anuales del 1.er semestre) y de agosto (2.º semestre);
+- cerrar la anual antes del 1/4 → 400;
+- final de febrero con el ajuste 561 del año anterior y su fila de distracto al cerrar;
+- registro 08 con saldo negativo y signo;
+- F.1359 de una final cerrada antes de la entrega, recalculado.
+
 **SICORE:** línea del empleado con 217/160 y la suma; las devoluciones restan.
 
 **Web:**
@@ -373,3 +398,9 @@ Los códigos 7, 160 y 86 siguen el estándar del aplicativo SICORE y se verifica
 - rubro exento en Conceptos.
 
 **E2E:** el contador calcula y cierra la anual del año anterior para un empleado con retención, descarga el F.1359 (primera línea `01<CUIT><AAAA00>0001035931359100200`) y ve el ajuste en la liquidación siguiente.
+
+## 14. Pendiente de verificar
+
+- **Signo de los importes negativos** del registro 08: se verifica con la primera presentación real y se corrige en `f1359-diseno.ts`.
+- **Etiquetas y códigos de los pagos a cuenta del SiRADIG:** son provisionales, como los de la Entrega 31.
+- **Códigos SICORE para sueldos** (comprobante 7, régimen 160, documento 86): se verifican en el aplicativo.
