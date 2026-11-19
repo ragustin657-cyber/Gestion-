@@ -8,7 +8,7 @@ import { acumuladoEmpleado, aportesTotales, brutaGravada } from './acumulado';
 import { HojaGanancias, retencionGanancias } from './calculo';
 import { armarF1359Empleado, DatosF1359Empleado } from './f1359-datos';
 import { aTablaCalc, prepararDatos } from './preparar';
-import { nombreSemestre, SinTablaGanancias, tablaAnual } from './tablas';
+import { nombreSemestre, SinTablaGanancias, tablaAnual, tablaFinal } from './tablas';
 import { TablasGananciasService } from './tablas.service';
 
 type Dec = Prisma.Decimal;
@@ -23,16 +23,28 @@ export class AnualGananciasService {
   constructor(private readonly tenant: TenantPrisma, private readonly tablas: TablasGananciasService, private readonly cls: ClsService) {}
 
   /** Anual de un empleado: tabla anual (2.º semestre sin prorratear), año completo; saldo sin topes. */
-  async anualDeEmpleado(tx: TxEmpresa, empleadoId: string, anio: number): Promise<AnualEmpleado> {
+  anualDeEmpleado(tx: TxEmpresa, empleadoId: string, anio: number): Promise<AnualEmpleado> {
+    return this.liquidacionDeEmpleado(tx, empleadoId, anio, { modo: 'ANUAL', fechaPago: new Date(Date.UTC(anio, 11, 31)), mes: 12 });
+  }
+
+  /**
+   * Liquidación de un empleado para la DJ (E32 §5 a §7): ANUAL con la tabla anual del 2.º semestre al 31/12;
+   * FINAL con la tabla anual del semestre de pago, acumulado hasta la fecha de pago de la final.
+   */
+  async liquidacionDeEmpleado(tx: TxEmpresa, empleadoId: string, anio: number, o: { modo: 'ANUAL' | 'FINAL'; fechaPago: Date; mes: number }): Promise<AnualEmpleado> {
     const e = await tx.empleado.findUniqueOrThrow({ where: { id: empleadoId } });
     const { t1, t2 } = await this.tablas.tablasDelAnio(tx, anio);
-    if (!t2) throw new SinTablaGanancias(`Cargue la tabla de Ganancias de ${nombreSemestre(2, anio)}`);
-    const c2 = aTablaCalc(t2);
-    const tabla = tablaAnual(c2);
-    const a = await acumuladoEmpleado(tx, empleadoId, anio, { fechaPago: new Date(Date.UTC(anio, 11, 31)), mes: 12 });
-    const { deducciones, cargas, detalle } = prepararDatos(a, { tabla, c1: t1 ? aTablaCalc(t1) : null, c2, mes: 12, modo: 'ANUAL' });
+    const c1 = t1 ? aTablaCalc(t1) : null;
+    const c2 = t2 ? aTablaCalc(t2) : null;
+    let tabla;
+    if (o.modo === 'ANUAL') {
+      if (!c2) throw new SinTablaGanancias(`Cargue la tabla de Ganancias de ${nombreSemestre(2, anio)}`);
+      tabla = tablaAnual(c2);
+    } else tabla = tablaFinal(c1, c2, o.mes, anio);
+    const a = await acumuladoEmpleado(tx, empleadoId, anio, { fechaPago: o.fechaPago, mes: o.mes });
+    const { deducciones, cargas, detalle } = prepararDatos(a, { tabla, c1, c2, mes: o.mes, modo: o.modo });
     const res = retencionGanancias({
-      mes: 12, tabla, deducciones, cargas, bruta: brutaGravada(a), aportes: aportesTotales(a),
+      mes: o.mes, tabla, deducciones, cargas, bruta: brutaGravada(a), aportes: aportesTotales(a),
       retenidoAnterior: new D(0), retenidoEmpresa: new D(0), brutaRecibo: new D('1e15'),
     });
     const impuesto = new D(res.hoja.impuesto);

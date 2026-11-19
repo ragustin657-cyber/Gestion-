@@ -8,6 +8,8 @@ import { EgresosService } from './egresos.service';
 import { F931Controller } from './f931.controller';
 import { F931Service } from './f931.service';
 import { AnualGananciasController } from './ganancias/anual.controller';
+import { F1359Controller } from './ganancias/f1359.controller';
+import { F1359Service } from './ganancias/f1359.service';
 import { AnualGananciasService } from './ganancias/anual.service';
 import { F572Controller } from './ganancias/f572.controller';
 import { F572Service } from './ganancias/f572.service';
@@ -28,8 +30,8 @@ import { SalidasSueldosController } from './salidas.controller';
 
 @Module({
   imports: [AsientosModule],
-  controllers: [AnualGananciasController, F572Controller, TablasGananciasController, LsdController, VacacionesController, EgresosController, F931Controller, PagosSueldosController, ContribucionesController, MaestrosSueldosController, LiquidacionesController, SalidasSueldosController],
-  providers: [AnualGananciasService, RetencionGananciasService, F572Service, TablasGananciasService, LsdService, VacacionesService, EgresosService, F931Service, PagosSueldosService, ContabilizacionService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
+  controllers: [F1359Controller, AnualGananciasController, F572Controller, TablasGananciasController, LsdController, VacacionesController, EgresosController, F931Controller, PagosSueldosController, ContribucionesController, MaestrosSueldosController, LiquidacionesController, SalidasSueldosController],
+  providers: [F1359Service, AnualGananciasService, RetencionGananciasService, F572Service, TablasGananciasService, LsdService, VacacionesService, EgresosService, F931Service, PagosSueldosService, ContabilizacionService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
   exports: [TablasGananciasService, ContribucionesService, MaestrosSueldosService, LiquidacionesService],
 })
 export class SueldosModule {}

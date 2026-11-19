@@ -7,7 +7,8 @@ const D = Prisma.Decimal;
  * Diseño de registro del Libro de Sueldos Digital (ARCA, "Conceptos básicos y guía de uso" 2.1, Anexos II y III; spec E30 §3).
  * N: numérico con ceros a la izquierda; C: alfanumérico con espacios a la derecha; I: decimal sin separador (2 decimales).
  */
-export interface CampoLsd<T> { nombre: string; largo: number; tipo: 'N' | 'C' | 'I'; valor: (d: T) => string | number | Dec | null }
+/** IS: decimal con signo (un negativo lleva '-' en la primera posición, F.1359 E32 §7). */
+export interface CampoLsd<T> { nombre: string; largo: number; tipo: 'N' | 'C' | 'I' | 'IS'; valor: (d: T) => string | number | Dec | null }
 
 export interface Datos01 { cuit: string; periodo: string; numero: number; cantidad04: number }
 export interface Datos02 { cuil: string; legajo: string; dependencia: string; cbu: string; diasTope: number; fechaPago: string; formaPago: '1' | '3' }
@@ -73,6 +74,13 @@ export function linea<T>(campos: CampoLsd<T>[], d: T): string {
   return campos.map((f) => {
     const v = f.valor(d);
     if (f.tipo === 'C') return String(v ?? '').slice(0, f.largo).padEnd(f.largo, ' ');
+    if (f.tipo === 'IS') {
+      const n = new D(v ?? 0).times(100).toDecimalPlaces(0, D.ROUND_HALF_UP);
+      const abs = n.abs().toFixed(0);
+      const largo = n.isNeg() ? f.largo - 1 : f.largo;
+      if (abs.length > largo) throw new Error(`${f.nombre}: valor fuera de rango`);
+      return n.isNeg() ? `-${abs.padStart(largo, '0')}` : abs.padStart(largo, '0');
+    }
     const s = f.tipo === 'I' ? new D(v ?? 0).times(100).toDecimalPlaces(0, D.ROUND_HALF_UP).toFixed(0) : String(v ?? 0);
     if (!/^\d+$/.test(s) || s.length > f.largo) throw new Error(`${f.nombre}: valor fuera de rango`);
     return s.padStart(f.largo, '0');
