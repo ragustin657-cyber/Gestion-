@@ -119,6 +119,10 @@ export class AnualGananciasService {
       if (l.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} ya está cerrada`);
       // ARCA acepta la anual original desde el 1/4 y para entonces se conocen los egresos de enero a marzo (distracto)
       if (hoy() < new Date(Date.UTC(anio + 1, 3, 1))) throw new BadRequestException(`La liquidación anual se cierra desde el 1/4/${anio + 1}, cuando ya se conocen los egresos de enero a marzo (que van en el distracto)`);
+      // Revisión E33: una final de un egreso de enero a marzo, sin cerrar y con pago anterior a hoy, decide si el empleado va en el
+      // distracto o en la anual; cerrar la anual antes perdería su ajuste (la final ya no lo aplicaría)
+      const pendiente = await tx.liquidacion.findFirst({ where: { tipo: 'FINAL', estado: 'BORRADOR', fechaPago: { lt: hoy() }, egreso: { fechaEgreso: { gte: new Date(Date.UTC(anio + 1, 0, 1)), lte: new Date(Date.UTC(anio + 1, 2, 31)) } } } });
+      if (pendiente) throw new BadRequestException(`Cierre primero las liquidaciones finales pendientes de los egresos de enero a marzo de ${anio + 1}`);
       // Se cierra lo que dan los datos de hoy, no la última vista previa (egresos, liquidaciones o F.572 que cambiaron después)
       await this.recalcular(tx, l.id, anio);
       await tx.liquidacionAnualGanancias.update({ where: { id: l.id }, data: { estado: 'CERRADA', cerradoEn: new Date(), cerradoPor: this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId } });
