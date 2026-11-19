@@ -163,6 +163,7 @@ export class LiquidacionesService {
     const vigentes = new Set<string>(conservados);
     // Ganancias de cuarta (E31): solo si la empresa es agente de retención y tiene el concepto activo
     const conceptoGanancias = await this.retencion.concepto(tx);
+    const conceptoAjuste = conceptoGanancias ? await tx.concepto.findFirst({ where: { tipo: 'GANANCIAS_AJUSTE', activo: true }, orderBy: { codigo: 'asc' } }) : null;
     for (const e of empleados) {
       const cat = categorias.get(e.categoriaId)!;
       if (!cat.activa) { errores.push({ empleadoId: e.id, mensaje: `La categoría ${cat.nombre} está inactiva` }); continue; }
@@ -194,6 +195,7 @@ export class LiquidacionesService {
       if (conceptoGanancias) {
         try {
           hojaGanancias = await this.retencion.aplicar(tx, l, e.id, r, conceptoGanancias);
+          if (conceptoAjuste) await this.retencion.ajustes(tx, l, e.id, r, conceptoAjuste, conceptoGanancias);
         } catch (err) {
           if (!(err instanceof SinTablaGanancias)) throw err;
           errores.push({ empleadoId: e.id, mensaje: err.message });
@@ -212,7 +214,7 @@ export class LiquidacionesService {
         : await tx.reciboSueldo.create({ data: { ...datos, empresaId: this.tenant.empresaId, liquidacionId: l.id, empleadoId: e.id } });
       await tx.reciboSueldoRenglon.deleteMany({ where: { reciboId: recibo.id } });
       if (r.renglones.length) await tx.reciboSueldoRenglon.createMany({
-        data: r.renglones.map((x) => ({ empresaId: this.tenant.empresaId, reciboId: recibo.id, conceptoId: x.conceptoId === 'SAC' || x.conceptoId === 'FINAL' ? null : x.conceptoId, vacacionPeriodoId: x.vacacionPeriodoId ?? null, codigo: x.codigo, nombre: x.nombre, clase: x.clase, cantidad: x.cantidad, base: x.base, porcentaje: x.porcentaje, importe: x.importe, orden: x.orden })),
+        data: r.renglones.map((x) => ({ empresaId: this.tenant.empresaId, reciboId: recibo.id, conceptoId: x.conceptoId === 'SAC' || x.conceptoId === 'FINAL' ? null : x.conceptoId, vacacionPeriodoId: x.vacacionPeriodoId ?? null, anioAjusteGanancias: x.anioAjusteGanancias ?? null, codigo: x.codigo, nombre: x.nombre, clase: x.clase, cantidad: x.cantidad, base: x.base, porcentaje: x.porcentaje, importe: x.importe, orden: x.orden })),
       });
     }
     // Recibos de empleados que ya no corresponden (o que ahora tienen error): se eliminan
@@ -322,6 +324,7 @@ export class LiquidacionesService {
       const param = await this.contribuciones.parametros(tx, l.anio, l.mes);
       const cerrada = await tx.liquidacion.update({ where: { id }, data: { estado: 'CERRADA', cerradoPor: this.usuario(), cerradoEn: new Date(), baseMaximaAportes: param.baseMaxima, detraccion: param.detraccion } });
       await this.contabilizacion.contabilizar(tx, cerrada);
+      await this.retencion.guardarDistracto(tx, cerrada);
       return this.obtener(id, tx);
     });
   }
@@ -339,6 +342,7 @@ export class LiquidacionesService {
       await this.pagos.validarReapertura(tx, l);
       await this.contabilizacion.anular(tx, l);
       await tx.liquidacion.update({ where: { id }, data: { estado: 'BORRADOR', cerradoPor: null, cerradoEn: null } });
+      await this.retencion.borrarDistracto(tx, id);
       const res = await this.obtener(id, tx);
       // Ganancias (E31 §6): las liquidaciones posteriores ya cerradas no se recalculan solas
       const anio = l.fechaPago.getUTCFullYear();

@@ -10,7 +10,7 @@ export type TipoConcepto = 'BASICO' | 'ANTIGUEDAD' | 'PORCENTAJE' | 'HORAS_EXTRA
 export interface ConceptoCalc { id: string; codigo: string; nombre: string; clase: ClaseConcepto; tipo: TipoConcepto; parametros: Record<string, unknown>; orden: number; soloAfiliados: boolean }
 export interface EmpleadoCalc { fechaIngreso: Date; fechaEgreso: Date | null; afiliadoSindicato: boolean; basicoMensual: Dec; horasMensuales: number }
 export interface NovedadCalc { tipo: 'HORAS_EXTRA_50' | 'HORAS_EXTRA_100' | 'AUSENCIA_INJUSTIFICADA' | 'IMPORTE'; conceptoId?: string | null; cantidad?: Dec | null; importe?: Dec | null }
-export interface RenglonCalc { conceptoId: string; codigo: string; nombre: string; clase: ClaseConcepto; cantidad: Dec | null; base: Dec | null; porcentaje: Dec | null; importe: Dec; orden: number; vacacionPeriodoId?: string }
+export interface RenglonCalc { conceptoId: string; codigo: string; nombre: string; clase: ClaseConcepto; cantidad: Dec | null; base: Dec | null; porcentaje: Dec | null; importe: Dec; orden: number; vacacionPeriodoId?: string; anioAjusteGanancias?: number }
 export interface VacacionCalc { periodoId: string; dias: number }
 export interface ResultadoCalc { renglones: RenglonCalc[]; totalRemunerativo: Dec; totalNoRemunerativo: Dec; totalDescuentos: Dec; neto: Dec; diasTrabajados: number; antiguedadAnios: number }
 

@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { AcumuladoEmpleado, RUBROS, totalExento } from './acumulado';
 import { HojaGanancias, TipoDeduccion } from './calculo';
 import type { TipoPagoACuenta } from './f572-xml';
-import type { CargasDetalle } from './retencion.service';
+import type { CargasDetalle } from './preparar';
 
 type Dec = Prisma.Decimal;
 const D = Prisma.Decimal;

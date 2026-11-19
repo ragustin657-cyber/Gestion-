@@ -4,49 +4,22 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import type { RenglonCalc, ResultadoCalc } from '../calculo';
 import { HojaGanancias, retencionGanancias, TablaCalc, TipoDeduccion } from './calculo';
 import { acumuladoEmpleado, AcumuladoEmpleado, aportesTotales, brutaGravada } from './acumulado';
-import { TablaConTramos, TablasGananciasService } from './tablas.service';
+import { TablasGananciasService } from './tablas.service';
+import { AnualGananciasService } from './anual.service';
 import { cargaAcumulada, tablaAcumulada, tablaFinal } from './tablas';
 
 type Dec = Prisma.Decimal;
 const D = Prisma.Decimal;
 const cero = () => new D(0);
-/** Tabla de la base (con tramos) al formato del cálculo. */
-export const aTablaCalc = (t: TablaConTramos): TablaCalc => ({ ...t, tramos: t.tramos.map((x) => ({ desde: x.desde, hasta: x.hasta, fijo: x.fijo, porcentaje: x.porcentaje })) });
 export { SinTablaGanancias } from './tablas';
-
-export type ModoGanancias = 'MENSUAL' | 'FINAL' | 'ANUAL';
-export interface CargasDetalle { conyuge: Dec; hijos: Dec; incapacitados: Dec; hijos50: number; hijos100: number; incapacitados50: number; incapacitados100: number }
-
-/**
- * Deducciones y cargas de familia del F.572 para el cálculo, a un mes y según el modo (E32 §3):
- * mensual acumula por semestre; final y anual usan el importe anual completo de la tabla (final: si estuvo vigente hasta el egreso;
- * anual: proporcional a los meses de vigencia).
- */
-export function prepararDatos(a: AcumuladoEmpleado, o: { tabla: TablaCalc; c1: TablaCalc | null; c2: TablaCalc | null; mes: number; modo: ModoGanancias }) {
-  const deducciones: { tipo: TipoDeduccion; importe: Dec }[] = a.f572.deducciones.map((d) => ({ tipo: d.tipo, importe: d.meses.filter((x) => x.mes <= o.mes).reduce((s, x) => s.plus(x.importe), cero()) }));
-  const campo = { CONYUGE: 'conyuge', HIJO: 'hijo', HIJO_INCAPACITADO: 'hijoIncapacitado' } as const;
-  const detalle: CargasDetalle = { conyuge: cero(), hijos: cero(), incapacitados: cero(), hijos50: 0, hijos100: 0, incapacitados50: 0, incapacitados100: 0 };
-  const cargas = a.f572.cargas.map((c) => {
-    const parentesco = (c.parentesco in campo ? c.parentesco : 'OTRO') as 'CONYUGE' | 'HIJO' | 'HIJO_INCAPACITADO' | 'OTRO';
-    if (parentesco === 'OTRO' || c.mesDesde > o.mes) return { parentesco, importe: cero() };
-    const k = campo[parentesco];
-    const importe = o.modo === 'MENSUAL'
-      ? cargaAcumulada([(o.c1 ?? o.c2)![k], (o.c2 ?? o.c1)![k]], c.mesDesde, c.mesHasta, o.mes, c.porcentaje)
-      : o.modo === 'FINAL'
-        ? o.tabla[k].times(c.porcentaje).div(100).toDecimalPlaces(2, D.ROUND_HALF_UP)
-        : cargaAcumulada([o.tabla[k], o.tabla[k]], c.mesDesde, c.mesHasta, 12, c.porcentaje);
-    if (parentesco === 'CONYUGE') detalle.conyuge = detalle.conyuge.plus(importe);
-    else if (parentesco === 'HIJO') { detalle.hijos = detalle.hijos.plus(importe); if (c.porcentaje === 50) detalle.hijos50++; else detalle.hijos100++; }
-    else { detalle.incapacitados = detalle.incapacitados.plus(importe); if (c.porcentaje === 50) detalle.incapacitados50++; else detalle.incapacitados100++; }
-    return { parentesco, importe };
-  });
-  return { deducciones, cargas, detalle };
-}
+export { aTablaCalc, prepararDatos } from './preparar';
+export type { CargasDetalle, ModoGanancias } from './preparar';
+import { aTablaCalc, prepararDatos } from './preparar';
 
 /** Retención de Ganancias de cuarta en la liquidación (spec E31 §5 y §6). */
 @Injectable()
 export class RetencionGananciasService {
-  constructor(private readonly tenant: TenantPrisma, private readonly tablas: TablasGananciasService) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly tablas: TablasGananciasService, private readonly anual: AnualGananciasService) {}
 
   /** ¿Corresponde retener en esta empresa? (agente de retención y con el concepto de Ganancias activo). */
   async concepto(tx: TxEmpresa): Promise<Concepto | null> {
@@ -90,5 +63,55 @@ export class RetencionGananciasService {
       r.neto = new D(r.neto).minus(res.importe);
     }
     return res.hoja;
+  }
+
+  /**
+   * Ajuste anual de Ganancias (E32 §5 y §6): agrega los renglones del concepto de ajuste con lo pendiente de cada anual cerrada
+   * (si la fecha de pago es posterior al cierre) y, en una final de enero a marzo, el saldo de la anual del año anterior (distracto).
+   * A retener: hasta el 35 % del bruto menos la retención del mes; a devolver: sin tope.
+   */
+  async ajustes(tx: TxEmpresa, l: Liquidacion, empleadoId: string, r: ResultadoCalc, concepto: Concepto, conceptoGanancias: Concepto): Promise<void> {
+    const anio = l.fechaPago.getUTCFullYear();
+    const bruta = new D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
+    const retMes = r.renglones.filter((x) => x.conceptoId === conceptoGanancias.id).reduce((s, x) => s.plus(x.importe), cero());
+    let disponible = D.max(bruta.times(0.35).minus(retMes), 0);
+    const agregar = (anioAjuste: number, pendiente: Dec) => {
+      const importe = (pendiente.gt(0) ? D.min(pendiente, disponible) : pendiente).toDecimalPlaces(2, D.ROUND_HALF_UP);
+      if (importe.isZero()) return;
+      if (importe.gt(0)) disponible = disponible.minus(importe);
+      r.renglones.push({ conceptoId: concepto.id, codigo: concepto.codigo, nombre: `${concepto.nombre} ${anioAjuste}`, clase: 'DESCUENTO', cantidad: null, base: null, porcentaje: null, importe, orden: concepto.orden, anioAjusteGanancias: anioAjuste });
+      r.totalDescuentos = new D(r.totalDescuentos).plus(importe);
+      r.neto = new D(r.neto).minus(importe);
+    };
+    const filas = await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { empleadoId, distracto: false, anual: { estado: 'CERRADA', cerradoEn: { lt: l.fechaPago } } }, include: { anual: true }, orderBy: { anual: { anio: 'asc' } } });
+    for (const f of filas) {
+      const aplicado = await tx.reciboSueldoRenglon.aggregate({ where: { anioAjusteGanancias: f.anual.anio, conceptoId: concepto.id, recibo: { empleadoId, liquidacionId: { not: l.id }, liquidacion: { estado: 'CERRADA' } } }, _sum: { importe: true } });
+      agregar(f.anual.anio, new D(f.saldo).minus(aplicado._sum.importe ?? 0));
+    }
+    // Distracto: la final de enero a marzo liquida la anual del año anterior si el empleado no está en una anual cerrada
+    if (l.tipo === 'FINAL' && l.fechaPago.getUTCMonth() < 3 && !filas.some((f) => f.anual.anio === anio - 1)) {
+      const enCerrada = await tx.liquidacionAnualGananciasEmpleado.findFirst({ where: { empleadoId, distracto: false, anual: { anio: anio - 1, estado: 'CERRADA' } } });
+      if (!enCerrada && (await tx.reciboSueldo.count({ where: { empleadoId, liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio - 1, 0, 1)), lt: new Date(Date.UTC(anio, 0, 1)) } } } }))) {
+        agregar(anio - 1, (await this.anual.anualDeEmpleado(tx, empleadoId, anio - 1)).saldo);
+      }
+    }
+  }
+
+  /** Al cerrar una final con distracto, guarda la fila de la anual del año anterior (E32 §6); al reabrir se borra. */
+  async guardarDistracto(tx: TxEmpresa, l: Liquidacion) {
+    const anio = l.fechaPago.getUTCFullYear() - 1;
+    const renglones = await tx.reciboSueldoRenglon.findMany({ where: { anioAjusteGanancias: anio, recibo: { liquidacionId: l.id } }, include: { recibo: { select: { empleadoId: true } } } });
+    const empleados = [...new Set(renglones.map((x) => x.recibo.empleadoId))];
+    if (l.tipo !== 'FINAL' || !empleados.length) return;
+    const encabezado = await tx.liquidacionAnualGanancias.upsert({ where: { empresaId_anio: { empresaId: this.tenant.empresaId, anio } }, update: {}, create: { empresaId: this.tenant.empresaId, anio } });
+    for (const empleadoId of empleados) {
+      const a = await this.anual.anualDeEmpleado(tx, empleadoId, anio);
+      const datos = { distracto: true, liquidacionFinalId: l.id, hoja: a.hoja as unknown as Prisma.InputJsonValue, f1359: a.f1359 as unknown as Prisma.InputJsonValue, impuesto: a.impuesto, retenido: a.retenido, pagosACuenta: a.pagosACuenta, saldo: a.saldo };
+      await tx.liquidacionAnualGananciasEmpleado.upsert({ where: { anualId_empleadoId: { anualId: encabezado.id, empleadoId } }, update: datos, create: { ...datos, empresaId: this.tenant.empresaId, anualId: encabezado.id, empleadoId } });
+    }
+  }
+
+  borrarDistracto(tx: TxEmpresa, liquidacionId: string) {
+    return tx.liquidacionAnualGananciasEmpleado.deleteMany({ where: { liquidacionFinalId: liquidacionId, distracto: true } });
   }
 }

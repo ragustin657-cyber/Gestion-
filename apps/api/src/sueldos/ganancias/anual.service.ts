@@ -7,7 +7,7 @@ import { hoy } from '../../tesoreria/operaciones/tesoreria-comun';
 import { acumuladoEmpleado, aportesTotales, brutaGravada } from './acumulado';
 import { HojaGanancias, retencionGanancias } from './calculo';
 import { armarF1359Empleado, DatosF1359Empleado } from './f1359-datos';
-import { aTablaCalc, prepararDatos } from './retencion.service';
+import { aTablaCalc, prepararDatos } from './preparar';
 import { nombreSemestre, SinTablaGanancias, tablaAnual } from './tablas';
 import { TablasGananciasService } from './tablas.service';
 
