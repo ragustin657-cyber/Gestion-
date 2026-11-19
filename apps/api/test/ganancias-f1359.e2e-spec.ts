@@ -130,6 +130,11 @@ describe('ganancias: F.1359 y certificados', () => {
     expect(ls[0].slice(32, 33)).toBe('2');
     const indemn = (await prisma.reciboSueldoRenglon.findFirstOrThrow({ where: { codigo: '300', recibo: { liquidacionId: f.id } } })).importe;
     expect(importe(ls.find((l) => l.startsWith('04'))!, 44, 58).toFixed(2)).toBe(D(indemn).toFixed(2));
+    // SAC proporcional (200/201) y SAC sobre preaviso, integración y vacaciones van a la 2.ª cuota (pago en noviembre), no a la bruta (E33)
+    const sacs = await prisma.reciboSueldoRenglon.findMany({ where: { codigo: { in: ['200', '201', '311', '321', '331'] }, recibo: { liquidacionId: f.id } } });
+    const sumaSac = sacs.reduce((t, y) => t.plus(y.importe), D(0));
+    expect(sumaSac.gt(0)).toBe(true);
+    expect(importe(ls.find((l) => l.startsWith('03'))!, 59, 73).toFixed(2)).toBe(sumaSac.toFixed(2));
     const pdf = await x.bin(`/api/sueldos/liquidaciones/${f.id}/ganancias-certificado.pdf`);
     expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
   });

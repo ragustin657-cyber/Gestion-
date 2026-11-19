@@ -54,6 +54,22 @@ describe('ganancias: retenciones de empleados en el SICORE', () => {
     expect(D(g.total).toFixed(2)).toBe(x.ret.toFixed(2));
   });
 
+  it('neto por empleado en el período', async () => {
+    const x = await escenario();
+    // Segunda liquidación cerrada del mismo empleado en el período (copia por prisma), con una devolución
+    const { id: _l, numero, ...datosLiq } = x.liq;
+    const l2 = await prisma.liquidacion.create({ data: { ...datosLiq, numero: numero + 1, tipo: 'SAC', fechaPago: new Date('2026-11-30T00:00:00Z') } as Prisma.LiquidacionUncheckedCreateInput });
+    const { id: _r, renglones: _rs, ...datosRecibo } = x.recibo;
+    const rf = await prisma.reciboSueldo.create({ data: { ...datosRecibo, liquidacionId: l2.id } as Prisma.ReciboSueldoUncheckedCreateInput });
+    const c560 = await prisma.concepto.findFirstOrThrow({ where: { empresaId: x.empresaId, codigo: '560' } });
+    await prisma.reciboSueldoRenglon.deleteMany({ where: { reciboId: rf.id, codigo: { in: ['560', '561'] } } });
+    await prisma.reciboSueldoRenglon.create({ data: { empresaId: x.empresaId, reciboId: rf.id, conceptoId: c560.id, codigo: '560', nombre: 'x', clase: 'DESCUENTO', importe: -30000, orden: 999 } });
+    const { g, ls } = await x.lineas();
+    expect(g.registros).toBe(1);
+    expect(ls[0].slice(79, 93)).toBe(sicore(x.ret.minus(30000)));
+    expect(ls[0].slice(2, 12)).toBe('30/11/2026');
+  });
+
   it('devolución resta y ajuste anual suma', async () => {
     const x = await escenario();
     const c560 = await prisma.concepto.findFirstOrThrow({ where: { empresaId: x.empresaId, codigo: '560' } });
