@@ -71,12 +71,14 @@ export class AnualGananciasService {
     if (!l) return { anio, estado: null, cerradoEn: null, empleados: [] };
     const filas = await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { anualId: l.id } });
     const emps = new Map((await tx.empleado.findMany({ where: { id: { in: filas.map((x) => x.empleadoId) } } })).map((e) => [e.id, e]));
-    // E34: una final ya cerrada en el año siguiente no recibe el ajuste si la anual no estaba cerrada antes de su pago
-    const finales = await tx.liquidacion.findMany({
-      where: { tipo: 'FINAL', estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio + 1, 0, 1)), lt: new Date(Date.UTC(anio + 2, 0, 1)) }, recibos: { some: { empleadoId: { in: filas.filter((x) => !x.distracto).map((x) => x.empleadoId) } } } },
-      select: { fechaPago: true, recibos: { select: { empleadoId: true } } },
-    });
-    const sinAjuste = new Set(finales.filter((fl) => !l.cerradoEn || l.cerradoEn >= fl.fechaPago).flatMap((fl) => fl.recibos.map((r) => r.empleadoId)));
+    // E34 (revisión): una final ya cerrada en el año siguiente que no lleva el renglón de ajuste de este año no lo aplicará:
+    // se avisa si el empleado tiene saldo. No depende de fechas (la final pudo cerrarse antes que la anual con pago posterior).
+    const conSaldo = filas.filter((x) => !x.distracto && !new D(x.saldo).isZero()).map((x) => x.empleadoId);
+    const recibosFinales = conSaldo.length ? await tx.reciboSueldo.findMany({
+      where: { empleadoId: { in: conSaldo }, liquidacion: { tipo: 'FINAL', estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio + 1, 0, 1)), lt: new Date(Date.UTC(anio + 2, 0, 1)) } } },
+      select: { empleadoId: true, renglones: { where: { anioAjusteGanancias: anio }, select: { id: true } } },
+    }) : [];
+    const sinAjuste = new Set(recibosFinales.filter((r) => !r.renglones.length).map((r) => r.empleadoId));
     return {
       anio, estado: l.estado, cerradoEn: l.cerradoEn,
       empleados: filas.map((x) => {
