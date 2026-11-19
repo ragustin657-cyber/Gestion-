@@ -46,8 +46,10 @@ describe('ganancias: F.1359 y certificados', () => {
 
   it('anual', async () => {
     const x = await escenario();
-    for (const mes of [6, 11]) await x.cerrar((await x.crear('MENSUAL', 2025, mes)).id);
+    // En orden de fecha de pago: junio, SAC de junio y noviembre
+    await x.cerrar((await x.crear('MENSUAL', 2025, 6)).id);
     await x.cerrar((await x.crear('SAC', 2025, 6)).id);
+    await x.cerrar((await x.crear('MENSUAL', 2025, 11)).id);
     await x.anual();
     const r = await x.bin('/api/sueldos/ganancias/f1359/anual/2025');
     expect(r.status).toBe(200);
