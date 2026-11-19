@@ -7,6 +7,7 @@ type Dec = Prisma.Decimal;
 const D = Prisma.Decimal;
 const cero = () => new D(0);
 const DESTINOS = { SEGURIDAD_SOCIAL: 'aportesSS', OBRA_SOCIAL: 'aportesOS', SINDICAL: 'aportesSindical' } as const;
+const CODIGOS_SAC = ['200', '201', '311', '321', '331'];
 export const RUBROS: RubroExentoGanancias[] = ['ASIGNACIONES_FAMILIARES', 'INTERESES_PRESTAMOS', 'INDEMNIZACIONES', 'CURSOS_SEMINARIOS', 'INDUMENTARIA'];
 
 /** Acumulado del año de un empleado para Ganancias (E32): lo usan la retención mensual, la anual y el F.1359. */
@@ -45,7 +46,8 @@ function sumar(a: AcumuladoEmpleado, x: RenglonSuma, conceptos: Map<string, Conc
   }
   if (c?.exentoGanancias) { const r = c.rubroExentoGanancias ?? 'INDUMENTARIA'; a.exentos[r] = a.exentos[r].plus(imp); return; }
   if (!c && x.codigo === '300') { a.exentos.INDEMNIZACIONES = a.exentos.INDEMNIZACIONES.plus(imp); return; }
-  if (!c && x.codigo === '200') {
+  // SAC: proporcional (200/201) y SAC sobre preaviso, integración y vacaciones no gozadas (311/321/331), por cuota según el mes de pago (E33)
+  if (!c && CODIGOS_SAC.includes(x.codigo)) {
     if (x.fechaPago.getUTCMonth() < 6) a.sac1 = a.sac1.plus(imp); else a.sac2 = a.sac2.plus(imp);
     return;
   }

@@ -2,7 +2,7 @@ import { MantineProvider } from '@mantine/core';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import { CamposExentoGanancias, faltaRubroExento } from './ConceptosPage';
+import { CamposExentoGanancias, cambiarClase, faltaRubroExento } from './ConceptosPage';
 import { TablaAnualGanancias } from './GananciasAnualPage';
 import { EditorPagosACuenta, HojaGananciasVista, type HojaGanancias } from './GananciasPages';
 
@@ -35,6 +35,11 @@ describe('Ganancias: liquidación anual (web)', () => {
     const cambios: unknown[] = [];
     envolver(<CamposExentoGanancias exento rubro={null} onChange={(c) => cambios.push(c)} />);
     expect(screen.getByRole('textbox', { name: 'Rubro exento (F.1359)' })).toBeTruthy();
+  });
+
+  it('pasar a descuento desmarca exento', () => {
+    const f = cambiarClase({ codigo: '900', nombre: 'Viático', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{}', orden: 900, soloAfiliados: false, activo: true, destino: 'OTRO', cuentaContableId: null, codigoArca: '', exentoGanancias: true, rubroExentoGanancias: null }, 'DESCUENTO');
+    expect([f.clase, f.exentoGanancias, f.rubroExentoGanancias, faltaRubroExento(f)]).toEqual(['DESCUENTO', false, null, false]);
   });
 
   it('editor de pagos a cuenta', () => {

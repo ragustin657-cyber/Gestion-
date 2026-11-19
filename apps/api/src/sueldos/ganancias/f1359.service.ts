@@ -39,6 +39,13 @@ export class F1359Service {
   private async archivo(cab: DatosCabecera, datos: DatosF1359Empleado[], periodoNombre: string) {
     const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
     cab.cuit = empresa.cuit.replace(/\D/g, '');
+    // El manual no admite «Total deducciones generales» en cero (empleado sin aportes): ARCA rechazaría el archivo (E33)
+    const sinGenerales = datos.filter((d) => new D(d.r05.total).isZero()).map((d) => d.cuil);
+    if (sinGenerales.length) {
+      const emps = await this.tenant.db.empleado.findMany({ orderBy: { legajo: 'asc' } });
+      const nombres = emps.filter((e) => sinGenerales.includes(e.cuil.replace(/\D/g, ''))).map((e) => `${e.apellido}, ${e.nombre}`);
+      throw new BadRequestException(`El F.1359 no admite deducciones generales en cero (sin aportes): ${nombres.join(', ')}`);
+    }
     const lineas = [linea(F1359_01, cab)];
     for (const d of [...datos].sort((a, b) => a.cuil.localeCompare(b.cuil))) {
       this.controlar(d);

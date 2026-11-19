@@ -21,7 +21,7 @@ describe('ganancias: liquidación anual', () => {
   afterAll(async () => app.close());
 
   /** Empresa agente con tablas 2025 y un empleado con mensuales de noviembre y diciembre de 2025 cerradas. */
-  const escenario = async () => {
+  const escenario = async (extra = 0) => {
     const s = await prepararSueldos(app, prisma);
     await prisma.empresa.update({ where: { id: s.empresaId }, data: { agenteRetencionGanancias: true } });
     // Ejercicio contable 2025 abierto (los asientos de sueldos de 2025 lo necesitan)
@@ -29,6 +29,8 @@ describe('ganancias: liquidación anual', () => {
     await s.escala('Vendedor B', '2025-11', 30000000);
     for (const sem of [1, 2]) for (const anio of [2025, 2026]) expect((await s.http.put(`/api/sueldos/ganancias/tablas/${anio}/${sem}`, TABLA_PRUEBA)).status).toBe(200);
     const e = await s.empleado();
+    const otros = [];
+    for (let i = 0; i < extra; i++) otros.push(await s.empleado());
     const crear = async (tipo: string, anio: number, mes: number) => {
       const r = await s.http.post('/api/sueldos/liquidaciones', { tipo, anio, mes, fechaPago: `${anio}-${String(mes).padStart(2, '0')}-28` });
       if (r.status !== 201) throw new Error(JSON.stringify(r.body));
@@ -37,7 +39,7 @@ describe('ganancias: liquidación anual', () => {
     const cerrar = async (id: string) => { const r = await s.http.post(`/api/sueldos/liquidaciones/${id}/cerrar`); if (r.status !== 201) throw new Error(JSON.stringify(r.body)); };
     for (const mes of [11, 12]) await cerrar((await crear('MENSUAL', 2025, mes)).id);
     const calcular = () => s.http.post('/api/sueldos/ganancias/anual/2025/calcular');
-    return { ...s, e, crear, cerrar, calcular };
+    return { ...s, e, otros, crear, cerrar, calcular };
   };
 
   it('año no terminado', async () => {
@@ -73,6 +75,20 @@ describe('ganancias: liquidación anual', () => {
     expect(filas.map((f) => f.empleadoId)).toEqual([x.e.id]);
   });
 
+  it('egreso de marzo con la final en abril entra en la anual', async () => {
+    const x = await escenario(2);
+    const [conDistracto, abril] = x.otros;
+    jest.setSystemTime(new Date('2026-02-20T15:00:00Z'));
+    const f1 = (await x.http.post('/api/sueldos/egresos', { empleadoId: conDistracto.id, causa: 'RENUNCIA', fechaEgreso: '2026-02-15', preavisoOtorgado: true, fechaPago: '2026-02-20' })).body as { id: string };
+    await x.cerrar(f1.id);
+    jest.setSystemTime(new Date('2026-04-05T15:00:00Z'));
+    expect((await x.http.post('/api/sueldos/egresos', { empleadoId: abril.id, causa: 'RENUNCIA', fechaEgreso: '2026-03-20', preavisoOtorgado: true, fechaPago: '2026-04-05' })).status).toBe(201);
+    jest.setSystemTime(new Date('2026-11-06T15:00:00Z'));
+    const filas = (await x.calcular()).body.empleados as (Fila & { distracto: boolean })[];
+    expect(filas.filter((f) => !f.distracto).map((f) => f.empleadoId).sort()).toEqual([x.e.id, abril.id].sort());
+    expect(filas.filter((f) => f.distracto).map((f) => f.empleadoId)).toEqual([conDistracto.id]);
+  });
+
   it('cerrar desde el 1/4', async () => {
     const x = await escenario();
     await x.calcular();
@@ -94,6 +110,12 @@ describe('ganancias: liquidación anual', () => {
     expect((r.body.empleados as Fila[])[0].saldo).toBe(calculada.saldo);
   });
 
+  it('calcular simultáneo no da error', async () => {
+    const x = await escenario();
+    const rs = await Promise.all([x.calcular(), x.calcular()]);
+    expect(rs.map((r) => r.status)).toEqual([201, 201]);
+  });
+
   it('reabrir', async () => {
     const x = await escenario();
     await x.calcular();
@@ -109,6 +131,14 @@ describe('ganancias: liquidación anual', () => {
     expect([sin.status, sin.body.message]).toEqual([400, 'Elija el rubro exento de Ganancias']);
     const con = await s.http.post('/api/sueldos/conceptos', { ...base, rubroExentoGanancias: 'CURSOS_SEMINARIOS' });
     expect([con.status, con.body.rubroExentoGanancias]).toEqual([201, 'CURSOS_SEMINARIOS']);
+  });
+
+  it('editar sin exentoGanancias conserva el rubro', async () => {
+    const s = await prepararSueldos(app, prisma);
+    const base = { codigo: '900', nombre: 'Viático', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: { importe: 100 }, orden: 900 };
+    const c = await s.http.post('/api/sueldos/conceptos', { ...base, exentoGanancias: true, rubroExentoGanancias: 'CURSOS_SEMINARIOS' });
+    const r = await s.http.put(`/api/sueldos/conceptos/${c.body.id}`, { ...base, nombre: 'Viático 2' });
+    expect([r.status, r.body.exentoGanancias, r.body.rubroExentoGanancias]).toEqual([200, true, 'CURSOS_SEMINARIOS']);
   });
 
   it('concepto 561 en la precarga', async () => {

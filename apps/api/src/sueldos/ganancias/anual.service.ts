@@ -55,6 +55,11 @@ export class AnualGananciasService {
     return { hoja, impuesto, retenido, pagosACuenta: a.pagosACuenta, saldo, f1359 };
   }
 
+  /** Mismo lock que el cierre de liquidaciones (E33): serializa la anual con los cierres que aplican el ajuste. */
+  private async bloquear(tx: TxEmpresa) {
+    await tx.$queryRawUnsafe(`SELECT id FROM "ConfiguracionSueldos" WHERE "empresaId" = $1::uuid FOR UPDATE`, this.tenant.empresaId);
+  }
+
   private async encabezado(tx: TxEmpresa, anio: number) {
     return tx.liquidacionAnualGanancias.findUnique({ where: { empresaId_anio: { empresaId: this.tenant.empresaId, anio } } });
   }
@@ -76,9 +81,10 @@ export class AnualGananciasService {
   calcular(anio: number) {
     if (!Number.isInteger(anio) || anio >= hoy().getUTCFullYear()) throw new BadRequestException('Solo se liquida un año terminado');
     return this.tenant.transaccion(async (tx) => {
-      let l = await this.encabezado(tx, anio);
-      if (l?.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} está cerrada`);
-      l ??= await tx.liquidacionAnualGanancias.create({ data: { empresaId: this.tenant.empresaId, anio } });
+      await this.bloquear(tx);
+      const previo = await this.encabezado(tx, anio);
+      if (previo?.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} está cerrada`);
+      const l = previo ?? (await tx.liquidacionAnualGanancias.create({ data: { empresaId: this.tenant.empresaId, anio } }));
       await this.recalcular(tx, l.id, anio);
       return this.ver(anio, tx);
     }, { timeout: 60000 });
@@ -90,9 +96,10 @@ export class AnualGananciasService {
     {
       await tx.liquidacionAnualGananciasEmpleado.deleteMany({ where: { anualId: l.id, distracto: false } });
       const recibos = await tx.reciboSueldo.findMany({ where: { liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio, 0, 1)), lte: new Date(Date.UTC(anio, 11, 31)) } } }, select: { empleadoId: true }, distinct: ['empleadoId'] });
-      // Los egresados del año (van en su final) y los de enero a marzo siguientes (van en el distracto) no entran
-      const empleados = await tx.empleado.findMany({ where: { id: { in: recibos.map((r) => r.empleadoId) }, OR: [{ fechaEgreso: null }, { fechaEgreso: { lt: new Date(Date.UTC(anio, 0, 1)) } }, { fechaEgreso: { gt: new Date(Date.UTC(anio + 1, 2, 31)) } }] } });
+      // Los egresados del año van en su final y no entran. De los egresados de enero a marzo siguientes, solo quedan afuera los que ya
+      // tienen su distracto (final cerrada de enero a marzo); el resto entra y su ajuste va en la final (E33)
       const distractos = new Set((await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { anualId: l.id, distracto: true }, select: { empleadoId: true } })).map((x) => x.empleadoId));
+      const empleados = await tx.empleado.findMany({ where: { id: { in: recibos.map((r) => r.empleadoId) }, OR: [{ fechaEgreso: null }, { fechaEgreso: { lt: new Date(Date.UTC(anio, 0, 1)) } }, { fechaEgreso: { gt: new Date(Date.UTC(anio, 11, 31)) } }] } });
       for (const e of empleados.filter((x) => !distractos.has(x.id))) {
         let r: AnualEmpleado;
         try { r = await this.anualDeEmpleado(tx, e.id, anio); } catch (err) { if (err instanceof SinTablaGanancias) throw new BadRequestException(err.message); throw err; }
@@ -106,11 +113,16 @@ export class AnualGananciasService {
 
   cerrar(anio: number) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx);
       const l = await this.encabezado(tx, anio);
       if (!l) throw new BadRequestException(`Calcule la liquidación anual de ${anio}`);
       if (l.estado === 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} ya está cerrada`);
       // ARCA acepta la anual original desde el 1/4 y para entonces se conocen los egresos de enero a marzo (distracto)
       if (hoy() < new Date(Date.UTC(anio + 1, 3, 1))) throw new BadRequestException(`La liquidación anual se cierra desde el 1/4/${anio + 1}, cuando ya se conocen los egresos de enero a marzo (que van en el distracto)`);
+      // Revisión E33: una final de un egreso de enero a marzo, sin cerrar y con pago anterior a hoy, decide si el empleado va en el
+      // distracto o en la anual; cerrar la anual antes perdería su ajuste (la final ya no lo aplicaría)
+      const pendiente = await tx.liquidacion.findFirst({ where: { tipo: 'FINAL', estado: 'BORRADOR', fechaPago: { lt: hoy() }, egreso: { fechaEgreso: { gte: new Date(Date.UTC(anio + 1, 0, 1)), lte: new Date(Date.UTC(anio + 1, 2, 31)) } } } });
+      if (pendiente) throw new BadRequestException(`Cierre primero las liquidaciones finales pendientes de los egresos de enero a marzo de ${anio + 1}`);
       // Se cierra lo que dan los datos de hoy, no la última vista previa (egresos, liquidaciones o F.572 que cambiaron después)
       await this.recalcular(tx, l.id, anio);
       await tx.liquidacionAnualGanancias.update({ where: { id: l.id }, data: { estado: 'CERRADA', cerradoEn: new Date(), cerradoPor: this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId } });
@@ -120,6 +132,7 @@ export class AnualGananciasService {
 
   reabrir(anio: number) {
     return this.tenant.transaccion(async (tx) => {
+      await this.bloquear(tx);
       const l = await this.encabezado(tx, anio);
       if (!l || l.estado !== 'CERRADA') throw new BadRequestException(`La liquidación anual de ${anio} no está cerrada`);
       // Los 561 de las finales con distracto liquidan la anual del empleado en su final, no el ajuste de la anual cerrada

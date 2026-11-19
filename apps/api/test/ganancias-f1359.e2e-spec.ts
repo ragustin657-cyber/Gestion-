@@ -92,6 +92,17 @@ describe('ganancias: F.1359 y certificados', () => {
     expect(suma.toFixed(2)).toBe(tope.toFixed(2));
   });
 
+  it('deducciones generales en cero', async () => {
+    const x = await escenario();
+    await x.cerrar((await x.crear('MENSUAL', 2025, 11)).id);
+    // Sin aportes: se quitan los descuentos del recibo cerrado
+    await prisma.reciboSueldoRenglon.deleteMany({ where: { clase: 'DESCUENTO', recibo: { empleadoId: x.e.id } } });
+    await x.anual();
+    const e = await prisma.empleado.findUniqueOrThrow({ where: { id: x.e.id } });
+    const r = await x.http.get('/api/sueldos/ganancias/f1359/anual/2025');
+    expect([r.status, r.body.message]).toEqual([400, `El F.1359 no admite deducciones generales en cero (sin aportes): ${e.apellido}, ${e.nombre}`]);
+  });
+
   it('devolución con signo', async () => {
     const x = await escenario();
     await x.cerrar((await x.crear('MENSUAL', 2025, 11)).id);
@@ -119,6 +130,11 @@ describe('ganancias: F.1359 y certificados', () => {
     expect(ls[0].slice(32, 33)).toBe('2');
     const indemn = (await prisma.reciboSueldoRenglon.findFirstOrThrow({ where: { codigo: '300', recibo: { liquidacionId: f.id } } })).importe;
     expect(importe(ls.find((l) => l.startsWith('04'))!, 44, 58).toFixed(2)).toBe(D(indemn).toFixed(2));
+    // SAC proporcional (200/201) y SAC sobre preaviso, integración y vacaciones van a la 2.ª cuota (pago en noviembre), no a la bruta (E33)
+    const sacs = await prisma.reciboSueldoRenglon.findMany({ where: { codigo: { in: ['200', '201', '311', '321', '331'] }, recibo: { liquidacionId: f.id } } });
+    const sumaSac = sacs.reduce((t, y) => t.plus(y.importe), D(0));
+    expect(sumaSac.gt(0)).toBe(true);
+    expect(importe(ls.find((l) => l.startsWith('03'))!, 59, 73).toFixed(2)).toBe(sumaSac.toFixed(2));
     const pdf = await x.bin(`/api/sueldos/liquidaciones/${f.id}/ganancias-certificado.pdf`);
     expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe('%PDF');
   });

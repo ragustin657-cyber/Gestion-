@@ -7,7 +7,7 @@ import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { useCuentasImputables } from '../abm/opciones';
 import { Clase, CLASES, CODIGOS_ARCA, Concepto, DESTINOS_DESCUENTO, TIPOS_CONCEPTO, useConceptos } from './comun';
 
-type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean; destino: string; cuentaContableId: string | null; codigoArca: string; exentoGanancias: boolean; rubroExentoGanancias: string | null };
+export type Form = { id?: string; codigo: string; nombre: string; clase: Clase; tipo: string; parametros: string; orden: number; soloAfiliados: boolean; activo: boolean; destino: string; cuentaContableId: string | null; codigoArca: string; exentoGanancias: boolean; rubroExentoGanancias: string | null };
 const vacio: Form = { codigo: '', nombre: '', clase: 'NO_REMUNERATIVO', tipo: 'FIJO', parametros: '{ "importe": 0 }', orden: 300, soloAfiliados: false, activo: true, destino: 'OTRO', cuentaContableId: null, codigoArca: '', exentoGanancias: false, rubroExentoGanancias: null };
 
 /** Rubros del registro 04 del F.1359 para los conceptos exentos (spec E32 §4). */
@@ -16,6 +16,9 @@ export const RUBROS_EXENTOS = [
   { value: 'INDEMNIZACIONES', label: 'Indemnizaciones' }, { value: 'CURSOS_SEMINARIOS', label: 'Cursos y seminarios' }, { value: 'INDUMENTARIA', label: 'Indumentaria y equipamiento' },
 ];
 export const faltaRubroExento = (f: { exentoGanancias: boolean; rubroExentoGanancias: string | null }) => f.exentoGanancias && !f.rubroExentoGanancias;
+
+/** Cambia la clase; un descuento no puede ser exento de Ganancias (E33): se desmarca y se borra el rubro. */
+export const cambiarClase = (f: Form, clase: Clase): Form => (clase === 'DESCUENTO' ? { ...f, clase, exentoGanancias: false, rubroExentoGanancias: null } : { ...f, clase });
 
 /** Exento de Ganancias y, si lo es, el rubro del F.1359 (obligatorio). */
 export function CamposExentoGanancias({ exento, rubro, onChange }: { exento: boolean; rubro: string | null; onChange: (c: { exentoGanancias: boolean; rubroExentoGanancias: string | null }) => void }) {
@@ -92,7 +95,7 @@ export function ConceptosPage() {
             <SimpleGrid cols={2}>
               <TextInput label="Código" value={form.codigo} onChange={(e) => setForm({ ...form, codigo: e.currentTarget.value })} />
               <TextInput label="Nombre" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.currentTarget.value })} />
-              <Select label="Clase" data={Object.entries(CLASES).map(([value, label]) => ({ value, label }))} value={form.clase} onChange={(v) => setForm({ ...form, clase: (v ?? 'REMUNERATIVO') as Clase })} />
+              <Select label="Clase" data={Object.entries(CLASES).map(([value, label]) => ({ value, label }))} value={form.clase} onChange={(v) => setForm(cambiarClase(form, (v ?? 'REMUNERATIVO') as Clase))} />
               <Select label="Cálculo" data={Object.entries(TIPOS_CONCEPTO).map(([value, label]) => ({ value, label }))} value={form.tipo} onChange={(v) => setForm({ ...form, tipo: v ?? 'FIJO' })} />
               <CampoCodigoArca value={form.codigoArca} onChange={(v) => setForm({ ...form, codigoArca: v })} />
               <NumberInput label="Orden" value={form.orden} onChange={(v) => setForm({ ...form, orden: Number(v) || 0 })} />
