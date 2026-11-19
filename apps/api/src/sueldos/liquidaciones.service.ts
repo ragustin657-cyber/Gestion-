@@ -220,6 +220,9 @@ export class LiquidacionesService {
     // Recibos de empleados que ya no corresponden (o que ahora tienen error): se eliminan
     const sobran = [...previos.values()].filter((p) => !vigentes.has(p.empleadoId)).map((p) => p.id);
     if (sobran.length) await tx.reciboSueldo.deleteMany({ where: { id: { in: sobran } } });
+    if (conceptoGanancias && !conceptoAjuste && (await this.retencion.pendientesSinConcepto(tx, empleados.map((e) => e.id), l))) {
+      aviso = [aviso, 'Hay saldos de la liquidación anual de Ganancias sin aplicar: active un concepto de ajuste anual de Ganancias'].filter(Boolean).join('. ');
+    }
     return { errores, ...(aviso ? { aviso } : {}) };
   }
 

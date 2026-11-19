@@ -90,9 +90,10 @@ export class AnualGananciasService {
     {
       await tx.liquidacionAnualGananciasEmpleado.deleteMany({ where: { anualId: l.id, distracto: false } });
       const recibos = await tx.reciboSueldo.findMany({ where: { liquidacion: { estado: 'CERRADA', fechaPago: { gte: new Date(Date.UTC(anio, 0, 1)), lte: new Date(Date.UTC(anio, 11, 31)) } } }, select: { empleadoId: true }, distinct: ['empleadoId'] });
-      // Los egresados del año (van en su final) y los de enero a marzo siguientes (van en el distracto) no entran
-      const empleados = await tx.empleado.findMany({ where: { id: { in: recibos.map((r) => r.empleadoId) }, OR: [{ fechaEgreso: null }, { fechaEgreso: { lt: new Date(Date.UTC(anio, 0, 1)) } }, { fechaEgreso: { gt: new Date(Date.UTC(anio + 1, 2, 31)) } }] } });
+      // Los egresados del año van en su final y no entran. De los egresados de enero a marzo siguientes, solo quedan afuera los que ya
+      // tienen su distracto (final cerrada de enero a marzo); el resto entra y su ajuste va en la final (E33)
       const distractos = new Set((await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { anualId: l.id, distracto: true }, select: { empleadoId: true } })).map((x) => x.empleadoId));
+      const empleados = await tx.empleado.findMany({ where: { id: { in: recibos.map((r) => r.empleadoId) }, OR: [{ fechaEgreso: null }, { fechaEgreso: { lt: new Date(Date.UTC(anio, 0, 1)) } }, { fechaEgreso: { gt: new Date(Date.UTC(anio, 11, 31)) } }] } });
       for (const e of empleados.filter((x) => !distractos.has(x.id))) {
         let r: AnualEmpleado;
         try { r = await this.anualDeEmpleado(tx, e.id, anio); } catch (err) { if (err instanceof SinTablaGanancias) throw new BadRequestException(err.message); throw err; }

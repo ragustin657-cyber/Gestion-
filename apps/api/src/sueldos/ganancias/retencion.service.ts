@@ -71,6 +71,8 @@ export class RetencionGananciasService {
    * A retener: hasta el 35 % del bruto menos la retención del mes; a devolver: sin tope.
    */
   async ajustes(tx: TxEmpresa, l: Liquidacion, empleadoId: string, r: ResultadoCalc, concepto: Concepto, conceptoGanancias: Concepto): Promise<void> {
+    // Spec E32 §6 / E33: el ajuste anual va en la mensual o la final siguiente, no en el SAC ni en otros tipos
+    if (l.tipo !== 'MENSUAL' && l.tipo !== 'FINAL') return;
     const anio = l.fechaPago.getUTCFullYear();
     const bruta = new D(r.totalRemunerativo).plus(r.totalNoRemunerativo);
     const retMes = r.renglones.filter((x) => x.conceptoId === conceptoGanancias.id).reduce((s, x) => s.plus(x.importe), cero());
@@ -84,15 +86,33 @@ export class RetencionGananciasService {
       r.totalDescuentos = new D(r.totalDescuentos).plus(importe);
       r.neto = new D(r.neto).minus(importe);
     };
-    const filas = await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { empleadoId, distracto: false, anual: { estado: 'CERRADA', cerradoEn: { lt: l.fechaPago } } }, include: { anual: true }, orderBy: { anual: { anio: 'asc' } } });
-    for (const f of filas) {
-      const aplicado = await tx.reciboSueldoRenglon.aggregate({ where: { anioAjusteGanancias: f.anual.anio, conceptoId: concepto.id, recibo: { empleadoId, liquidacionId: { not: l.id }, liquidacion: { estado: 'CERRADA' } } }, _sum: { importe: true } });
-      agregar(f.anual.anio, new D(f.saldo).minus(aplicado._sum.importe ?? 0));
-    }
+    const filas = await this.pendientes(tx, empleadoId, l);
+    for (const f of filas) agregar(f.anio, f.pendiente);
     // Distracto: la final de enero a marzo liquida la anual del año anterior si el empleado no está en una anual cerrada
-    if (!filas.some((f) => f.anual.anio === anio - 1) && (await this.esDistracto(tx, l, empleadoId))) {
+    if (!filas.some((f) => f.anio === anio - 1) && (await this.esDistracto(tx, l, empleadoId))) {
       agregar(anio - 1, (await this.anual.anualDeEmpleado(tx, empleadoId, anio - 1)).saldo);
     }
+  }
+
+  /**
+   * Saldos de anuales cerradas antes del pago, menos lo ya aplicado en liquidaciones cerradas (cualquier concepto de ajuste: se cuenta
+   * por anioAjusteGanancias, E33), sin contar la liquidación en cálculo.
+   */
+  private async pendientes(tx: TxEmpresa, empleadoId: string, l: Liquidacion) {
+    const filas = await tx.liquidacionAnualGananciasEmpleado.findMany({ where: { empleadoId, distracto: false, anual: { estado: 'CERRADA', cerradoEn: { lt: l.fechaPago } } }, include: { anual: true }, orderBy: { anual: { anio: 'asc' } } });
+    const out: { anio: number; pendiente: Dec }[] = [];
+    for (const f of filas) {
+      const aplicado = await tx.reciboSueldoRenglon.aggregate({ where: { anioAjusteGanancias: f.anual.anio, recibo: { empleadoId, liquidacionId: { not: l.id }, liquidacion: { estado: 'CERRADA' } } }, _sum: { importe: true } });
+      out.push({ anio: f.anual.anio, pendiente: new D(f.saldo).minus(aplicado._sum.importe ?? 0) });
+    }
+    return out;
+  }
+
+  /** Hay ajuste anual pendiente para alguno de los empleados (para avisar si no hay concepto de ajuste activo, E33). */
+  async pendientesSinConcepto(tx: TxEmpresa, empleadoIds: string[], l: Liquidacion): Promise<boolean> {
+    if (l.tipo !== 'MENSUAL' && l.tipo !== 'FINAL') return false;
+    for (const id of empleadoIds) if ((await this.pendientes(tx, id, l)).some((p) => !p.pendiente.isZero())) return true;
+    return false;
   }
 
   /** Distracto (E32 §6): final pagada de enero a marzo, empleado con recibos cerrados del año anterior y fuera de una anual cerrada. */
