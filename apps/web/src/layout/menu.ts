@@ -172,6 +172,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Posición de IVA', ruta: '/impuestos/posicion-iva', permiso: 'impuestos.ver' },
           { titulo: 'Liquidación de IIBB (CM)', ruta: '/impuestos/iibb', permiso: 'impuestos.ver' },
           { titulo: 'Ingresos por provincia', ruta: '/impuestos/ingresos-por-provincia', permiso: 'impuestos.ver' },
+          { titulo: 'Percepciones practicadas', ruta: '/impuestos/percepciones-practicadas', permiso: 'impuestos.ver' },
         ],
       },
     ],
