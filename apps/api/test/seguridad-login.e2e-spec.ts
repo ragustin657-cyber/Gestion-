@@ -53,4 +53,11 @@ describe('seguridad: login', () => {
     expect(espia).toHaveBeenCalled();
     espia.mockRestore();
   });
+
+  it('intentos en paralelo no superan el límite (revisión E36)', async () => {
+    const { usuario } = await crearEmpresaYUsuario(prisma);
+    const rs = await Promise.all(Array.from({ length: 12 }, () => login(usuario.email, 'mala', '10.0.0.8')));
+    expect(rs.filter((r) => r.status === 401).length).toBeLessThanOrEqual(5);
+    expect(rs.filter((r) => r.status === 429).length).toBeGreaterThanOrEqual(7);
+  });
 });

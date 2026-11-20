@@ -57,4 +57,12 @@ describe('AuthProvider', () => {
     expect(auth().puede('venta.emitir')).toBe(true);
     expect(sesion.leer()!.permisos).toEqual(['venta.emitir']);
   });
+
+  it('el refresco no aplica permisos de otra empresa', async () => {
+    sesion.guardar({ token: 't', usuario: { id: 'u', nombre: 'U' }, empresa: { id: 'A', razonSocial: 'A' }, permisos: [] });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ usuarioId: 'u', empresaId: 'B', permisos: ['venta.emitir'], superadmin: false }), { status: 200 })));
+    const { auth } = setup();
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); await Promise.resolve(); await Promise.resolve(); });
+    expect(auth().puede('venta.emitir')).toBe(false);
+  });
 });

@@ -55,9 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refrescar = async () => {
       if (document.visibilityState === 'hidden') return;
       try {
-        const yo = await api<{ permisos?: Permiso[]; superadmin?: boolean }>('/auth/yo');
+        const yo = await api<{ empresaId?: string; permisos?: Permiso[]; superadmin?: boolean }>('/auth/yo');
         const actual = almacen.leer();
-        if (!actual?.empresa) return;
+        // Solo si la respuesta es de la empresa de la sesión (otra pestaña o un cambio de empresa en curso pudieron cambiarla)
+        if (!actual?.empresa || yo.empresaId !== actual.empresa.id) return;
         const nueva: Sesion = { ...actual, permisos: yo.permisos ?? [], superadmin: !!yo.superadmin };
         almacen.guardar(nueva);
         setSesion(nueva);

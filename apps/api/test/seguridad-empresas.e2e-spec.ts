@@ -93,4 +93,16 @@ describe('seguridad: integridad entre empresas', () => {
     const ue = await prisma.usuarioEmpresa.findFirstOrThrow({ where: { empresaId: x.a.empresaId } });
     await expect(prisma.usuarioEmpresa.update({ where: { usuarioId_empresaId: { usuarioId: ue.usuarioId, empresaId: ue.empresaId } }, data: { sucursalId: '00000000-0000-4000-8000-000000000000' } })).rejects.toThrow();
   });
+
+  it('orden de compra y recepción: depósito, artículo y centro de costo de otra empresa (revisión E36)', async () => {
+    const x = await escenario();
+    const { proveedorId } = await datosCompras(prisma, x.a.empresaId);
+    const oc = (o: Record<string, unknown> = {}, r: Record<string, unknown> = {}) => x.a.http.post('/api/compras/ordenes', {
+      terceroId: proveedorId, fecha: '2026-11-02', monedaCodigo: 'ARS', renglones: [{ descripcion: 'X', cantidad: 1, precioUnitario: 100, alicuotaIva: 21, ...r }], ...o,
+    });
+    esInexistente(await oc({ depositoId: x.depositoB.id }));
+    esInexistente(await oc({}, { articuloId: x.articuloB.id }));
+    esInexistente(await oc({}, { centroCostoId: x.centroB.id }));
+    esInexistente(await x.a.http.post('/api/compras/recepciones', { terceroId: proveedorId, fecha: '2026-11-03', remitoNumero: 'R-1', depositoId: x.depositoB.id, renglones: [{ ordenCompraRenglonId: x.depositoB.id, cantidad: 1 }] }));
+  });
 });

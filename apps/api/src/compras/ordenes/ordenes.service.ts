@@ -1,3 +1,4 @@
+import { verificarDeEmpresa } from '../../comun/de-empresa';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { EstadoOC, Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -72,6 +73,8 @@ export class OrdenesService {
   private async preparar(tx: TxEmpresa, d: DatosOC) {
     const t = await tx.tercero.findUnique({ where: { id: d.terceroId } });
     if (!t || !t.esProveedor || !t.activo) throw new BadRequestException('El tercero no es un proveedor activo');
+    // E36 (revisión): depósito, artículos y centros de costo de la empresa activa
+    await verificarDeEmpresa(tx, [['deposito', d.depositoId], ...d.renglones.flatMap((r) => [['articulo', r.articuloId], ['centroCosto', r.centroCostoId]] as ['articulo' | 'centroCosto', string | null | undefined][])]);
     const renglones = d.renglones.map((r, i) => ({
       orden: i + 1, articuloId: r.articuloId ?? null, descripcion: r.descripcion, cantidad: r.cantidad,
       precioUnitario: r.precioUnitario, bonificacionPct: r.bonificacionPct, alicuotaIva: r.alicuotaIva,

@@ -1,3 +1,4 @@
+import { verificarDeEmpresa } from '../../comun/de-empresa';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -53,6 +54,8 @@ export class RecepcionesService {
   crear(d: DatosIR) {
     return conUnicidad('Ese remito ya fue registrado', () =>
       this.tenant.transaccion(async (tx) => {
+        // E36 (revisión): depósito de la empresa activa
+        await verificarDeEmpresa(tx, [['deposito', d.depositoId]]);
         const ids = d.renglones.map((r) => r.ordenCompraRenglonId);
         await bloquear(tx, 'OrdenCompraRenglon', this.tenant.empresaId, ids);
         const renglonesOc = await tx.ordenCompraRenglon.findMany({ where: { id: { in: ids } }, include: { ordenCompra: true } });

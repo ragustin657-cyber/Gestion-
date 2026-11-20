@@ -244,8 +244,9 @@ export function filtrarMenu(menu: NodoMenu[], permisos: Permiso[], superadmin = 
     } else if (n.soloSuperadmin) {
       if (superadmin) r.push(n);
     } else if (n.permisoAlguno) {
-      if (n.permisoAlguno.some((p) => permisos.includes(p))) r.push(n);
-    } else if (n.proximamente || !n.permiso || permisos.includes(n.permiso)) {
+      // E36: un superadmin pasa todos los controles de permiso (como en el servidor)
+      if (superadmin || n.permisoAlguno.some((p) => permisos.includes(p))) r.push(n);
+    } else if (superadmin || n.proximamente || !n.permiso || permisos.includes(n.permiso)) {
       r.push(n);
     }
   }

@@ -15,7 +15,8 @@ export class AuthService {
   async login(email: string, password: string, ip = '') {
     const correo = String(email ?? '').trim().toLowerCase();
     const claves = [`email:${correo}`, ...(ip ? [`ip:${ip}`] : [])];
-    await this.controlarIntentos(claves);
+    // El intento se registra antes de verificar y se cuenta incluyéndolo: pedidos en paralelo no superan el límite (revisión E36)
+    const intento = await this.registrarIntento(claves);
     const usuario = await this.prisma.usuario.findUnique({
       where: { email: correo },
       include: { empresas: { where: { activo: true, empresa: { activa: true } }, include: { empresa: true } } },
@@ -23,11 +24,9 @@ export class AuthService {
     // Tiempo parejo (E36): sin usuario activo se verifica igual contra un hash ficticio
     const hashAVerificar = usuario?.activo ? usuario.passwordHash : await this.hashFicticio();
     const ok = (await verify(hashAVerificar, String(password ?? '')).catch(() => false)) && !!usuario?.activo;
-    if (!usuario || !ok) {
-      await this.registrarFallido(claves);
-      throw new UnauthorizedException('Usuario o contraseña incorrectos');
-    }
-    await this.prisma.intentoLogin.deleteMany({ where: { clave: `email:${correo}` } });
+    // Un fallo deja su intento registrado; un acierto borra los fallidos del email y su propio intento por IP
+    if (!usuario || !ok) throw new UnauthorizedException('Usuario o contraseña incorrectos');
+    await this.prisma.intentoLogin.deleteMany({ where: { OR: [{ clave: `email:${correo}` }, { id: { in: intento } }] } });
 
     const payload: PayloadJwt = { sub: usuario.id };
     return {
@@ -71,17 +70,19 @@ export class AuthService {
     return this.ficticio;
   }
 
-  private async controlarIntentos(claves: string[]) {
-    const desde = new Date(Date.now() - VENTANA_INTENTOS_MS);
-    for (const clave of claves)
-      if ((await this.prisma.intentoLogin.count({ where: { clave, creadoEn: { gte: desde } } })) >= MAXIMO_INTENTOS)
-        throw new HttpException('Demasiados intentos: espere unos minutos', HttpStatus.TOO_MANY_REQUESTS);
-  }
-
-  private async registrarFallido(claves: string[]) {
+  /** Registra el intento y lo rechaza (429, sin dejarlo registrado) si con él se superan los 5 de la ventana en alguna clave. */
+  private async registrarIntento(claves: string[]): Promise<string[]> {
     const ahora = new Date();
-    await this.prisma.intentoLogin.deleteMany({ where: { creadoEn: { lt: new Date(ahora.getTime() - VENTANA_INTENTOS_MS) } } });
-    await this.prisma.intentoLogin.createMany({ data: claves.map((clave) => ({ clave, creadoEn: ahora })) });
+    const desde = new Date(ahora.getTime() - VENTANA_INTENTOS_MS);
+    await this.prisma.intentoLogin.deleteMany({ where: { creadoEn: { lt: desde } } });
+    const filas = await this.prisma.intentoLogin.createManyAndReturn({ data: claves.map((clave) => ({ clave, creadoEn: ahora })), select: { id: true } });
+    const ids = filas.map((f) => f.id);
+    for (const clave of claves)
+      if ((await this.prisma.intentoLogin.count({ where: { clave, creadoEn: { gte: desde } } })) > MAXIMO_INTENTOS) {
+        await this.prisma.intentoLogin.deleteMany({ where: { id: { in: ids } } });
+        throw new HttpException('Demasiados intentos: espere unos minutos', HttpStatus.TOO_MANY_REQUESTS);
+      }
+    return ids;
   }
 }
 

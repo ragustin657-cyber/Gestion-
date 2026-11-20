@@ -81,4 +81,9 @@ describe('menú del administrador general', () => {
     expect(todas(filtrarMenu(MENU, ['precios.editar']))).toContain('Listas de precios');
     expect(todas(filtrarMenu(MENU, ['venta.ver']))).toEqual(expect.arrayContaining(['Pedidos', 'Remitos']));
   });
+
+  it('un superadmin sin permisos en la empresa ve todo el menú (E36)', () => {
+    const hojas = (m: NodoMenu[]): number => m.reduce((t, n) => t + (n.hijos ? hojas(n.hijos) : 1), 0);
+    expect(hojas(filtrarMenu(MENU, [], true))).toBe(hojas(MENU));
+  });
 });
