@@ -32,7 +32,8 @@ export class PercepcionesVentaService {
   private async nuevas(tx: TxEmpresa, c: ComprobantePercepciones): Promise<DatosPercepcion[]> {
     if (c.letra !== 'A' && c.letra !== 'B') return [];
     const t = await tx.tercero.findUniqueOrThrow({ where: { id: c.terceroId }, include: { iibb: true } });
-    if (t.condicionIva === 'CONSUMIDOR_FINAL') return [];
+    // Sin CUIT no se informa en los archivos de ARBA ni AGIP (revisión E39)
+    if (t.condicionIva === 'CONSUMIDOR_FINAL' || t.tipoDocumento !== 'CUIT') return [];
     const out: DatosPercepcion[] = [];
     const cot = new D(c.cotizacion).toString();
     // IIBB
@@ -74,7 +75,8 @@ export class PercepcionesVentaService {
     const originales = await tx.comprobanteVentaPercepcion.findMany({ where: { comprobanteId: c.comprobanteAsociadoId } });
     if (!originales.length) return [];
     const previas = await tx.comprobanteVentaPercepcion.findMany({
-      where: { comprobante: { comprobanteAsociadoId: c.comprobanteAsociadoId, tipo: 'NOTA_CREDITO', estado: 'AUTORIZADO', ...(c.excluirId ? { id: { not: c.excluirId } } : {}) } },
+      // Revisión E39: cuentan las autorizadas y las que tienen una emisión en curso o pendiente (número reservado)
+      where: { comprobante: { comprobanteAsociadoId: c.comprobanteAsociadoId, tipo: 'NOTA_CREDITO', OR: [{ estado: 'AUTORIZADO' }, { numeroReservado: { not: null } }, { emisionEnCurso: { not: null } }], ...(c.excluirId ? { id: { not: c.excluirId } } : {}) } },
     });
     const clave = (p: { tipo: string; jurisdiccion: string | null; tramo: string | null }) => `${p.tipo}|${p.jurisdiccion ?? ''}|${p.tramo ?? ''}`;
     const baseIibb = new D(c.netoGravado).plus(c.noGravado).plus(c.exento);

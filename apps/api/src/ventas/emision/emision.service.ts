@@ -112,6 +112,8 @@ export class EmisionService {
       if (leido.estado === 'AUTORIZADO') throw new BadRequestException('El comprobante ya está autorizado');
       await verificarMesesAbiertos(tx, empresaId, leido.fecha);
       // E39: las percepciones se recalculan al emitir con el padrón vigente (salvo un reintento con número ya reservado: va lo mismo a ARCA)
+      // Dos NC de la misma factura se serializan (aunque sean de otro punto de venta): la reversión ve a la otra (revisión E39)
+      if (leido.tipo === 'NOTA_CREDITO' && leido.comprobanteAsociadoId) await bloquear(tx, 'ComprobanteVenta', empresaId, [leido.comprobanteAsociadoId]);
       const c = leido.numeroReservado === null ? await this.recalcularPercepciones(tx, leido) : leido;
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta);
       const clave = `ARCA-${ambiente}-${tipoArca}`;

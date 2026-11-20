@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import { ArcaSimulado } from '../src/arca/arca-simulado';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararVentas } from './helpers-ventas';
@@ -105,7 +106,8 @@ describe('percepciones en ventas (E39)', () => {
     const n2 = await nc(500);
     expect(de(n2.body, 'IIBB')[0].importe).toBe('15');
     const n3 = await nc(10);
-    expect(n3.status === 201 ? de(n3.body, 'IIBB') : []).toEqual([]);
+    // Las dos NC ya cubren el total de la factura: la tercera la rechaza el tope de saldo (el tope de percepción lo prueba la revisión)
+    expect(n3.status).toBe(400);
   });
 
   it('borrador sin padrón emitido después de cargarlo: lleva la percepción', async () => {
@@ -164,4 +166,30 @@ describe('percepciones en ventas (E39)', () => {
     expect(await texto(b.id)).toMatch(/Percepción IIBB Buenos Aires[\s\S]{0,3}3,00/);
   });
 
+
+  it('revisión: una NC pendiente de CAE cuenta para el tope de lo revertido', async () => {
+    const x = await escenario();
+    await x.percibir('902');
+    await x.padron('902', x.cliente.cuit, 3);
+    const fc = await x.emitir({ renglones: [{ descripcion: 'P', cantidad: 1, precioUnitario: 10000, alicuota: 21 }] });
+    expect(de(fc, 'IIBB')[0].importe).toBe('300');
+    const nc = () => x.http.post('/api/ventas/comprobantes', x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: fc.id, aplicarAAsociado: false, renglones: [{ descripcion: 'NC', cantidad: 1, precioUnitario: 6000, alicuota: 'EXENTO' }] }));
+    const n1 = (await nc()).body as Venta;
+    ArcaSimulado.forzarFalla(x.empresaId, 'SIN_CONEXION');
+    expect((await x.http.post(`/api/ventas/comprobantes/${n1.id}/emitir`)).status).toBe(502);
+    const n2 = (await nc()).body as Venta;
+    const e2 = await x.http.post(`/api/ventas/comprobantes/${n2.id}/emitir`);
+    expect(e2.status).toBe(201);
+    const e1 = await x.http.post(`/api/ventas/comprobantes/${n1.id}/emitir`);
+    expect(e1.body.estado).toBe('AUTORIZADO');
+    const revertido = [...de(e1.body, 'IIBB'), ...de(e2.body, 'IIBB')].reduce((t, p) => t + Number(p.importe), 0);
+    expect(revertido).toBe(300);
+  });
+
+  it('revisión: a un cliente sin CUIT no se le percibe', async () => {
+    const x = await escenario();
+    await x.percibir('902', { sinPadronPercepcion: 'ALICUOTA_DEFECTO', alicuotaPercepcionDefecto: 3 });
+    const exento = await prisma.tercero.create({ data: { empresaId: x.empresaId, codigo: 999, razonSocial: 'Fundación Sin CUIT', cuit: '20123456', tipoDocumento: 'DNI', condicionIva: 'EXENTO', esCliente: true, provincia: 'Buenos Aires' } });
+    expect((await x.emitir({ terceroId: exento.id })).percepcionesDetalle).toEqual([]);
+  });
 });
