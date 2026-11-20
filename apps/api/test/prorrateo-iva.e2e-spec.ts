@@ -144,4 +144,11 @@ describe('prorrateo del crédito fiscal de IVA (E40)', () => {
     expect(g.status).toBe(201);
     expect(g.body.advertencias).toContain('Con prorrateo del crédito fiscal: declare el prorrateo global en el Libro IVA Digital (coeficiente 0,5000)');
   });
+
+  it('compras sabe si el prorrateo está activo sin permiso de impuestos', async () => {
+    const x = await base();
+    expect((await x.http.get('/api/compras/comprobantes/opciones')).body).toEqual({ prorrateoIva: false });
+    await x.config(prorrateo());
+    expect((await x.http.get('/api/compras/comprobantes/opciones')).body).toEqual({ prorrateoIva: true });
+  });
 });

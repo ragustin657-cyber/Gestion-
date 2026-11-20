@@ -337,6 +337,11 @@ export class ComprobantesService {
   }
 
   /** Anula: contraasiento, cuenta corriente en 0 y libera cantidades facturadas. */
+  async opciones() {
+    const c = await this.tenant.db.configImpuestos.findFirst({ select: { prorrateoIva: true } });
+    return { prorrateoIva: !!c?.prorrateoIva };
+  }
+
   /** Cambia el destino del crédito de IVA de una compra confirmada (spec E40 §3), salvo que su mes de IVA esté cerrado. */
   cambiarDestinoIva(id: string, destino: 'GRAVADO' | 'EXENTO' | 'COMUN') {
     return this.tenant.transaccion(async (tx) => {

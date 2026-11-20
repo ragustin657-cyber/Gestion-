@@ -10,9 +10,9 @@ export const DESTINOS_IVA = [
 ];
 export const LETRA_DESTINO: Record<string, string> = { GRAVADO: 'G', EXENTO: 'E', COMUN: 'C' };
 
-/** ¿La empresa tiene activo el prorrateo del crédito fiscal? (sin permiso para ver la configuración, se asume que no). */
+/** ¿La empresa tiene activo el prorrateo del crédito fiscal? (opciones de compras: no exige permiso de impuestos) */
 export function useProrrateoActivo(): boolean {
-  const q = useQuery({ queryKey: ['/impuestos/config'], queryFn: () => api<{ prorrateoIva?: boolean }>('/impuestos/config').catch(() => null) });
+  const q = useQuery({ queryKey: ['/compras/comprobantes/opciones'], queryFn: () => api<{ prorrateoIva?: boolean }>('/compras/comprobantes/opciones').catch(() => null) });
   return !!q.data?.prorrateoIva;
 }
 

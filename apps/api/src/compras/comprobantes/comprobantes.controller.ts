@@ -15,6 +15,13 @@ export class ComprobantesController {
     return this.comprobantes.listar(f);
   }
 
+  /** Opciones de la carga de compras (E40): si el prorrateo del crédito fiscal está activo, para mostrar el destino del crédito de IVA. */
+  @Get('opciones')
+  @RequierePermiso('fc.ver')
+  opciones() {
+    return this.comprobantes.opciones();
+  }
+
   @Get(':id')
   @RequierePermiso('fc.ver')
   obtener(@Param('id', ParseUUIDPipe) id: string) {
