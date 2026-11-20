@@ -72,7 +72,14 @@ El sistema tiene los libros de IVA, el Libro IVA Digital y las retenciones y per
   Los renglones en cero se omiten. Cuadra por construcción.
 - **Reabrir:**
   - solo si el mes siguiente no está cerrado: `Reabra primero la posición de IVA de MM/AAAA`;
-  - anula el asiento con contraasiento y borra la fila.
+  - anula el asiento con un contraasiento **fechado el último día del mes**, así el mayor de ese mes queda como antes, y borra la fila;
+  - si el período contable del mes está cerrado, vale el error existente del período (*decisión del constructor*: hay que reabrir el período contable antes).
+- **Mes de IVA cerrado = libros cerrados** (*decisión del constructor*, la única que cambia cómo se trabaja):
+  - con la posición de un mes cerrada, no se puede confirmar una factura o nota de compra con fecha contable en ese mes, ni emitir o anular un comprobante de venta con fecha en ese mes;
+  - el mensaje es: `La posición de IVA de MM/AAAA está cerrada: use una fecha de un mes abierto o reabra la posición`;
+  - así un comprobante tardío no queda fuera de toda liquidación. En compras se carga con la fecha contable del mes abierto, como permite la ley para computar el crédito fiscal;
+  - las compras y ventas ya cargadas no cambian.
+- **Avisos de cuadre** (*decisión del constructor*): la diferencia entre los libros y el mayor no impide cerrar. Los avisos se muestran en la pantalla y se repiten en la respuesta del cierre. El cuadre de los libros excluye los asientos de liquidación de IVA y sus contraasientos, para no dar avisos falsos.
 - **Concurrencia:** cerrar y reabrir bloquean por empresa, con un advisory lock `posicion-iva:<empresa>`.
 
 ## 7. Cuentas y conceptos
@@ -105,6 +112,6 @@ Prorrateo del crédito fiscal; percepciones practicadas; exportaciones y reinteg
 ## 11. Casos a vigilar
 - Una nota de crédito de compra que deja el crédito del mes negativo: el crédito total puede ser negativo y el cálculo lo resta igual.
 - Un mes sin movimientos se cierra con todo en cero y arrastra los saldos.
-- Un comprobante cargado tarde en un mes cerrado: la posición cerrada no cambia, y el borrador muestra un aviso si el libro del mes ya no coincide con lo guardado.
+- Un comprobante con fecha en un mes de IVA cerrado: se rechaza (§6).
 - Reabrir después de que se cerró el mes siguiente: no se permite.
 - Facturas en dólares: el libro ya las lleva a pesos.
