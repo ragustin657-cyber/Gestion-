@@ -151,4 +151,29 @@ describe('prorrateo del crédito fiscal de IVA (E40)', () => {
     await x.config(prorrateo());
     expect((await x.http.get('/api/compras/comprobantes/opciones')).body).toEqual({ prorrateoIva: true });
   });
+
+  it('revisión: se puede desactivar con meses cerrados; se exige el primer mes y que no sea anterior al inicio de IVA', async () => {
+    const x = await escenario();
+    expect((await x.config(prorrateo())).status).toBe(200);
+    expect((await x.cerrar(2026, 10)).status).toBe(201);
+    const off = await x.config(prorrateo({ prorrateoIva: false }));
+    expect(off.status).toBe(200);
+    expect((await x.ver(2026, 10)).coeficiente).toBe('0.5000');
+    const sinMes = await x.config(prorrateo({ prorrateoDesdeAnio: null, prorrateoDesdeMes: null }));
+    expect([sinMes.status, sinMes.body.message]).toEqual([400, 'Indique el primer mes con prorrateo']);
+    const antes = await x.config(prorrateo({ prorrateoDesdeMes: 9 }));
+    expect([antes.status, antes.body.message]).toEqual([400, 'El primer mes con prorrateo no puede ser anterior al inicio de la posición de IVA']);
+    // Volver a activarlo desde noviembre: las cerradas de antes no impiden
+    expect((await x.config(prorrateo({ prorrateoDesdeMes: 11 }))).status).toBe(200);
+  });
+
+  it('revisión: la nota de crédito de compra hereda el destino de su factura', async () => {
+    const x = await escenario();
+    const r = await x.http.post('/api/compras/comprobantes', {
+      terceroId: x.proveedorId, tipo: 'NOTA_CREDITO', letra: 'A', puntoVenta: 9, numero: 1, fechaEmision: '2026-10-20', fechaContable: '2026-10-20', monedaCodigo: 'ARS',
+      totalDeclarado: 121, comprobanteAsociadoId: x.comun, renglones: [{ origen: 'DIRECTO', descripcion: 'NC', cantidad: 1, precioUnitario: 100, alicuotaIva: 21 }],
+    });
+    expect(r.status).toBe(201);
+    expect((await prisma.comprobanteCompra.findUniqueOrThrow({ where: { id: r.body.id } })).destinoCreditoIva).toBe('COMUN');
+  });
 });

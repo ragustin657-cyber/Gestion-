@@ -279,7 +279,7 @@ export class ComprobantesService {
       data: {
         empresaId, numeroInterno, terceroId: d.terceroId, tipo: d.tipo, letra: letra ?? '', puntoVenta: d.puntoVenta, numero: d.numero,
         fechaEmision: d.fechaEmision, fechaContable: d.fechaContable, fechaVencimiento, monedaCodigo: d.monedaCodigo, cotizacion,
-        netoGravado: tot.netoGravado, iva: tot.iva, percepcionIva: d.percepcionIva, destinoCreditoIva: d.destinoCreditoIva ?? 'GRAVADO', impuestosInternos: d.impuestosInternos,
+        netoGravado: tot.netoGravado, iva: tot.iva, percepcionIva: d.percepcionIva, destinoCreditoIva: d.destinoCreditoIva ?? (await this.destinoDelAsociado(tx, d.comprobanteAsociadoId)), impuestosInternos: d.impuestosInternos,
         noGravado: d.noGravado, exento: d.exento, total, totalPesos, comprobanteAsociadoId: d.comprobanteAsociadoId ?? null, depositoId: d.depositoId ?? null,
         aceptoDiferencias: diferencias.length > 0, creadoPor: ctx.usuarioId,
         renglones: { create: renglones.map((r) => ({ ...r, empresaId })) },
@@ -337,6 +337,12 @@ export class ComprobantesService {
   }
 
   /** Anula: contraasiento, cuenta corriente en 0 y libera cantidades facturadas. */
+  /** Revisión E40: sin destino indicado, la NC o ND hereda el de su comprobante asociado. */
+  private async destinoDelAsociado(tx: TxEmpresa, asociadoId: string | null | undefined) {
+    if (!asociadoId) return 'GRAVADO' as const;
+    return (await tx.comprobanteCompra.findUnique({ where: { id: asociadoId }, select: { destinoCreditoIva: true } }))?.destinoCreditoIva ?? 'GRAVADO';
+  }
+
   async opciones() {
     const c = await this.tenant.db.configImpuestos.findFirst({ select: { prorrateoIva: true } });
     return { prorrateoIva: !!c?.prorrateoIva };

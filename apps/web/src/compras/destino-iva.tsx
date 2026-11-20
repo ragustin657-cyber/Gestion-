@@ -17,5 +17,5 @@ export function useProrrateoActivo(): boolean {
 }
 
 export function SelectorDestinoIva({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
-  return <Select label="Destino del crédito de IVA" w={240} allowDeselect={false} data={DESTINOS_IVA} value={value} disabled={disabled} onChange={(v) => onChange(v ?? 'GRAVADO')} />;
+  return <Select label="Destino del crédito de IVA" w={260} allowDeselect={false} placeholder="Gravadas (o el del comprobante asociado)" data={DESTINOS_IVA} value={value || null} disabled={disabled} onChange={(v) => onChange(v ?? 'GRAVADO')} />;
 }

@@ -32,7 +32,7 @@ const TIPOS = [
 
 const inicial = () => ({
   terceroId: '', tipo: 'FACTURA', letra: '', puntoVenta: '', numero: '', fechaEmision: hoy(), fechaContable: '', fechaVencimiento: '',
-  monedaCodigo: 'ARS', cotizacion: '', depositoId: '', destinoCreditoIva: 'GRAVADO', percepcionIva: '', impuestosInternos: '', noGravado: '', exento: '', totalDeclarado: '',
+  monedaCodigo: 'ARS', cotizacion: '', depositoId: '', destinoCreditoIva: '', percepcionIva: '', impuestosInternos: '', noGravado: '', exento: '', totalDeclarado: '',
 });
 const n = (s: string) => (s === '' ? 0 : Number(s));
 
@@ -96,7 +96,8 @@ export function FacturaProveedorPage() {
     fechaEmision: cab.fechaEmision, fechaContable: cab.fechaContable || cab.fechaEmision, fechaVencimiento: cab.fechaVencimiento || null,
     monedaCodigo: cab.monedaCodigo, cotizacion: cab.monedaCodigo === 'USD' && cab.cotizacion ? n(cab.cotizacion) : null,
     totalDeclarado: n(cab.totalDeclarado), percepcionIva: n(cab.percepcionIva), impuestosInternos: n(cab.impuestosInternos),
-    noGravado: n(cab.noGravado), exento: n(cab.exento), depositoId: cab.depositoId || null, destinoCreditoIva: prorrateo ? cab.destinoCreditoIva : 'GRAVADO',
+    noGravado: n(cab.noGravado), exento: n(cab.exento), depositoId: cab.depositoId || null, // Sin elegir: gravadas, o el de la factura asociada en una NC/ND (revisión E40)
+    destinoCreditoIva: prorrateo && cab.destinoCreditoIva ? cab.destinoCreditoIva : undefined,
     percepcionesIibb: iibb.filter((x) => n(x.importe) > 0).map((x) => ({ jurisdiccion: x.jurisdiccion, importe: n(x.importe) })),
     renglones: renglones.map((r) => ({
       ...((r.origen as Origen | undefined) ?? { origen: 'DIRECTO' }),

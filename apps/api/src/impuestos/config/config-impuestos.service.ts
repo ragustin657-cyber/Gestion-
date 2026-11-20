@@ -32,8 +32,16 @@ export class ConfigImpuestosService {
     // E40: el prorrateo no cambia con posiciones cerradas desde su primer mes (el anterior o el nuevo, el menor)
     const cambiaProrrateo = (['prorrateoIva', 'prorrateoDesdeAnio', 'prorrateoDesdeMes', 'prorrateoInicioMes'] as const).some((k) => d[k] !== undefined && d[k] !== c[k])
       || (['prorrateoGravadasIniciales', 'prorrateoExentasIniciales'] as const).some((k) => d[k] !== undefined && !c[k].equals(d[k]!));
-    if (cambiaProrrateo) {
-      const desdes = [[c.prorrateoDesdeAnio, c.prorrateoDesdeMes], [d.prorrateoDesdeAnio ?? c.prorrateoDesdeAnio, d.prorrateoDesdeMes ?? c.prorrateoDesdeMes]]
+    const activo = d.prorrateoIva ?? c.prorrateoIva;
+    const nuevoDesde = { anio: d.prorrateoDesdeAnio !== undefined ? d.prorrateoDesdeAnio : c.prorrateoDesdeAnio, mes: d.prorrateoDesdeMes !== undefined ? d.prorrateoDesdeMes : c.prorrateoDesdeMes };
+    // Revisión E40: activo exige el primer mes, y no anterior al inicio de la posición de IVA
+    if (activo && (!nuevoDesde.anio || !nuevoDesde.mes)) throw new BadRequestException('Indique el primer mes con prorrateo');
+    const inicioIva = { anio: d.ivaInicioAnio !== undefined ? d.ivaInicioAnio : c.ivaInicioAnio, mes: d.ivaInicioMes !== undefined ? d.ivaInicioMes : c.ivaInicioMes };
+    if (activo && inicioIva.anio && inicioIva.mes && nuevoDesde.anio! * 12 + nuevoDesde.mes! < inicioIva.anio * 12 + inicioIva.mes)
+      throw new BadRequestException('El primer mes con prorrateo no puede ser anterior al inicio de la posición de IVA');
+    // Desactivar no cambia los meses cerrados (guardan su prorrateo): no se bloquea. Activar mira solo el primer mes nuevo.
+    if (cambiaProrrateo && activo) {
+      const desdes = [...(c.prorrateoIva ? [[c.prorrateoDesdeAnio, c.prorrateoDesdeMes]] : []), [nuevoDesde.anio, nuevoDesde.mes]]
         .filter((x): x is [number, number] => !!x[0] && !!x[1]).sort((a, b) => a[0] * 12 + a[1] - (b[0] * 12 + b[1]));
       const desde = desdes[0];
       if (desde) {
