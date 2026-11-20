@@ -1635,6 +1635,38 @@ model ConfigImpuestos {
   ivaInicioMes           Int?
   ivaSaldoTecnicoInicial Decimal          @default(0) @db.Decimal(18, 2)
   ivaSaldoLibreInicial   Decimal          @default(0) @db.Decimal(18, 2)
+  /// Liquidación de IIBB por Convenio Multilateral (E38): primer mes liquidado en el sistema
+  iibbInicioAnio         Int?
+  iibbInicioMes          Int?
+}
+
+/// Jurisdicción del Convenio Multilateral de un año (E38): coeficiente unificado, alícuota y actividad. El saldo inicial solo cuenta en el año de inicio.
+model JurisdiccionCm {
+  id           String  @id @default(uuid()) @db.Uuid
+  empresaId    String  @db.Uuid
+  anio         Int
+  jurisdiccion String
+  coeficiente  Decimal @db.Decimal(9, 6)
+  alicuota     Decimal @db.Decimal(9, 4)
+  actividad    String
+  saldoInicial Decimal @default(0) @db.Decimal(18, 2)
+
+  @@unique([empresaId, anio, jurisdiccion])
+}
+
+/// Liquidación mensual de IIBB cerrada (E38): importes congelados al cierre, detalle por jurisdicción.
+model PosicionIibb {
+  id         String    @id @default(uuid()) @db.Uuid
+  empresaId  String    @db.Uuid
+  anio       Int
+  mes        Int
+  ingresos   Decimal   @db.Decimal(18, 2)
+  detalle    Json
+  asientoId  String?   @db.Uuid
+  cerradoEn  DateTime?
+  cerradoPor String?   @db.Uuid
+
+  @@unique([empresaId, anio, mes])
 }
 
 enum EstadoPosicionIva {

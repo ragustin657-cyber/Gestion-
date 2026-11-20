@@ -10,10 +10,12 @@ import { ConfigImpuestosController } from './config/config-impuestos.controller'
 import { ConfigImpuestosService } from './config/config-impuestos.service';
 import { PosicionIvaController } from './posicion-iva/posicion-iva.controller';
 import { PosicionIvaService } from './posicion-iva/posicion-iva.service';
+import { PosicionIibbController } from './posicion-iibb/posicion-iibb.controller';
+import { PosicionIibbService } from './posicion-iibb/posicion-iibb.service';
 
 @Module({
   imports: [ComprasModule],
-  controllers: [ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController],
-  providers: [ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService],
+  controllers: [ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController, PosicionIibbController],
+  providers: [ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService, PosicionIibbService],
 })
 export class ImpuestosModule {}

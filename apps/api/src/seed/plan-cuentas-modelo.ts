@@ -45,6 +45,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('1.1.03.008', 'Retenciones SUSS sufridas', A, true),
   c('1.1.03.009', 'IVA Saldo técnico a favor', A, true),
   c('1.1.03.010', 'IVA Saldo de libre disponibilidad', A, true),
+  c('1.1.03.011', 'IIBB Saldo a favor', A, true),
   c('1.1.04', 'Otros créditos', A),
   c('1.1.04.001', 'Anticipos a proveedores', A, true),
   c('1.1.05', 'Bienes de cambio', A),
@@ -71,6 +72,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('2.1.02.004', 'Retenciones IIBB a depositar', P, true),
   c('2.1.02.005', 'Retenciones SUSS a depositar', P, true),
   c('2.1.02.006', 'IVA a pagar', P, true),
+  c('2.1.02.007', 'IIBB a pagar', P, true),
   c('2.1.03', 'Deudas sociales', P),
   c('2.1.03.001', 'Sueldos a pagar', P, true),
   c('2.1.03.002', 'Cargas sociales a pagar', P, true),
@@ -107,6 +109,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.10', 'Contribuciones patronales', RN, true),
   c('5.2.11', 'Indemnizaciones', RN, true),
   c('5.2.12', 'Comisiones de tarjetas', RN, true),
+  c('5.2.13', 'Impuesto sobre los ingresos brutos', RN, true),
 ];
 
 /** Rubros de bienes de uso del plan modelo: nombre, cuenta de origen, de amortización acumulada y vida útil en meses. */
