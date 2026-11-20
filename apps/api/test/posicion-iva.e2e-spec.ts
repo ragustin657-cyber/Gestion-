@@ -46,7 +46,7 @@ describe('posición mensual de IVA', () => {
       for (const x of a.renglones) r2[(await prisma.cuentaContable.findUniqueOrThrow({ where: { id: x.cuentaContableId } })).codigo] = [x.debe.toFixed(2), x.haber.toFixed(2)];
       return { a, r: r2 };
     };
-    return { ...v, ver, cerrar, reabrir, inicio, asiento };
+    return { ...v, proveedorId, ver, cerrar, reabrir, inicio, asiento };
   };
 
   it('borrador del mes con débito, crédito, retenciones y percepciones', async () => {
@@ -129,5 +129,28 @@ describe('posición mensual de IVA', () => {
     expect([xlsx.status, String(xlsx.headers['content-type'])]).toEqual([200, expect.stringContaining('spreadsheet')]);
     const pdf = await x.http.get('/api/impuestos/posicion-iva?anio=2026&mes=10&formato=pdf');
     expect([pdf.status, String(pdf.headers['content-type'])]).toEqual([200, expect.stringContaining('pdf')]);
+  });
+
+  it('un mes cerrado bloquea sus libros (compras y ventas)', async () => {
+    const x = await escenario();
+    const { proveedorId } = x;
+    // Compra de septiembre cargada antes del cierre (para probar la anulación)
+    const deSeptiembre = await facturaPendiente(x.http, prisma, { proveedorId, neto: 100, fecha: '2026-09-12' });
+    await x.inicio(2026, 9);
+    expect((await x.cerrar(2026, 9)).status).toBe(201);
+    const MSG = 'La posición de IVA de 09/2026 está cerrada: use una fecha de un mes abierto o reabra la posición';
+    const compra = (fechaContable: string, numero: number) => x.http.post('/api/compras/comprobantes', {
+      terceroId: proveedorId, tipo: 'FACTURA', letra: 'A', puntoVenta: 8, numero, fechaEmision: '2026-09-10', fechaContable, monedaCodigo: 'ARS', totalDeclarado: 121,
+      renglones: [{ origen: 'DIRECTO', descripcion: 'X', cantidad: 1, precioUnitario: 100, alicuotaIva: 21 }],
+    });
+    const r1 = await compra('2026-09-15', 1);
+    expect([r1.status, r1.body.message]).toEqual([400, MSG]);
+    expect((await compra('2026-10-01', 2)).status).toBe(201);
+    const an = await x.http.post(`/api/compras/comprobantes/${deSeptiembre.comprobanteId}/anular`, { motivo: 'Error' });
+    expect([an.status, an.body.message]).toEqual([400, MSG]);
+    // Venta con fecha en septiembre (el reloj en septiembre para que ARCA acepte la fecha)
+    jest.setSystemTime(new Date('2026-09-25T15:00:00Z'));
+    const v = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ fecha: '2026-09-20' }), emitir: true });
+    expect([v.status, v.body.message]).toEqual([400, MSG]);
   });
 });

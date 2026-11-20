@@ -1,3 +1,4 @@
+import { verificarMesIvaAbierto } from '../../impuestos/posicion-iva/bloqueo';
 import { verificarDeEmpresa } from '../../comun/de-empresa';
 import {
   BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException,
@@ -124,6 +125,7 @@ export class ComprobantesService {
     const empresaId = this.tenant.empresaId;
     const ctx = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO);
     const esNotaCD = d.tipo === 'NOTA_CREDITO' || d.tipo === 'NOTA_DEBITO';
+    await verificarMesIvaAbierto(tx, d.fechaContable);
 
     // 1. Proveedor y letra
     const prov = await tx.tercero.findUnique({ where: { id: d.terceroId } });
@@ -340,6 +342,7 @@ export class ComprobantesService {
       const c = await tx.comprobanteCompra.findUnique({ where: { id }, include: { renglones: true } });
       if (!c) throw new NotFoundException('Comprobante no encontrado');
       if (c.estado === 'ANULADO') throw new ConflictException('El comprobante ya está anulado');
+      await verificarMesIvaAbierto(tx, c.fechaContable);
       const movId = (await tx.movimientoCuentaCorriente.findFirst({ where: { origenTipo: 'COMPRA', origenId: id }, select: { id: true } }))?.id;
       if (movId) await bloquear(tx, 'MovimientoCuentaCorriente', this.tenant.empresaId, [movId]);
       const mov = movId ? await tx.movimientoCuentaCorriente.findUniqueOrThrow({ where: { id: movId } }) : null;
