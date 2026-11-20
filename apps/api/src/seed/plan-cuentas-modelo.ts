@@ -112,6 +112,7 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('5.2.11', 'Indemnizaciones', RN, true),
   c('5.2.12', 'Comisiones de tarjetas', RN, true),
   c('5.2.13', 'Impuesto sobre los ingresos brutos', RN, true),
+  c('5.2.14', 'IVA crédito fiscal no computable', RN, true),
 ];
 
 /** Rubros de bienes de uso del plan modelo: nombre, cuenta de origen, de amortización acumulada y vida útil en meses. */
