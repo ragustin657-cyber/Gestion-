@@ -2797,3 +2797,12 @@ model LiquidacionAnualGananciasEmpleado {
   @@unique([anualId, empleadoId])
   @@index([empresaId])
 }
+
+/// Intento fallido de login (E36): global, sin empresa. clave = 'email:<email>' o 'ip:<ip>'.
+model IntentoLogin {
+  id       String   @id @default(uuid()) @db.Uuid
+  clave    String
+  creadoEn DateTime
+
+  @@index([clave, creadoEn])
+}

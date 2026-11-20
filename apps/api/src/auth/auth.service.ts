@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { hash, verify } from '@node-rs/argon2';
 import { esPermiso } from '@gestion/shared';
@@ -12,13 +12,22 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async login(email: string, password: string) {
+  async login(email: string, password: string, ip = '') {
+    const correo = String(email ?? '').trim().toLowerCase();
+    const claves = [`email:${correo}`, ...(ip ? [`ip:${ip}`] : [])];
+    await this.controlarIntentos(claves);
     const usuario = await this.prisma.usuario.findUnique({
-      where: { email: String(email ?? '').trim().toLowerCase() },
+      where: { email: correo },
       include: { empresas: { where: { activo: true, empresa: { activa: true } }, include: { empresa: true } } },
     });
-    const ok = usuario?.activo && (await verify(usuario.passwordHash, String(password ?? '')).catch(() => false));
-    if (!usuario || !ok) throw new UnauthorizedException('Usuario o contraseña incorrectos');
+    // Tiempo parejo (E36): sin usuario activo se verifica igual contra un hash ficticio
+    const hashAVerificar = usuario?.activo ? usuario.passwordHash : await this.hashFicticio();
+    const ok = (await verify(hashAVerificar, String(password ?? '')).catch(() => false)) && !!usuario?.activo;
+    if (!usuario || !ok) {
+      await this.registrarFallido(claves);
+      throw new UnauthorizedException('Usuario o contraseña incorrectos');
+    }
+    await this.prisma.intentoLogin.deleteMany({ where: { clave: `email:${correo}` } });
 
     const payload: PayloadJwt = { sub: usuario.id };
     return {
@@ -54,4 +63,27 @@ export class AuthService {
     await this.prisma.usuario.update({ where: { id: usuarioId }, data: { passwordHash: await hash(nueva) } });
     return { ok: true };
   }
+
+  // --- Límite de intentos de login (E36): 5 fallidos por email o por IP en 15 minutos ---
+  private ficticio?: Promise<string>;
+  private hashFicticio() {
+    this.ficticio ??= hash('clave-ficticia-para-tiempo-parejo');
+    return this.ficticio;
+  }
+
+  private async controlarIntentos(claves: string[]) {
+    const desde = new Date(Date.now() - VENTANA_INTENTOS_MS);
+    for (const clave of claves)
+      if ((await this.prisma.intentoLogin.count({ where: { clave, creadoEn: { gte: desde } } })) >= MAXIMO_INTENTOS)
+        throw new HttpException('Demasiados intentos: espere unos minutos', HttpStatus.TOO_MANY_REQUESTS);
+  }
+
+  private async registrarFallido(claves: string[]) {
+    const ahora = new Date();
+    await this.prisma.intentoLogin.deleteMany({ where: { creadoEn: { lt: new Date(ahora.getTime() - VENTANA_INTENTOS_MS) } } });
+    await this.prisma.intentoLogin.createMany({ data: claves.map((clave) => ({ clave, creadoEn: ahora })) });
+  }
 }
+
+const MAXIMO_INTENTOS = 5;
+const VENTANA_INTENTOS_MS = 15 * 60 * 1000;

@@ -8,6 +8,8 @@ export function configurarApp(app: INestApplication) {
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new PrismaExceptionFilter());
   app.enableShutdownHooks();
+  // Detrás de un proxy (TRUST_PROXY=1 o la cantidad de saltos): req.ip toma la IP real del cliente para el límite de login (E36)
+  if (process.env.TRUST_PROXY) (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set('trust proxy', Number(process.env.TRUST_PROXY) || process.env.TRUST_PROXY);
 }
 
 async function bootstrap() {

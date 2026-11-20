@@ -8,6 +8,7 @@ import { crearEjercicio, rangoEjercicio } from '../src/contabilidad/periodos/eje
 export async function crearApp(): Promise<INestApplication> {
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = mod.createNestApplication();
+  process.env.TRUST_PROXY ??= '1';
   configurarApp(app);
   await app.init();
   return app;
