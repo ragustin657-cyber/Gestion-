@@ -7,7 +7,7 @@ import { PrismaService } from './prisma.service';
 
 const CON_WHERE = new Set([
   'findMany', 'findFirst', 'findFirstOrThrow', 'findUnique', 'findUniqueOrThrow',
-  'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'delete', 'deleteMany',
+  'count', 'aggregate', 'groupBy', 'update', 'updateMany', 'updateManyAndReturn', 'delete', 'deleteMany',
 ]);
 
 function extender(prisma: PrismaService, empresaActual: () => string) {
