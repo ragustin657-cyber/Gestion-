@@ -3,11 +3,15 @@ import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './comun/prisma-exception.filter';
+import { confianzaProxy } from './comun/proxy';
 
 export function configurarApp(app: INestApplication) {
   app.setGlobalPrefix('api');
   app.useGlobalFilters(new PrismaExceptionFilter());
   app.enableShutdownHooks();
+  // Detrás de un proxy (TRUST_PROXY=1 o la cantidad de saltos): req.ip toma la IP real del cliente para el límite de login (E36)
+  const proxy = confianzaProxy(process.env.TRUST_PROXY);
+  if (proxy !== undefined) (app.getHttpAdapter().getInstance() as { set: (k: string, v: unknown) => void }).set('trust proxy', proxy);
 }
 
 async function bootstrap() {

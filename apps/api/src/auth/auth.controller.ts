@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Ip, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { zPassword } from '../comun/esquemas';
@@ -14,8 +14,8 @@ export class AuthController {
   @Publico()
   @Post('login')
   @HttpCode(200)
-  login(@Body() body: { email: string; password: string }) {
-    return this.auth.login(body?.email, body?.password);
+  login(@Body() body: { email: string; password: string }, @Ip() ip: string) {
+    return this.auth.login(body?.email, body?.password, ip);
   }
 
   @Post('empresa')

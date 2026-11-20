@@ -1,3 +1,4 @@
+import { verificarDeEmpresa } from '../../comun/de-empresa';
 import { vendedorActivo } from '../comisiones/vendedor-activo';
 import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
@@ -81,6 +82,8 @@ export class ComprobantesVentaService {
     const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
     if (!pv) throw new BadRequestException('Punto de venta inexistente');
     if (!pv.electronico) throw new BadRequestException('El punto de venta no es electrónico');
+    // E36: depósito y artículos de la empresa activa
+    await verificarDeEmpresa(tx, [['deposito', d.depositoId], ...d.renglones.map((r) => ['articulo', r.articuloId] as ['articulo', string | null | undefined])]);
     const empresa = await tx.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
     let letra: LetraVenta;
     try {

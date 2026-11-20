@@ -48,8 +48,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSesion(nueva);
   }, [consultas]);
 
+  // E36: los permisos se refrescan al volver a la pestaña y cada 5 minutos (un cambio de rol se ve sin volver a elegir la empresa)
+  const empresaId = sesion?.empresa?.id;
+  useEffect(() => {
+    if (!empresaId) return;
+    const refrescar = async () => {
+      if (document.visibilityState === 'hidden') return;
+      try {
+        const yo = await api<{ empresaId?: string; permisos?: Permiso[]; superadmin?: boolean }>('/auth/yo');
+        const actual = almacen.leer();
+        // Solo si la respuesta es de la empresa de la sesión (otra pestaña o un cambio de empresa en curso pudieron cambiarla)
+        if (!actual?.empresa || yo.empresaId !== actual.empresa.id) return;
+        const nueva: Sesion = { ...actual, permisos: yo.permisos ?? [], superadmin: !!yo.superadmin };
+        almacen.guardar(nueva);
+        setSesion(nueva);
+      } catch {
+        /* sin conexión: se reintenta en el próximo ciclo; un 401 ya cierra la sesión */
+      }
+    };
+    const intervalo = window.setInterval(() => void refrescar(), 5 * 60 * 1000);
+    const alVolver = () => void refrescar();
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { window.clearInterval(intervalo); document.removeEventListener('visibilitychange', alVolver); };
+  }, [empresaId]);
+
   const salir = useCallback(() => almacen.cerrar(), []);
-  const puede = useCallback((p: Permiso) => !!sesion?.permisos?.includes(p), [sesion]);
+  // E36: un superadmin puede todo (el servidor ya lo permite)
+  const puede = useCallback((p: Permiso) => !!sesion?.superadmin || !!sesion?.permisos?.includes(p), [sesion]);
 
   return <Ctx.Provider value={{ sesion, ingresar, elegirEmpresa, salir, puede }}>{children}</Ctx.Provider>;
 }

@@ -25,6 +25,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Definí la variable JWT_SECRET (mínimo 32 caracteres)}
       ARCA_CLAVE_MAESTRA: ${ARCA_CLAVE_MAESTRA:-}
       NODE_ENV: production
+      # La API recibe todo a través del nginx de la web (un salto): req.ip toma la IP real del cliente para el límite de login
+      TRUST_PROXY: "1"
     depends_on:
       postgres:
         condition: service_healthy

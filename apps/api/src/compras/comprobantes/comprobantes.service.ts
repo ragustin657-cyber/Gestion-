@@ -1,3 +1,4 @@
+import { verificarDeEmpresa } from '../../comun/de-empresa';
 import {
   BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException,
 } from '@nestjs/common';
@@ -139,6 +140,11 @@ export class ComprobantesService {
     if (dup) throw new ConflictException(DUPLICADO);
 
     if (d.depositoId && !(await tx.deposito.findUnique({ where: { id: d.depositoId } }))) throw new BadRequestException('Depósito inexistente');
+    // E36: artículos, centros de costo y comprobante asociado de la empresa activa
+    await verificarDeEmpresa(tx, [
+      ['comprobanteCompra', d.comprobanteAsociadoId],
+      ...d.renglones.flatMap((r) => [['articulo', r.articuloId], ['centroCosto', r.centroCostoId]] as ['articulo' | 'centroCosto', string | null | undefined][]),
+    ]);
 
     // 3. Renglones: vínculos, cuentas y datos para 3 vías
     if (esNotaCD && d.renglones.some((r) => r.origen !== 'DIRECTO'))
