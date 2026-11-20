@@ -1,4 +1,4 @@
-import { verificarMesIvaAbierto } from '../../impuestos/posicion-iva/bloqueo';
+import { verificarMesesAbiertos } from '../../impuestos/posicion-iva/bloqueo';
 import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadGatewayException, BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import type { AmbienteArca, ComprobanteVenta, PeriodoContable, Tercero } from '@prisma/client';
@@ -108,7 +108,7 @@ export class EmisionService {
       await bloquear(tx, 'ComprobanteVenta', empresaId, [id]);
       const c = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id }, include: { tercero: true } });
       if (c.estado === 'AUTORIZADO') throw new BadRequestException('El comprobante ya está autorizado');
-      await verificarMesIvaAbierto(tx, empresaId, c.fecha);
+      await verificarMesesAbiertos(tx, empresaId, c.fecha);
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta);
       const clave = `ARCA-${ambiente}-${tipoArca}`;
       await tx.$executeRaw`INSERT INTO "Talonario" ("id", "empresaId", "tipoComprobante", "puntoVenta", "ultimoNumero")

@@ -47,12 +47,15 @@ export class PosicionIvaService {
     const limpio = (r: Record<string, string>) => Object.fromEntries(Object.entries(r).filter(([, v]) => !new D(v).isZero()).map(([k, v]) => [k, f2(v)]));
     const debito = limpio(lv.totales.ivaPorAlicuota), credito = limpio(lc.totales.ivaPorAlicuota);
     const ret = await tx.reciboRetencion.aggregate({ where: { tipo: 'IVA', fecha: { gte: desde, lte: hasta }, recibo: { estado: 'CONFIRMADO' } }, _sum: { importe: true } });
+    // E38: las retenciones y percepciones de IVA de las liquidaciones de tarjetas
+    const tarjetas = await tx.liquidacionTarjetaImpuesto.groupBy({ by: ['clase'], where: { tipo: 'IVA', liquidacion: { estado: 'CONFIRMADO', fecha: { gte: desde, lte: hasta } } }, _sum: { importe: true } });
+    const deTarjetas = (clase: string) => new D(tarjetas.find((t) => t.clase === clase)?._sum.importe ?? 0);
     const total = (r: Record<string, string>) => Object.values(r).reduce((t, x) => t.plus(x), new D(0));
     const avisos = [
       ...(await this.ventas.cuadre(tx, 'IVA_DEBITO_FISCAL', desde, hasta, total(debito))),
       ...(await this.ventas.cuadre(tx, 'IVA_CREDITO_FISCAL', desde, hasta, total(credito))),
     ];
-    return { debito, credito, retenciones: f2(ret._sum.importe ?? 0), percepciones: f2(lc.totales.percepcionIva), avisos };
+    return { debito, credito, retenciones: f2(new D(ret._sum.importe ?? 0).plus(deTarjetas('RETENCION'))), percepciones: f2(new D(lc.totales.percepcionIva).plus(deTarjetas('PERCEPCION'))), avisos };
   }
 
   /** Saldos a favor del mes anterior: los del cerrado, los iniciales en el mes de inicio, o los del borrador anterior (con aviso). */

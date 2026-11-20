@@ -1,3 +1,4 @@
+import { verificarMesIibbAbierto, verificarMesIvaAbierto } from '../../impuestos/posicion-iva/bloqueo';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -142,6 +143,7 @@ export class TarjetasService {
       const cuentaBancaria = await tx.cuentaBancaria.findUnique({ where: { id: d.cuentaBancariaId ?? tarjeta.cuentaBancariaId } });
       if (!cuentaBancaria || cuentaBancaria.monedaCodigo !== 'ARS') throw new BadRequestException('La cuenta bancaria debe ser en pesos');
       const fecha = aFecha(d.fecha);
+      await this.verificarMeses(tx, fecha, impuestos);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const liq = await tx.liquidacionTarjeta.create({ data: {
         empresaId, numero: await this.numeracion.siguiente(tx, 'LIQUIDACION_TARJETA', 0), tarjetaId: tarjeta.id, fecha, referencia: d.referencia ?? null,
@@ -165,12 +167,19 @@ export class TarjetasService {
     });
   }
 
+  /** Sus retenciones y percepciones entran en la posición de IVA y en la liquidación de IIBB del mes (spec E38 §5): el mes cerrado las bloquea. */
+  private async verificarMeses(tx: TxEmpresa, fecha: Date, impuestos: { tipo: string }[]) {
+    if (impuestos.some((i) => i.tipo === 'IVA')) await verificarMesIvaAbierto(tx, this.tenant.empresaId, fecha);
+    if (impuestos.some((i) => i.tipo === 'IIBB')) await verificarMesIibbAbierto(tx, this.tenant.empresaId, fecha);
+  }
+
   anularLiquidacion(id: string, motivo: string) {
     return this.tenant.transaccion(async (tx) => {
       await tx.$queryRawUnsafe(`SELECT id FROM "LiquidacionTarjeta" WHERE id = $1::uuid AND "empresaId" = $2::uuid FOR UPDATE`, id, this.tenant.empresaId);
       const l = await tx.liquidacionTarjeta.findUnique({ where: { id } });
       if (!l || !(await this.visible(tx, [id])).has(id)) throw new NotFoundException('Liquidación inexistente');
       if (l.estado === 'ANULADO') throw new BadRequestException('La liquidación ya está anulada');
+      await this.verificarMeses(tx, l.fecha, await tx.liquidacionTarjetaImpuesto.findMany({ where: { liquidacionId: id } }));
       if (await tx.movimientoTesoreria.count({ where: { origenTipo: ORIGEN_LIQUIDACION_TARJETA, origenId: id, vinculoId: { not: null } } }))
         throw new BadRequestException('El movimiento bancario está conciliado: deshaga la conciliación antes de anular');
       const f = hoy();

@@ -78,6 +78,8 @@ export class PosicionIibbService {
       sumar(ret, r.jurisdiccion, r._sum.importe ?? 0);
     for (const p of await tx.comprobanteCompraPercepcionIibb.groupBy({ by: ['jurisdiccion'], where: { comprobante: { estado: 'CONFIRMADO', fechaContable: { gte: desde, lte: hasta } } }, _sum: { importe: true } }))
       sumar(perc, p.jurisdiccion, p._sum.importe ?? 0);
+    for (const t of await tx.liquidacionTarjetaImpuesto.groupBy({ by: ['clase', 'jurisdiccion'], where: { tipo: 'IIBB', liquidacion: { estado: 'CONFIRMADO', fecha: { gte: desde, lte: hasta } } }, _sum: { importe: true } }))
+      sumar(t.clase === 'RETENCION' ? ret : perc, t.jurisdiccion, t._sum.importe ?? 0);
     return { ret, perc };
   }
 

@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, datosCompras, facturaPendiente, limpiarBase } from './helpers';
+import { prepararTesoreria } from './helpers-tesoreria';
 import { prepararVentas } from './helpers-ventas';
 
 interface Detalle { jurisdiccion: string; coeficiente: string; alicuota: string; base: string; impuesto: string; retenciones: string; percepciones: string; saldoAnterior: string; aPagar: string; saldoAFavor: string }
@@ -167,5 +168,93 @@ describe('liquidación de IIBB por Convenio Multilateral', () => {
     expect([xlsx.status, String(xlsx.headers['content-type'])]).toEqual([200, expect.stringContaining('spreadsheet')]);
     const pdf = await x.http.get('/api/impuestos/iibb/posicion?anio=2026&mes=10&formato=pdf');
     expect([pdf.status, String(pdf.headers['content-type'])]).toEqual([200, expect.stringContaining('pdf')]);
+  });
+
+  it('el mes de IIBB cerrado bloquea compras, ventas y retenciones de IIBB de recibos', async () => {
+    const x = await escenario();
+    const deSeptiembre = await facturaPendiente(x.http, prisma, { proveedorId: x.proveedorId, neto: 100, fecha: '2026-09-12' });
+    const recibo = (fechaRet: string) => x.http.post('/api/ventas/recibos', {
+      terceroId: x.clienteRI.id, fecha: '2026-11-02', puntoVentaId: x.puntoVenta.id, cajaId: x.caja.id, efectivo: { importe: 100 }, cheques: [], transferencias: [],
+      retenciones: [{ tipo: 'IIBB', jurisdiccion: '901', numeroCertificado: `C-${fechaRet}`, fecha: fechaRet, importe: 10 }], aplicaciones: [],
+    });
+    const previo = await recibo('2026-09-20');
+    expect(previo.status).toBe(201);
+    await x.inicio(2026, 9);
+    await x.jurisdicciones(2026, J2026);
+    expect((await x.cerrar(2026, 9)).status).toBe(201);
+    const MSG = 'La liquidación de IIBB de 09/2026 está cerrada: use una fecha de un mes abierto o reabra la liquidación';
+    const compra = (fechaContable: string, numero: number) => x.http.post('/api/compras/comprobantes', {
+      terceroId: x.proveedorId, tipo: 'FACTURA', letra: 'A', puntoVenta: 8, numero, fechaEmision: '2026-09-10', fechaContable, monedaCodigo: 'ARS', totalDeclarado: 121,
+      renglones: [{ origen: 'DIRECTO', descripcion: 'X', cantidad: 1, precioUnitario: 100, alicuotaIva: 21 }],
+    });
+    const r1 = await compra('2026-09-15', 1);
+    expect([r1.status, r1.body.message]).toEqual([400, MSG]);
+    expect((await compra('2026-10-01', 2)).status).toBe(201);
+    const an = await x.http.post(`/api/compras/comprobantes/${deSeptiembre.comprobanteId}/anular`, { motivo: 'Error' });
+    expect([an.status, an.body.message]).toEqual([400, MSG]);
+    const rr = await recibo('2026-09-21');
+    expect([rr.status, rr.body.message]).toEqual([400, MSG]);
+    expect((await recibo('2026-10-21')).status).toBe(201);
+    const anr = await x.http.post(`/api/ventas/recibos/${previo.body.id}/anular`, { motivo: 'Error' });
+    expect([anr.status, anr.body.message]).toEqual([400, MSG]);
+    jest.setSystemTime(new Date('2026-09-25T15:00:00Z'));
+    const v = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ fecha: '2026-09-20' }), emitir: true });
+    expect([v.status, v.body.message]).toEqual([400, MSG]);
+  });
+
+  describe('liquidaciones de tarjetas', () => {
+    const tarjetas = async () => {
+      const t = await prepararTesoreria(app, prisma);
+      const visa = (await t.http.post('/api/tesoreria/tarjetas', { nombre: 'Visa crédito', tipo: 'CREDITO', cuentaBancariaId: t.ars.id })).body as { id: string };
+      const cupones = async (numero: string) => {
+        const r = await t.http.post('/api/tesoreria/ingresos', { fecha: '2026-09-05', cajaId: t.cajaCen.id, origen: 'CLIENTE', terceroId: t.clienteId, concepto: 'Cobranza', cupones: [{ tarjetaId: visa.id, numero, importe: 10000 }] });
+        if (r.status !== 201) throw new Error(JSON.stringify(r.body));
+        return (await prisma.cuponTarjeta.findMany({ where: { ingresoId: r.body.id } })).map((c) => c.id);
+      };
+      const liquidar = async (fecha: string, impuestos: { clase: string; tipo: string; jurisdiccion?: string; importe: number }[]) =>
+        t.http.post('/api/tesoreria/liquidaciones-tarjeta', { tarjetaId: visa.id, fecha, cuponIds: await cupones(`C${Math.random()}`), arancel: 0, ivaArancel: 0, impuestos, neto: 10000 - impuestos.reduce((a, i) => a + i.importe, 0) });
+      const inicio = (anio: number, mes: number) => t.http.put('/api/impuestos/config', { ...CONFIG, iibbInicioAnio: anio, iibbInicioMes: mes, ivaInicioAnio: anio, ivaInicioMes: mes });
+      await t.http.put('/api/impuestos/iibb/jurisdicciones?anio=2026', { jurisdicciones: J2026 });
+      return { ...t, liquidar, inicio };
+    };
+
+    it('sus retenciones y percepciones de IIBB entran en la liquidación del mes', async () => {
+      const t = await tarjetas();
+      const l = await t.liquidar('2026-09-10', [{ clase: 'RETENCION', tipo: 'IIBB', jurisdiccion: '902', importe: 225 }, { clase: 'PERCEPCION', tipo: 'IIBB', jurisdiccion: '901', importe: 30 }]);
+      expect(l.status).toBe(201);
+      const p = (await t.http.get('/api/impuestos/iibb/posicion?anio=2026&mes=9')).body as Posicion;
+      expect(p.detalle.find((d) => d.jurisdiccion === '902')!.retenciones).toBe('225.00');
+      expect(p.detalle.find((d) => d.jurisdiccion === '901')!.percepciones).toBe('30.00');
+      // Anulada, ya no cuenta
+      await t.http.post(`/api/tesoreria/liquidaciones-tarjeta/${l.body.id}/anular`, { motivo: 'Error' });
+      const p2 = (await t.http.get('/api/impuestos/iibb/posicion?anio=2026&mes=9')).body as Posicion;
+      expect(p2.totales.retenciones).toBe('0.00');
+    });
+
+    it('el mes de IIBB cerrado bloquea crear y anular las que tienen IIBB', async () => {
+      const t = await tarjetas();
+      const previa = await t.liquidar('2026-09-10', [{ clase: 'RETENCION', tipo: 'IIBB', jurisdiccion: '902', importe: 225 }]);
+      expect(previa.status).toBe(201);
+      await t.inicio(2026, 9);
+      expect((await t.http.post('/api/impuestos/iibb/posicion/2026/9/cerrar')).status).toBe(201);
+      const MSG = 'La liquidación de IIBB de 09/2026 está cerrada: use una fecha de un mes abierto o reabra la liquidación';
+      const an = await t.http.post(`/api/tesoreria/liquidaciones-tarjeta/${previa.body.id}/anular`, { motivo: 'Error' });
+      expect([an.status, an.body.message]).toEqual([400, MSG]);
+      const otra = await t.liquidar('2026-09-15', [{ clase: 'RETENCION', tipo: 'IIBB', jurisdiccion: '902', importe: 100 }]);
+      expect([otra.status, otra.body.message]).toEqual([400, MSG]);
+      // Solo con IVA (y el mes de IVA abierto) se carga
+      expect((await t.liquidar('2026-09-15', [{ clase: 'RETENCION', tipo: 'IVA', importe: 100 }])).status).toBe(201);
+    });
+
+    it('posición de IVA: toma sus retenciones y percepciones de IVA; el mes de IVA cerrado las bloquea', async () => {
+      const t = await tarjetas();
+      expect((await t.liquidar('2026-09-10', [{ clase: 'RETENCION', tipo: 'IVA', importe: 150 }, { clase: 'PERCEPCION', tipo: 'IVA', importe: 40 }])).status).toBe(201);
+      const p = (await t.http.get('/api/impuestos/posicion-iva?anio=2026&mes=9')).body as { retenciones: string; percepciones: string };
+      expect([p.retenciones, p.percepciones]).toEqual(['150.00', '40.00']);
+      await t.inicio(2026, 9);
+      expect((await t.http.post('/api/impuestos/posicion-iva/2026/9/cerrar')).status).toBe(201);
+      const r = await t.liquidar('2026-09-15', [{ clase: 'PERCEPCION', tipo: 'IVA', importe: 10 }]);
+      expect([r.status, r.body.message]).toEqual([400, 'La posición de IVA de 09/2026 está cerrada: use una fecha de un mes abierto o reabra la posición']);
+    });
   });
 });
