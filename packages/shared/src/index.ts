@@ -9,3 +9,4 @@ export * from './fechas';
 export * from './pagos';
 export * from './ventas';
 export * from './letras';
+export * from './jurisdicciones';

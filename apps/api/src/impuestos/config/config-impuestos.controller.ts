@@ -15,6 +15,9 @@ const esquema = z.object({
   ivaInicioMes: z.number().int().min(1).max(12).nullish(),
   ivaSaldoTecnicoInicial: z.number().min(0, 'No puede ser negativo').optional(),
   ivaSaldoLibreInicial: z.number().min(0, 'No puede ser negativo').optional(),
+  // Liquidación de IIBB (E38)
+  iibbInicioAnio: z.number().int().min(2000).max(2100).nullish(),
+  iibbInicioMes: z.number().int().min(1).max(12).nullish(),
 });
 
 @Controller('impuestos/config')
