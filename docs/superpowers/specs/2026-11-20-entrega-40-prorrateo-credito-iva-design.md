@@ -16,7 +16,12 @@ Una empresa que vende cosas gravadas y exentas (o no gravadas) no puede computar
 3. Destino por renglón de la compra (más fino, pero multiplica la carga; se puede agregar después).
 
 ## 3. Configuración y datos
-- `ConfigImpuestos.prorrateoIva Boolean @default(false)` y `ConfigImpuestos.prorrateoInicioMes Int @default(1)`: el mes en que empieza el ejercicio fiscal para el coeficiente acumulado (1 = año calendario).
+- `ConfigImpuestos`:
+  - `prorrateoIva Boolean @default(false)`;
+  - `prorrateoDesdeAnio Int?`, `prorrateoDesdeMes Int?`: el primer mes con prorrateo. Los meses anteriores (cerrados o no) no se tocan;
+  - `prorrateoInicioMes Int @default(1)`: el mes en que empieza el ejercicio fiscal para el coeficiente acumulado (1 = año calendario);
+  - `prorrateoGravadasIniciales` y `prorrateoExentasIniciales` (`Decimal(18,2) @default(0)`): las ventas gravadas y las exentas y no gravadas del ejercicio fiscal anteriores al primer mes con prorrateo (cuando el prorrateo o el sistema empiezan a mitad del ejercicio). Solo se usan en el ejercicio que contiene ese mes.
+- **Activar, desactivar o cambiar el inicio:** con posiciones de IVA cerradas en el mes desde o después, 400 (§6). Las cerradas antes no impiden. Desactivar a mitad de año deja ese ejercicio sin ajuste anual.
 - `ComprobanteCompra.destinoCreditoIva DestinoCreditoIva @default(GRAVADO)` (enum `GRAVADO`, `EXENTO`, `COMUN`).
   - Se elige al cargar la compra (solo se muestra con el prorrateo activo).
   - Se puede cambiar en una compra confirmada con un endpoint propio (`PATCH /api/compras/comprobantes/:id/destino-iva`), salvo que su mes de IVA esté cerrado (`verificarMesIvaAbierto` de la E37).
@@ -27,6 +32,7 @@ Una empresa que vende cosas gravadas y exentas (o no gravadas) no puede computar
   - gravadas = neto gravado (incluye alícuota 0 % si existiera como gravada);
   - exentas y no gravadas = exento + no gravado.
 - **Coeficiente del mes** = gravadas / (gravadas + exentas y no gravadas), acumulado desde el primer mes del ejercicio fiscal hasta el mes inclusive, redondeado a 4 decimales.
+  - En el ejercicio que contiene el primer mes con prorrateo, el acumulado empieza en ese mes y suma los importes iniciales de §3 (las ventas anteriores no se leen del sistema).
   - Sin ventas en el acumulado: coeficiente 1 (todo computable) con aviso `Sin ventas en el ejercicio: el crédito de uso común se computa entero`.
   - El coeficiente queda entre 0 y 1 (con NC que dejan negativos se acota).
 
@@ -38,18 +44,20 @@ Una empresa que vende cosas gravadas y exentas (o no gravadas) no puede computar
   - `creditoComputable` = creditoGravado + creditoComun × coeficiente;
   - `creditoNoComputable` = creditoExento + creditoComun × (1 − coeficiente).
 - El saldo técnico usa `creditoComputable` en lugar del crédito total.
-- **Ajuste anual** (en el último mes del ejercicio fiscal): se recalcula el crédito común de todo el ejercicio con el coeficiente anual; la diferencia contra lo computado en los meses anteriores (cerrados) se suma (o resta) al crédito computable del mes y se muestra en su renglón `Ajuste anual del prorrateo`.
+- **Ajuste anual** (en el último mes del ejercicio fiscal, si el prorrateo sigue activo): se recalcula el crédito común de los meses del ejercicio con prorrateo con el coeficiente anual; la diferencia contra lo computado en esos meses anteriores (cerrados) se suma (o resta) al crédito computable del mes y se muestra en su renglón `Ajuste anual del prorrateo`.
+- `creditoComputable` y `creditoNoComputable` incluyen el ajuste (siempre suman el crédito total del mes); `ajusteProrrateo` se guarda aparte para mostrarlo. El no computable puede quedar negativo por el ajuste.
 - `PosicionIva` guarda `coeficiente`, `creditoComputable`, `creditoNoComputable`, `creditoComun` y `ajusteProrrateo` (nulos sin prorrateo).
-- **Asiento de liquidación:** el IVA crédito fiscal se sigue cancelando entero; el no computable (más/menos el ajuste) va al Debe de `IVA_NO_COMPUTABLE`. Cuadra por construcción.
+- **Asiento de liquidación:** el IVA crédito fiscal se sigue cancelando entero; `creditoNoComputable` va al Debe de `IVA_NO_COMPUTABLE` (al Haber si es negativo). Cuadra por construcción.
+- **Libro IVA Digital:** el campo de crédito computable sigue siendo el IVA de cada compra; con el prorrateo activo, la generación avisa `Con prorrateo del crédito fiscal: declare el prorrateo global en el Libro IVA Digital (coeficiente X)` (dato a verificar con ARCA, §2 de pendientes).
 - La pantalla de la posición muestra el desglose, el coeficiente y el ajuste; el Excel/PDF los incluye.
 
 ## 6. Mensajes
 - `La posición de IVA de MM/AAAA está cerrada: use una fecha de un mes abierto o reabra la posición` (E37) al cambiar el destino de una compra de un mes cerrado.
-- `Hay posiciones de IVA cerradas: reábralas para cambiar el prorrateo` al activar o desactivar el prorrateo o cambiar el inicio del ejercicio con meses cerrados.
+- `Hay posiciones de IVA cerradas desde MM/AAAA: reábralas para cambiar el prorrateo` al activar o desactivar el prorrateo, o cambiar su primer mes, el inicio del ejercicio o los importes iniciales, con posiciones cerradas en el primer mes con prorrateo o después.
 - `Sin ventas en el ejercicio: el crédito de uso común se computa entero`.
 
 ## 7. Pantallas
-- Configuración de impuestos: interruptor *Prorrateo del crédito fiscal* y *Primer mes del ejercicio fiscal*.
+- Configuración de impuestos: interruptor *Prorrateo del crédito fiscal*, *Primer mes con prorrateo*, *Primer mes del ejercicio fiscal* y las ventas gravadas y exentas del ejercicio anteriores a ese mes.
 - Factura de compra: selector *Destino del crédito de IVA* (gravadas, exentas, uso común) cuando el prorrateo está activo; en la consulta de la compra confirmada, el mismo selector editable.
 - Libro IVA Compras: columna *Destino* (G, E, C) con el prorrateo activo.
 - Posición de IVA: renglones de crédito computable, no computable, coeficiente y ajuste anual.
