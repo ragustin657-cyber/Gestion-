@@ -14,7 +14,11 @@ export interface DatosRegimen {
 }
 export interface DatosRegimenIva { codigoSire?: string | null; descripcion: string; porcentaje: number; minimoComprobante: number; minimoRetencion: number; condicionSire?: number | null; activo?: boolean }
 export interface DatosRegimenSuss { codigoSire?: string | null; descripcion: string; porcentaje: number; minimoNoSujeto: number; minimoRetencion: number; activo?: boolean }
-export interface DatosJurisdiccion { jurisdiccion: string; alicuotaDefecto: number; minimoRetencion: number; usaPadron: boolean; sinPadron: SinPadron }
+export interface DatosJurisdiccion {
+  jurisdiccion: string; alicuotaDefecto: number; minimoRetencion: number; usaPadron: boolean; sinPadron: SinPadron;
+  percibe?: boolean; alicuotaPercepcionDefecto?: number; minimoPercepcion?: number; sinPadronPercepcion?: SinPadron;
+}
+export interface DatosRegimenPercepcionIva { codigo: string; descripcion: string; alicuotaGeneral: number; alicuotaReducida: number; minimoNeto: number; activo?: boolean }
 
 @Injectable()
 export class ConfigPagosService {
@@ -105,6 +109,37 @@ export class ConfigPagosService {
       await this.auditoria.registrar(tx, { entidad: 'JurisdiccionIibb', entidadId: this.tenant.empresaId, accion: 'MODIFICAR', datos: lista });
       return tx.jurisdiccionIibb.findMany({ orderBy: { jurisdiccion: 'asc' } });
     });
+  }
+
+  // --- Régimen de percepción de IVA (E39) ---
+
+  regimenesPercepcionIva() {
+    return this.tenant.db.regimenPercepcionIva.findMany({ orderBy: { codigo: 'asc' } });
+  }
+
+  /** El régimen activo de percepción de IVA, o null. */
+  regimenPercepcionIvaActivo(tx: TxEmpresa) {
+    return tx.regimenPercepcionIva.findFirst({ where: { activo: true } });
+  }
+
+  guardarRegimenPercepcionIva(id: string | null, d: Partial<DatosRegimenPercepcionIva>) {
+    return conUnicidad('Ya existe un régimen con ese código', () =>
+      this.tenant.transaccion(async (tx) => {
+        const activo = d.activo ?? (id ? (await tx.regimenPercepcionIva.findUniqueOrThrow({ where: { id } })).activo : true);
+        if (activo && (await tx.regimenPercepcionIva.count({ where: { activo: true, ...(id ? { id: { not: id } } : {}) } })))
+          throw new BadRequestException('Active solo un régimen de percepción de IVA');
+        const r = id
+          ? await tx.regimenPercepcionIva.update({ where: { id }, data: d })
+          : await tx.regimenPercepcionIva.create({ data: { ...(d as DatosRegimenPercepcionIva), empresaId: this.tenant.empresaId } });
+        await this.auditoria.registrar(tx, { entidad: 'RegimenPercepcionIva', entidadId: r.id, accion: id ? 'MODIFICAR' : 'CREAR', datos: d });
+        return r;
+      }),
+    );
+  }
+
+  /** Jurisdicciones donde la empresa percibe IIBB en las ventas (E39). */
+  jurisdiccionesPercepcion(tx: TxEmpresa) {
+    return tx.jurisdiccionIibb.findMany({ where: { percibe: true }, orderBy: { jurisdiccion: 'asc' } });
   }
 
   // --- Regímenes de IVA y SUSS (E35) ---

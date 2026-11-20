@@ -22,7 +22,12 @@ const esquemaEscala = z.array(z.object({ desde: noNeg, hasta: noNeg.nullable(), 
 const esquemaJurisdicciones = z.array(z.object({
   jurisdiccion: z.string().regex(/^9\d\d$/, 'Jurisdicción inválida'), alicuotaDefecto: noNeg.max(100), minimoRetencion: noNeg,
   usaPadron: z.boolean(), sinPadron: z.nativeEnum(SinPadron),
+  // Percepción en ventas (E39)
+  percibe: z.boolean().optional(), alicuotaPercepcionDefecto: noNeg.max(100).optional(), minimoPercepcion: noNeg.optional(), sinPadronPercepcion: z.nativeEnum(SinPadron).optional(),
 }));
+const esquemaRegimenPercepcionIva = z.object({
+  codigo: z.string().trim().regex(/^\d{1,3}$/, 'Código de régimen inválido'), descripcion: zTexto, alicuotaGeneral: noNeg.max(100), alicuotaReducida: noNeg.max(100), minimoNeto: noNeg, activo: z.boolean().optional(),
+});
 
 @Controller('pagos/config')
 @RequierePermiso('retenciones.config')
@@ -93,6 +98,23 @@ export class ConfigPagosController {
   @Patch('regimenes-iva/:id')
   modificarRegimenIva(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegimenIva.partial())) d: Partial<z.infer<typeof esquemaRegimenIva>>) {
     return this.config.guardarRegimenIva(id, d);
+  }
+
+  // --- Régimen de percepción de IVA (E39) ---
+
+  @Get('regimenes-percepcion-iva')
+  regimenesPercepcionIva() {
+    return this.config.regimenesPercepcionIva();
+  }
+
+  @Post('regimenes-percepcion-iva')
+  crearRegimenPercepcionIva(@Body(new ZodValidationPipe(esquemaRegimenPercepcionIva)) d: z.infer<typeof esquemaRegimenPercepcionIva>) {
+    return this.config.guardarRegimenPercepcionIva(null, d);
+  }
+
+  @Patch('regimenes-percepcion-iva/:id')
+  modificarRegimenPercepcionIva(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegimenPercepcionIva.partial())) d: Partial<z.infer<typeof esquemaRegimenPercepcionIva>>) {
+    return this.config.guardarRegimenPercepcionIva(id, d);
   }
 
   @Get('regimenes-suss')

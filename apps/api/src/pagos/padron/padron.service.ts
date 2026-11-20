@@ -111,6 +111,15 @@ export class PadronService implements OnModuleInit {
     return c;
   }
 
+  /** Alícuota de percepción vigente a la fecha, o null si el CUIT no figura (E39). */
+  async alicuotaPercepcion(jurisdiccion: string, cuit: string, fecha: Date): Promise<string | null> {
+    const f = await this.prisma.padronIibb.findFirst({
+      where: { jurisdiccion, cuit, vigenciaDesde: { lte: fecha }, vigenciaHasta: { gte: fecha }, alicuotaPercepcion: { not: null } },
+      orderBy: { vigenciaDesde: 'desc' },
+    });
+    return f?.alicuotaPercepcion?.toString() ?? null;
+  }
+
   /** Alícuota de retención vigente a la fecha, o null si el CUIT no figura. */
   async alicuotaRetencion(jurisdiccion: string, cuit: string, fecha: Date): Promise<string | null> {
     const f = await this.prisma.padronIibb.findFirst({

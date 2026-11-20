@@ -82,7 +82,7 @@ export const esquemaModTercero = base
 export const esquemaIibb = z.array(
   z.object({
     jurisdiccion: z.string().regex(/^9\d\d$/, 'Jurisdicción inválida'),
-    alicuotaPercepcion: z.number().min(0).max(100),
+    alicuotaPercepcion: z.number().min(0).max(100).nullish().transform((v) => v ?? null),
     alicuotaRetencion: z.number().min(0).max(100),
     exento: z.boolean().default(false),
   }),
