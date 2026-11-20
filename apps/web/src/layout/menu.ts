@@ -169,6 +169,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Libro IVA Ventas', ruta: '/impuestos/libro-iva-ventas', permiso: 'impuestos.ver' },
           { titulo: 'Libro IVA Compras', ruta: '/impuestos/libro-iva-compras', permiso: 'impuestos.ver' },
           { titulo: 'Presentaciones', ruta: '/impuestos/presentaciones', permiso: 'impuestos.ver' },
+          { titulo: 'Posición de IVA', ruta: '/impuestos/posicion-iva', permiso: 'impuestos.ver' },
         ],
       },
     ],

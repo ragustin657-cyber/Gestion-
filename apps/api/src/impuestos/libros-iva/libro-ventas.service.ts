@@ -82,9 +82,9 @@ export class LibroVentasService {
   /** Movimiento del período en la cuenta del concepto, con su signo natural (débito fiscal: haber − debe; crédito: debe − haber). */
   async cuadreIva(tx: TxEmpresa, concepto: 'IVA_DEBITO_FISCAL' | 'IVA_CREDITO_FISCAL', desde: Date, hasta: Date): Promise<Dec> {
     const cuenta = await this.cuentas.cuenta(tx, concepto);
-    // Sin cierre, refundición ni apertura: mueven saldos de un ejercicio a otro, no son IVA del período
+    // Sin cierre, refundición ni apertura (mueven saldos de un ejercicio a otro) ni la liquidación de IVA y su anulación (E37)
     const r = await tx.asientoRenglon.aggregate({
-      where: { cuentaContableId: cuenta, asiento: { fecha: { gte: desde, lte: hasta }, tipo: { notIn: ['CIERRE', 'APERTURA', 'REFUNDICION'] } } }, _sum: { debe: true, haber: true },
+      where: { cuentaContableId: cuenta, asiento: { fecha: { gte: desde, lte: hasta }, tipo: { notIn: ['CIERRE', 'APERTURA', 'REFUNDICION'] }, origenTipo: { not: 'POSICION_IVA' } } }, _sum: { debe: true, haber: true },
     });
     const debe = new D(r._sum.debe ?? 0), haber = new D(r._sum.haber ?? 0);
     return concepto === 'IVA_DEBITO_FISCAL' ? haber.minus(debe) : debe.minus(haber);

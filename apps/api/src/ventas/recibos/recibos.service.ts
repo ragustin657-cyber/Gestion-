@@ -1,3 +1,4 @@
+import { verificarMesIvaAbierto } from '../../impuestos/posicion-iva/bloqueo';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -80,6 +81,8 @@ export class RecibosService {
       }
       if (aplicadoPesos.gt(total)) throw new BadRequestException('Lo aplicado supera el total del recibo');
 
+      // Revisión E37: las retenciones de IVA son fuente de la posición; no entran en un mes de IVA cerrado
+      for (const r of d.retenciones.filter((x) => x.tipo === 'IVA')) await verificarMesIvaAbierto(tx, empresaId, r.fecha);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const recibo = await tx.recibo.create({
         data: {
@@ -113,6 +116,7 @@ export class RecibosService {
       await bloquear(tx, 'Recibo', this.tenant.empresaId, [id]);
       const r = await tx.recibo.findUniqueOrThrow({ where: { id } });
       if (r.estado === 'ANULADO') throw new BadRequestException('El recibo ya está anulado');
+      for (const ret of await tx.reciboRetencion.findMany({ where: { reciboId: id, tipo: 'IVA' } })) await verificarMesIvaAbierto(tx, this.tenant.empresaId, ret.fecha);
       const mov = await tx.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenTipo: 'RECIBO', origenId: id } });
       // Bloqueado antes de contar: una Aplicación concurrente sobre este crédito espera o ya se ve
       await bloquear(tx, 'MovimientoCuentaCorriente', this.tenant.empresaId, [mov.id]);

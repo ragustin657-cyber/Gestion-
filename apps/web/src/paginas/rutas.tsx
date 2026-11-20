@@ -56,6 +56,7 @@ import { IndicesInflacionPage } from '../contabilidad/ajuste-inflacion/IndicesIn
 import { ControlArcaPage } from '../impuestos/ControlArcaPage';
 import { LibroIvaComprasPage as LibroIvaComprasImpuestosPage, LibroIvaVentasPage } from '../impuestos/LibrosIvaPages';
 import { GenerarPresentacionPage, PresentacionesPage } from '../impuestos/PresentacionesPages';
+import { PosicionIvaPage } from '../impuestos/PosicionIvaPage';
 import { DiarioPage, MayorPage, SumasSaldosPage } from '../contabilidad/ConsultasContablesPages';
 import { AsientoPage } from '../contabilidad/DetalleAsiento';
 import { ResultadosPage, SituacionPage } from '../contabilidad/EstadosPages';
@@ -175,6 +176,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/ventas/saldos', elemento: <SaldosClientesPage /> },
   { ruta: '/admin/arca', elemento: <ConfigArcaPage /> },
   { ruta: '/impuestos/generar', elemento: <GenerarPresentacionPage /> },
+  { ruta: '/impuestos/posicion-iva', elemento: <PosicionIvaPage /> },
   { ruta: '/impuestos/control-arca', elemento: <ControlArcaPage /> },
   { ruta: '/impuestos/libro-iva-ventas', elemento: <LibroIvaVentasPage /> },
   { ruta: '/impuestos/libro-iva-compras', elemento: <LibroIvaComprasImpuestosPage /> },

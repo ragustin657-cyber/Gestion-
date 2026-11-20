@@ -1624,12 +1624,48 @@ enum PeriodicidadArba {
 }
 
 model ConfigImpuestos {
-  id               String           @id @default(uuid()) @db.Uuid
-  empresaId        String           @unique @db.Uuid
-  arbaActividad    String           @default("6")
-  arbaSucursal     Int              @default(1)
-  arbaPeriodicidad PeriodicidadArba @default(MENSUAL)
-  agipCodigoNorma  String           @default("029")
+  id                     String           @id @default(uuid()) @db.Uuid
+  empresaId              String           @unique @db.Uuid
+  arbaActividad          String           @default("6")
+  arbaSucursal           Int              @default(1)
+  arbaPeriodicidad       PeriodicidadArba @default(MENSUAL)
+  agipCodigoNorma        String           @default("029")
+  /// Posición de IVA (E37): primer mes liquidado en el sistema y saldos a favor al inicio de ese mes
+  ivaInicioAnio          Int?
+  ivaInicioMes           Int?
+  ivaSaldoTecnicoInicial Decimal          @default(0) @db.Decimal(18, 2)
+  ivaSaldoLibreInicial   Decimal          @default(0) @db.Decimal(18, 2)
+}
+
+enum EstadoPosicionIva {
+  BORRADOR
+  CERRADA
+}
+
+/// Posición mensual de IVA cerrada (E37): importes congelados al cierre; el borrador no se guarda.
+model PosicionIva {
+  id                   String            @id @default(uuid()) @db.Uuid
+  empresaId            String            @db.Uuid
+  anio                 Int
+  mes                  Int
+  estado               EstadoPosicionIva @default(CERRADA)
+  debito               Json
+  credito              Json
+  totalDebito          Decimal           @db.Decimal(18, 2)
+  totalCredito         Decimal           @db.Decimal(18, 2)
+  saldoTecnicoAnterior Decimal           @db.Decimal(18, 2)
+  libreAnterior        Decimal           @db.Decimal(18, 2)
+  retenciones          Decimal           @db.Decimal(18, 2)
+  percepciones         Decimal           @db.Decimal(18, 2)
+  saldoTecnicoAFavor   Decimal           @db.Decimal(18, 2)
+  impuestoDeterminado  Decimal           @db.Decimal(18, 2)
+  impuestoAPagar       Decimal           @db.Decimal(18, 2)
+  libreDisponibilidad  Decimal           @db.Decimal(18, 2)
+  asientoId            String?           @db.Uuid
+  cerradoEn            DateTime?
+  cerradoPor           String?           @db.Uuid
+
+  @@unique([empresaId, anio, mes])
 }
 
 model Presentacion {
