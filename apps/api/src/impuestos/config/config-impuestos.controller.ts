@@ -10,6 +10,11 @@ const esquema = z.object({
   arbaSucursal: z.number().int().min(1).max(99999),
   arbaPeriodicidad: z.nativeEnum(PeriodicidadArba),
   agipCodigoNorma: z.string().trim().regex(/^\d{1,3}$/, 'Código de norma inválido'),
+  // Posición de IVA (E37)
+  ivaInicioAnio: z.number().int().min(2000).max(2100).nullish(),
+  ivaInicioMes: z.number().int().min(1).max(12).nullish(),
+  ivaSaldoTecnicoInicial: z.number().min(0, 'No puede ser negativo').optional(),
+  ivaSaldoLibreInicial: z.number().min(0, 'No puede ser negativo').optional(),
 });
 
 @Controller('impuestos/config')

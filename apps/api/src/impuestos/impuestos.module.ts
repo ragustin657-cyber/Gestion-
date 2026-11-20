@@ -8,10 +8,12 @@ import { ControlArcaService } from './control-arca/control-arca.service';
 import { PresentacionesService } from './presentaciones/presentaciones.service';
 import { ConfigImpuestosController } from './config/config-impuestos.controller';
 import { ConfigImpuestosService } from './config/config-impuestos.service';
+import { PosicionIvaController } from './posicion-iva/posicion-iva.controller';
+import { PosicionIvaService } from './posicion-iva/posicion-iva.service';
 
 @Module({
   imports: [ComprasModule],
-  controllers: [ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController],
-  providers: [ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService],
+  controllers: [ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController],
+  providers: [ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService],
 })
 export class ImpuestosModule {}

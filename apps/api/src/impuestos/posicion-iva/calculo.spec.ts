@@ -51,4 +51,11 @@ describe('posición de IVA: cálculo (E37)', () => {
     const rs = renglonesAsiento({ ...base, ...p });
     expect(rs.map((r) => r.concepto).sort()).toEqual(['IVA_A_PAGAR', 'IVA_CREDITO_FISCAL', 'IVA_DEBITO_FISCAL', 'PERCEPCION_IVA', 'RETENCION_SUFRIDA_IVA']);
   });
+
+  it('mes sin movimientos con saldos anteriores: el asiento queda vacío (se netea por cuenta)', () => {
+    const e = { debito: {}, credito: {}, retenciones: '0', percepciones: '0', saldoTecnicoAnterior: '500', libreAnterior: '100' };
+    const p = calcularPosicionIva(e);
+    expect([p.saldoTecnicoAFavor, p.libreDisponibilidad]).toEqual(['500.00', '100.00']);
+    expect(renglonesAsiento({ ...e, ...p })).toEqual([]);
+  });
 });

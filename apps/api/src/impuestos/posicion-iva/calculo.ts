@@ -41,12 +41,13 @@ export function renglonesAsiento(p: EntradaPosicionIva & ResultadoPosicionIva): 
     ['RETENCION_SUFRIDA_IVA', 'haber', p.retenciones], ['IVA_SALDO_TECNICO', 'haber', p.saldoTecnicoAnterior], ['IVA_LIBRE_DISPONIBILIDAD', 'haber', p.libreAnterior],
     ['IVA_SALDO_TECNICO', 'debe', p.saldoTecnicoAFavor], ['IVA_LIBRE_DISPONIBILIDAD', 'debe', p.libreDisponibilidad], ['IVA_A_PAGAR', 'haber', p.impuestoAPagar],
   ];
+  // Neto por cuenta (debe − haber): el saldo técnico anterior que se cancela y el nuevo que se registra van a la misma cuenta
+  const neto = new Map<ConceptoLiquidacionIva, Prisma.Decimal>();
+  for (const [concepto, lado, valor] of lados) neto.set(concepto, (neto.get(concepto) ?? new D(0)).plus(lado === 'debe' ? new D(valor) : new D(valor).neg()));
   const out: { concepto: ConceptoLiquidacionIva; debe: string; haber: string }[] = [];
-  for (const [concepto, lado, valor] of lados) {
-    const v = new D(valor);
-    if (v.isZero()) continue;
-    const real = v.isNeg() ? (lado === 'debe' ? 'haber' : 'debe') : lado;
-    out.push({ concepto, debe: real === 'debe' ? f2(v.abs()) : '0.00', haber: real === 'haber' ? f2(v.abs()) : '0.00' });
+  for (const [concepto, v] of neto) {
+    if (v.toDecimalPlaces(2).isZero()) continue;
+    out.push({ concepto, debe: v.gt(0) ? f2(v) : '0.00', haber: v.lt(0) ? f2(v.abs()) : '0.00' });
   }
   return out;
 }
