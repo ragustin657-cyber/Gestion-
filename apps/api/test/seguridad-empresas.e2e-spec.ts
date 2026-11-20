@@ -103,6 +103,6 @@ describe('seguridad: integridad entre empresas', () => {
     esInexistente(await oc({ depositoId: x.depositoB.id }));
     esInexistente(await oc({}, { articuloId: x.articuloB.id }));
     esInexistente(await oc({}, { centroCostoId: x.centroB.id }));
-    esInexistente(await x.a.http.post('/api/compras/recepciones', { terceroId: proveedorId, fecha: '2026-11-03', remitoNumero: 'R-1', depositoId: x.depositoB.id, renglones: [{ ordenCompraRenglonId: x.depositoB.id, cantidad: 1 }] }));
+    esInexistente(await x.a.http.post('/api/compras/recepciones', { terceroId: proveedorId, fecha: '2026-11-03', remitoNumero: '0001-00000001', depositoId: x.depositoB.id, renglones: [{ ordenCompraRenglonId: x.depositoB.id, cantidad: 1 }] }));
   });
 });
