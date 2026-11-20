@@ -20,7 +20,7 @@ test('posición de IVA: el contador configura el inicio, cierra un mes y lo reab
   await page.goto('/admin/impuestos');
   await page.getByLabel('Primer mes liquidado').fill(String(anterior.getMonth() + 1));
   await page.getByLabel('Año', { exact: true }).fill(String(anterior.getFullYear()));
-  await page.getByRole('button', { name: 'Guardar' }).click();
+  await page.getByRole('button', { name: 'Guardar', exact: true }).click();
   await expect(page.getByText('Configuración guardada')).toBeVisible();
 
   await page.goto('/impuestos/posicion-iva');

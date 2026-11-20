@@ -3,10 +3,12 @@ import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api, ErrorApi } from '../api/cliente';
+import { JurisdiccionesCm } from './JurisdiccionesCm';
 
 interface Config {
   arbaActividad: string; arbaSucursal: number; arbaPeriodicidad: string; agipCodigoNorma: string;
   ivaInicioAnio: number | null; ivaInicioMes: number | null; ivaSaldoTecnicoInicial: string | number; ivaSaldoLibreInicial: string | number;
+  iibbInicioAnio: number | null; iibbInicioMes: number | null;
 }
 
 export function ConfigImpuestosPage() {
@@ -47,8 +49,16 @@ export function ConfigImpuestosPage() {
           <NumberInput label="Saldo de libre disponibilidad inicial" w={240} min={0} decimalScale={2} value={Number(c.ivaSaldoLibreInicial)} onChange={(v) => setC({ ...c, ivaSaldoLibreInicial: Number(v) || 0 })} />
         </Group>
         <Text size="xs" c="dimmed">Los saldos a favor al comienzo del primer mes que se liquida en el sistema (los de la última DJ presentada fuera del sistema).</Text>
+        <Title order={5}>Liquidación de IIBB (Convenio Multilateral)</Title>
+        <Group>
+          <NumberInput label="Primer mes de IIBB" w={160} min={1} max={12} value={c.iibbInicioMes ?? ''} onChange={(v) => setC({ ...c, iibbInicioMes: v === '' ? null : Number(v) })} />
+          <NumberInput label="Año de inicio de IIBB" w={170} min={2000} max={2100} value={c.iibbInicioAnio ?? ''} onChange={(v) => setC({ ...c, iibbInicioAnio: v === '' ? null : Number(v) })} />
+        </Group>
         {error && <Alert color="red">{error}</Alert>}
         <Group><Button onClick={() => void guardar()}>Guardar</Button></Group>
+      </Stack>
+      <Stack mt="xl" maw={820}>
+        <JurisdiccionesCm inicioAnio={q.data?.iibbInicioAnio ?? null} />
       </Stack>
     </Paper>
   );
