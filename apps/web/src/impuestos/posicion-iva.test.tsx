@@ -1,7 +1,7 @@
 import { MantineProvider } from '@mantine/core';
 import { render, screen } from '@testing-library/react';
 import { ReactNode } from 'react';
-import { DetallePosicionIva, TablaMesesIva, type PosicionIvaWeb } from './PosicionIvaPage';
+import { DetallePosicionIva, mesAnterior, TablaMesesIva, type PosicionIvaWeb } from './PosicionIvaPage';
 
 const envolver = (n: ReactNode) => render(<MantineProvider>{n}</MantineProvider>);
 const base: PosicionIvaWeb = {
@@ -28,5 +28,10 @@ describe('posición de IVA (web)', () => {
     envolver(<TablaMesesIva meses={[{ mes: 9, estado: 'CERRADA', impuestoAPagar: '100.00', saldoTecnicoAFavor: '0.00', libreDisponibilidad: '0.00' }, { mes: 10, estado: null, impuestoAPagar: null, saldoTecnicoAFavor: null, libreDisponibilidad: null }]} elegido={10} onElegir={() => undefined} />);
     expect(screen.getByText('Cerrada')).toBeTruthy();
     expect(screen.getByText('Septiembre')).toBeTruthy();
+  });
+
+  it('en enero arranca en diciembre del año anterior (revisión E37)', () => {
+    expect(mesAnterior(new Date(2027, 0, 15))).toEqual({ anio: 2026, mes: 12 });
+    expect(mesAnterior(new Date(2026, 10, 20))).toEqual({ anio: 2026, mes: 10 });
   });
 });

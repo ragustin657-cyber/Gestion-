@@ -119,8 +119,11 @@ export class PosicionIvaService {
         const ant = mes === 1 ? { anio: anio - 1, mes: 12 } : { anio, mes: mes - 1 };
         if (!(await tx.posicionIva.findUnique({ where: { empresaId_anio_mes: { empresaId: this.tenant.empresaId, ...ant } } }))) throw new BadRequestException(`Cierre primero la posición de IVA de ${mm(ant.mes)}/${ant.anio}`);
       }
-      const { hasta } = this.rango(anio, mes);
+      const { desde, hasta } = this.rango(anio, mes);
       if (hoy() <= hasta) throw new BadRequestException('Solo se cierra un mes terminado');
+      // Revisión E37: una venta en emisión o pendiente de CAE podría autorizarse con fecha en el mes después del cierre
+      const pendientes = await tx.comprobanteVenta.count({ where: { fecha: { gte: desde, lte: hasta }, estado: { not: 'AUTORIZADO' }, OR: [{ emisionEnCurso: { not: null } }, { numeroReservado: { not: null } }, { estado: 'PENDIENTE_CAE' }] } });
+      if (pendientes) throw new BadRequestException(`Hay comprobantes de venta de ${mm(mes)}/${anio} pendientes de autorización en ARCA: resuélvalos antes de cerrar`);
       const b = await this.borrador(tx, anio, mes);
       const renglones = [];
       for (const r of renglonesAsiento(b)) renglones.push({ cuentaContableId: await this.cuentas.cuenta(tx, r.concepto), debe: r.debe, haber: r.haber, detalle: `IVA ${mm(mes)}/${anio}` });

@@ -60,6 +60,9 @@ export function TablaMesesIva({ meses, elegido, onElegir }: { meses: MesIva[]; e
   );
 }
 
+/** El mes anterior a una fecha (el que normalmente se liquida). */
+export const mesAnterior = (d: Date) => (d.getMonth() === 0 ? { anio: d.getFullYear() - 1, mes: 12 } : { anio: d.getFullYear(), mes: d.getMonth() });
+
 /** Impuestos → Posición de IVA. */
 export function PosicionIvaPage() {
   const { puede } = useAuth();
@@ -67,8 +70,9 @@ export function PosicionIvaPage() {
   const op = useOperacion();
   const navegar = useNavigate();
   const hoy = new Date();
-  const [anio, setAnio] = useState(hoy.getFullYear());
-  const [mes, setMes] = useState(hoy.getMonth() === 0 ? 12 : hoy.getMonth());
+  // Arranca en el mes anterior: en enero, diciembre del año anterior (revisión E37)
+  const [anio, setAnio] = useState(mesAnterior(hoy).anio);
+  const [mes, setMes] = useState(mesAnterior(hoy).mes);
   const meses = useQuery({ queryKey: ['/impuestos/posicion-iva/meses', anio], queryFn: () => api<MesIva[]>('/impuestos/posicion-iva/meses', { query: { anio: String(anio) } }) });
   const pos = useQuery({ queryKey: ['/impuestos/posicion-iva', anio, mes], queryFn: () => api<PosicionIvaWeb>('/impuestos/posicion-iva', { query: { anio: String(anio), mes: String(mes) } }) });
   const editable = puede('impuestos.presentar');

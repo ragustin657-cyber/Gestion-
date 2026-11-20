@@ -25,7 +25,12 @@ test('posición de IVA: el contador configura el inicio, cierra un mes y lo reab
 
   await page.goto('/impuestos/posicion-iva');
   await expect(page.getByRole('heading', { name: 'Posición de IVA' })).toBeVisible();
-  if (anterior.getFullYear() !== hoy.getFullYear()) await page.getByRole('textbox', { name: 'Año' }).fill(String(anterior.getFullYear()));
+  // La pantalla arranca en el año del mes anterior; en enero y febrero dos meses atrás puede ser de otro año: se elige en el selector
+  const anioPantalla = hoy.getMonth() === 0 ? hoy.getFullYear() - 1 : hoy.getFullYear();
+  if (anterior.getFullYear() !== anioPantalla) {
+    await page.getByRole('textbox', { name: 'Año' }).click();
+    await page.getByRole('option', { name: String(anterior.getFullYear()), exact: true }).click();
+  }
   await page.getByRole('cell', { name: MESES[anterior.getMonth()], exact: true }).click();
   await expect(page.getByText('Total débito fiscal')).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();

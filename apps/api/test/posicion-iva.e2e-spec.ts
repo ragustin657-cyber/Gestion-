@@ -153,4 +153,34 @@ describe('posición mensual de IVA', () => {
     const v = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ fecha: '2026-09-20' }), emitir: true });
     expect([v.status, v.body.message]).toEqual([400, MSG]);
   });
+
+  it('retenciones de IVA de un mes cerrado: no se cargan ni se anulan (revisión E37)', async () => {
+    const x = await escenario();
+    const recibo = (fechaRet: string) => x.http.post('/api/ventas/recibos', {
+      terceroId: x.clienteRI.id, fecha: '2026-11-02', puntoVentaId: x.puntoVenta.id, cajaId: x.caja.id, efectivo: { importe: 100 }, cheques: [], transferencias: [],
+      retenciones: [{ tipo: 'IVA', numeroCertificado: `C-${fechaRet}`, fecha: fechaRet, importe: 10 }], aplicaciones: [],
+    });
+    const previo = await recibo('2026-09-20');
+    expect(previo.status).toBe(201);
+    await x.inicio(2026, 9);
+    expect((await x.cerrar(2026, 9)).status).toBe(201);
+    const MSG = 'La posición de IVA de 09/2026 está cerrada: use una fecha de un mes abierto o reabra la posición';
+    const r = await recibo('2026-09-21');
+    expect([r.status, r.body.message]).toEqual([400, MSG]);
+    expect((await recibo('2026-10-21')).status).toBe(201);
+    const an = await x.http.post(`/api/ventas/recibos/${previo.body.id}/anular`, { motivo: 'Error' });
+    expect([an.status, an.body.message]).toEqual([400, MSG]);
+  });
+
+  it('no se cierra con ventas del mes pendientes de autorización en ARCA (revisión E37)', async () => {
+    const x = await escenario();
+    jest.setSystemTime(new Date('2026-10-25T15:00:00Z'));
+    const b = await x.http.post('/api/ventas/comprobantes', x.datos({ fecha: '2026-10-25' }));
+    jest.setSystemTime(new Date('2026-11-06T15:00:00Z'));
+    expect(b.status).toBe(201);
+    await prisma.comprobanteVenta.update({ where: { id: b.body.id }, data: { estado: 'PENDIENTE_CAE' } });
+    await x.inicio(2026, 10);
+    const r = await x.cerrar(2026, 10);
+    expect([r.status, r.body.message]).toEqual([400, 'Hay comprobantes de venta de 10/2026 pendientes de autorización en ARCA: resuélvalos antes de cerrar']);
+  });
 });

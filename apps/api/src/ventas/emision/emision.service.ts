@@ -108,7 +108,7 @@ export class EmisionService {
       await bloquear(tx, 'ComprobanteVenta', empresaId, [id]);
       const c = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id }, include: { tercero: true } });
       if (c.estado === 'AUTORIZADO') throw new BadRequestException('El comprobante ya está autorizado');
-      await verificarMesIvaAbierto(tx, c.fecha);
+      await verificarMesIvaAbierto(tx, empresaId, c.fecha);
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta);
       const clave = `ARCA-${ambiente}-${tipoArca}`;
       await tx.$executeRaw`INSERT INTO "Talonario" ("id", "empresaId", "tipoComprobante", "puntoVenta", "ultimoNumero")
