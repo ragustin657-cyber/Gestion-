@@ -49,7 +49,8 @@ export class ArcaSimulado implements ClienteArca {
     const errores: string[] = [];
     if (d.numero !== (await this.ultimoAutorizado(d.ptoVta, d.cbteTipo)) + 1) errores.push('(10016) El numero de comprobante no es el proximo a autorizar');
     const D = Prisma.Decimal;
-    const suma = new D(d.impTotConc).plus(d.impNeto).plus(d.impOpEx).plus(d.impIva);
+    const trib = (d.tributos ?? []).reduce((s, x) => s.plus(x.importe), new D(0));
+    const suma = new D(d.impTotConc).plus(d.impNeto).plus(d.impOpEx).plus(d.impIva).plus(trib);
     if (!suma.eq(d.impTotal)) errores.push('(10048) El campo ImpTotal no coincide con la suma de los importes');
     if (NC_ND.has(d.cbteTipo) && !d.asociados.length) errores.push('(10197) Debe informar comprobantes asociados');
     if (!d.iva.reduce((s, x) => s.plus(x.importe), new D(0)).eq(d.impIva)) errores.push('(10018) La suma del IVA no coincide con ImpIVA');

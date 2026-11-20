@@ -33,6 +33,17 @@ describe('WSFE', () => {
     expect(xml).toContain('<ar:MonId>DOL</ar:MonId>');
     expect(xml).not.toContain('<ar:CbtesAsoc>');
   });
+  it('arma los tributos (percepciones, E39) y ImpTrib', () => {
+    const xml = xmlSolicitarCae(auth, {
+      ptoVta: 2, cbteTipo: 1, numero: 1, concepto: 1, docTipo: 80, docNro: '30712345671', condicionIvaReceptor: 1, fecha: '20261108',
+      impTotal: '1240.00', impTotConc: '0.00', impNeto: '1000.00', impOpEx: '0.00', impIva: '210.00', monId: 'PES', monCotiz: '1',
+      iva: [{ id: 5, baseImp: '1000.00', importe: '210.00' }], asociados: [],
+      tributos: [{ id: 7, desc: 'Percepción IIBB 902 Buenos Aires', baseImp: '1000.00', alic: '3.00', importe: '30.00' }],
+    });
+    expect(xml).toContain('<ar:ImpTrib>30.00</ar:ImpTrib>');
+    expect(xml).toContain('<ar:Tributos><ar:Tributo><ar:Id>7</ar:Id><ar:Desc>Percepción IIBB 902 Buenos Aires</ar:Desc><ar:BaseImp>1000.00</ar:BaseImp><ar:Alic>3.00</ar:Alic><ar:Importe>30.00</ar:Importe></ar:Tributo></ar:Tributos>');
+    expect(xml.indexOf('<ar:Tributos>')).toBeLessThan(xml.indexOf('<ar:Iva>'));
+  });
   it('lee una respuesta aprobada', () => {
     expect(leerSolicitarCae(fx('cae-aprobado.xml'))).toEqual({ resultado: 'A', cae: '76451234567890', caeVencimiento: '2026-11-18', observaciones: [] });
   });
