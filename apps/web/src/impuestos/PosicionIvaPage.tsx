@@ -13,6 +13,8 @@ export interface PosicionIvaWeb {
   anio: number; mes: number; estado: 'BORRADOR' | 'CERRADA'; debito: Record<string, string>; credito: Record<string, string>; totalDebito: string; totalCredito: string;
   saldoTecnicoAnterior: string; libreAnterior: string; retenciones: string; percepciones: string; saldoTecnicoAFavor: string; impuestoDeterminado: string;
   impuestoAPagar: string; libreDisponibilidad: string; avisos: string[]; asientoId: string | null;
+  /** Prorrateo del crédito fiscal (E40): nulos sin prorrateo */
+  coeficiente?: string | null; creditoComun?: string | null; creditoComputable?: string | null; creditoNoComputable?: string | null; ajusteProrrateo?: string | null;
 }
 export interface MesIva { mes: number; estado: 'CERRADA' | null; impuestoAPagar: string | null; saldoTecnicoAFavor: string | null; libreDisponibilidad: string | null }
 
@@ -29,6 +31,11 @@ export function DetallePosicionIva({ p }: { p: PosicionIvaWeb }) {
           {fila('Total débito fiscal', p.totalDebito, true)}
           {Object.entries(p.credito).map(([a, v]) => fila(`Crédito fiscal ${a} %`, v))}
           {fila('Total crédito fiscal', p.totalCredito, true)}
+          {p.coeficiente != null && <Table.Tr><Table.Td colSpan={2}><Text size="sm" c="dimmed">{`Coeficiente de prorrateo ${p.coeficiente.replace('.', ',')}`}</Text></Table.Td></Table.Tr>}
+          {p.coeficiente != null && fila('Crédito fiscal de uso común', p.creditoComun ?? '0')}
+          {p.coeficiente != null && Number(p.ajusteProrrateo) !== 0 && fila('Ajuste anual del prorrateo', p.ajusteProrrateo ?? '0')}
+          {p.coeficiente != null && fila('Crédito fiscal no computable', p.creditoNoComputable ?? '0')}
+          {p.coeficiente != null && fila('Crédito fiscal computable', p.creditoComputable ?? '0', true)}
           {fila('Saldo técnico a favor del período anterior', p.saldoTecnicoAnterior)}
           {fila('Impuesto determinado', p.impuestoDeterminado, true)}
           {Number(p.saldoTecnicoAFavor) > 0 && fila('Saldo técnico a favor del período', p.saldoTecnicoAFavor)}

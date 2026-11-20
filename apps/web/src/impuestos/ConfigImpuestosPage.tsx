@@ -1,4 +1,4 @@
-import { Alert, Button, Group, NumberInput, Paper, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Group, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -9,6 +9,8 @@ interface Config {
   arbaActividad: string; arbaSucursal: number; arbaPeriodicidad: string; agipCodigoNorma: string;
   ivaInicioAnio: number | null; ivaInicioMes: number | null; ivaSaldoTecnicoInicial: string | number; ivaSaldoLibreInicial: string | number;
   iibbInicioAnio: number | null; iibbInicioMes: number | null;
+  prorrateoIva: boolean; prorrateoDesdeAnio: number | null; prorrateoDesdeMes: number | null; prorrateoInicioMes: number;
+  prorrateoGravadasIniciales: string | number; prorrateoExentasIniciales: string | number;
 }
 
 export function ConfigImpuestosPage() {
@@ -20,7 +22,7 @@ export function ConfigImpuestosPage() {
   const guardar = async () => {
     setError('');
     try {
-      await api('/impuestos/config', { metodo: 'PUT', body: { ...c, ivaSaldoTecnicoInicial: Number(c.ivaSaldoTecnicoInicial) || 0, ivaSaldoLibreInicial: Number(c.ivaSaldoLibreInicial) || 0 } });
+      await api('/impuestos/config', { metodo: 'PUT', body: { ...c, ivaSaldoTecnicoInicial: Number(c.ivaSaldoTecnicoInicial) || 0, ivaSaldoLibreInicial: Number(c.ivaSaldoLibreInicial) || 0, prorrateoGravadasIniciales: Number(c.prorrateoGravadasIniciales) || 0, prorrateoExentasIniciales: Number(c.prorrateoExentasIniciales) || 0 } });
       notifications.show({ color: 'green', message: 'Configuración guardada' });
     } catch (e) {
       setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado');
@@ -49,6 +51,20 @@ export function ConfigImpuestosPage() {
           <NumberInput label="Saldo de libre disponibilidad inicial" w={240} min={0} decimalScale={2} value={Number(c.ivaSaldoLibreInicial)} onChange={(v) => setC({ ...c, ivaSaldoLibreInicial: Number(v) || 0 })} />
         </Group>
         <Text size="xs" c="dimmed">Los saldos a favor al comienzo del primer mes que se liquida en el sistema (los de la última DJ presentada fuera del sistema).</Text>
+        <Title order={5}>Prorrateo del crédito fiscal de IVA</Title>
+        <Switch label="Prorrateo del crédito fiscal (ventas gravadas y exentas)" checked={!!c.prorrateoIva} onChange={(e) => setC({ ...c, prorrateoIva: e.currentTarget.checked })} />
+        {c.prorrateoIva && <>
+          <Group>
+            <NumberInput label="Primer mes con prorrateo" w={190} min={1} max={12} value={c.prorrateoDesdeMes ?? ''} onChange={(v) => setC({ ...c, prorrateoDesdeMes: v === '' ? null : Number(v) })} />
+            <NumberInput label="Año del primer mes con prorrateo" w={230} min={2000} max={2100} value={c.prorrateoDesdeAnio ?? ''} onChange={(v) => setC({ ...c, prorrateoDesdeAnio: v === '' ? null : Number(v) })} />
+            <NumberInput label="Primer mes del ejercicio fiscal" w={220} min={1} max={12} value={c.prorrateoInicioMes} onChange={(v) => setC({ ...c, prorrateoInicioMes: Number(v) || 1 })} />
+          </Group>
+          <Group>
+            <NumberInput label="Ventas gravadas del ejercicio anteriores" w={260} decimalScale={2} value={Number(c.prorrateoGravadasIniciales)} onChange={(v) => setC({ ...c, prorrateoGravadasIniciales: Number(v) || 0 })} />
+            <NumberInput label="Ventas exentas y no gravadas anteriores" w={260} decimalScale={2} value={Number(c.prorrateoExentasIniciales)} onChange={(v) => setC({ ...c, prorrateoExentasIniciales: Number(v) || 0 })} />
+          </Group>
+          <Text size="xs" c="dimmed">Las ventas del ejercicio fiscal anteriores al primer mes con prorrateo (si empieza a mitad del ejercicio). El coeficiente es el acumulado del ejercicio; en su último mes se ajusta con el coeficiente anual.</Text>
+        </>}
         <Title order={5}>Liquidación de IIBB (Convenio Multilateral)</Title>
         <Group>
           <NumberInput label="Primer mes de IIBB" w={160} min={1} max={12} value={c.iibbInicioMes ?? ''} onChange={(v) => setC({ ...c, iibbInicioMes: v === '' ? null : Number(v) })} />

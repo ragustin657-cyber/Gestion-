@@ -1,3 +1,4 @@
+import { LETRA_DESTINO } from '../compras/destino-iva';
 import { Alert, Button, Group, Paper, ScrollArea, Table, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -5,7 +6,7 @@ import { api, descargar } from '../api/cliente';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 
 const ALICUOTAS = ['21', '10.5', '27', '5', '2.5', '0'];
-interface Fila { condicionIva?: string; noDiscriminado?: string; percepcionesIva?: string; percepcionIva?: string; percepcionesIibb?: string; impuestosInternos?: string; noComputable?: string; fecha?: string; fechaContable?: string; comprobante?: string; tipo?: string; letra?: string; numero?: string; cliente?: string; razonSocial?: string; documento?: string; cuit?: string; netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noGravado: string; exento: string; total: string }
+interface Fila { destino?: string; condicionIva?: string; noDiscriminado?: string; percepcionesIva?: string; percepcionIva?: string; percepcionesIibb?: string; impuestosInternos?: string; noComputable?: string; fecha?: string; fechaContable?: string; comprobante?: string; tipo?: string; letra?: string; numero?: string; cliente?: string; razonSocial?: string; documento?: string; cuit?: string; netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noGravado: string; exento: string; total: string }
 interface Libro { filas: Fila[]; totales: Fila; advertencias: string[] }
 
 type Extra = { clave: keyof Fila; titulo: string };
@@ -18,6 +19,8 @@ function LibroIva({ titulo, ruta, tercero, extra }: { titulo: string; ruta: stri
   const [hasta, setHasta] = useState(hoy());
   const q = useQuery({ queryKey: [ruta, desde, hasta], queryFn: () => api<Libro>(ruta, { query: { desde, hasta } }), enabled: !!desde && !!hasta });
   const usadas = ALICUOTAS.filter((a) => q.data?.totales.netoPorAlicuota[a] !== undefined);
+  // E40: columna de destino del crédito solo si alguna compra no es para gravadas
+  const conDestino = (q.data?.filas ?? []).some((f) => f.destino && f.destino !== 'GRAVADO');
   const celdas = (f: Fila) => usadas.flatMap((a) => [<Table.Td key={`n${a}`} ta="right">{formatoMoneda(f.netoPorAlicuota[a] ?? 0)}</Table.Td>, ...(a === '0' ? [] : [<Table.Td key={`i${a}`} ta="right">{formatoMoneda(f.ivaPorAlicuota[a] ?? 0)}</Table.Td>])]);
   return (
     <Paper withBorder p="md" radius="md">
@@ -31,14 +34,14 @@ function LibroIva({ titulo, ruta, tercero, extra }: { titulo: string; ruta: stri
       {q.data?.advertencias.map((a) => <Alert key={a} color="yellow" mb="sm">{a}</Alert>)}
       <ScrollArea>
         <Table withTableBorder striped miw={900}>
-          <Table.Thead><Table.Tr><Table.Th>Fecha</Table.Th><Table.Th>Comprobante</Table.Th><Table.Th>{tercero}</Table.Th>
+          <Table.Thead><Table.Tr><Table.Th>Fecha</Table.Th><Table.Th>Comprobante</Table.Th><Table.Th>{tercero}</Table.Th>{conDestino && <Table.Th>Destino</Table.Th>}
             {usadas.flatMap((a) => [<Table.Th key={`n${a}`} ta="right">{`Neto ${a.replace('.', ',')}%`}</Table.Th>, ...(a === '0' ? [] : [<Table.Th key={`i${a}`} ta="right">{`IVA ${a.replace('.', ',')}%`}</Table.Th>])])}
             {extra.map((x) => <Table.Th key={x.clave} ta="right">{x.titulo}</Table.Th>)}
             <Table.Th ta="right">No gravado</Table.Th><Table.Th ta="right">Exento</Table.Th><Table.Th ta="right">Total</Table.Th></Table.Tr></Table.Thead>
           <Table.Tbody>
             {(q.data?.filas ?? []).map((f, i) => (
               <Table.Tr key={i}>
-                <Table.Td>{formatoFecha(f.fecha ?? f.fechaContable)}</Table.Td><Table.Td>{f.comprobante ?? `${f.tipo} ${f.letra} ${f.numero}`}</Table.Td><Table.Td>{f.cliente ?? f.razonSocial}</Table.Td>
+                <Table.Td>{formatoFecha(f.fecha ?? f.fechaContable)}</Table.Td><Table.Td>{f.comprobante ?? `${f.tipo} ${f.letra} ${f.numero}`}</Table.Td><Table.Td>{f.cliente ?? f.razonSocial}</Table.Td>{conDestino && <Table.Td>{LETRA_DESTINO[f.destino ?? 'GRAVADO']}</Table.Td>}
                 {celdas(f)}{extra.map((x) => <Table.Td key={x.clave} ta="right">{formatoMoneda(f[x.clave] as string | undefined)}</Table.Td>)}<Table.Td ta="right">{formatoMoneda(f.noGravado)}</Table.Td><Table.Td ta="right">{formatoMoneda(f.exento)}</Table.Td><Table.Td ta="right">{formatoMoneda(f.total)}</Table.Td>
               </Table.Tr>
             ))}
