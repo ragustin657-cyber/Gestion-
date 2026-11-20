@@ -77,8 +77,9 @@ export class PosicionIibbService {
     const sumar = (m: Map<string, Prisma.Decimal>, j: string | null, v: Prisma.Decimal.Value) => j && m.set(j, (m.get(j) ?? new D(0)).plus(v));
     for (const r of await tx.reciboRetencion.groupBy({ by: ['jurisdiccion'], where: { tipo: 'IIBB', fecha: { gte: desde, lte: hasta }, recibo: { estado: 'CONFIRMADO' } }, _sum: { importe: true } }))
       sumar(ret, r.jurisdiccion, r._sum.importe ?? 0);
-    for (const p of await tx.comprobanteCompraPercepcionIibb.groupBy({ by: ['jurisdiccion'], where: { comprobante: { estado: 'CONFIRMADO', fechaContable: { gte: desde, lte: hasta } } }, _sum: { importe: true } }))
-      sumar(perc, p.jurisdiccion, p._sum.importe ?? 0);
+    // En pesos por la cotización del comprobante y con signo: la nota de crédito resta (revisión E38, como el Libro IVA Compras)
+    for (const p of await tx.comprobanteCompraPercepcionIibb.findMany({ where: { comprobante: { estado: 'CONFIRMADO', fechaContable: { gte: desde, lte: hasta } } }, select: { jurisdiccion: true, importe: true, comprobante: { select: { tipo: true, cotizacion: true } } } }))
+      sumar(perc, p.jurisdiccion, p.importe.mul(p.comprobante.cotizacion).toDecimalPlaces(2).mul(p.comprobante.tipo === 'NOTA_CREDITO' ? -1 : 1));
     for (const t of await tx.liquidacionTarjetaImpuesto.groupBy({ by: ['clase', 'jurisdiccion'], where: { tipo: 'IIBB', liquidacion: { estado: 'CONFIRMADO', fecha: { gte: desde, lte: hasta } } }, _sum: { importe: true } }))
       sumar(t.clase === 'RETENCION' ? ret : perc, t.jurisdiccion, t._sum.importe ?? 0);
     return { ret, perc };

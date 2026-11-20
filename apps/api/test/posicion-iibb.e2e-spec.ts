@@ -83,6 +83,21 @@ describe('liquidación de IIBB por Convenio Multilateral', () => {
     expect(p.avisos).toContain('Hay retenciones o percepciones de la jurisdicción 913 Mendoza, que no está en el Convenio de 2026');
   });
 
+  it('percepciones de compras: las notas de crédito restan y las de moneda extranjera van en pesos (revisión E38)', async () => {
+    const x = await escenario();
+    await x.jurisdicciones(2026, J2026);
+    // Nota de crédito de octubre que revierte 15 de percepción 902
+    const nc = await facturaPendiente(x.http, prisma, { proveedorId: x.proveedorId, neto: 100, fecha: '2026-10-11' });
+    await prisma.comprobanteCompra.update({ where: { id: nc.comprobanteId }, data: { tipo: 'NOTA_CREDITO' } });
+    await prisma.comprobanteCompraPercepcionIibb.create({ data: { empresaId: x.empresaId, comprobanteId: nc.comprobanteId, jurisdiccion: '902', importe: 15 } });
+    // Factura en dólares a 1.000 con percepción 901 de USD 3
+    const usd = await facturaPendiente(x.http, prisma, { proveedorId: x.proveedorId, neto: 100, moneda: 'USD', cotizacion: 1000, fecha: '2026-10-12' });
+    await prisma.comprobanteCompraPercepcionIibb.create({ data: { empresaId: x.empresaId, comprobanteId: usd.comprobanteId, jurisdiccion: '901', importe: 3 } });
+    const p = await x.ver(2026, 10);
+    expect(x.de(p, '902').percepciones).toBe('5.00');
+    expect(x.de(p, '901').percepciones).toBe('3000.00');
+  });
+
   it('validaciones de cierre', async () => {
     const x = await escenario();
     expect((await x.cerrar(2026, 10)).body.message).toBe('Configure el primer mes de la liquidación de IIBB');
