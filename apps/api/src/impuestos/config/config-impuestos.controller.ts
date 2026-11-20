@@ -18,6 +18,13 @@ const esquema = z.object({
   // Liquidación de IIBB (E38)
   iibbInicioAnio: z.number().int().min(2000).max(2100).nullish(),
   iibbInicioMes: z.number().int().min(1).max(12).nullish(),
+  // Prorrateo del crédito fiscal (E40)
+  prorrateoIva: z.boolean().optional(),
+  prorrateoDesdeAnio: z.number().int().min(2000).max(2100).nullish(),
+  prorrateoDesdeMes: z.number().int().min(1).max(12).nullish(),
+  prorrateoInicioMes: z.number().int().min(1).max(12).optional(),
+  prorrateoGravadasIniciales: z.number().optional(),
+  prorrateoExentasIniciales: z.number().optional(),
 });
 
 @Controller('impuestos/config')

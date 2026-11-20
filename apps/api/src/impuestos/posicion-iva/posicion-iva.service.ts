@@ -10,6 +10,8 @@ import { hoy } from '../../tesoreria/operaciones/tesoreria-comun';
 import { ConfigImpuestosService } from '../config/config-impuestos.service';
 import { LibroVentasService } from '../libros-iva/libro-ventas.service';
 import { calcularPosicionIva, EntradaPosicionIva, renglonesAsiento, ResultadoPosicionIva } from './calculo';
+import { ajusteAnual, separarCredito, ultimoMesEjercicio } from './prorrateo';
+import { coeficienteDelMes, conProrrateo } from './prorrateo-datos';
 
 const D = Prisma.Decimal;
 const f2 = (x: Prisma.Decimal.Value) => new D(x).toFixed(2);
@@ -18,7 +20,10 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const indice = (anio: number, mes: number) => anio * 12 + mes;
 export const ORIGEN_POSICION_IVA = 'POSICION_IVA';
 
-export type VistaPosicionIva = EntradaPosicionIva & ResultadoPosicionIva & { anio: number; mes: number; estado: 'BORRADOR' | 'CERRADA'; avisos: string[]; asientoId: string | null };
+/** Prorrateo del crédito fiscal (E40): nulos sin prorrateo; computable y no computable incluyen el ajuste anual. */
+export interface ProrrateoVista { coeficiente: string | null; creditoComun: string | null; creditoComputable: string | null; creditoNoComputable: string | null; ajusteProrrateo: string | null }
+const SIN_PRORRATEO: ProrrateoVista = { coeficiente: null, creditoComun: null, creditoComputable: null, creditoNoComputable: null, ajusteProrrateo: null };
+export type VistaPosicionIva = EntradaPosicionIva & ResultadoPosicionIva & ProrrateoVista & { anio: number; mes: number; estado: 'BORRADOR' | 'CERRADA'; avisos: string[]; asientoId: string | null };
 
 /** Posición mensual de IVA (spec E37): borrador calculado de los libros; al cerrar se congela, se arrastran los saldos y se asienta. */
 @Injectable()
@@ -55,7 +60,10 @@ export class PosicionIvaService {
       ...(await this.ventas.cuadre(tx, 'IVA_DEBITO_FISCAL', desde, hasta, total(debito))),
       ...(await this.ventas.cuadre(tx, 'IVA_CREDITO_FISCAL', desde, hasta, total(credito))),
     ];
-    return { debito, credito, retenciones: f2(new D(ret._sum.importe ?? 0).plus(deTarjetas('RETENCION'))), percepciones: f2(new D(lc.totales.percepcionIva).plus(deTarjetas('PERCEPCION'))), avisos };
+    // E40: crédito por destino de la compra
+    const porDestino = { GRAVADO: new D(0), EXENTO: new D(0), COMUN: new D(0) };
+    for (const fila of lc.filas) porDestino[fila.destino] = porDestino[fila.destino].plus(total(fila.ivaPorAlicuota));
+    return { porDestino, debito, credito, retenciones: f2(new D(ret._sum.importe ?? 0).plus(deTarjetas('RETENCION'))), percepciones: f2(new D(lc.totales.percepcionIva).plus(deTarjetas('PERCEPCION'))), avisos };
   }
 
   /** Saldos a favor del mes anterior: los del cerrado, los iniciales en el mes de inicio, o los del borrador anterior (con aviso). */
@@ -77,8 +85,34 @@ export class PosicionIvaService {
     const f = await this.fuentes(tx, anio, mes);
     const avisos = [...f.avisos];
     const s = await this.saldosAnteriores(tx, anio, mes, avisos, profundidad);
-    const entrada: EntradaPosicionIva = { debito: f.debito, credito: f.credito, retenciones: f.retenciones, percepciones: f.percepciones, saldoTecnicoAnterior: s.tecnico, libreAnterior: s.libre };
-    return { anio, mes, estado: 'BORRADOR', ...entrada, ...calcularPosicionIva(entrada), avisos, asientoId: null };
+    const pr = await this.prorrateo(tx, anio, mes, f.porDestino, avisos);
+    const entrada: EntradaPosicionIva = { debito: f.debito, credito: f.credito, retenciones: f.retenciones, percepciones: f.percepciones, saldoTecnicoAnterior: s.tecnico, libreAnterior: s.libre, creditoComputable: pr.creditoComputable };
+    return { anio, mes, estado: 'BORRADOR', ...entrada, ...calcularPosicionIva(entrada), ...pr, avisos, asientoId: null };
+  }
+
+  /** Prorrateo del crédito del mes (spec E40 §5): coeficiente acumulado, separación por destino y ajuste anual en el último mes del ejercicio. */
+  private async prorrateo(tx: TxEmpresa, anio: number, mes: number, porDestino: { GRAVADO: Prisma.Decimal; EXENTO: Prisma.Decimal; COMUN: Prisma.Decimal }, avisos: string[]): Promise<ProrrateoVista> {
+    const c = await this.config.obtener(tx);
+    if (!conProrrateo(c, anio, mes)) return SIN_PRORRATEO;
+    const coef = await coeficienteDelMes(tx, c, anio, mes);
+    if (coef.sinVentas) avisos.push('Sin ventas en el ejercicio: el crédito de uso común se computa entero');
+    let ajuste = new D(0);
+    if (ultimoMesEjercicio(mes, c.prorrateoInicioMes)) {
+      const comunPorMes = [];
+      for (const m of coef.meses.filter((x) => x.anio !== anio || x.mes !== mes)) {
+        const cerrada = await tx.posicionIva.findUnique({ where: { empresaId_anio_mes: { empresaId: this.tenant.empresaId, ...m } } });
+        if (cerrada?.creditoComun != null && cerrada.coeficiente != null) {
+          comunPorMes.push({ comun: f2(cerrada.creditoComun), computado: f2(cerrada.creditoComun.mul(cerrada.coeficiente).toDecimalPlaces(2, D.ROUND_HALF_UP)) });
+        } else {
+          const fm = await this.fuentes(tx, m.anio, m.mes);
+          const cm = await coeficienteDelMes(tx, c, m.anio, m.mes);
+          comunPorMes.push({ comun: f2(fm.porDestino.COMUN), computado: f2(fm.porDestino.COMUN.mul(cm.coeficiente).toDecimalPlaces(2, D.ROUND_HALF_UP)) });
+        }
+      }
+      ajuste = new D(ajusteAnual({ comunPorMes, coeficienteAnual: coef.coeficiente }));
+    }
+    const sep = separarCredito({ gravado: f2(porDestino.GRAVADO), exento: f2(porDestino.EXENTO), comun: f2(porDestino.COMUN), coeficiente: coef.coeficiente, ajuste: ajuste.toFixed(2) });
+    return { coeficiente: coef.coeficiente, creditoComun: f2(porDestino.COMUN), creditoComputable: sep.computable, creditoNoComputable: sep.noComputable, ajusteProrrateo: f2(ajuste) };
   }
 
   private vista(p: PosicionIva): VistaPosicionIva {
@@ -87,6 +121,8 @@ export class PosicionIvaService {
       retenciones: f2(p.retenciones), percepciones: f2(p.percepciones), saldoTecnicoAnterior: f2(p.saldoTecnicoAnterior), libreAnterior: f2(p.libreAnterior),
       totalDebito: f2(p.totalDebito), totalCredito: f2(p.totalCredito), saldoTecnicoAFavor: f2(p.saldoTecnicoAFavor), impuestoDeterminado: f2(p.impuestoDeterminado),
       impuestoAPagar: f2(p.impuestoAPagar), libreDisponibilidad: f2(p.libreDisponibilidad), avisos: [], asientoId: p.asientoId,
+      coeficiente: p.coeficiente?.toFixed(4) ?? null, creditoComun: p.creditoComun ? f2(p.creditoComun) : null, creditoComputable: p.creditoComputable ? f2(p.creditoComputable) : null,
+      creditoNoComputable: p.creditoNoComputable ? f2(p.creditoNoComputable) : null, ajusteProrrateo: p.ajusteProrrateo ? f2(p.ajusteProrrateo) : null,
     };
   }
 
@@ -139,6 +175,7 @@ export class PosicionIvaService {
           id, empresaId: this.tenant.empresaId, anio, mes, debito: b.debito, credito: b.credito, totalDebito: b.totalDebito, totalCredito: b.totalCredito,
           saldoTecnicoAnterior: b.saldoTecnicoAnterior, libreAnterior: b.libreAnterior, retenciones: b.retenciones, percepciones: b.percepciones,
           saldoTecnicoAFavor: b.saldoTecnicoAFavor, impuestoDeterminado: b.impuestoDeterminado, impuestoAPagar: b.impuestoAPagar, libreDisponibilidad: b.libreDisponibilidad,
+          coeficiente: b.coeficiente, creditoComun: b.creditoComun, creditoComputable: b.creditoComputable, creditoNoComputable: b.creditoNoComputable, ajusteProrrateo: b.ajusteProrrateo,
           asientoId: asiento?.id ?? null, cerradoEn: new Date(), cerradoPor: this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId,
         },
       });

@@ -7,6 +7,8 @@ export interface DatosConfigImpuestos {
   arbaActividad: string; arbaSucursal: number; arbaPeriodicidad: PeriodicidadArba; agipCodigoNorma: string;
   ivaInicioAnio?: number | null; ivaInicioMes?: number | null; ivaSaldoTecnicoInicial?: number; ivaSaldoLibreInicial?: number;
   iibbInicioAnio?: number | null; iibbInicioMes?: number | null;
+  prorrateoIva?: boolean; prorrateoDesdeAnio?: number | null; prorrateoDesdeMes?: number | null; prorrateoInicioMes?: number;
+  prorrateoGravadasIniciales?: number; prorrateoExentasIniciales?: number;
 }
 
 @Injectable()
@@ -27,6 +29,18 @@ export class ConfigImpuestosService {
     // E38: el inicio de la liquidación de IIBB tampoco cambia con meses cerrados
     const cambiaIibb = (['iibbInicioAnio', 'iibbInicioMes'] as const).some((k) => d[k] !== undefined && d[k] !== c[k]);
     if (cambiaIibb && (await this.tenant.db.posicionIibb.count())) throw new BadRequestException('Hay liquidaciones de IIBB cerradas: reábralas para cambiar el inicio');
+    // E40: el prorrateo no cambia con posiciones cerradas desde su primer mes (el anterior o el nuevo, el menor)
+    const cambiaProrrateo = (['prorrateoIva', 'prorrateoDesdeAnio', 'prorrateoDesdeMes', 'prorrateoInicioMes'] as const).some((k) => d[k] !== undefined && d[k] !== c[k])
+      || (['prorrateoGravadasIniciales', 'prorrateoExentasIniciales'] as const).some((k) => d[k] !== undefined && !c[k].equals(d[k]!));
+    if (cambiaProrrateo) {
+      const desdes = [[c.prorrateoDesdeAnio, c.prorrateoDesdeMes], [d.prorrateoDesdeAnio ?? c.prorrateoDesdeAnio, d.prorrateoDesdeMes ?? c.prorrateoDesdeMes]]
+        .filter((x): x is [number, number] => !!x[0] && !!x[1]).sort((a, b) => a[0] * 12 + a[1] - (b[0] * 12 + b[1]));
+      const desde = desdes[0];
+      if (desde) {
+        const cerradas = await this.tenant.db.posicionIva.count({ where: { OR: [{ anio: { gt: desde[0] } }, { anio: desde[0], mes: { gte: desde[1] } }] } });
+        if (cerradas) throw new BadRequestException(`Hay posiciones de IVA cerradas desde ${String(desde[1]).padStart(2, '0')}/${desde[0]}: reábralas para cambiar el prorrateo`);
+      }
+    }
     const r = await this.tenant.db.configImpuestos.update({ where: { id: c.id }, data: d });
     await this.auditoria.registrar(this.tenant.db, { entidad: 'ConfigImpuestos', entidadId: c.id, accion: 'MODIFICAR', datos: d });
     return r;

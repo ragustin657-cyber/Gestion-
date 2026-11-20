@@ -519,6 +519,7 @@ model ComprobanteCompra {
   netoGravado           Decimal                           @db.Decimal(18, 2)
   iva                   Decimal                           @db.Decimal(18, 2)
   percepcionIva         Decimal                           @default(0) @db.Decimal(18, 2)
+  destinoCreditoIva     DestinoCreditoIva                 @default(GRAVADO)
   impuestosInternos     Decimal                           @default(0) @db.Decimal(18, 2)
   noGravado             Decimal                           @default(0) @db.Decimal(18, 2)
   exento                Decimal                           @default(0) @db.Decimal(18, 2)
@@ -1652,6 +1653,20 @@ model ConfigImpuestos {
   iibbInicioMes          Int?
   /// Actividad del lote de percepciones de ARBA (E39)
   arbaActividadPercepcion String          @default("7")
+  /// Prorrateo del crédito fiscal de IVA (E40)
+  prorrateoIva              Boolean @default(false)
+  prorrateoDesdeAnio        Int?
+  prorrateoDesdeMes         Int?
+  prorrateoInicioMes        Int     @default(1)
+  prorrateoGravadasIniciales Decimal @default(0) @db.Decimal(18, 2)
+  prorrateoExentasIniciales  Decimal @default(0) @db.Decimal(18, 2)
+}
+
+/// Destino del crédito de IVA de una compra (E40): solo gravadas (entero), solo exentas (no computable) o uso común (prorrateo).
+enum DestinoCreditoIva {
+  GRAVADO
+  EXENTO
+  COMUN
 }
 
 /// Jurisdicción del Convenio Multilateral de un año (E38): coeficiente unificado, alícuota y actividad. El saldo inicial solo cuenta en el año de inicio.
@@ -1707,6 +1722,12 @@ model PosicionIva {
   impuestoDeterminado  Decimal           @db.Decimal(18, 2)
   impuestoAPagar       Decimal           @db.Decimal(18, 2)
   libreDisponibilidad  Decimal           @db.Decimal(18, 2)
+  /// Prorrateo (E40); nulos sin prorrateo. Computable y no computable incluyen el ajuste anual.
+  coeficiente          Decimal?          @db.Decimal(5, 4)
+  creditoComun         Decimal?          @db.Decimal(18, 2)
+  creditoComputable    Decimal?          @db.Decimal(18, 2)
+  creditoNoComputable  Decimal?          @db.Decimal(18, 2)
+  ajusteProrrateo      Decimal?          @db.Decimal(18, 2)
   asientoId            String?           @db.Uuid
   cerradoEn            DateTime?
   cerradoPor           String?           @db.Uuid
