@@ -8,7 +8,10 @@ import { Maestro, estado } from '../abm/Maestro';
 
 interface Regimen { id: string; codigo: string; descripcion: string; minimoNoSujeto: string; alicuotaInscripto: string; alicuotaNoInscripto: string; usaEscala: boolean; minimoRetencion: string; activo: boolean; verificar: boolean }
 interface Tramo { desde: number; hasta: number | null; fijo: number; porcentaje: number }
-interface Jurisdiccion { jurisdiccion: string; alicuotaDefecto: string; minimoRetencion: string; usaPadron: boolean; sinPadron: 'NO_RETENER' | 'ALICUOTA_DEFECTO' }
+interface Jurisdiccion {
+  jurisdiccion: string; alicuotaDefecto: string; minimoRetencion: string; usaPadron: boolean; sinPadron: 'NO_RETENER' | 'ALICUOTA_DEFECTO';
+  percibe: boolean; alicuotaPercepcionDefecto: string; minimoPercepcion: string; sinPadronPercepcion: 'NO_RETENER' | 'ALICUOTA_DEFECTO';
+}
 
 const NOMBRES: Record<string, string> = {
   '901': 'CABA', '902': 'Buenos Aires', '903': 'Catamarca', '904': 'Córdoba', '905': 'Corrientes', '906': 'Chaco', '907': 'Chubut', '908': 'Entre Ríos',
@@ -62,6 +65,42 @@ function EditorEscala() {
   );
 }
 
+/** Tabla de jurisdicciones de IIBB: retención en los pagos y percepción en las ventas (E39). */
+export function TablaJurisdiccionesIibb({ filas, onCambiar: cambiar }: { filas: Jurisdiccion[]; onCambiar: (j: string, c: Partial<Jurisdiccion>) => void }) {
+  const SIN = [{ value: 'NO_RETENER', label: 'No retener / percibir' }, { value: 'ALICUOTA_DEFECTO', label: 'Alícuota por defecto' }];
+  return (
+    <Table.ScrollContainer minWidth={1100}>
+      <Table withTableBorder striped>
+        <Table.Thead>
+          <Table.Tr><Table.Th>Jurisdicción</Table.Th><Table.Th>Usa padrón</Table.Th><Table.Th>Si no figura en padrón ni en la ficha</Table.Th><Table.Th>Alícuota por defecto</Table.Th><Table.Th>Mínimo de retención</Table.Th>
+            <Table.Th>Percibe</Table.Th><Table.Th>Percepción sin padrón</Table.Th><Table.Th>Alícuota percepción</Table.Th><Table.Th>Mínimo percepción</Table.Th></Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {filas.map((f) => (
+            <Table.Tr key={f.jurisdiccion}>
+              <Table.Td>{f.jurisdiccion} {NOMBRES[f.jurisdiccion]}</Table.Td>
+              <Table.Td><Switch aria-label="Usa padrón" checked={f.usaPadron} onChange={(e) => cambiar(f.jurisdiccion, { usaPadron: e.currentTarget.checked })} /></Table.Td>
+              <Table.Td>
+                <Select size="xs" aria-label="Sin padrón" allowDeselect={false} value={f.sinPadron} data={SIN}
+                  onChange={(v) => cambiar(f.jurisdiccion, { sinPadron: (v ?? 'NO_RETENER') as Jurisdiccion['sinPadron'] })} />
+              </Table.Td>
+              <Table.Td><NumberInput size="xs" aria-label="Alícuota por defecto" decimalSeparator="," value={Number(f.alicuotaDefecto)} onChange={(v) => cambiar(f.jurisdiccion, { alicuotaDefecto: String(v || 0) })} /></Table.Td>
+              <Table.Td><NumberInput size="xs" aria-label="Mínimo de retención" value={Number(f.minimoRetencion)} onChange={(v) => cambiar(f.jurisdiccion, { minimoRetencion: String(v || 0) })} /></Table.Td>
+              <Table.Td><Switch aria-label="Percibe" checked={!!f.percibe} onChange={(e) => cambiar(f.jurisdiccion, { percibe: e.currentTarget.checked })} /></Table.Td>
+              <Table.Td>
+                <Select size="xs" aria-label="Percepción sin padrón" allowDeselect={false} value={f.sinPadronPercepcion ?? 'NO_RETENER'} data={SIN}
+                  onChange={(v) => cambiar(f.jurisdiccion, { sinPadronPercepcion: (v ?? 'NO_RETENER') as Jurisdiccion['sinPadronPercepcion'] })} />
+              </Table.Td>
+              <Table.Td><NumberInput size="xs" aria-label="Alícuota de percepción por defecto" decimalSeparator="," value={Number(f.alicuotaPercepcionDefecto ?? 0)} onChange={(v) => cambiar(f.jurisdiccion, { alicuotaPercepcionDefecto: String(v || 0) })} /></Table.Td>
+              <Table.Td><NumberInput size="xs" aria-label="Mínimo de percepción" value={Number(f.minimoPercepcion ?? 0)} onChange={(v) => cambiar(f.jurisdiccion, { minimoPercepcion: String(v || 0) })} /></Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  );
+}
+
 function Jurisdicciones() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['/pagos/config/jurisdicciones'], queryFn: () => api<Jurisdiccion[]>('/pagos/config/jurisdicciones') });
@@ -73,7 +112,10 @@ function Jurisdicciones() {
   async function guardar() {
     await api('/pagos/config/jurisdicciones', {
       metodo: 'PUT',
-      body: filas.map((f) => ({ ...f, alicuotaDefecto: Number(f.alicuotaDefecto), minimoRetencion: Number(f.minimoRetencion) })),
+      body: filas.map((f) => ({
+        jurisdiccion: f.jurisdiccion, usaPadron: f.usaPadron, sinPadron: f.sinPadron, alicuotaDefecto: Number(f.alicuotaDefecto), minimoRetencion: Number(f.minimoRetencion),
+        percibe: f.percibe, sinPadronPercepcion: f.sinPadronPercepcion, alicuotaPercepcionDefecto: Number(f.alicuotaPercepcionDefecto), minimoPercepcion: Number(f.minimoPercepcion),
+      })),
     });
     notifications.show({ color: 'green', message: 'Jurisdicciones guardadas' });
     void qc.invalidateQueries({ queryKey: ['/pagos/config/jurisdicciones'] });
@@ -81,23 +123,8 @@ function Jurisdicciones() {
   return (
     <Stack gap="xs">
       <Text size="sm" c="dimmed">Se retiene solo en las jurisdicciones marcadas como agente en Administración › Empresa.</Text>
-      <Table withTableBorder striped>
-        <Table.Thead><Table.Tr><Table.Th>Jurisdicción</Table.Th><Table.Th>Usa padrón</Table.Th><Table.Th>Si no figura en padrón ni en la ficha</Table.Th><Table.Th>Alícuota por defecto</Table.Th><Table.Th>Mínimo de retención</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>
-          {filas.map((f) => (
-            <Table.Tr key={f.jurisdiccion}>
-              <Table.Td>{f.jurisdiccion} {NOMBRES[f.jurisdiccion]}</Table.Td>
-              <Table.Td><Switch aria-label="Usa padrón" checked={f.usaPadron} onChange={(e) => cambiar(f.jurisdiccion, { usaPadron: e.currentTarget.checked })} /></Table.Td>
-              <Table.Td>
-                <Select size="xs" aria-label="Sin padrón" allowDeselect={false} value={f.sinPadron} data={[{ value: 'NO_RETENER', label: 'No retener' }, { value: 'ALICUOTA_DEFECTO', label: 'Alícuota por defecto' }]}
-                  onChange={(v) => cambiar(f.jurisdiccion, { sinPadron: (v ?? 'NO_RETENER') as Jurisdiccion['sinPadron'] })} />
-              </Table.Td>
-              <Table.Td><NumberInput size="xs" aria-label="Alícuota por defecto" decimalSeparator="," value={Number(f.alicuotaDefecto)} onChange={(v) => cambiar(f.jurisdiccion, { alicuotaDefecto: String(v || 0) })} /></Table.Td>
-              <Table.Td><NumberInput size="xs" aria-label="Mínimo de retención" value={Number(f.minimoRetencion)} onChange={(v) => cambiar(f.jurisdiccion, { minimoRetencion: String(v || 0) })} /></Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+      <TablaJurisdiccionesIibb filas={filas} onCambiar={cambiar} />
+      <Text size="sm" c="dimmed">Percepción en las ventas: a quien está en el padrón, con la alícuota de su ficha o, si se elige «alícuota por defecto», solo a clientes con ficha o provincia de esa jurisdicción.</Text>
       <Group justify="flex-end"><Button size="xs" onClick={guardar}>Guardar jurisdicciones</Button></Group>
     </Stack>
   );
@@ -155,16 +182,47 @@ export function RegimenesSire({ impuesto }: { impuesto: 'IVA' | 'SUSS' }) {
   );
 }
 
+interface RegimenPercepcionIvaFila { id: string; codigo: string; descripcion: string; alicuotaGeneral: string; alicuotaReducida: string; minimoNeto: string; activo: boolean }
+
+/** Régimen de percepción de IVA en las ventas (E39): uno solo activo; el agente se marca en Administración › Empresa. */
+function RegimenPercepcionIva() {
+  return (
+    <Stack>
+      <Alert color="yellow">Se percibe IVA solo si la empresa está marcada como agente de percepción de IVA en Administración › Empresa. Alícuota general para el neto al 21 y 27 %; reducida para el 10,5, 5 y 2,5 %. Verifique los valores del régimen antes de operar.</Alert>
+      <Maestro<RegimenPercepcionIvaFila> sinMarco config={{
+        titulo: 'Régimen de percepción de IVA', ruta: '/pagos/config/regimenes-percepcion-iva', permisoEditar: 'retenciones.config', valoresNuevos: { activo: true, minimoNeto: 0 },
+        campos: [
+          { nombre: 'codigo', etiqueta: 'Código de régimen', tipo: 'texto', requerido: true },
+          { nombre: 'descripcion', etiqueta: 'Descripción', tipo: 'texto', requerido: true },
+          { nombre: 'alicuotaGeneral', etiqueta: 'Alícuota general (%)', tipo: 'numero', requerido: true },
+          { nombre: 'alicuotaReducida', etiqueta: 'Alícuota reducida (%)', tipo: 'numero', requerido: true },
+          { nombre: 'minimoNeto', etiqueta: 'Mínimo de neto gravado', tipo: 'numero', requerido: true },
+          { nombre: 'activo', etiqueta: 'Activo', tipo: 'booleano' },
+        ],
+        columnas: [
+          { campo: 'codigo', titulo: 'Código' },
+          { campo: 'descripcion', titulo: 'Descripción' },
+          { campo: 'alicuotaGeneral', titulo: 'General', render: (r) => pct(r.alicuotaGeneral) },
+          { campo: 'alicuotaReducida', titulo: 'Reducida', render: (r) => pct(r.alicuotaReducida) },
+          { campo: 'minimoNeto', titulo: 'Mínimo neto', render: (r) => pesos(r.minimoNeto) },
+          { campo: 'activo', titulo: 'Estado', render: (r) => estado(r.activo) },
+        ],
+      }} />
+    </Stack>
+  );
+}
+
 export function ConfigRetencionesPage() {
   return (
     <Paper withBorder p="md" radius="md">
-      <Title order={3} mb="md">Retenciones</Title>
+      <Title order={3} mb="md">Retenciones y percepciones</Title>
       <Tabs defaultValue="ganancias" keepMounted={false}>
         <Tabs.List mb="md">
           <Tabs.Tab value="ganancias">Ganancias</Tabs.Tab>
           <Tabs.Tab value="iibb">Ingresos Brutos</Tabs.Tab>
           <Tabs.Tab value="iva">IVA</Tabs.Tab>
           <Tabs.Tab value="suss">SUSS</Tabs.Tab>
+          <Tabs.Tab value="percepcion-iva">Percepción de IVA</Tabs.Tab>
           <Tabs.Tab value="general">General</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="ganancias">
@@ -198,6 +256,7 @@ export function ConfigRetencionesPage() {
         <Tabs.Panel value="iibb"><Jurisdicciones /></Tabs.Panel>
         <Tabs.Panel value="iva"><RegimenesSire impuesto="IVA" /></Tabs.Panel>
         <Tabs.Panel value="suss"><RegimenesSire impuesto="SUSS" /></Tabs.Panel>
+        <Tabs.Panel value="percepcion-iva"><RegimenPercepcionIva /></Tabs.Panel>
         <Tabs.Panel value="general"><General /></Tabs.Panel>
       </Tabs>
     </Paper>

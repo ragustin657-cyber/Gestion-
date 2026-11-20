@@ -4,7 +4,7 @@ import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ComprobanteVenta } from '@prisma/client';
-import { calcularVenta, cbteTipo, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
+import { calcularVenta, cbteTipo, JURISDICCIONES_CM, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
 import { fechaAR } from '../../compras/comun';
 import { importeAR, pdfVenta } from '../pdf/pdf-venta';
 import { importesConIva } from '../pdf/importes-b';
@@ -19,12 +19,13 @@ import { NumeracionService } from '../../numeracion/numeracion.service';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { cotizacion, D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import { DatosComprobanteVenta } from './dto';
+import { PercepcionesVentaService } from '../percepciones/percepciones.service';
 
 export const AUTORIZADO_NO_SE_ANULA = 'Un comprobante autorizado no se anula: emita una nota de crédito';
 export const EMISION_SIN_CONFIRMAR = 'El comprobante tiene una emisión sin confirmar: reintente para resolverla';
 /** Una emisión se considera abandonada pasado este tiempo (más que el peor caso de llamadas a ARCA con sus timeouts). */
 export const EN_CURSO_MS = 5 * 60000;
-export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true } satisfies Prisma.ComprobanteVentaInclude;
+export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true, percepcionesDetalle: true } satisfies Prisma.ComprobanteVentaInclude;
 
 /** "0001-00000012" */
 export const numeroVenta = (puntoVenta: number, numero: number | null) => `${String(puntoVenta).padStart(4, '0')}-${String(numero ?? 0).padStart(8, '0')}`;
@@ -44,6 +45,7 @@ export class ComprobantesVentaService {
     private readonly stock: VentasStock,
     private readonly origenes: OrigenesVenta,
     private readonly bajas: BajasService,
+    private readonly percepciones: PercepcionesVentaService,
   ) {}
 
   obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -102,11 +104,17 @@ export class ComprobantesVentaService {
     await this.bajas.validarVenta(tx, { id, tipo: d.tipo, fecha: d.fecha }, d.renglones);
     if (letra === 'A' && tercero.tipoDocumento !== 'CUIT') throw new BadRequestException('El cliente no tiene CUIT válido para una factura A');
     const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
+    const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
+    // Percepciones practicadas (E39): el total las incluye
+    const perc = await this.percepciones.calcular(tx, {
+      tipo: d.tipo, letra, fecha: d.fecha, terceroId: d.terceroId, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento,
+      ivas: calc.ivas.map((x) => ({ alicuota: String(x.alicuota), base: x.base })), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId ?? null, excluirId: id,
+    });
+    const total = new D(calc.total).plus(perc.total).toFixed(2);
     if (d.tipo === 'NOTA_CREDITO') {
       const disponible = await this.saldoDisponibleNc(tx, d.comprobanteAsociadoId!, id);
-      if (new D(calc.total).gt(disponible)) throw new BadRequestException(await this.mensajeTopeNc(tx, d.comprobanteAsociadoId!, id));
+      if (new D(total).gt(disponible)) throw new BadRequestException(await this.mensajeTopeNc(tx, d.comprobanteAsociadoId!, id));
     }
-    const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
     const origenes = await this.origenes.resolver(tx, { tipo: d.tipo, terceroId: d.terceroId, renglones: d.renglones });
     const articulos = await tx.articulo.findMany({ where: { id: { in: [...d.renglones.map((r) => r.articuloId), ...origenes.map((o) => o.articuloId)].filter((x): x is string => !!x) } } });
     const ventas = await this.cuentas.cuenta(tx, 'VENTAS');
@@ -134,12 +142,13 @@ export class ComprobantesVentaService {
         tipo: d.tipo, letra, puntoVentaId: pv.id, puntoVenta: pv.numero, terceroId: d.terceroId, fecha: d.fecha, fechaVencimiento: d.fechaVencimiento, concepto: d.concepto,
         fechaServicioDesde: d.concepto === 'PRODUCTOS' ? null : d.fechaServicioDesde, fechaServicioHasta: d.concepto === 'PRODUCTOS' ? null : d.fechaServicioHasta,
         fechaVencimientoPago: d.concepto === 'PRODUCTOS' ? null : d.fechaVencimientoPago,
-        monedaCodigo: d.monedaCodigo, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total: calc.total,
-        totalPesos: new D(calc.total).mul(cot).toDecimalPlaces(2), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId, aplicarAAsociado: d.aplicarAAsociado,
+        monedaCodigo: d.monedaCodigo, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total, percepciones: perc.total,
+        totalPesos: new D(total).mul(cot).toDecimalPlaces(2), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId, aplicarAAsociado: d.aplicarAAsociado,
         vendedorId: vendedor.vendedorId, comisionPct: vendedor.comisionPct,
       },
       renglones,
       ivas: calc.ivas.map((x) => ({ empresaId: this.tenant.empresaId, alicuota: x.alicuota, base: x.base, importe: x.importe })),
+      percepciones: perc.renglones.map((r) => ({ empresaId: this.tenant.empresaId, ...r })),
     };
   }
 
@@ -185,7 +194,7 @@ export class ComprobantesVentaService {
       const numeroInterno = await this.numeracion.siguiente(tx, 'VENTA-INTERNO', 0);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const c = await tx.comprobanteVenta.create({
-        data: { ...p.datos, numeroInterno, creadoPor: usuario, renglones: { create: p.renglones }, ivas: { create: p.ivas } } as Prisma.ComprobanteVentaUncheckedCreateInput,
+        data: { ...p.datos, numeroInterno, creadoPor: usuario, renglones: { create: p.renglones }, ivas: { create: p.ivas }, percepcionesDetalle: { create: p.percepciones } } as Prisma.ComprobanteVentaUncheckedCreateInput,
       });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: c.id, accion: 'CREAR', datos: { numeroInterno, tipo: c.tipo, letra: c.letra, total: c.total } });
       return { ...(await this.obtener(c.id, tx)), advertencias: p.advertencias };
@@ -211,9 +220,10 @@ export class ComprobantesVentaService {
       const p = await this.preparar(tx, d, id);
       await tx.comprobanteVentaRenglon.deleteMany({ where: { comprobanteId: id } });
       await tx.comprobanteVentaIva.deleteMany({ where: { comprobanteId: id } });
+      await tx.comprobanteVentaPercepcion.deleteMany({ where: { comprobanteId: id } });
       await tx.comprobanteVenta.update({
         where: { id },
-        data: { ...p.datos, version: { increment: 1 }, renglones: { create: p.renglones }, ivas: { create: p.ivas } } as Prisma.ComprobanteVentaUncheckedUpdateInput,
+        data: { ...p.datos, version: { increment: 1 }, renglones: { create: p.renglones }, ivas: { create: p.ivas }, percepcionesDetalle: { create: p.percepciones } } as Prisma.ComprobanteVentaUncheckedUpdateInput,
       });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { total: p.datos.total } });
       return { ...(await this.obtener(id, tx)), advertencias: p.advertencias };
@@ -241,6 +251,11 @@ export class ComprobantesVentaService {
       for (const iva of c.ivas) totales.push([`IVA ${Number(iva.alicuota).toLocaleString('es-AR')}%`, importeAR(iva.importe.toString())]);
       if (!c.noGravado.isZero()) totales.push(['No gravado', importeAR(c.noGravado.toString())]);
       if (!c.exento.isZero()) totales.push(['Exento', importeAR(c.exento.toString())]);
+    }
+    // Percepciones practicadas (E39): en toda letra, entre el IVA y el total
+    for (const p of c.percepcionesDetalle) {
+      const alic = `${Number(p.alicuota).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} %`;
+      totales.push([p.tipo === 'IVA' ? `Percepción IVA ${alic}` : `Percepción IIBB ${JURISDICCIONES_CM[p.jurisdiccion!] ?? p.jurisdiccion} ${alic}`, importeAR(p.importe.toString())]);
     }
     const contenido = await pdfVenta({
       empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), condicionIva: ETIQUETAS_CONDICION_IVA[empresa.condicionIva], domicilio: empresa.domicilio },

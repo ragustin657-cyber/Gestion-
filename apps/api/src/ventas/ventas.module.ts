@@ -12,6 +12,7 @@ import { ComisionesCalculoService } from './comisiones/calculo.service';
 import { ComisionesController } from './comisiones/comisiones.controller';
 import { VendedoresService } from './comisiones/vendedores.service';
 import { OrigenesVenta } from './comprobantes/origenes';
+import { PercepcionesVentaService } from './percepciones/percepciones.service';
 import { PendientesFacturarController, RemitosController } from './remitos/remitos.controller';
 import { RemitosService } from './remitos/remitos.service';
 import { PedidosController } from './pedidos/pedidos.controller';
@@ -35,7 +36,7 @@ import { DatosVentasController } from './consultas/datos-ventas.controller';
 @Module({
   imports: [ArcaModule, SueldosModule, CorreoModule],
   controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController, CobranzasController, InteresesController],
-  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService, ConfigInteresesService, InteresesCalculoService, LiquidacionesInteresesService, MailCobranzasService],
+  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, PercepcionesVentaService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService, ConfigInteresesService, InteresesCalculoService, LiquidacionesInteresesService, MailCobranzasService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}

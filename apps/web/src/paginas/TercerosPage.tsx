@@ -12,7 +12,7 @@ import { estado } from '../abm/Maestro';
 import { TablaAbm } from '../abm/TablaAbm';
 import { CampoAbm } from '../abm/tipos';
 
-interface Iibb { jurisdiccion: string; alicuotaPercepcion: number | string; alicuotaRetencion: number | string; exento: boolean }
+interface Iibb { jurisdiccion: string; alicuotaPercepcion: number | string | null; alicuotaRetencion: number | string; exento: boolean }
 interface Tercero {
   id: string; codigo: number; razonSocial: string; cuit: string; condicionIva: CondicionIva;
   esProveedor: boolean; esCliente: boolean; activo: boolean; iibb?: Iibb[]; [k: string]: unknown;
@@ -69,7 +69,8 @@ function EditorIibb({ tercero, alGuardar }: { tercero: Tercero; alGuardar: () =>
     try {
       await api(`/terceros/${tercero.id}/iibb`, {
         metodo: 'PUT',
-        body: filas.map((f) => ({ ...f, alicuotaPercepcion: Number(f.alicuotaPercepcion), alicuotaRetencion: Number(f.alicuotaRetencion) })),
+        // E39: la percepción vacía es «sin dato» (no 0 %)
+        body: filas.map((f) => ({ ...f, alicuotaPercepcion: f.alicuotaPercepcion === null || f.alicuotaPercepcion === '' ? null : Number(f.alicuotaPercepcion), alicuotaRetencion: Number(f.alicuotaRetencion) })),
       });
       notifications.show({ color: 'green', message: 'Ingresos Brutos actualizado' });
       alGuardar();
@@ -87,9 +88,9 @@ function EditorIibb({ tercero, alGuardar }: { tercero: Tercero; alGuardar: () =>
         <Table.Tbody>
           {filas.map((f, i) => (
             <Table.Tr key={i}>
-              <Table.Td><TextInput size="xs" placeholder="901" value={f.jurisdiccion} onChange={(e) => cambiar(i, 'jurisdiccion', e.currentTarget.value)} /></Table.Td>
-              <Table.Td><NumberInput size="xs" decimalSeparator="," value={Number(f.alicuotaPercepcion)} onChange={(v) => cambiar(i, 'alicuotaPercepcion', v)} /></Table.Td>
-              <Table.Td><NumberInput size="xs" decimalSeparator="," value={Number(f.alicuotaRetencion)} onChange={(v) => cambiar(i, 'alicuotaRetencion', v)} /></Table.Td>
+              <Table.Td><TextInput size="xs" aria-label="Jurisdicción IIBB" placeholder="901" value={f.jurisdiccion} onChange={(e) => cambiar(i, 'jurisdiccion', e.currentTarget.value)} /></Table.Td>
+              <Table.Td><NumberInput size="xs" aria-label="% Percepción" decimalSeparator="," placeholder="Sin dato" value={f.alicuotaPercepcion === null || f.alicuotaPercepcion === '' ? '' : Number(f.alicuotaPercepcion)} onChange={(v) => cambiar(i, 'alicuotaPercepcion', v === '' ? null : v)} /></Table.Td>
+              <Table.Td><NumberInput size="xs" aria-label="% Retención" decimalSeparator="," value={Number(f.alicuotaRetencion)} onChange={(v) => cambiar(i, 'alicuotaRetencion', v)} /></Table.Td>
               <Table.Td><ActionIcon variant="subtle" color="red" aria-label="Quitar" onClick={() => setFilas(filas.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon></Table.Td>
             </Table.Tr>
           ))}
@@ -97,7 +98,7 @@ function EditorIibb({ tercero, alGuardar }: { tercero: Tercero; alGuardar: () =>
       </Table>
       {error && <Text c="red" size="sm">{error}</Text>}
       <Group justify="space-between">
-        <Button variant="light" size="xs" leftSection={<IconPlus size={14} />} onClick={() => setFilas([...filas, { jurisdiccion: '', alicuotaPercepcion: 0, alicuotaRetencion: 0, exento: false }])}>
+        <Button variant="light" size="xs" leftSection={<IconPlus size={14} />} onClick={() => setFilas([...filas, { jurisdiccion: '', alicuotaPercepcion: null, alicuotaRetencion: 0, exento: false }])}>
           Agregar jurisdicción
         </Button>
         <Button size="xs" onClick={guardar}>Guardar IIBB</Button>

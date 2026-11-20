@@ -28,6 +28,8 @@ export interface DatosCae {
   fchVtoPago?: string;
   iva: { id: number; baseImp: string; importe: string }[];
   asociados: { tipo: number; ptoVta: number; nro: number; cuit: string; fecha: string }[];
+  /** Percepciones (E39): Id 7 IIBB, 6 IVA. */
+  tributos?: { id: number; desc: string; baseImp: string; alic: string; importe: string }[];
 }
 
 /** Cada texto de errores y observaciones tiene la forma "(código) mensaje". Las fechas son YYYY-MM-DD. */

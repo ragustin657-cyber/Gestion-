@@ -2,7 +2,7 @@
 export type Campo =
   | { nombre: string; largo: number; tipo: 'NUM' }
   | { nombre: string; largo: number; tipo: 'TXT' }
-  | { nombre: string; largo: number; tipo: 'IMPORTE'; decimales?: number; separador: '' | ',' | '.' }
+  | { nombre: string; largo: number; tipo: 'IMPORTE'; decimales?: number; separador: '' | ',' | '.'; signo?: boolean }
   | { nombre: string; largo: number; tipo: 'FECHA'; formato: 'AAAAMMDD' | 'DD/MM/AAAA' }
   | { nombre: string; largo: number; tipo: 'FIJO'; valor: string };
 

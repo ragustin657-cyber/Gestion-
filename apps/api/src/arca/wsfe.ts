@@ -19,11 +19,16 @@ export function xmlSolicitarCae(a: AuthWsfe, d: DatosCae): string {
   const asoc = d.asociados.length
     ? `<ar:CbtesAsoc>${d.asociados.map((x) => `<ar:CbteAsoc>${t('Tipo', x.tipo)}${t('PtoVta', x.ptoVta)}${t('Nro', x.nro)}${t('Cuit', x.cuit)}${t('CbteFch', x.fecha)}</ar:CbteAsoc>`).join('')}</ar:CbtesAsoc>`
     : '';
+  const tributos = d.tributos ?? [];
+  const impTrib = tributos.reduce((t, x) => t + Math.round(Number(x.importe) * 100), 0) / 100;
+  const trib = tributos.length
+    ? `<ar:Tributos>${tributos.map((x) => `<ar:Tributo>${t('Id', x.id)}${t('Desc', x.desc)}${t('BaseImp', x.baseImp)}${t('Alic', x.alic)}${t('Importe', x.importe)}</ar:Tributo>`).join('')}</ar:Tributos>`
+    : '';
   const iva = d.iva.length ? `<ar:Iva>${d.iva.map((x) => `<ar:AlicIva>${t('Id', x.id)}${t('BaseImp', x.baseImp)}${t('Importe', x.importe)}</ar:AlicIva>`).join('')}</ar:Iva>` : '';
   const det =
     t('Concepto', d.concepto) + t('DocTipo', d.docTipo) + t('DocNro', d.docNro) + t('CbteDesde', d.numero) + t('CbteHasta', d.numero) + t('CbteFch', d.fecha) +
-    t('ImpTotal', d.impTotal) + t('ImpTotConc', d.impTotConc) + t('ImpNeto', d.impNeto) + t('ImpOpEx', d.impOpEx) + t('ImpTrib', '0.00') + t('ImpIVA', d.impIva) +
-    servicio + t('MonId', d.monId) + t('MonCotiz', d.monCotiz) + t('CanMisMonExt', 'N') + t('CondicionIVAReceptorId', d.condicionIvaReceptor) + asoc + iva;
+    t('ImpTotal', d.impTotal) + t('ImpTotConc', d.impTotConc) + t('ImpNeto', d.impNeto) + t('ImpOpEx', d.impOpEx) + t('ImpTrib', impTrib.toFixed(2)) + t('ImpIVA', d.impIva) +
+    servicio + t('MonId', d.monId) + t('MonCotiz', d.monCotiz) + t('CanMisMonExt', 'N') + t('CondicionIVAReceptorId', d.condicionIvaReceptor) + asoc + trib + iva;
   return sobre('FECAESolicitar', auth(a) + `<ar:FeCAEReq><ar:FeCabReq>${t('CantReg', 1)}${t('PtoVta', d.ptoVta)}${t('CbteTipo', d.cbteTipo)}</ar:FeCabReq><ar:FeDetReq><ar:FECAEDetRequest>${det}</ar:FECAEDetRequest></ar:FeDetReq></ar:FeCAEReq>`);
 }
 

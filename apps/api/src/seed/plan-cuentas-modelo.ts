@@ -73,6 +73,8 @@ export const PLAN_CUENTAS_MODELO: CuentaModelo[] = [
   c('2.1.02.005', 'Retenciones SUSS a depositar', P, true),
   c('2.1.02.006', 'IVA a pagar', P, true),
   c('2.1.02.007', 'IIBB a pagar', P, true),
+  c('2.1.02.008', 'Percepciones IIBB a depositar', P, true),
+  c('2.1.02.009', 'Percepciones IVA a depositar', P, true),
   c('2.1.03', 'Deudas sociales', P),
   c('2.1.03.001', 'Sueldos a pagar', P, true),
   c('2.1.03.002', 'Cargas sociales a pagar', P, true),

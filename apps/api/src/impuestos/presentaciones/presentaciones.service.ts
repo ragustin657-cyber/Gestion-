@@ -10,19 +10,20 @@ import { ErrorFormato } from '../formato/escritor';
 import { libroIvaDigital } from '../libros-iva/libro-iva-digital';
 import { agip } from '../retenciones/agip';
 import { arba } from '../retenciones/arba';
+import { arbaPercepciones } from '../retenciones/arba-percepciones';
 import { sireIva, sireSuss } from '../retenciones/sire';
 import { sicore } from '../retenciones/sicore';
 import { NumeracionService } from '../../numeracion/numeracion.service';
 import { ContextoGeneracion, Generador } from './generado';
 
 const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
-const CON_QUINCENA: TipoPresentacion[] = ['SICORE', 'ARBA'];
+const CON_QUINCENA: TipoPresentacion[] = ['SICORE', 'ARBA', 'ARBA_PERCEPCIONES'];
 const MAX_VERIFICADAS = 24;
 const EN_PARALELO = 4;
 
 @Injectable()
 export class PresentacionesService {
-  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital], ['SICORE', sicore], ['ARBA', arba], ['AGIP', agip], ['SIRE_IVA', sireIva], ['SIRE_SUSS', sireSuss]]);
+  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital], ['SICORE', sicore], ['ARBA', arba], ['AGIP', agip], ['SIRE_IVA', sireIva], ['SIRE_SUSS', sireSuss], ['ARBA_PERCEPCIONES', arbaPercepciones]]);
 
   constructor(
     private readonly tenant: TenantPrisma,
@@ -64,9 +65,11 @@ export class PresentacionesService {
     if (d.tipo === 'SICORE' && quincena === 2) throw new BadRequestException('SICORE solo admite el mes completo o la primera quincena');
     return this.tenant.transaccion(async (tx) => {
       const base = await this.contexto(tx, d.periodo, quincena);
-      if (d.tipo === 'ARBA' && base.config.arbaPeriodicidad === 'MENSUAL' && quincena) throw new BadRequestException('ARBA está configurada como mensual: genere el mes completo');
-      if (d.tipo === 'ARBA' && base.config.arbaPeriodicidad === 'QUINCENAL' && !quincena) throw new BadRequestException('ARBA está configurada como quincenal: indique la quincena');
-      const ctx = { ...base, siguienteLote: () => this.numeracion.siguiente(tx, 'ARBA-LOTE', 0) };
+      const esArba = d.tipo === 'ARBA' || d.tipo === 'ARBA_PERCEPCIONES';
+      if (esArba && base.config.arbaPeriodicidad === 'MENSUAL' && quincena) throw new BadRequestException('ARBA está configurada como mensual: genere el mes completo');
+      if (esArba && base.config.arbaPeriodicidad === 'QUINCENAL' && !quincena) throw new BadRequestException('ARBA está configurada como quincenal: indique la quincena');
+      // E39: las percepciones tienen su propio correlativo de lotes
+      const ctx = { ...base, siguienteLote: () => this.numeracion.siguiente(tx, d.tipo === 'ARBA_PERCEPCIONES' ? 'ARBA-LOTE-PERCEPCION' : 'ARBA-LOTE', 0) };
       const r = await this.ejecutar(d.tipo, tx, ctx);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const p = await tx.presentacion.create({

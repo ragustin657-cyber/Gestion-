@@ -17,6 +17,7 @@ const esquemaEmpresa = z.object({
   agenteRetencionGanancias: z.boolean().optional(),
   agenteRetencionIva: z.boolean().optional(),
   agenteRetencionSuss: z.boolean().optional(),
+  agentePercepcionIva: z.boolean().optional(),
   jurisdiccionesIibb: z.array(z.string().regex(/^9\d\d$/, 'Jurisdicción inválida')).optional(),
 });
 const esquemaPuntoVenta = z.object({

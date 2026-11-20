@@ -12,7 +12,7 @@ export default defineConfig({
   projects: [
     // Intereses factura en el mes anterior: corre antes de que la prueba de contabilidad (general) cierre ese mes
     { name: 'intereses', testMatch: /intereses\.spec\.ts/ },
-    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias|ganancias-anual|retenciones-iva-suss|posicion-iva|posicion-iibb)\.spec\.ts/ },
+    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias|ganancias-anual|retenciones-iva-suss|posicion-iva|posicion-iibb|percepciones-ventas)\.spec\.ts/ },
     // La baja crea un empleado que no debe quedar en las mensuales que cierran las pruebas de sueldos: corre después de ellas
     // Comisiones reabre la mensual del mes (que cerró la prueba de sueldos), carga la comisión y la vuelve a cerrar
     { name: 'comisiones', testMatch: /comisiones\.spec\.ts/, dependencies: ['general'] },
@@ -28,6 +28,7 @@ export default defineConfig({
     { name: 'retenciones-iva-suss', testMatch: /retenciones-iva-suss\.spec\.ts/, dependencies: ['ganancias-anual'] },
     { name: 'posicion-iva', testMatch: /posicion-iva\.spec\.ts/, dependencies: ['retenciones-iva-suss'] },
     { name: 'posicion-iibb', testMatch: /posicion-iibb\.spec\.ts/, dependencies: ['posicion-iva'] },
+    { name: 'percepciones-ventas', testMatch: /percepciones-ventas\.spec\.ts/, dependencies: ['posicion-iibb'] },
   ],
   webServer: [
     {

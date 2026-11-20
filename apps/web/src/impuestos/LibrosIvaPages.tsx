@@ -5,11 +5,11 @@ import { api, descargar } from '../api/cliente';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 
 const ALICUOTAS = ['21', '10.5', '27', '5', '2.5', '0'];
-interface Fila { condicionIva?: string; noDiscriminado?: string; percepcionIva?: string; percepcionesIibb?: string; impuestosInternos?: string; noComputable?: string; fecha?: string; fechaContable?: string; comprobante?: string; tipo?: string; letra?: string; numero?: string; cliente?: string; razonSocial?: string; documento?: string; cuit?: string; netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noGravado: string; exento: string; total: string }
+interface Fila { condicionIva?: string; noDiscriminado?: string; percepcionesIva?: string; percepcionIva?: string; percepcionesIibb?: string; impuestosInternos?: string; noComputable?: string; fecha?: string; fechaContable?: string; comprobante?: string; tipo?: string; letra?: string; numero?: string; cliente?: string; razonSocial?: string; documento?: string; cuit?: string; netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noGravado: string; exento: string; total: string }
 interface Libro { filas: Fila[]; totales: Fila; advertencias: string[] }
 
 type Extra = { clave: keyof Fila; titulo: string };
-const EXTRA_VENTAS: Extra[] = [{ clave: 'noDiscriminado', titulo: 'No discriminado' }];
+const EXTRA_VENTAS: Extra[] = [{ clave: 'noDiscriminado', titulo: 'No discriminado' }, { clave: 'percepcionesIva', titulo: 'Perc. IVA' }, { clave: 'percepcionesIibb', titulo: 'Perc. IIBB' }];
 const EXTRA_COMPRAS: Extra[] = [{ clave: 'percepcionIva', titulo: 'Perc. IVA' }, { clave: 'percepcionesIibb', titulo: 'Perc. IIBB' }, { clave: 'impuestosInternos', titulo: 'Imp. internos' }, { clave: 'noComputable', titulo: 'No computable' }];
 
 function LibroIva({ titulo, ruta, tercero, extra }: { titulo: string; ruta: string; tercero: string; extra: Extra[] }) {

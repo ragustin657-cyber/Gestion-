@@ -33,7 +33,7 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
   const { ambiente, omitidos } = await ventasDelAmbiente(tx, ctx.desde, ctx.hasta);
   advertencias.push(...omitidos);
   const ventas = await tx.comprobanteVenta.findMany({
-    where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: ctx.desde, lte: ctx.hasta } }, include: { ivas: true, tercero: true },
+    where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: ctx.desde, lte: ctx.hasta } }, include: { ivas: true, tercero: true, percepcionesDetalle: true },
     orderBy: [{ fecha: 'asc' }, { tipo: 'asc' }, { puntoVenta: 'asc' }, { numero: 'asc' }],
   });
   for (const c of ventas) {
@@ -46,6 +46,9 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
       fecha: c.fecha, tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numero, numeroHasta: c.numero,
       codigoDocumento: doc.codigo, numeroDocumento: doc.numero(c.tercero.cuit), denominacion: c.tercero.razonSocial,
       importeTotal: c.total.toString(), noGravado: esC ? '0' : c.noGravado.toString(), exento: esC ? '0' : c.exento.toString(),
+      // E39: percepciones practicadas (moneda de origen, como los demás importes)
+      percepcionesNacionales: c.percepcionesDetalle.filter((x) => x.tipo === 'IVA').reduce((t, x) => t.plus(x.importe), new D(0)).toString(),
+      percepcionesIibb: c.percepcionesDetalle.filter((x) => x.tipo === 'IIBB').reduce((t, x) => t.plus(x.importe), new D(0)).toString(),
       moneda: monedaArca(c.monedaCodigo as 'ARS' | 'USD'), tipoCambio: c.cotizacion.toString(), cantidadAlicuotas: alicuotas.length,
       codigoOperacion: esC ? ' ' : codigoOperacion(c.ivas.length > 0, c.exento.gt(0), c.noGravado.gt(0)),
       fechaVencimientoPago: c.fechaVencimientoPago ?? c.fechaVencimiento,

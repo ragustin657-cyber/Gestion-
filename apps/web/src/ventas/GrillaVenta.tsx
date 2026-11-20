@@ -1,3 +1,4 @@
+import { nombreJurisdiccion } from '@gestion/shared';
 import { ActionIcon, Button, Group, ScrollArea, Select, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useRef } from 'react';
@@ -46,10 +47,18 @@ export function TituloComprobante({ tipo, empresa, cliente, letra }: { tipo: Tip
   return <Title order={4}>{`${NOMBRE_TIPO[tipo]} ${l ?? ''}`.trim()}</Title>;
 }
 
-export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio }: {
+/** Percepción practicada guardada en el comprobante (E39). */
+export interface PercepcionVenta { tipo: string; jurisdiccion: string | null; alicuota: string; importe: string; origenAlicuota: string }
+const ORIGEN: Record<string, string> = { PADRON: 'padrón', FICHA: 'ficha', DEFECTO: 'alícuota por defecto', REGIMEN: 'régimen', ASOCIADA: 'comprobante asociado' };
+export const etiquetaPercepcion = (p: PercepcionVenta) =>
+  `Percepción ${p.tipo === 'IVA' ? 'IVA' : `IIBB ${nombreJurisdiccion(p.jurisdiccion ?? '')}`} ${Number(p.alicuota).toLocaleString('es-AR', { maximumFractionDigits: 4 })} % (${ORIGEN[p.origenAlicuota] ?? p.origenAlicuota})`;
+
+export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio, percepciones }: {
   renglones: RenglonVentaEditable[]; onChange: (r: RenglonVentaEditable[]) => void; letra: LetraVenta; moneda: string; articulos: ArticuloVenta[];
   /** Precio de la lista del cliente para el artículo elegido. */
   sugerirPrecio?: (articuloId: string) => Promise<string | null>;
+  /** Percepciones calculadas al guardar (E39); se recalculan al emitir. */
+  percepciones?: PercepcionVenta[];
 }) {
   const cambiar = (i: number, c: Partial<RenglonVentaEditable>) => onChange(renglones.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const ultimos = useRef(renglones);
@@ -98,7 +107,8 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
           {discrimina && t.ivas.map((x) => <Text size="xs" c="dimmed" key={`i${x.alicuota}`}>{formatoMoneda(x.importe, moneda)}</Text>)}
           {discrimina && Number(t.exento) > 0 && <Text size="sm">Exento {formatoMoneda(t.exento, moneda)}</Text>}
           {discrimina && Number(t.noGravado) > 0 && <Text size="sm">No gravado {formatoMoneda(t.noGravado, moneda)}</Text>}
-          <Text fw={700} data-testid="total-venta">Total {formatoMoneda(t.total, moneda)}</Text>
+          {(percepciones ?? []).map((p) => <Group gap={6} key={`${p.tipo}${p.jurisdiccion}${p.alicuota}`}><Text size="sm">{etiquetaPercepcion(p)}</Text><Text size="sm">{formatoMoneda(p.importe, moneda)}</Text></Group>)}
+          <Text fw={700} data-testid="total-venta">Total {formatoMoneda(Number(t.total) + (percepciones ?? []).reduce((a, p) => a + Number(p.importe), 0), moneda)}</Text>
         </Stack>
       </Group>
     </Stack>

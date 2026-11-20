@@ -2,7 +2,7 @@ import { verificarMesesAbiertos } from '../../impuestos/posicion-iva/bloqueo';
 import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadGatewayException, BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import type { AmbienteArca, ComprobanteVenta, PeriodoContable, Tercero } from '@prisma/client';
-import { alicuotaArca, cbteTipo, condicionIvaReceptorArca, docTipoArca, monedaArca, normalizarCuit, type AlicuotaIva, type LetraVenta } from '@gestion/shared';
+import { alicuotaArca, cbteTipo, condicionIvaReceptorArca, docTipoArca, monedaArca, nombreJurisdiccion, normalizarCuit, type AlicuotaIva, type LetraVenta } from '@gestion/shared';
 import { ConfigArcaService } from '../../arca/config-arca.service';
 import { ClienteArca, DatosCae, ErrorConexionArca, ErrorServicioArca, ResultadoCae } from '../../arca/cliente-arca';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
@@ -16,6 +16,7 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { D } from '../../tesoreria/operaciones/tesoreria-comun';
 import { AUTORIZADO_NO_SE_ANULA, ComprobantesVentaService, emisionEnCurso, numeroVenta } from '../comprobantes/comprobantes.service';
 import { asientoVenta } from './asiento-venta';
+import { PercepcionesVentaService } from '../percepciones/percepciones.service';
 
 const OTRA_EN_CURSO = 'Hay otra emisión en curso para este punto de venta, reintente en unos segundos';
 const SIN_CONEXION = 'No se pudo conectar con ARCA: el comprobante quedó pendiente de CAE';
@@ -41,6 +42,7 @@ export class EmisionService {
     private readonly stock: VentasStock,
     private readonly origenes: OrigenesVenta,
     private readonly bajas: BajasService,
+    private readonly percepciones: PercepcionesVentaService,
   ) {}
 
   registrarAlAutorizar(f: AlAutorizar) {
@@ -106,9 +108,13 @@ export class EmisionService {
       const empresaId = this.tenant.empresaId;
       await this.comprobantes.obtener(id, tx);
       await bloquear(tx, 'ComprobanteVenta', empresaId, [id]);
-      const c = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id }, include: { tercero: true } });
-      if (c.estado === 'AUTORIZADO') throw new BadRequestException('El comprobante ya está autorizado');
-      await verificarMesesAbiertos(tx, empresaId, c.fecha);
+      const leido = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id }, include: { tercero: true } });
+      if (leido.estado === 'AUTORIZADO') throw new BadRequestException('El comprobante ya está autorizado');
+      await verificarMesesAbiertos(tx, empresaId, leido.fecha);
+      // E39: las percepciones se recalculan al emitir con el padrón vigente (salvo un reintento con número ya reservado: va lo mismo a ARCA)
+      // Dos NC de la misma factura se serializan (aunque sean de otro punto de venta): la reversión ve a la otra (revisión E39)
+      if (leido.tipo === 'NOTA_CREDITO' && leido.comprobanteAsociadoId) await bloquear(tx, 'ComprobanteVenta', empresaId, [leido.comprobanteAsociadoId]);
+      const c = leido.numeroReservado === null ? await this.recalcularPercepciones(tx, leido) : leido;
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta);
       const clave = `ARCA-${ambiente}-${tipoArca}`;
       await tx.$executeRaw`INSERT INTO "Talonario" ("id", "empresaId", "tipoComprobante", "puntoVenta", "ultimoNumero")
@@ -135,6 +141,19 @@ export class EmisionService {
     });
   }
 
+  private async recalcularPercepciones(tx: TxEmpresa, c: ComprobanteVenta & { tercero: Tercero }): Promise<ComprobanteVenta & { tercero: Tercero }> {
+    const ivas = await tx.comprobanteVentaIva.findMany({ where: { comprobanteId: c.id } });
+    const p = await this.percepciones.calcular(tx, {
+      tipo: c.tipo, letra: c.letra, fecha: c.fecha, terceroId: c.terceroId, cotizacion: c.cotizacion, netoGravado: c.netoGravado.toString(), noGravado: c.noGravado.toString(),
+      exento: c.exento.toString(), ivas: ivas.map((x) => ({ alicuota: x.alicuota.toString(), base: x.base.toString() })), comprobanteAsociadoId: c.comprobanteAsociadoId, excluirId: c.id,
+    });
+    await tx.comprobanteVentaPercepcion.deleteMany({ where: { comprobanteId: c.id } });
+    if (p.renglones.length) await tx.comprobanteVentaPercepcion.createMany({ data: p.renglones.map((r) => ({ empresaId: this.tenant.empresaId, comprobanteId: c.id, ...r })) });
+    const total = c.total.minus(c.percepciones).plus(p.total);
+    const actualizado = await tx.comprobanteVenta.update({ where: { id: c.id }, data: { percepciones: p.total, total, totalPesos: total.mul(c.cotizacion).toDecimalPlaces(2) } });
+    return { ...actualizado, tercero: c.tercero };
+  }
+
   private async datosCae(tx: TxEmpresa, c: ComprobanteVenta & { tercero: Tercero }, tipoArca: number): Promise<Omit<DatosCae, 'numero'>> {
     const ivas = await tx.comprobanteVentaIva.findMany({ where: { comprobanteId: c.id } });
     const empresa = await tx.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
@@ -153,6 +172,11 @@ export class EmisionService {
       ...(servicio ? { fchServDesde: yyyymmdd(c.fechaServicioDesde!), fchServHasta: yyyymmdd(c.fechaServicioHasta!), fchVtoPago: yyyymmdd(c.fechaVencimientoPago!) } : {}),
       iva: letraC ? [] : ivas.map((x) => ({ id: alicuotaArca(Number(x.alicuota) as AlicuotaIva), baseImp: x.base.toFixed(2), importe: x.importe.toFixed(2) })),
       asociados,
+      // Percepciones (E39): Id 7 IIBB, 6 IVA (tabla FEParamGetTiposTributos)
+      tributos: (await tx.comprobanteVentaPercepcion.findMany({ where: { comprobanteId: c.id }, orderBy: [{ tipo: 'asc' }, { jurisdiccion: 'asc' }, { tramo: 'asc' }] })).map((p) => ({
+        id: p.tipo === 'IVA' ? 6 : 7, desc: p.tipo === 'IVA' ? `Percepción IVA RG ${p.regimenCodigo ?? ''}`.trim() : `Percepción IIBB ${nombreJurisdiccion(p.jurisdiccion!)}`,
+        baseImp: p.base.toFixed(2), alic: p.alicuota.toFixed(2), importe: p.importe.toFixed(2),
+      })),
     };
   }
 
@@ -188,7 +212,7 @@ export class EmisionService {
           estado: 'AUTORIZADO', comisionPct, numero, cae: r.cae, caeVencimiento: fechaDe(r.caeVencimiento), emisionEnCurso: null, numeroReservado: null,
           ultimoError: r.observaciones.length ? `Observaciones de ARCA: ${r.observaciones.join('; ')}` : null,
         },
-        include: { tercero: true, renglones: true },
+        include: { tercero: true, renglones: true, percepcionesDetalle: true },
       });
       await tx.movimientoCuentaCorriente.create({
         data: {
@@ -202,7 +226,8 @@ export class EmisionService {
       advertencias.push(...(await this.origenes.registrar(tx, c.renglones)));
       await this.stock.bloquearArticulos(tx, c.renglones.filter((x) => !x.remitoRenglonId));
       const renglones = asientoVenta(
-        { tipo: c.tipo, total: c.total.toString(), iva: c.iva.toString(), cotizacion: c.cotizacion.toString(), renglones: c.renglones.map((x) => ({ cuentaContableId: x.cuentaContableId, neto: x.neto.toString() })) },
+        { tipo: c.tipo, total: c.total.toString(), iva: c.iva.toString(), cotizacion: c.cotizacion.toString(), renglones: c.renglones.map((x) => ({ cuentaContableId: x.cuentaContableId, neto: x.neto.toString() })),
+          percepciones: await Promise.all(c.percepcionesDetalle.map(async (p) => ({ cuentaContableId: await this.cuentas.cuenta(tx, p.tipo === 'IVA' ? 'PERCEPCION_IVA_PRACTICADA' : 'PERCEPCION_IIBB_PRACTICADA'), importe: p.importe.toString() }))) },
         { deudores: await this.cuentas.cuenta(tx, 'DEUDORES_POR_VENTAS'), ivaDebito: await this.cuentas.cuenta(tx, 'IVA_DEBITO_FISCAL') },
       );
       const asiento = await this.asientos.generar(tx, {

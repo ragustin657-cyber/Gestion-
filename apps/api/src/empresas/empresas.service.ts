@@ -20,6 +20,7 @@ export interface DatosEmpresa {
   agenteRetencionGanancias?: boolean;
   agenteRetencionIva?: boolean;
   agenteRetencionSuss?: boolean;
+  agentePercepcionIva?: boolean;
   jurisdiccionesIibb?: string[];
 }
 

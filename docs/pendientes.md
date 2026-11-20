@@ -129,6 +129,11 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 5. **F.931:** el diseño contra el manual de ARCA. Quedó fuera de alcance en la entrega 22. El Libro de Sueldos Digital sí se verificó en la entrega 30.
 6. **Ganancias:** topes y porcentajes del art. 85 y de la RG 4003, y las tablas semestrales. Se cargan en pantalla.
 7. **Regímenes de Ganancias (RG 830), su escala y la configuración de IIBB precargados:** la pantalla ya pide verificarlos.
+8. **Percepciones en ventas (entrega 39):**
+   - diseño del lote de percepciones de ARBA (61 posiciones: CUIT con guiones, fecha, tipo y número de comprobante, base e importe con signo, tipo de operación), contra el instructivo de ARBA;
+   - códigos de tributo de ARCA para el CAE (7 percepción de IIBB, 6 percepción de IVA), contra `FEParamGetTiposTributos`;
+   - archivo de notas de crédito de e-ARCIBA (hoy se cargan a mano con el informe de percepciones practicadas);
+   - lote del SIRE para las percepciones de IVA (hoy se cargan a mano con el informe) y el código de régimen de percepción de IVA.
 
 ---
 

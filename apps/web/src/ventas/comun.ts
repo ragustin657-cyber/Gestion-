@@ -26,6 +26,8 @@ export interface ComprobanteVenta {
   comprobanteAsociadoId: string | null; aplicarAAsociado: boolean;
   tercero?: { razonSocial: string }; renglones?: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; neto: string; iva: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null }[];
   ivas?: { alicuota: string; base: string; importe: string }[];
+  /** Percepciones practicadas (E39) */
+  percepciones?: string; percepcionesDetalle?: { tipo: string; jurisdiccion: string | null; alicuota: string; importe: string; origenAlicuota: string }[];
 }
 export interface MovPendiente { id: string; origenTipo: string; origenId: string; descripcion: string; fecha: string; fechaVencimiento: string; monedaCodigo: string; importe: string; saldo: string; saldoPesos: string }
 

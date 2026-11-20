@@ -25,6 +25,7 @@ const CAMPOS: CampoAbm[] = [
   { nombre: 'domicilio', etiqueta: 'Domicilio', tipo: 'texto', ancho: true },
   { nombre: 'agenteRetencionGanancias', etiqueta: 'Agente de retención de Ganancias', tipo: 'booleano' },
   { nombre: 'agenteRetencionIva', etiqueta: 'Agente de retención de IVA', tipo: 'booleano' },
+  { nombre: 'agentePercepcionIva', etiqueta: 'Agente de percepción de IVA (ventas)', tipo: 'booleano' },
   { nombre: 'agenteRetencionSuss', etiqueta: 'Agente de retención de SUSS', tipo: 'booleano' },
   { nombre: 'jurisdiccionesIibb', etiqueta: 'Agente de IIBB en jurisdicciones', tipo: 'multiselect', opciones: JURISDICCIONES, ancho: true },
 ];
