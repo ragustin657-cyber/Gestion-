@@ -4,7 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api, ErrorApi } from '../api/cliente';
 
-interface Config { arbaActividad: string; arbaSucursal: number; arbaPeriodicidad: string; agipCodigoNorma: string }
+interface Config {
+  arbaActividad: string; arbaSucursal: number; arbaPeriodicidad: string; agipCodigoNorma: string;
+  ivaInicioAnio: number | null; ivaInicioMes: number | null; ivaSaldoTecnicoInicial: string | number; ivaSaldoLibreInicial: string | number;
+}
 
 export function ConfigImpuestosPage() {
   const q = useQuery({ queryKey: ['/impuestos/config'], queryFn: () => api<Config>('/impuestos/config') });
@@ -15,7 +18,7 @@ export function ConfigImpuestosPage() {
   const guardar = async () => {
     setError('');
     try {
-      await api('/impuestos/config', { metodo: 'PUT', body: c });
+      await api('/impuestos/config', { metodo: 'PUT', body: { ...c, ivaSaldoTecnicoInicial: Number(c.ivaSaldoTecnicoInicial) || 0, ivaSaldoLibreInicial: Number(c.ivaSaldoLibreInicial) || 0 } });
       notifications.show({ color: 'green', message: 'Configuración guardada' });
     } catch (e) {
       setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado');
@@ -34,6 +37,16 @@ export function ConfigImpuestosPage() {
         <Title order={5}>AGIP (e-ARCIBA)</Title>
         <TextInput label="Código de norma de retención" w={200} value={c.agipCodigoNorma} onChange={(e) => setC({ ...c, agipCodigoNorma: e.currentTarget.value })} />
         <Text size="xs" c="dimmed">Valores por defecto a confirmar con el contador: actividad 6 de ARBA y norma 029 de AGIP.</Text>
+        <Title order={5}>Posición de IVA</Title>
+        <Group>
+          <NumberInput label="Primer mes liquidado" w={160} min={1} max={12} value={c.ivaInicioMes ?? ''} onChange={(v) => setC({ ...c, ivaInicioMes: v === '' ? null : Number(v) })} />
+          <NumberInput label="Año" w={110} min={2000} max={2100} value={c.ivaInicioAnio ?? ''} onChange={(v) => setC({ ...c, ivaInicioAnio: v === '' ? null : Number(v) })} />
+        </Group>
+        <Group>
+          <NumberInput label="Saldo técnico a favor inicial" w={220} min={0} decimalScale={2} value={Number(c.ivaSaldoTecnicoInicial)} onChange={(v) => setC({ ...c, ivaSaldoTecnicoInicial: Number(v) || 0 })} />
+          <NumberInput label="Saldo de libre disponibilidad inicial" w={240} min={0} decimalScale={2} value={Number(c.ivaSaldoLibreInicial)} onChange={(v) => setC({ ...c, ivaSaldoLibreInicial: Number(v) || 0 })} />
+        </Group>
+        <Text size="xs" c="dimmed">Los saldos a favor al comienzo del primer mes que se liquida en el sistema (los de la última DJ presentada fuera del sistema).</Text>
         {error && <Alert color="red">{error}</Alert>}
         <Group><Button onClick={() => void guardar()}>Guardar</Button></Group>
       </Stack>
