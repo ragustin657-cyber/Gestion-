@@ -4,7 +4,7 @@ import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ComprobanteVenta } from '@prisma/client';
-import { calcularVenta, cbteTipo, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
+import { calcularVenta, cbteTipo, JURISDICCIONES_CM, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
 import { fechaAR } from '../../compras/comun';
 import { importeAR, pdfVenta } from '../pdf/pdf-venta';
 import { importesConIva } from '../pdf/importes-b';
@@ -251,6 +251,11 @@ export class ComprobantesVentaService {
       for (const iva of c.ivas) totales.push([`IVA ${Number(iva.alicuota).toLocaleString('es-AR')}%`, importeAR(iva.importe.toString())]);
       if (!c.noGravado.isZero()) totales.push(['No gravado', importeAR(c.noGravado.toString())]);
       if (!c.exento.isZero()) totales.push(['Exento', importeAR(c.exento.toString())]);
+    }
+    // Percepciones practicadas (E39): en toda letra, entre el IVA y el total
+    for (const p of c.percepcionesDetalle) {
+      const alic = `${Number(p.alicuota).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} %`;
+      totales.push([p.tipo === 'IVA' ? `Percepción IVA ${alic}` : `Percepción IIBB ${JURISDICCIONES_CM[p.jurisdiccion!] ?? p.jurisdiccion} ${alic}`, importeAR(p.importe.toString())]);
     }
     const contenido = await pdfVenta({
       empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), condicionIva: ETIQUETAS_CONDICION_IVA[empresa.condicionIva], domicilio: empresa.domicilio },

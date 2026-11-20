@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararVentas } from './helpers-ventas';
@@ -119,4 +120,48 @@ describe('percepciones en ventas (E39)', () => {
     expect([e.body.estado, Number(e.body.total)]).toEqual(['AUTORIZADO', 1240]);
     expect(de(e.body, 'IIBB')).toHaveLength(1);
   });
+
+  const asiento = async (comprobanteId: string) => {
+    const c = await prisma.comprobanteVenta.findUniqueOrThrow({ where: { id: comprobanteId } });
+    const a = await prisma.asiento.findUniqueOrThrow({ where: { id: c.asientoId! }, include: { renglones: true } });
+    const r: Record<string, [string, string]> = {};
+    for (const x of a.renglones) r[(await prisma.cuentaContable.findUniqueOrThrow({ where: { id: x.cuentaContableId } })).codigo] = [x.debe.toFixed(2), x.haber.toFixed(2)];
+    return r;
+  };
+
+  it('asiento: percepciones a depositar al haber; la NC al revés; en dólares cuadra en pesos', async () => {
+    const x = await escenario();
+    await x.percibir('902');
+    await x.padron('902', x.cliente.cuit, 3);
+    await x.ivaAgente();
+    const fc = await x.emitir();
+    expect(await asiento(fc.id)).toEqual({ '1.1.02.001': ['1270.00', '0.00'], '4.1.01': ['0.00', '1000.00'], '2.1.02.001': ['0.00', '210.00'], '2.1.02.008': ['0.00', '30.00'], '2.1.02.009': ['0.00', '30.00'] });
+    const nc = await x.http.post('/api/ventas/comprobantes', x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: fc.id, aplicarAAsociado: false, emitir: true }));
+    expect(await asiento(nc.body.id)).toEqual({ '1.1.02.001': ['0.00', '1270.00'], '4.1.01': ['1000.00', '0.00'], '2.1.02.001': ['210.00', '0.00'], '2.1.02.008': ['30.00', '0.00'], '2.1.02.009': ['30.00', '0.00'] });
+    const usd = await x.emitir({ monedaCodigo: 'USD', cotizacion: 1000, renglones: [{ descripcion: 'S', cantidad: 1, precioUnitario: 100, alicuota: 21 }] });
+    const r = await asiento(usd.id);
+    expect(r['2.1.02.008']).toEqual(['0.00', '3000.00']);
+    expect(r['1.1.02.001']).toEqual(['127000.00', '0.00']);
+  });
+
+  it('el PDF muestra la percepción, también en la factura B', async () => {
+    const x = await escenario();
+    await x.percibir('902');
+    await x.padron('902', x.cliente.cuit, 3);
+    const texto = async (id: string) => {
+      const pdf = await request(app.getHttpServer()).get(`/api/ventas/comprobantes/${id}/pdf`).set('Authorization', `Bearer ${x.token}`).buffer(true).parse((res, cb) => {
+        const partes: Buffer[] = [];
+        res.on('data', (c: Buffer) => partes.push(c));
+        res.on('end', () => cb(null, Buffer.concat(partes)));
+      });
+      const s = (pdf.body as Buffer).toString('latin1');
+      return [...s.matchAll(/\[([^\]]*)\]\s*TJ/g)].map((m) => Buffer.from([...m[1].matchAll(/<([0-9a-fA-F]*)>/g)].map((y) => y[1]).join(''), 'hex').toString('latin1')).join('\n');
+    };
+    // pdfkit parte el texto en el espacio: se busca la jurisdicción y la alícuota juntas
+    expect(await texto((await x.emitir()).id)).toMatch(/Percepción IIBB Buenos Aires[\s\S]{0,3}3,00/);
+    await prisma.tercero.update({ where: { id: x.cliente.id }, data: { condicionIva: 'MONOTRIBUTO' } });
+    const b = await x.emitir();
+    expect(await texto(b.id)).toMatch(/Percepción IIBB Buenos Aires[\s\S]{0,3}3,00/);
+  });
+
 });
