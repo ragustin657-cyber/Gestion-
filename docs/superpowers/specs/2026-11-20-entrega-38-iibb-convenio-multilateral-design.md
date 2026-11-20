@@ -19,7 +19,8 @@ La empresa tributa Ingresos Brutos en varias jurisdicciones por Convenio Multila
 - `JurisdiccionCm` (de empresa, en `MODELOS_DE_EMPRESA`):
   - `{ id, empresaId, anio, jurisdiccion ('901'…'924'), coeficiente Decimal(9,6), alicuota Decimal(9,4) (%), actividad String (código NAES), saldoInicial Decimal(18,2) @default(0) }`;
   - única por `(empresaId, anio, jurisdiccion)`;
-  - una sola actividad y alícuota por jurisdicción: varias actividades quedan fuera de alcance.
+  - una sola actividad y alícuota por jurisdicción: varias actividades quedan fuera de alcance;
+  - `saldoInicial` solo cuenta en el año de inicio (`iibbInicioAnio`): en los demás años la pantalla no lo muestra y la API lo guarda en 0.
 - `ConfigImpuestos` agrega `iibbInicioAnio Int?` e `iibbInicioMes Int?`: el primer mes que se liquida en el sistema. El `saldoInicial` de las jurisdicciones de ese año es el saldo a favor de cada una al comienzo de ese mes.
 - **Validaciones al cerrar un mes:**
   - el año tiene que tener jurisdicciones: `Cargue las jurisdicciones y coeficientes de Convenio Multilateral de AAAA`;
@@ -40,9 +41,13 @@ La empresa tributa Ingresos Brutos en varias jurisdicciones por Convenio Multila
   - `impuesto = base × alicuota / 100`;
   - `retenciones` = `ReciboRetencion` de tipo `IIBB` de esa jurisdicción con fecha en el mes y recibo `CONFIRMADO`;
   - `percepciones` = `ComprobanteCompraPercepcionIibb` de esa jurisdicción, de compras `CONFIRMADO` con `fechaContable` en el mes;
+  - las retenciones y percepciones de IIBB de las liquidaciones de tarjetas (`LiquidacionTarjetaImpuesto`, tipo `IIBB`, de liquidaciones `CONFIRMADO` con `fecha` en el mes) suman a `retenciones` y `percepciones` según su `clase`;
   - `saldoAnterior` = el saldo a favor del mes anterior cerrado o, en el mes de inicio, el `saldoInicial`;
   - `resultado = impuesto − retenciones − percepciones − saldoAnterior`: si es positivo, `aPagar`; si no, `saldoAFavor = −resultado`.
 - Las retenciones y percepciones de jurisdicciones sin `JurisdiccionCm` en el año se informan como aviso: `Hay retenciones o percepciones de la jurisdicción X, que no está en el Convenio de AAAA`. Se ignoran en el cálculo.
+- **Lo que el cálculo deja afuera queda en su cuenta, con aviso** (el asiento solo cancela lo calculado; el contador lo regulariza a mano):
+  - retenciones y percepciones de jurisdicciones fuera del Convenio del año (aviso de arriba);
+  - saldos a favor de jurisdicciones del año anterior que no están en el año: en enero, `Los saldos a favor de X (importe) no pasan a AAAA porque la jurisdicción no está en el Convenio: quedan en la cuenta IIBB Saldo a favor`.
 - El borrador con el mes anterior sin cerrar usa los saldos del borrador anterior y avisa, como la E37 (encadenando hasta el inicio).
 
 ## 5. Cierre, reapertura y bloqueo
@@ -63,9 +68,13 @@ La empresa tributa Ingresos Brutos en varias jurisdicciones por Convenio Multila
 - **Reabrir:** solo el último cerrado (`Reabra primero la liquidación de IIBB de MM/AAAA`), con contraasiento del último día del mes.
 - **Bloqueo:**
   - el mes de IIBB cerrado bloquea lo mismo que el de IVA: confirmar y anular compras, emitir ventas y recibos;
+  - además, crear y anular liquidaciones de tarjetas con impuestos de IIBB con fecha en el mes cerrado;
   - en recibos, la retención que se bloquea es la de IIBB (la de IVA ya la bloquea su posición);
   - el mensaje es `La liquidación de IIBB de MM/AAAA está cerrada: use una fecha de un mes abierto o reabra la liquidación`;
   - el guardia de la E37 se generaliza para mirar las dos posiciones, con el mismo lock compartido por cada una.
+
+## 5 bis. Corrección de la posición de IVA (E37)
+- La posición de IVA no toma hoy las retenciones y percepciones de IVA de las liquidaciones de tarjetas, aunque su asiento las registra en las mismas cuentas. Se suman a `retenciones` y `percepciones` del cálculo de IVA con el mismo criterio de §4, y el mes de IVA cerrado bloquea crear y anular liquidaciones de tarjetas con impuestos de IVA en ese mes.
 
 ## 6. Cuentas y conceptos
 - Cuentas nuevas en el plan modelo y por migración (en empresas con la madre y sin el código):
@@ -107,5 +116,7 @@ La empresa tributa Ingresos Brutos en varias jurisdicciones por Convenio Multila
 - Una jurisdicción con coeficiente 0 y retenciones.
 - Coeficientes que no suman 1.
 - Un año nuevo sin jurisdicciones cargadas.
-- Los saldos a favor de jurisdicciones que dejan de estar en el año siguiente: se informan como aviso y no se arrastran.
+- Los saldos a favor de jurisdicciones que dejan de estar en el año siguiente: se informan como aviso, no se arrastran y quedan en la cuenta.
+- Retenciones y percepciones de IIBB de liquidaciones de tarjetas.
+- Una jurisdicción nueva a mitad de año: no se puede (el `PUT` del año con meses cerrados da 400); entra con saldo cero el año siguiente.
 - Facturas en dólares.
