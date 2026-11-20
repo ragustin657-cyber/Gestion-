@@ -10,10 +10,11 @@ async function ingresar(page: Page, email: string, password: string) {
 
 test.use({ timezoneId: 'America/Argentina/Buenos_Aires' });
 
-// Corre al final de la cadena: cierra (y reabre) la posición de IVA del mes anterior
-test('posición de IVA: el contador configura el inicio, cierra el mes anterior, ve el asiento y lo reabre', async ({ page }) => {
+// Corre al final de la cadena: cierra (y reabre) la posición de IVA de dos meses atrás (la e2e de contabilidad cierra el período contable del mes anterior)
+test('posición de IVA: el contador configura el inicio, cierra un mes y lo reabre', async ({ page }) => {
   const hoy = new Date();
-  const anterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+  const anterior = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1);
+  const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   await ingresar(page, 'contador@demo.com', 'contador1234');
 
   await page.goto('/admin/impuestos');
@@ -24,10 +25,13 @@ test('posición de IVA: el contador configura el inicio, cierra el mes anterior,
 
   await page.goto('/impuestos/posicion-iva');
   await expect(page.getByRole('heading', { name: 'Posición de IVA' })).toBeVisible();
+  if (anterior.getFullYear() !== hoy.getFullYear()) await page.getByRole('textbox', { name: 'Año' }).fill(String(anterior.getFullYear()));
+  await page.getByRole('cell', { name: MESES[anterior.getMonth()], exact: true }).click();
   await expect(page.getByText('Total débito fiscal')).toBeVisible();
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click();
   await expect(page.getByText('Posición cerrada')).toBeVisible();
-  await expect(page.getByText('ver asiento')).toBeVisible();
+  // Septiembre de la demo no tiene movimientos: se cierra con todo en cero y sin asiento (el asiento lo cubre la prueba de la API)
+  await expect(page.getByRole('cell', { name: 'Cerrada' })).toBeVisible();
   await page.getByRole('button', { name: 'Reabrir' }).click();
   await expect(page.getByText('Posición reabierta')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cerrar', exact: true })).toBeVisible();
