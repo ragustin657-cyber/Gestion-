@@ -16,8 +16,10 @@ export interface FilaLibroVentas {
   netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>;
   /** Comprobantes C: el total sin discriminar IVA. */
   noDiscriminado: string; noGravado: string; exento: string; total: string;
+  /** Percepciones practicadas (E39), en pesos */
+  percepcionesIva: string; percepcionesIibb: string;
 }
-export interface TotalesLibro { netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noDiscriminado: string; noGravado: string; exento: string; iva: string; total: string }
+export interface TotalesLibro { netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noDiscriminado: string; noGravado: string; exento: string; iva: string; total: string; percepcionesIva: string; percepcionesIibb: string }
 
 /**
  * Las ventas que cuentan son las del ambiente de ARCA vigente de la empresa: las de otro ambiente (simulado,
@@ -39,10 +41,10 @@ export class LibroVentasService {
     const d = fechaQuery(desde, true)!, h = fechaQuery(hasta, true)!;
     const { ambiente, omitidos } = await ventasDelAmbiente(db, d, h);
     const comps = await db.comprobanteVenta.findMany({
-      where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: d, lte: h } }, include: { ivas: true, tercero: true },
+      where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: d, lte: h } }, include: { ivas: true, tercero: true, percepcionesDetalle: true },
       orderBy: [{ fecha: 'asc' }, { tipo: 'asc' }, { puntoVenta: 'asc' }, { numero: 'asc' }],
     });
-    const sum = { neto: {} as Record<string, Dec>, iva: {} as Record<string, Dec>, noDiscriminado: new D(0), noGravado: new D(0), exento: new D(0), total: new D(0) };
+    const sum = { neto: {} as Record<string, Dec>, iva: {} as Record<string, Dec>, noDiscriminado: new D(0), noGravado: new D(0), exento: new D(0), total: new D(0), percIva: new D(0), percIibb: new D(0) };
     const filas = comps.map((c) => {
       const s = c.tipo === 'NOTA_CREDITO' ? -1 : 1;
       const p = (x: Dec) => x.mul(c.cotizacion).toDecimalPlaces(2).mul(s);
@@ -62,12 +64,16 @@ export class LibroVentasService {
       sum.noGravado = sum.noGravado.plus(noGravado);
       sum.exento = sum.exento.plus(exento);
       sum.total = sum.total.plus(total);
+      const perc = (tipo: string) => c.percepcionesDetalle.filter((x) => x.tipo === tipo).reduce((t, x) => t.plus(p(x.importe)), new D(0));
+      const percIva = perc('IVA'), percIibb = perc('IIBB');
+      sum.percIva = sum.percIva.plus(percIva);
+      sum.percIibb = sum.percIibb.plus(percIibb);
       const t = c.tercero;
       return {
         fecha: c.fecha, comprobante: `${NOMBRE[c.tipo]} ${c.letra} ${numeroVenta(c.puntoVenta, c.numero)}`, cliente: t.razonSocial,
         documento: t.tipoDocumento === 'CUIT' ? formatearCuit(t.cuit) : t.tipoDocumento === 'DNI' ? `DNI ${t.cuit}` : 'Sin identificar',
         condicionIva: ETIQUETAS_CONDICION_IVA[t.condicionIva], netoPorAlicuota: neto, ivaPorAlicuota: iva,
-        noDiscriminado: f2(noDiscriminado), noGravado: f2(noGravado), exento: f2(exento), total: f2(total),
+        noDiscriminado: f2(noDiscriminado), noGravado: f2(noGravado), exento: f2(exento), total: f2(total), percepcionesIva: f2(percIva), percepcionesIibb: f2(percIibb),
       };
     });
     const ivaTotal = Object.values(sum.iva).reduce((a: Dec, x) => a.plus(x), new D(0));
@@ -75,7 +81,7 @@ export class LibroVentasService {
     const advertencias = [...omitidos, ...(await this.cuadre(db, 'IVA_DEBITO_FISCAL', d, h, ivaTotal))];
     return {
       filas, advertencias,
-      totales: { netoPorAlicuota: mapa(sum.neto), ivaPorAlicuota: mapa(sum.iva), noDiscriminado: f2(sum.noDiscriminado), noGravado: f2(sum.noGravado), exento: f2(sum.exento), iva: f2(ivaTotal), total: f2(sum.total) },
+      totales: { netoPorAlicuota: mapa(sum.neto), ivaPorAlicuota: mapa(sum.iva), noDiscriminado: f2(sum.noDiscriminado), noGravado: f2(sum.noGravado), exento: f2(sum.exento), iva: f2(ivaTotal), total: f2(sum.total), percepcionesIva: f2(sum.percIva), percepcionesIibb: f2(sum.percIibb) },
     };
   }
 

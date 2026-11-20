@@ -99,6 +99,19 @@ export const ARBA_ALTA: Campo[] = [
   { nombre: 'base', largo: 16, tipo: 'IMPORTE', separador: '.' },
 ];
 
+/** ARBA — percepciones practicadas (61, E39; diseño a verificar con el instructivo de ARBA). */
+export const ARBA_PERCEPCION: Campo[] = [
+  { nombre: 'cuit', largo: 13, tipo: 'TXT' },
+  { nombre: 'fecha', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
+  { nombre: 'tipoComprobante', largo: 1, tipo: 'TXT' },
+  { nombre: 'letra', largo: 1, tipo: 'TXT' },
+  { nombre: 'puntoVenta', largo: 4, tipo: 'NUM' },
+  { nombre: 'numero', largo: 8, tipo: 'NUM' },
+  { nombre: 'base', largo: 12, tipo: 'IMPORTE', separador: '.', signo: true },
+  { nombre: 'importe', largo: 11, tipo: 'IMPORTE', separador: '.', signo: true },
+  { nombre: 'tipoOperacion', largo: 1, tipo: 'TXT' },
+];
+
 /** AGIP e-ARCIBA — retenciones/percepciones (215). */
 export const AGIP_RETENCION: Campo[] = [
   { nombre: 'tipoOperacion', largo: 1, tipo: 'NUM' },

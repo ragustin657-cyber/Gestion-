@@ -1,10 +1,11 @@
+import { percepcionesDelPeriodo } from '../percepciones/percepciones-periodo';
 import { normalizarCuit } from '@gestion/shared';
 import { BadRequestException } from '@nestjs/common';
 import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { D } from '../../tesoreria/operaciones/tesoreria-comun';
 import { archivo, linea } from '../formato/escritor';
 import { SIRE_F2004, SIRE_F2005 } from '../formato/formatos';
-import { ContextoGeneracion, Generado } from '../presentaciones/generado';
+import { ContextoGeneracion, Generado, mmaaaa } from '../presentaciones/generado';
 import { acumulador, retencionesDelPeriodo } from './comun';
 
 /** Tabla TIPO_COMPROBANTE del SIRE (§6.3): factura 1, nota de débito 4. */
@@ -47,6 +48,9 @@ export async function sireIva(tx: TxEmpresa, ctx: ContextoGeneracion): Promise<G
       motivoNotaCredito: '', retenidoClave: normalizarCuit(r.ordenPago.tercero.cuit), certificadoOriginal: '', certificadoOriginalFecha: null, certificadoOriginalImporte: '', motivoAnulacion: '',
     }, i + 1));
   });
+  // E39: las percepciones de IVA practicadas se cargan en el SIRE con el informe (el lote de percepciones queda a verificar)
+  const percs = await percepcionesDelPeriodo(tx, ctx.desde, ctx.hasta, { tipo: 'IVA' });
+  if (percs.length) a.advertencias.push(`Hay percepciones de IVA en ${mmaaaa(ctx.periodo)}: cárguelas en el SIRE con el informe de percepciones practicadas`);
   return generado('F2005', ctx, lineas, filas.reduce((s, f) => s.plus(f.r.importe), new D(0)), a.advertencias);
 }
 

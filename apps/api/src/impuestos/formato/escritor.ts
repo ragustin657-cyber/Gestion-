@@ -43,12 +43,14 @@ export function linea(campos: Campo[], valores: Record<string, Valor>, registro?
       }
       case 'IMPORTE': {
         const n = new D(v === null || v === undefined || v === '' ? 0 : String(v));
-        if (n.isNeg()) throw desborde(n.toString());
+        if (n.isNeg() && !c.signo) throw desborde(n.toString());
         const dec = c.decimales ?? 2;
-        const fijo = n.toFixed(dec);
+        const fijo = n.abs().toFixed(dec);
         const s = c.separador === '' ? fijo.replace('.', '') : fijo.replace('.', c.separador);
-        if (s.length > c.largo) throw desborde(s);
-        return s.padStart(c.largo, '0');
+        // Con signo (E39): el negativo lleva '-' adelante y ocupa una posición
+        const largo = n.isNeg() ? c.largo - 1 : c.largo;
+        if (s.length > largo) throw desborde(s);
+        return (n.isNeg() ? '-' : '') + s.padStart(largo, '0');
       }
       case 'FECHA':
         return fecha(v, c.formato);

@@ -1,3 +1,5 @@
+import { formatearCuit } from '@gestion/shared';
+import { percepcionesDelPeriodo, totalPercepciones } from '../percepciones/percepciones-periodo';
 import { BadRequestException, Controller, Get, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
@@ -18,7 +20,7 @@ const imp = (titulo: string, ancho = 12): Columna => ({ titulo, ancho, importe: 
 const porAlicuotaCols = (): Columna[] => ALICUOTAS_LIBRO.flatMap((a) => [imp(`Neto ${a.replace('.', ',')}%`, 13), ...(a === '0' ? [] : [imp(`IVA ${a.replace('.', ',')}%`)])]);
 const COLUMNAS_VENTAS: Columna[] = [
   { titulo: 'Fecha', ancho: 11 }, { titulo: 'Comprobante', ancho: 26 }, { titulo: 'Cliente', ancho: 28 }, { titulo: 'CUIT/Doc.', ancho: 15 }, { titulo: 'Condición IVA', ancho: 18 },
-  ...porAlicuotaCols(), imp('No discriminado', 14), imp('No gravado'), imp('Exento'), imp('Total', 14),
+  ...porAlicuotaCols(), imp('No discriminado', 14), imp('No gravado'), imp('Exento'), imp('Perc. IVA'), imp('Perc. IIBB'), imp('Total', 14),
 ];
 const COLUMNAS_COMPRAS: Columna[] = [
   { titulo: 'Fecha', ancho: 11 }, { titulo: 'Comprobante', ancho: 26 }, { titulo: 'Proveedor', ancho: 28 }, { titulo: 'CUIT/Doc.', ancho: 15 },
@@ -52,9 +54,27 @@ export class LibrosIvaController {
     rango(desde, hasta);
     const l = await this.ventas.libro(desde, hasta);
     if (formato !== 'xlsx' && formato !== 'pdf') return l;
-    const filas: Fila[] = l.filas.map((f) => [fecha(f.fecha), f.comprobante, f.cliente, f.documento, f.condicionIva, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), f.noDiscriminado, f.noGravado, f.exento, f.total]);
-    filas.push(['', 'Totales', '', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), l.totales.noDiscriminado, l.totales.noGravado, l.totales.exento, l.totales.total]);
+    const filas: Fila[] = l.filas.map((f) => [fecha(f.fecha), f.comprobante, f.cliente, f.documento, f.condicionIva, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), f.noDiscriminado, f.noGravado, f.exento, f.percepcionesIva, f.percepcionesIibb, f.total]);
+    filas.push(['', 'Totales', '', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), l.totales.noDiscriminado, l.totales.noGravado, l.totales.exento, l.totales.percepcionesIva, l.totales.percepcionesIibb, l.totales.total]);
     return this.salida(res, 'libro-iva-ventas', 'Libro IVA Ventas', desde, hasta, formato, COLUMNAS_VENTAS, filas);
+  }
+
+  /** Percepciones practicadas en ventas (E39): detalle por comprobante, para cargar en el SIRE o en e-ARCIBA lo que no va en los archivos. */
+  @Get('percepciones-practicadas')
+  async percepcionesPracticadas(@Query('desde') desde: string, @Query('hasta') hasta: string, @Query('tipo') tipo: string | undefined, @Query('formato') formato: string | undefined, @Res({ passthrough: true }) res: Response) {
+    rango(desde, hasta);
+    const t = tipo === 'IVA' || tipo === 'IIBB' ? tipo : undefined;
+    const ps = await percepcionesDelPeriodo(this.tenant.db, fechaQuery(desde, true)!, fechaQuery(hasta, true)!, { tipo: t });
+    const filas = ps.map((f) => ({
+      fecha: f.c.fecha, comprobante: f.comprobante, cliente: f.c.tercero.razonSocial, cuit: formatearCuit(f.c.tercero.cuit), tipo: f.p.tipo,
+      jurisdiccion: f.p.jurisdiccion, regimen: f.p.regimenCodigo, base: f.basePesos.mul(f.signo).toFixed(2), alicuota: f.p.alicuota.toString(), importe: f.importePesos.mul(f.signo).toFixed(2),
+    }));
+    const total = totalPercepciones(ps).toFixed(2);
+    if (formato !== 'xlsx' && formato !== 'pdf') return { filas, total };
+    const cols: Columna[] = [{ titulo: 'Fecha', ancho: 11 }, { titulo: 'Comprobante', ancho: 26 }, { titulo: 'Cliente', ancho: 28 }, { titulo: 'CUIT', ancho: 15 }, { titulo: 'Impuesto', ancho: 14 }, imp('Base'), { titulo: 'Alícuota', ancho: 9 }, imp('Percepción')];
+    const fs: Fila[] = filas.map((f) => [fecha(f.fecha), f.comprobante, f.cliente, f.cuit, f.tipo === 'IVA' ? `IVA ${f.regimen ?? ''}`.trim() : `IIBB ${f.jurisdiccion}`, f.base, f.alicuota, f.importe]);
+    fs.push(['', 'Total', '', '', '', '', '', total]);
+    return this.salida(res, 'percepciones-practicadas', 'Percepciones practicadas', desde, hasta, formato, cols, fs);
   }
 
   @Get('libro-iva-compras')
