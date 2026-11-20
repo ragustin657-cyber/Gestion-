@@ -257,4 +257,17 @@ describe('liquidación de IIBB por Convenio Multilateral', () => {
       expect([r.status, r.body.message]).toEqual([400, 'La posición de IVA de 09/2026 está cerrada: use una fecha de un mes abierto o reabra la posición']);
     });
   });
+
+  it('ingresos del año por provincia del cliente', async () => {
+    const x = await escenario();
+    await prisma.tercero.update({ where: { id: x.clienteRI.id }, data: { provincia: 'Córdoba' } });
+    const cf = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ terceroId: x.clienteCF.id, tipo: 'FACTURA', fecha: '2026-11-03', renglones: [{ descripcion: 'P', cantidad: 1, precioUnitario: 200, alicuota: 21 }] }), emitir: true });
+    expect(cf.status).toBe(201);
+    const r = (await x.http.get('/api/impuestos/iibb/ingresos-por-provincia?anio=2026')).body as { filas: { jurisdiccion: string | null; nombre: string; ingresos: string; porcentaje: string }[]; total: string };
+    expect(r.total).toBe('101000.00');
+    expect(r.filas.map((f) => [f.jurisdiccion, f.nombre, f.ingresos])).toEqual([['904', '904 Córdoba', '100800.00'], [null, 'Sin provincia', '200.00']]);
+    expect(r.filas.reduce((t, f) => t + Number(f.porcentaje), 0)).toBeCloseTo(100, 1);
+    const xlsx = await x.http.get('/api/impuestos/iibb/ingresos-por-provincia?anio=2026&formato=xlsx');
+    expect([xlsx.status, String(xlsx.headers['content-type'])]).toEqual([200, expect.stringContaining('spreadsheet')]);
+  });
 });

@@ -46,6 +46,22 @@ export class PosicionIibbController {
     return this.posicion.guardarJurisdicciones(anio, d.jurisdicciones);
   }
 
+  @Get('ingresos-por-provincia') @RequierePermiso('impuestos.ver')
+  async ingresosPorProvincia(@Query('anio', ParseIntPipe) anio: number, @Query('formato') formato: string | undefined, @Res({ passthrough: true }) res: Response) {
+    const r = await this.posicion.ingresosPorProvincia(anio);
+    if (formato !== 'xlsx' && formato !== 'pdf') return r;
+    const columnas: Columna[] = [{ titulo: 'Jurisdicción', ancho: 30 }, { titulo: 'Ingresos', ancho: 18, importe: true }, { titulo: '% del total', ancho: 12 }];
+    const filas: Fila[] = [...r.filas.map((f): Fila => [f.nombre, f.ingresos, f.porcentaje]), ['Total', r.total, '100.00']];
+    const titulo = 'Ingresos por provincia', sub = `Año ${anio}`, nombre = `ingresos-por-provincia-${anio}`;
+    if (formato === 'xlsx') {
+      res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${nombre}.xlsx"` });
+      return new StreamableFile(await tablaXlsx(titulo, sub, columnas, filas));
+    }
+    const empresa = await this.tenant.db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="${nombre}.pdf"` });
+    return new StreamableFile(await tablaPdf(empresa.razonSocial, titulo, sub, columnas, filas));
+  }
+
   @Get('posicion/meses') @RequierePermiso('impuestos.ver')
   meses(@Query('anio', ParseIntPipe) anio: number) {
     return this.posicion.meses(anio);

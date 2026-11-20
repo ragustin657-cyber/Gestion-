@@ -10,6 +10,7 @@ import { hoy } from '../../tesoreria/operaciones/tesoreria-comun';
 import { ConfigImpuestosService } from '../config/config-impuestos.service';
 import { calcularPosicionIibb, DetalleJurisdiccion, renglonesAsientoIibb, ResultadoPosicionIibb } from './calculo';
 import { ingresosGravados } from './ingresos';
+import { jurisdiccionDeProvincia } from './provincias';
 
 const D = Prisma.Decimal;
 const f2 = (x: Prisma.Decimal.Value) => new D(x).toFixed(2);
@@ -141,6 +142,23 @@ export class PosicionIibbService {
       const t = p ? calcularTotales(p.detalle as unknown as DetalleJurisdiccion[]) : null;
       return { mes: i + 1, estado: p ? 'CERRADA' : null, aPagar: t?.aPagar ?? null, saldoAFavor: t?.saldoAFavor ?? null };
     });
+  }
+
+  /** Ingresos gravados del año por la provincia del cliente (spec E38 §7): la parte de ingresos del CM05. */
+  async ingresosPorProvincia(anio: number) {
+    if (!Number.isInteger(anio)) throw new BadRequestException('Período inválido');
+    const db = this.tenant.db;
+    const ing = await ingresosGravados(db, new Date(Date.UTC(anio, 0, 1)), new Date(Date.UTC(anio, 11, 31)));
+    const terceros = await db.tercero.findMany({ where: { id: { in: [...ing.porTercero.keys()] } }, select: { id: true, provincia: true } });
+    const provincia = new Map(terceros.map((t) => [t.id, jurisdiccionDeProvincia(t.provincia)]));
+    const porJ = new Map<string | null, Prisma.Decimal>();
+    for (const [id, v] of ing.porTercero) {
+      const j = provincia.get(id) ?? null;
+      porJ.set(j, (porJ.get(j) ?? new D(0)).plus(v));
+    }
+    const filas = [...porJ].sort(([a, x], [b, y]) => (a === null ? 1 : b === null ? -1 : y.comparedTo(x)))
+      .map(([j, v]) => ({ jurisdiccion: j, nombre: j ? nombreJurisdiccion(j) : 'Sin provincia', ingresos: f2(v), porcentaje: ing.total.isZero() ? '0.00' : v.div(ing.total).times(100).toFixed(2) }));
+    return { anio, filas, total: f2(ing.total), avisos: ing.avisos };
   }
 
   private async bloquear(tx: TxEmpresa) {
