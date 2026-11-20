@@ -134,6 +134,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
    - códigos de tributo de ARCA para el CAE (7 percepción de IIBB, 6 percepción de IVA), contra `FEParamGetTiposTributos`;
    - archivo de notas de crédito de e-ARCIBA (hoy se cargan a mano con el informe de percepciones practicadas);
    - lote del SIRE para las percepciones de IVA (hoy se cargan a mano con el informe) y el código de régimen de percepción de IVA.
+9. **Prorrateo del crédito fiscal (entrega 40):** cómo se declara el prorrateo en el Libro IVA Digital (hoy el archivo lleva el IVA entero de cada compra y la generación avisa declarar el prorrateo global con el coeficiente).
 
 ---
 
