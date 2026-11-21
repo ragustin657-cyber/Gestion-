@@ -135,6 +135,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
    - archivo de notas de crédito de e-ARCIBA (hoy se cargan a mano con el informe de percepciones practicadas);
    - lote del SIRE para las percepciones de IVA (hoy se cargan a mano con el informe) y el código de régimen de percepción de IVA.
 9. **Prorrateo del crédito fiscal (entrega 40):** cómo se declara el prorrateo en el Libro IVA Digital (hoy el archivo lleva el IVA entero de cada compra y la generación avisa declarar el prorrateo global con el coeficiente).
+10. **Despachos de importación (entrega 41):** en el Libro IVA Digital, si el importe total del despacho es lo liquidado o incluye la base, y si derechos y tasa van en «otros tributos».
 
 ---
 

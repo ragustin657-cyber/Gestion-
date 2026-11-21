@@ -7,7 +7,7 @@ import { api, ErrorApi } from '../../api/cliente';
 import { useAuth } from '../../auth/AuthContext';
 import { formatoFecha, formatoMoneda, formatoNumero, numeroInterno } from '../formato';
 
-export const TIPOS_FC: Record<string, string> = { FACTURA: 'Factura', NOTA_DEBITO: 'Nota de débito', NOTA_CREDITO: 'Nota de crédito', TICKET: 'Ticket' };
+export const TIPOS_FC: Record<string, string> = { FACTURA: 'Factura', NOTA_DEBITO: 'Nota de débito', NOTA_CREDITO: 'Nota de crédito', TICKET: 'Ticket', DESPACHO_IMPORTACION: 'Despacho de importación' };
 
 interface RenglonAsiento { id: string; cuentaCodigo?: string; cuentaNombre?: string; debe: string; haber: string }
 interface Asiento { numero: number; fecha: string; descripcion: string; renglones: RenglonAsiento[] }

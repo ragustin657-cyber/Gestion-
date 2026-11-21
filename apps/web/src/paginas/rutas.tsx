@@ -1,3 +1,4 @@
+import { DespachoImportacionPage } from '../compras/DespachoImportacionPage';
 import { ConfigCorreoPage } from '../correo/ConfigCorreoPage';
 import { InteresesPage } from '../ventas/InteresesPages';
 import { AgendaCobranzasPage, FichaCobranzaPage } from '../ventas/CobranzasPages';
@@ -123,6 +124,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/compras/oc', elemento: <OrdenesCompraPage /> },
   { ruta: '/compras/recepcion', elemento: <RecepcionPage /> },
   { ruta: '/compras/factura', elemento: <FacturaProveedorPage /> },
+  { ruta: '/compras/despacho', elemento: <DespachoImportacionPage /> },
   { ruta: '/compras/recepciones', elemento: <RecepcionesPage /> },
   { ruta: '/compras/comprobantes', elemento: <ComprobantesCompraPage /> },
   { ruta: '/compras/cuenta-corriente', elemento: <CuentaCorrientePage /> },
