@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import JSZip from 'jszip';
+import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase, sesionConPlan } from './helpers';
 
@@ -128,7 +129,43 @@ describe('despachos de importación (E41)', () => {
       .toEqual(['066', '00000', '0'.repeat(20), NUMERO, '80', '00000000033693450239']);
     expect([l.slice(104, 119), l.slice(149, 164), l.slice(164, 179), l.slice(179, 194), l.slice(237, 238), l.slice(239, 254), l.slice(254, 269)])
       .toEqual(['000000004775000', '000000000300000', '000000000600000', '000000000250000', '2', '000000002625000', '000000001000000']);
-    const alic = Buffer.from(await zip.file('COMPRAS_ALICUOTAS.txt')!.async('uint8array')).toString('latin1').split('\r\n').filter(Boolean);
+    const alic = Buffer.from(await zip.file('COMPRAS_IMPORTACIONES.txt')!.async('uint8array')).toString('latin1').split('\r\n').filter(Boolean);
+    // Revisión: las alícuotas del despacho van al archivo de importaciones
     expect(alic).toHaveLength(2);
+  });
+
+  it('revisión: dos despachos del mes van al archivo de importaciones identificados por su número', async () => {
+    const x = await escenario();
+    await x.despacho();
+    await x.despacho({ numeroDespacho: '26001IC04012346L', renglones: [{ base: 10000, alicuotaIva: 21 }], percepcionIva: 0, percepcionGanancias: 0, percepcionesIibb: [], derechosImportacion: 0, tasaEstadistica: 0, totalDeclarado: 2100 });
+    const g = (await x.http.post('/api/impuestos/presentaciones', { tipo: 'LIBRO_IVA_DIGITAL', periodo: '202610' })).body;
+    const pres = await prisma.presentacion.findUniqueOrThrow({ where: { id: g.id } });
+    const zip = await JSZip.loadAsync(Buffer.from(pres.contenido));
+    const leer = async (n: string) => Buffer.from(await zip.file(n)!.async('uint8array')).toString('latin1').split('\r\n').filter(Boolean);
+    expect(await leer('COMPRAS_ALICUOTAS.txt')).toEqual([]);
+    const imp = await leer('COMPRAS_IMPORTACIONES.txt');
+    expect(imp.map((l) => [l.slice(0, 16), l.length])).toEqual([[NUMERO, 50], [NUMERO, 50], ['26001IC04012346L', 50]]);
+  });
+
+  it('revisión: el número de despacho se ve en la cuenta corriente, el buscador y la orden de pago', async () => {
+    const x = await escenario();
+    const r = await x.despacho();
+    const cc = (await x.http.get(`/api/compras/cuenta-corriente/${r.body.terceroId}`)).body as { movimientos?: { comprobante: string }[] } | { comprobante: string }[];
+    const filas = Array.isArray(cc) ? cc : (cc.movimientos ?? []);
+    expect(filas.map((f) => f.comprobante)).toContain(`Despacho ${NUMERO}`);
+    const b = (await x.http.get(`/api/compras/buscador?q=${NUMERO}`)).body as { numero: string }[];
+    expect(b.map((f) => f.numero)).toContain(`Despacho ${NUMERO}`);
+    const pend = (await x.http.get(`/api/pagos/pendientes?terceroId=${r.body.terceroId}`)).body as { descripcion?: string; comprobante?: string }[];
+    expect(JSON.stringify(pend)).toContain(`Despacho ${NUMERO}`);
+  });
+
+  it('revisión: el control con ARCA no marca los despachos como faltantes', async () => {
+    const x = await escenario();
+    await x.despacho({ fechaEmision: '2026-11-02', fechaContable: '2026-11-02' });
+    const csv = 'Fecha;Tipo;Punto de Venta;Número Desde;Nro. Doc. Emisor;Imp. Neto Gravado;IVA;Imp. Total\n';
+    const r = await request(app.getHttpServer()).post('/api/impuestos/control-arca').set('Authorization', `Bearer ${x.token}`)
+      .field('sentido', 'RECIBIDOS').field('desde', '2026-11-01').field('hasta', '2026-11-30').attach('archivo', Buffer.from(csv), 'mc.csv');
+    expect(r.status).toBe(201);
+    expect(r.body.soloSistema).toEqual([]);
   });
 });

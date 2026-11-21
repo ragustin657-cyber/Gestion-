@@ -12,7 +12,7 @@ export async function describirMovimientos(tx: TxEmpresa, movs: Pick<MovimientoC
   for (const m of movs) {
     if (m.origenTipo === 'COMPRA') {
       const c = comps.find((x) => x.id === m.origenId);
-      r.set(m.id, c ? `${ABREV[c.tipo]} ${c.letra} ${num(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ') : 'Comprobante');
+      r.set(m.id, c ? (c.numeroDespacho ? `Despacho ${c.numeroDespacho}` : `${ABREV[c.tipo]} ${c.letra} ${num(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ')) : 'Comprobante');
     } else if (m.origenTipo === 'ANTICIPO') {
       const o = ops.find((x) => x.id === m.origenId);
       r.set(m.id, `Anticipo OP ${o?.numero ? `0001-${String(o.numero).padStart(8, '0')}` : ''}`.trim());

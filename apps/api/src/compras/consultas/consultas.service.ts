@@ -13,6 +13,9 @@ const f2 = (d: Dec) => d.toFixed(2);
 const DIA = 86400000;
 const ABREV = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK', DESPACHO_IMPORTACION: 'DI' } as const;
 const numeroFc = (pv: number, n: number) => `${String(pv).padStart(5, '0')}-${String(n).padStart(8, '0')}`;
+/** Cómo se muestra un comprobante de compra: el despacho, por su número de despacho (revisión E41). */
+export const descripcionCompra = (c: { tipo: string; letra: string; puntoVenta: number; numero: number; numeroDespacho?: string | null }) =>
+  c.numeroDespacho ? `Despacho ${c.numeroDespacho}` : `${ABREV[c.tipo as keyof typeof ABREV]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ');
 
 /** Valida 'YYYY-MM-DD'; devuelve Date UTC o undefined si no viene. */
 export function fechaQuery(s: string | undefined, obligatoria = false): Date | undefined {
@@ -74,7 +77,7 @@ export class ConsultasComprasService {
       const c = comps.find((x) => x.id === m.origenId);
       const o = ops.find((x) => x.id === m.origenId);
       const comprobante = c
-        ? `${ABREV[c.tipo]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ')
+        ? descripcionCompra(c)
         : o ? `Anticipo OP 0001-${String(o.numero).padStart(8, '0')}` : m.origenTipo;
       return { id: m.id, origenId: m.origenId, fecha: m.fecha, fechaVencimiento: m.fechaVencimiento, comprobante, monedaCodigo: m.monedaCodigo, importe: m.importe, importePesos: m.importePesos, saldo: m.saldo, saldoPesos: m.saldoPesos, orden: i };
     });
@@ -210,11 +213,11 @@ export class ConsultasComprasService {
       const fcs = await this.tenant.db.comprobanteCompra.findMany({
         where: {
           fechaContable: rango,
-          ...(pvNum ? { puntoVenta: pv, numero: num } : texto ? { OR: [...(entero !== undefined ? [{ numero: entero }] : []), ...(terceroWhere ? [{ tercero: terceroWhere }] : [])] } : {}),
+          ...(pvNum ? { puntoVenta: pv, numero: num } : texto ? { OR: [...(entero !== undefined ? [{ numero: entero }] : []), ...(terceroWhere ? [{ tercero: terceroWhere }] : []), { numeroDespacho: { contains: texto.toUpperCase() } }] } : {}),
         },
         include: { tercero: { select: { razonSocial: true } } }, take: 100, orderBy: { fechaContable: 'desc' },
       });
-      r.push(...fcs.map((c) => ({ tipo: 'FC' as const, id: c.id, numero: `${ABREV[c.tipo]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' '), fecha: c.fechaContable, razonSocial: c.tercero.razonSocial, estado: c.estado, total: c.total.toFixed(2) })));
+      r.push(...fcs.map((c) => ({ tipo: 'FC' as const, id: c.id, numero: descripcionCompra(c), fecha: c.fechaContable, razonSocial: c.tercero.razonSocial, estado: c.estado, total: c.total.toFixed(2) })));
     }
     return r.sort((a, b) => b.fecha.getTime() - a.fecha.getTime()).slice(0, 100);
   }

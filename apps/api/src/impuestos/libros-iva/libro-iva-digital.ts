@@ -4,7 +4,7 @@ import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import { ALICUOTA_LIVA, codigoCompra, codigoOperacion, documentoArca } from '../codigos';
 import { archivo, linea } from '../formato/escritor';
-import { LIVA_COMPRAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_VENTAS_ALICUOTAS, LIVA_VENTAS_CBTE } from '../formato/formatos';
+import { LIVA_COMPRAS_ALICUOTAS, LIVA_COMPRAS_CBTE, LIVA_COMPRAS_IMPORTACIONES, LIVA_VENTAS_ALICUOTAS, LIVA_VENTAS_CBTE } from '../formato/formatos';
 import { ContextoGeneracion, Generado, mmaaaa, zip } from '../presentaciones/generado';
 import { ventasDelAmbiente } from './libro-ventas.service';
 
@@ -22,7 +22,7 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
     advertencias.push(...r.advertencias);
     return r.texto;
   };
-  const vCbte: string[] = [], vAlic: string[] = [], cCbte: string[] = [], cAlic: string[] = [];
+  const vCbte: string[] = [], vAlic: string[] = [], cCbte: string[] = [], cAlic: string[] = [], cImp: string[] = [];
   // Totales de control en pesos, calculados igual que los libros (NC restan; IVA redondeado por alícuota)
   const control = { ventas: { total: new D(0), iva: new D(0) }, compras: { total: new D(0), iva: new D(0) } };
   const acumular = (lado: 'ventas' | 'compras', c: { tipo: string; cotizacion: Dec; totalPesos: Dec; ivas: { importe: Dec }[] }) => {
@@ -79,7 +79,10 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
       codigoOperacion: sinCredito ? ' ' : codigoOperacion(c.ivas.length > 0, c.exento.gt(0), c.noGravado.gt(0)),
       creditoFiscalComputable: sinCredito ? '0' : c.iva.toString(), otrosTributos: c.derechosImportacion.plus(c.tasaEstadistica).toString(), cuitCorredor: 0, denominacionCorredor: '', ivaComision: '0',
     }, n)));
-    for (const a of alicuotas)
+    // E41 (revisión): las alícuotas de un despacho van al archivo de importaciones, identificadas por el número de despacho
+    if (c.numeroDespacho)
+      for (const a of alicuotas) cImp.push(agregar(linea(LIVA_COMPRAS_IMPORTACIONES, { despacho: c.numeroDespacho, netoGravado: a.neto.toString(), alicuota: a.alicuota, impuesto: a.impuesto.toString() }, n)));
+    else for (const a of alicuotas)
       cAlic.push(agregar(linea(LIVA_COMPRAS_ALICUOTAS, {
         tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numeroDespacho ? 0 : c.numero, codigoDocumento: doc.codigo, numeroDocumento: doc.numero(c.tercero.cuit),
         netoGravado: a.neto.toString(), alicuota: a.alicuota, impuesto: a.impuesto.toString(),
@@ -94,7 +97,9 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
     const { coeficiente } = await coeficienteDelMes(tx, ctx.config, anio, mes);
     advertencias.push(`Con prorrateo del crédito fiscal: declare el prorrateo global en el Libro IVA Digital (coeficiente ${coeficiente.replace('.', ',')})`);
   }
-  const archivos = { 'VENTAS_CBTE.txt': archivo(vCbte), 'VENTAS_ALICUOTAS.txt': archivo(vAlic), 'COMPRAS_CBTE.txt': archivo(cCbte), 'COMPRAS_ALICUOTAS.txt': archivo(cAlic) };
+  const archivos: Record<string, Buffer> = { 'VENTAS_CBTE.txt': archivo(vCbte), 'VENTAS_ALICUOTAS.txt': archivo(vAlic), 'COMPRAS_CBTE.txt': archivo(cCbte), 'COMPRAS_ALICUOTAS.txt': archivo(cAlic) };
+  // Solo con despachos: así la huella de los meses sin importaciones no cambia
+  if (cImp.length) archivos['COMPRAS_IMPORTACIONES.txt'] = archivo(cImp);
   const contenido = await zip(archivos);
   // La huella es la de los TXT (nombre y contenido), no la del ZIP: no cambia si cambia la compresión
   const huellaDe = Buffer.from(Object.entries(archivos).flatMap(([n, b]) => [n, b.toString('latin1')]).join('\n'), 'latin1');

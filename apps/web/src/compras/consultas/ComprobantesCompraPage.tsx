@@ -4,7 +4,7 @@ import { TablaAbm } from '../../abm/TablaAbm';
 import { formatoFecha, formatoMoneda, formatoNumero } from '../formato';
 import { DetalleComprobante, TIPOS_FC } from './DetalleComprobante';
 
-interface Fila { id: string; tipo: string; letra: string; puntoVenta: number; numero: number; fechaContable: string; monedaCodigo: string; total: string; estado: string; tercero: { razonSocial: string } }
+interface Fila { id: string; numeroDespacho?: string | null; tipo: string; letra: string; puntoVenta: number; numero: number; fechaContable: string; monedaCodigo: string; total: string; estado: string; tercero: { razonSocial: string } }
 
 export function ComprobantesCompraPage() {
   const [estado, setEstado] = useState<string | null>(null);
@@ -25,7 +25,7 @@ export function ComprobantesCompraPage() {
         onSeleccionar={(f) => setAbierto(f.id)}
         columnas={[
           { campo: 'fechaContable', titulo: 'Fecha', render: (f) => formatoFecha(f.fechaContable) },
-          { campo: 'tipo', titulo: 'Comprobante', render: (f) => `${TIPOS_FC[f.tipo]} ${f.letra} ${formatoNumero(f.puntoVenta, f.numero)}` },
+          { campo: 'tipo', titulo: 'Comprobante', render: (f) => (f.numeroDespacho ? `Despacho ${f.numeroDespacho}` : `${TIPOS_FC[f.tipo]} ${f.letra} ${formatoNumero(f.puntoVenta, f.numero)}`) },
           { campo: 'tercero', titulo: 'Proveedor', render: (f) => f.tercero.razonSocial },
           { campo: 'total', titulo: 'Total', render: (f) => formatoMoneda(f.total, f.monedaCodigo) },
           { campo: 'estado', titulo: 'Estado', render: (f) => <Badge size="sm" variant="light" color={f.estado === 'ANULADO' ? 'red' : 'green'}>{f.estado === 'ANULADO' ? 'Anulado' : 'Confirmado'}</Badge> },

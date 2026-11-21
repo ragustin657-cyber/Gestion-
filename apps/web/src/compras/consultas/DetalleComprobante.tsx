@@ -16,6 +16,7 @@ interface Comprobante {
   fechaVencimiento: string; monedaCodigo: string; cotizacion: string; netoGravado: string; iva: string; percepcionIva: string; impuestosInternos: string;
   noGravado: string; exento: string; total: string; totalPesos: string; estado: string; motivoAnulacion: string | null; aceptoDiferencias: boolean;
   destinoCreditoIva?: string;
+  numeroDespacho?: string | null; percepcionGanancias?: string; derechosImportacion?: string; tasaEstadistica?: string;
   tercero: { razonSocial: string; cuit: string };
   renglones: { id: string; descripcion: string; cantidad: string; precioUnitario: string; alicuotaIva: string; importe: string; origen: string }[];
   ivas: { alicuota: string; base: string; importe: string }[];
@@ -74,7 +75,7 @@ export function DetalleComprobante({ id }: { id: string }) {
     <Stack>
       <Group justify="space-between">
         <div>
-          <Title order={4}>{TIPOS_FC[c.tipo]} {c.letra} {formatoNumero(c.puntoVenta, c.numero)}</Title>
+          <Title order={4}>{c.numeroDespacho ? `Despacho de importación ${c.numeroDespacho}` : `${TIPOS_FC[c.tipo]} ${c.letra} ${formatoNumero(c.puntoVenta, c.numero)}`}</Title>
           <Text size="sm" c="dimmed">{c.tercero.razonSocial} · N° interno {c.numeroInterno}</Text>
         </div>
         <Badge color={c.estado === 'ANULADO' ? 'red' : 'green'} variant="light">{c.estado === 'ANULADO' ? 'Anulado' : 'Confirmado'}</Badge>
@@ -102,10 +103,13 @@ export function DetalleComprobante({ id }: { id: string }) {
         </Table.Tbody>
       </Table>
       <Stack gap={2} align="flex-end">
-        <Text size="sm">Neto: {formatoMoneda(c.netoGravado, m)}</Text>
+        <Text size="sm">{c.numeroDespacho ? 'Base imponible (no integra el total)' : 'Neto'}: {formatoMoneda(c.netoGravado, m)}</Text>
         {c.ivas.map((i) => <Text size="sm" key={i.alicuota}>IVA {Number(i.alicuota)} %: {formatoMoneda(i.importe, m)}</Text>)}
         {Number(c.percepcionIva) > 0 && <Text size="sm">Percepción IVA: {formatoMoneda(c.percepcionIva, m)}</Text>}
         {c.percepcionesIibb.map((p) => <Text size="sm" key={p.jurisdiccion}>Percepción IIBB {p.jurisdiccion}: {formatoMoneda(p.importe, m)}</Text>)}
+        {Number(c.percepcionGanancias ?? 0) > 0 && <Text size="sm">Percepción Ganancias: {formatoMoneda(c.percepcionGanancias!, m)}</Text>}
+        {Number(c.derechosImportacion ?? 0) > 0 && <Text size="sm">Derechos de importación: {formatoMoneda(c.derechosImportacion!, m)}</Text>}
+        {Number(c.tasaEstadistica ?? 0) > 0 && <Text size="sm">Tasa de estadística: {formatoMoneda(c.tasaEstadistica!, m)}</Text>}
         {Number(c.impuestosInternos) > 0 && <Text size="sm">Impuestos internos: {formatoMoneda(c.impuestosInternos, m)}</Text>}
         {Number(c.noGravado) > 0 && <Text size="sm">No gravado: {formatoMoneda(c.noGravado, m)}</Text>}
         {Number(c.exento) > 0 && <Text size="sm">Exento: {formatoMoneda(c.exento, m)}</Text>}
