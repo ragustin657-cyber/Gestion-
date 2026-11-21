@@ -20,12 +20,15 @@ Cuando la empresa importa, la Aduana liquida en el despacho el IVA de la importa
   - `numeroDespacho String?` (16 caracteres, formato `AAAAA` año y aduana, `XX` destinación, `NN`, `NNNNNN` número, letra de control; validación `^\d{5}[A-Z]{2}\d{2}\d{6}[A-Z]$`): `El número de despacho tiene 16 caracteres (por ejemplo 26001IC04012345K)`;
   - `percepcionGanancias Decimal(18,2) @default(0)`;
   - `derechosImportacion Decimal(18,2) @default(0)` y `tasaEstadistica Decimal(18,2) @default(0)`.
-- **Proveedor Aduana:** la Dirección General de Aduanas (CUIT `33-69345023-9`). Al cargar el primer despacho, si la empresa no tiene un tercero con ese CUIT, se crea (`Dirección General de Aduanas`, exento, proveedor). El despacho siempre va contra ese tercero.
-- Cuenta nueva `1.1.03.012 Percepciones Ganancias sufridas` y concepto `PERCEPCION_GANANCIAS`; concepto `COSTO_IMPORTACION` (cuenta por defecto la de mercaderías `1.1.05.001`) para derechos y tasa (total de conceptos 51). Plan modelo y migración como en la E38.
+- **Proveedor Aduana:** la Dirección General de Aduanas (CUIT `33-69345023-9`). Al cargar el primer despacho, si la empresa no tiene un tercero con ese CUIT, se crea (`Dirección General de Aduanas`, exento en IVA, exento de Ganancias, proveedor). El despacho siempre va contra ese tercero.
+  - Si ya existe pero está inactivo o no es proveedor: `El tercero con el CUIT de la Aduana (<razón social>) no es un proveedor activo: actívelo o márquelo como proveedor`. No se modifica solo.
+  - Las órdenes de pago no le retienen nada a ese CUIT (regla explícita en el cálculo de retenciones, además de sus marcas de exento).
+- Cuentas nuevas `1.1.03.012 Percepciones Ganancias sufridas` (concepto `PERCEPCION_GANANCIAS`) y `5.1.02 Derechos y tasas de importación` (concepto `COSTO_IMPORTACION`, para derechos y tasa; no se usa Mercaderías porque el stock valoriza esa cuenta sin estos costos; el contador puede reasignarla en la configuración de cuentas). Total de conceptos 51. Plan modelo y migración como en la E38.
 
 ## 4. Carga del despacho
 - En pesos (la Aduana liquida en pesos); sin letra, sin punto de venta ni número de comprobante (se guardan en 0 y el número de despacho es el identificador; único por empresa: `Ya existe el despacho <número>`).
-- Renglones: uno por alícuota, con la base imponible del IVA (valor en aduana + derechos + tasa, como figura en el despacho) y la alícuota (21 % o 10,5 %); el IVA se calcula por alícuota y se puede ajustar al del despacho (mismo control de diferencias que las facturas: `aceptoDiferencias`).
+- Renglones: uno por alícuota, con la base imponible del IVA (valor en aduana + derechos + tasa, como figura en el despacho) y la alícuota (21 % o 10,5 %); el IVA se calcula por alícuota con el mismo cálculo que las facturas (no se escribe a mano).
+- El usuario carga el total liquidado del despacho (`totalDeclarado`) y vale el mismo control que en las facturas: si el total calculado difiere en más de 0,05, se rechaza con el mensaje de siempre (así se detecta un IVA distinto del de la Aduana).
 - Percepción de IVA (`percepcionIva`, ya existe), percepción de Ganancias, percepciones de IIBB por jurisdicción (ya existen), derechos y tasa.
 - **Total del despacho (deuda con la Aduana)** = IVA + percepción IVA + percepción Ganancias + percepciones IIBB + derechos + tasa. La base imponible no suma.
 - `fechaContable` = fecha de oficialización (la que el usuario carga); el despacho respeta el bloqueo de los meses de IVA e IIBB cerrados (E37/E38) como cualquier compra.
@@ -37,7 +40,7 @@ Cuando la empresa importa, la Aduana liquida en el despacho el IVA de la importa
 - Cuenta corriente del proveedor Aduana por el total; se paga con una orden de pago como cualquier deuda (sin retenciones: la Aduana es exenta y los regímenes ya excluyen a exentos; si no, `RetencionesService` no retiene a la Aduana por CUIT).
 
 ## 6. Libros y posición
-- **Libro IVA Compras:** el despacho con la base por alícuota, el IVA, las percepciones y el total del despacho; comprobante `Despacho <número>`.
+- **Libro IVA Compras:** columnas nuevas *Perc. Ganancias* y *Otros tributos* (derechos + tasa; 0 en los demás comprobantes), también en el Excel y el PDF. El despacho muestra la base por alícuota en el neto, el IVA, las percepciones y el total del despacho (= deuda con la Aduana). En el despacho el total no incluye la base (la nota al pie del libro lo aclara: `En los despachos de importación el total es lo liquidado por la Aduana; la base imponible no lo integra`); comprobante `Despacho <número>`.
 - **Posición de IVA (E37):** el IVA entra en el crédito y la percepción de IVA en percepciones, sin cambios (salen del Libro IVA Compras). Con prorrateo (E40) el despacho tiene destino del crédito como cualquier compra.
 - **Liquidación de IIBB (E38):** las percepciones IIBB aduaneras entran por jurisdicción, sin cambios.
 - **Libro IVA Digital (compras):** tipo de comprobante `066`, punto de venta y número en 0, campo `despacho` con el número, documento CUIT de la Aduana, importe total = total del despacho, `percepcionesIva` y `percepcionesNacionales` (Ganancias), `percepcionesIibb`, `otrosTributos` = derechos + tasa, crédito computable = IVA; alícuotas con la base imponible. (Diseño del importe total y de otros tributos a verificar con ARCA, §2 de pendientes.)
