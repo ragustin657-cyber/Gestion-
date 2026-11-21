@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { z } from 'zod';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { ComprobantesService, FiltroComprobantes } from './comprobantes.service';
@@ -14,6 +15,13 @@ export class ComprobantesController {
     return this.comprobantes.listar(f);
   }
 
+  /** Opciones de la carga de compras (E40): si el prorrateo del crédito fiscal está activo, para mostrar el destino del crédito de IVA. */
+  @Get('opciones')
+  @RequierePermiso('fc.ver')
+  opciones() {
+    return this.comprobantes.opciones();
+  }
+
   @Get(':id')
   @RequierePermiso('fc.ver')
   obtener(@Param('id', ParseUUIDPipe) id: string) {
@@ -24,6 +32,12 @@ export class ComprobantesController {
   @RequierePermiso('fc.crear')
   crear(@Body(new ZodValidationPipe(esquemaComprobante)) d: DatosComprobante) {
     return this.comprobantes.crear(d);
+  }
+
+  @Patch(':id/destino-iva')
+  @RequierePermiso('fc.crear')
+  destinoIva(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ destinoCreditoIva: z.enum(['GRAVADO', 'EXENTO', 'COMUN']) }))) b: { destinoCreditoIva: 'GRAVADO' | 'EXENTO' | 'COMUN' }) {
+    return this.comprobantes.cambiarDestinoIva(id, b.destinoCreditoIva);
   }
 
   @Post(':id/anular')

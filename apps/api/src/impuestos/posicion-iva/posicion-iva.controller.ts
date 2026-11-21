@@ -15,6 +15,11 @@ export function filasPosicion(p: VistaPosicionIva): Fila[] {
     ['Saldo técnico a favor del período anterior', p.saldoTecnicoAnterior], ['Impuesto determinado', p.impuestoDeterminado], ['Saldo técnico a favor del período', p.saldoTecnicoAFavor],
     ['Retenciones de IVA sufridas', p.retenciones], ['Percepciones de IVA sufridas', p.percepciones], ['Saldo de libre disponibilidad del período anterior', p.libreAnterior],
     ['Impuesto a pagar', p.impuestoAPagar], ['Saldo de libre disponibilidad del período', p.libreDisponibilidad],
+    // Prorrateo del crédito fiscal (E40)
+    ...(p.coeficiente === null ? [] : [
+      ['Coeficiente de prorrateo', p.coeficiente], ['Crédito fiscal de uso común', p.creditoComun!], ['Ajuste anual del prorrateo', p.ajusteProrrateo!],
+      ['Crédito fiscal computable', p.creditoComputable!], ['Crédito fiscal no computable', p.creditoNoComputable!],
+    ] as Fila[]),
   ];
 }
 

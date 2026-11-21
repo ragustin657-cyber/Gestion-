@@ -9,6 +9,8 @@ export interface EntradaPosicionIva {
   /** IVA por alícuota del Libro IVA Ventas (débito) y Compras (crédito) del mes, en pesos */
   debito: Record<string, string>; credito: Record<string, string>;
   retenciones: string; percepciones: string; saldoTecnicoAnterior: string; libreAnterior: string;
+  /** Prorrateo (E40): crédito computable; sin él se computa todo el crédito. */
+  creditoComputable?: string | null;
 }
 export interface ResultadoPosicionIva {
   totalDebito: string; totalCredito: string; saldoTecnicoAFavor: string; impuestoDeterminado: string; impuestoAPagar: string; libreDisponibilidad: string;
@@ -20,7 +22,7 @@ export interface ResultadoPosicionIva {
  */
 export function calcularPosicionIva(e: EntradaPosicionIva): ResultadoPosicionIva {
   const debito = suma(e.debito), credito = suma(e.credito);
-  const tecnico = debito.minus(credito).minus(e.saldoTecnicoAnterior);
+  const tecnico = debito.minus(e.creditoComputable != null ? new D(e.creditoComputable) : credito).minus(e.saldoTecnicoAnterior);
   const determinado = D.max(tecnico, 0);
   const saldo = determinado.minus(e.retenciones).minus(e.percepciones).minus(e.libreAnterior);
   return {
@@ -29,17 +31,19 @@ export function calcularPosicionIva(e: EntradaPosicionIva): ResultadoPosicionIva
   };
 }
 
-export type ConceptoLiquidacionIva = 'IVA_DEBITO_FISCAL' | 'IVA_CREDITO_FISCAL' | 'PERCEPCION_IVA' | 'RETENCION_SUFRIDA_IVA' | 'IVA_SALDO_TECNICO' | 'IVA_LIBRE_DISPONIBILIDAD' | 'IVA_A_PAGAR';
+export type ConceptoLiquidacionIva = 'IVA_DEBITO_FISCAL' | 'IVA_CREDITO_FISCAL' | 'PERCEPCION_IVA' | 'RETENCION_SUFRIDA_IVA' | 'IVA_SALDO_TECNICO' | 'IVA_LIBRE_DISPONIBILIDAD' | 'IVA_A_PAGAR' | 'IVA_NO_COMPUTABLE';
 
 /**
  * Renglones del asiento de liquidación (spec E37 §6): cancela débito, crédito, percepciones, retenciones y los saldos anteriores,
  * y registra los saldos nuevos y el impuesto a pagar. Un importe negativo cambia de lado; los ceros se omiten. Cuadra por construcción.
  */
-export function renglonesAsiento(p: EntradaPosicionIva & ResultadoPosicionIva): { concepto: ConceptoLiquidacionIva; debe: string; haber: string }[] {
+export function renglonesAsiento(p: EntradaPosicionIva & ResultadoPosicionIva & { creditoNoComputable?: string | null }): { concepto: ConceptoLiquidacionIva; debe: string; haber: string }[] {
   const lados: [ConceptoLiquidacionIva, 'debe' | 'haber', Prisma.Decimal.Value][] = [
     ['IVA_DEBITO_FISCAL', 'debe', p.totalDebito], ['IVA_CREDITO_FISCAL', 'haber', p.totalCredito], ['PERCEPCION_IVA', 'haber', p.percepciones],
     ['RETENCION_SUFRIDA_IVA', 'haber', p.retenciones], ['IVA_SALDO_TECNICO', 'haber', p.saldoTecnicoAnterior], ['IVA_LIBRE_DISPONIBILIDAD', 'haber', p.libreAnterior],
     ['IVA_SALDO_TECNICO', 'debe', p.saldoTecnicoAFavor], ['IVA_LIBRE_DISPONIBILIDAD', 'debe', p.libreDisponibilidad], ['IVA_A_PAGAR', 'haber', p.impuestoAPagar],
+    // Prorrateo (E40): el crédito no computable va a gasto (negativo por el ajuste anual: al Haber)
+    ['IVA_NO_COMPUTABLE', 'debe', p.creditoNoComputable ?? '0'],
   ];
   // Neto por cuenta (debe − haber): el saldo técnico anterior que se cancela y el nuevo que se registra van a la misma cuenta
   const neto = new Map<ConceptoLiquidacionIva, Prisma.Decimal>();

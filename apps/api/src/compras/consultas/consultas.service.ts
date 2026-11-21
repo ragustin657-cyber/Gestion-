@@ -41,6 +41,8 @@ export interface FilaLibroIva {
   exento: string;
   noComputable: string;
   total: string;
+  /** Destino del crédito de IVA (E40) */
+  destino: 'GRAVADO' | 'EXENTO' | 'COMUN';
 }
 
 @Injectable()
@@ -123,7 +125,7 @@ export class ConsultasComprasService {
       .map(({ _total, ...x }) => x);
   }
 
-  async libroIva(desde?: string, hasta?: string): Promise<{ filas: FilaLibroIva[]; totales: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit'> }> {
+  async libroIva(desde?: string, hasta?: string): Promise<{ filas: FilaLibroIva[]; totales: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit' | 'destino'> }> {
     const comps = await this.tenant.db.comprobanteCompra.findMany({
       where: { estado: 'CONFIRMADO', fechaContable: { gte: fechaQuery(desde, true), lte: fechaQuery(hasta, true) } },
       include: { ivas: true, percepcionesIibb: true, tercero: { select: { razonSocial: true, cuit: true } } },
@@ -152,7 +154,7 @@ export class ConsultasComprasService {
       for (const k of Object.keys(campos) as (keyof typeof campos)[]) sum[k] = sum[k].plus(campos[k]);
       return {
         fechaContable: c.fechaContable, tipo: c.tipo, letra: c.letra, numero: numeroFc(c.puntoVenta, c.numero),
-        razonSocial: c.tercero.razonSocial, cuit: c.tercero.cuit, netoPorAlicuota: neto, ivaPorAlicuota: iva,
+        razonSocial: c.tercero.razonSocial, cuit: c.tercero.cuit, netoPorAlicuota: neto, ivaPorAlicuota: iva, destino: c.destinoCreditoIva,
         ...Object.fromEntries(Object.entries(campos).map(([k, v]) => [k, f2(v)])),
       } as FilaLibroIva;
     });

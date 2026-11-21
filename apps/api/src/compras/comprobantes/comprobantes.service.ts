@@ -1,4 +1,4 @@
-import { verificarMesesAbiertos } from '../../impuestos/posicion-iva/bloqueo';
+import { verificarMesesAbiertos, verificarMesIvaAbierto } from '../../impuestos/posicion-iva/bloqueo';
 import { verificarDeEmpresa } from '../../comun/de-empresa';
 import {
   BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException,
@@ -279,7 +279,7 @@ export class ComprobantesService {
       data: {
         empresaId, numeroInterno, terceroId: d.terceroId, tipo: d.tipo, letra: letra ?? '', puntoVenta: d.puntoVenta, numero: d.numero,
         fechaEmision: d.fechaEmision, fechaContable: d.fechaContable, fechaVencimiento, monedaCodigo: d.monedaCodigo, cotizacion,
-        netoGravado: tot.netoGravado, iva: tot.iva, percepcionIva: d.percepcionIva, impuestosInternos: d.impuestosInternos,
+        netoGravado: tot.netoGravado, iva: tot.iva, percepcionIva: d.percepcionIva, destinoCreditoIva: d.destinoCreditoIva ?? (await this.destinoDelAsociado(tx, d.comprobanteAsociadoId)), impuestosInternos: d.impuestosInternos,
         noGravado: d.noGravado, exento: d.exento, total, totalPesos, comprobanteAsociadoId: d.comprobanteAsociadoId ?? null, depositoId: d.depositoId ?? null,
         aceptoDiferencias: diferencias.length > 0, creadoPor: ctx.usuarioId,
         renglones: { create: renglones.map((r) => ({ ...r, empresaId })) },
@@ -337,6 +337,29 @@ export class ComprobantesService {
   }
 
   /** Anula: contraasiento, cuenta corriente en 0 y libera cantidades facturadas. */
+  /** Revisión E40: sin destino indicado, la NC o ND hereda el de su comprobante asociado. */
+  private async destinoDelAsociado(tx: TxEmpresa, asociadoId: string | null | undefined) {
+    if (!asociadoId) return 'GRAVADO' as const;
+    return (await tx.comprobanteCompra.findUnique({ where: { id: asociadoId }, select: { destinoCreditoIva: true } }))?.destinoCreditoIva ?? 'GRAVADO';
+  }
+
+  async opciones() {
+    const c = await this.tenant.db.configImpuestos.findFirst({ select: { prorrateoIva: true } });
+    return { prorrateoIva: !!c?.prorrateoIva };
+  }
+
+  /** Cambia el destino del crédito de IVA de una compra confirmada (spec E40 §3), salvo que su mes de IVA esté cerrado. */
+  cambiarDestinoIva(id: string, destino: 'GRAVADO' | 'EXENTO' | 'COMUN') {
+    return this.tenant.transaccion(async (tx) => {
+      const c = await tx.comprobanteCompra.findUnique({ where: { id } });
+      if (!c) throw new NotFoundException('Comprobante inexistente');
+      await verificarMesIvaAbierto(tx, this.tenant.empresaId, c.fechaContable);
+      await tx.comprobanteCompra.update({ where: { id }, data: { destinoCreditoIva: destino } });
+      await this.auditoria.registrar(tx, { entidad: 'ComprobanteCompra', entidadId: id, accion: 'MODIFICAR', datos: { destinoCreditoIva: destino, anterior: c.destinoCreditoIva } });
+      return this.obtener(id, tx);
+    });
+  }
+
   anular(id: string, motivo: string) {
     return this.tenant.transaccion(async (tx) => {
       const c = await tx.comprobanteCompra.findUnique({ where: { id }, include: { renglones: true } });

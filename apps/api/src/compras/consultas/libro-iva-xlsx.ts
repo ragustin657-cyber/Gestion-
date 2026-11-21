@@ -4,7 +4,7 @@ import { FilaLibroIva } from './consultas.service';
 const ETIQUETA = { FACTURA: 'Factura', NOTA_DEBITO: 'Nota de débito', NOTA_CREDITO: 'Nota de crédito', TICKET: 'Ticket' } as Record<string, string>;
 
 /** Arma el Libro IVA Compras en .xlsx con una fila de totales al pie. */
-export async function libroIvaXlsx(datos: { filas: FilaLibroIva[]; totales: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit'> }): Promise<Buffer> {
+export async function libroIvaXlsx(datos: { filas: FilaLibroIva[]; totales: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit' | 'destino'> }): Promise<Buffer> {
   const alicuotas = [...new Set([...Object.keys(datos.totales.netoPorAlicuota)])].sort((a, b) => Number(a) - Number(b));
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Libro IVA Compras');
@@ -20,7 +20,7 @@ export async function libroIvaXlsx(datos: { filas: FilaLibroIva[]; totales: Omit
     ...columnasImporte.map((c) => ({ ...c, width: 15, style: { numFmt: '#,##0.00' } })),
   ];
   ws.getRow(1).font = { bold: true };
-  const importes = (x: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit'>) => ({
+  const importes = (x: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit' | 'destino'>) => ({
     ...Object.fromEntries(alicuotas.flatMap((a) => [[`n${a}`, Number(x.netoPorAlicuota[a] ?? 0)], [`i${a}`, Number(x.ivaPorAlicuota[a] ?? 0)]])),
     percepcionIva: Number(x.percepcionIva), percepcionesIibb: Number(x.percepcionesIibb), impuestosInternos: Number(x.impuestosInternos),
     noGravado: Number(x.noGravado), exento: Number(x.exento), noComputable: Number(x.noComputable), total: Number(x.total),

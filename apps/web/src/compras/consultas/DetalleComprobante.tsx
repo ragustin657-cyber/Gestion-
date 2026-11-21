@@ -1,3 +1,4 @@
+import { SelectorDestinoIva, useProrrateoActivo } from '../destino-iva';
 import { Alert, Badge, Button, Group, Loader, Modal, SimpleGrid, Stack, Table, Text, Textarea, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +15,7 @@ interface Comprobante {
   id: string; numeroInterno: number; tipo: string; letra: string; puntoVenta: number; numero: number; fechaEmision: string; fechaContable: string;
   fechaVencimiento: string; monedaCodigo: string; cotizacion: string; netoGravado: string; iva: string; percepcionIva: string; impuestosInternos: string;
   noGravado: string; exento: string; total: string; totalPesos: string; estado: string; motivoAnulacion: string | null; aceptoDiferencias: boolean;
+  destinoCreditoIva?: string;
   tercero: { razonSocial: string; cuit: string };
   renglones: { id: string; descripcion: string; cantidad: string; precioUnitario: string; alicuotaIva: string; importe: string; origen: string }[];
   ivas: { alicuota: string; base: string; importe: string }[];
@@ -49,6 +51,7 @@ export function DetalleComprobante({ id }: { id: string }) {
   const [anulando, setAnulando] = useState(false);
   const [motivo, setMotivo] = useState('');
   const [error, setError] = useState('');
+  const prorrateo = useProrrateoActivo();
   if (q.isError) return <Alert color="red">{q.error instanceof ErrorApi ? q.error.mensaje : 'Error al cargar'}</Alert>;
   const c = q.data;
   if (!c) return <Loader size="sm" />;
@@ -116,6 +119,19 @@ export function DetalleComprobante({ id }: { id: string }) {
       )}
       {c.asiento && <TablaAsiento titulo="Asiento" a={c.asiento} />}
       {c.asientoAnulacion && <TablaAsiento titulo="Contraasiento" a={c.asientoAnulacion} />}
+      {prorrateo && c.estado === 'CONFIRMADO' && (
+        <SelectorDestinoIva value={c.destinoCreditoIva ?? 'GRAVADO'} disabled={!puede('fc.crear')} onChange={async (v) => {
+          setError('');
+          try {
+            await api(`/compras/comprobantes/${id}/destino-iva`, { metodo: 'PATCH', body: { destinoCreditoIva: v } });
+            notifications.show({ color: 'green', message: 'Destino del crédito de IVA actualizado' });
+            void qc.invalidateQueries({ queryKey: ['/compras/comprobantes', id] });
+          } catch (e) {
+            setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado');
+          }
+        }} />
+      )}
+      {error && !anulando && <Alert color="red">{error}</Alert>}
       {c.estado === 'CONFIRMADO' && puede('fc.anular') && (
         <Group justify="flex-end"><Button color="red" variant="light" onClick={() => setAnulando(true)}>Anular</Button></Group>
       )}

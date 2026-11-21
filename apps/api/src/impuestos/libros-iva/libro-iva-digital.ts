@@ -1,3 +1,4 @@
+import { coeficienteDelMes, conProrrateo } from '../posicion-iva/prorrateo-datos';
 import { cbteTipo, monedaArca, normalizarCuit, type LetraVenta } from '@gestion/shared';
 import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
@@ -86,6 +87,12 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
   }
 
   if (!vCbte.length && !cCbte.length) advertencias.push(`No hay comprobantes en ${mmaaaa(ctx.periodo)}`);
+  // E40: el crédito computable del archivo es el IVA de cada compra; el prorrateo se declara en ARCA (a verificar)
+  const anio = Number(ctx.periodo.slice(0, 4)), mes = Number(ctx.periodo.slice(4, 6));
+  if (conProrrateo(ctx.config, anio, mes)) {
+    const { coeficiente } = await coeficienteDelMes(tx, ctx.config, anio, mes);
+    advertencias.push(`Con prorrateo del crédito fiscal: declare el prorrateo global en el Libro IVA Digital (coeficiente ${coeficiente.replace('.', ',')})`);
+  }
   const archivos = { 'VENTAS_CBTE.txt': archivo(vCbte), 'VENTAS_ALICUOTAS.txt': archivo(vAlic), 'COMPRAS_CBTE.txt': archivo(cCbte), 'COMPRAS_ALICUOTAS.txt': archivo(cAlic) };
   const contenido = await zip(archivos);
   // La huella es la de los TXT (nombre y contenido), no la del ZIP: no cambia si cambia la compresión

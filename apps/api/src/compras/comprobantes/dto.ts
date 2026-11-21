@@ -20,6 +20,8 @@ export const esquemaComprobante = z
     comprobanteAsociadoId: z.string().uuid().nullish(),
     depositoId: z.string().uuid('Valor inválido').nullish(),
     percepcionIva: zImporte,
+    // Destino del crédito de IVA (E40)
+    destinoCreditoIva: z.enum(['GRAVADO', 'EXENTO', 'COMUN']).optional(),
     impuestosInternos: zImporte,
     noGravado: zImporte,
     exento: zImporte,
