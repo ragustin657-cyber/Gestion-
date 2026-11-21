@@ -1,7 +1,7 @@
 import type { MovimientoCuentaCorriente } from '@prisma/client';
 import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
 
-const ABREV: Record<string, string> = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK' };
+const ABREV: Record<string, string> = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK', DESPACHO_IMPORTACION: 'DI' };
 const num = (pv: number, n: number) => `${String(pv).padStart(5, '0')}-${String(n).padStart(8, '0')}`;
 
 /** Descripción legible de cada movimiento de cuenta corriente (comprobante o anticipo). */

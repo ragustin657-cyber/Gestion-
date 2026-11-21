@@ -1,3 +1,4 @@
+import { CUIT_ADUANA } from '../../compras/comprobantes/aduana';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, Tercero } from '@prisma/client';
 import { alicuotaIibb, baseSujeta, netearNotasCredito, retencionGanancias, retencionIibb, retencionIva, retencionSuss } from '@gestion/shared';
@@ -61,6 +62,8 @@ export class RetencionesService {
   async calcular(tx: TxEmpresa, e: { terceroId: string; fechaPago: Date; bases: string[]; imputaciones?: ImputacionComprobante[]; excluirOrdenPagoId?: string; tope?: string }): Promise<RetencionCalculada[]> {
     const tercero = await tx.tercero.findUnique({ where: { id: e.terceroId }, include: { iibb: true } });
     if (!tercero) throw new BadRequestException('Proveedor no encontrado');
+    // E41: a la Aduana no se le retiene
+    if (tercero.cuit === CUIT_ADUANA) return [];
     const basePago = e.bases.reduce((s, b) => s.plus(b), new D(0));
     const r: RetencionCalculada[] = [];
     // Ganancias e IIBB solo con base positiva; IVA y SUSS se calculan por factura igual (revisión E35)

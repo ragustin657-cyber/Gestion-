@@ -11,7 +11,7 @@ const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
 const f2 = (d: Dec) => d.toFixed(2);
 const DIA = 86400000;
-const ABREV = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK' } as const;
+const ABREV = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK', DESPACHO_IMPORTACION: 'DI' } as const;
 const numeroFc = (pv: number, n: number) => `${String(pv).padStart(5, '0')}-${String(n).padStart(8, '0')}`;
 
 /** Valida 'YYYY-MM-DD'; devuelve Date UTC o undefined si no viene. */
