@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import JSZip from 'jszip';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase, sesionConPlan } from './helpers';
 
@@ -98,5 +99,36 @@ describe('despachos de importación (E41)', () => {
     const ret = await x.http.get(`/api/pagos/ordenes/${op.body.id}/retenciones?fechaPago=2026-11-15`);
     expect(ret.status).toBe(200);
     expect([ret.body.retenciones, ret.body.totalRetenciones]).toEqual([[], '0.00']);
+  });
+
+  it('Libro IVA Compras: base en el neto, columnas de Ganancias y otros tributos, total liquidado y nota', async () => {
+    const x = await escenario();
+    await x.despacho();
+    const l = (await x.http.get('/api/compras/libro-iva?desde=2026-10-01&hasta=2026-10-31')).body as { filas: Record<string, unknown>[]; totales: Record<string, string>; notas: string[] };
+    const f = l.filas[0];
+    expect([f.tipo, f.numero, f.percepcionGanancias, f.otrosTributos, f.total]).toEqual(['DESPACHO_IMPORTACION', NUMERO, '6000.00', '10000.00', '47750.00']);
+    expect(f.netoPorAlicuota).toEqual({ '21': '100000.00', '10.5': '50000.00' });
+    expect([l.totales.percepcionGanancias, l.totales.otrosTributos]).toEqual(['6000.00', '10000.00']);
+    expect(l.notas).toContain('En los despachos de importación el total es lo liquidado por la Aduana; la base imponible no lo integra');
+    const xlsx = await x.http.get('/api/compras/libro-iva?desde=2026-10-01&hasta=2026-10-31&formato=xlsx');
+    expect(xlsx.status).toBe(200);
+    // La posición de IVA del mes toma el IVA y la percepción del despacho
+    const p = (await x.http.get('/api/impuestos/posicion-iva?anio=2026&mes=10')).body as { totalCredito: string; percepciones: string };
+    expect([p.totalCredito, p.percepciones]).toEqual(['26250.00', '3000.00']);
+  });
+
+  it('Libro IVA Digital: código 066, número de despacho, CUIT de la Aduana y tributos', async () => {
+    const x = await escenario();
+    await x.despacho();
+    const g = (await x.http.post('/api/impuestos/presentaciones', { tipo: 'LIBRO_IVA_DIGITAL', periodo: '202610' })).body;
+    const pres = await prisma.presentacion.findUniqueOrThrow({ where: { id: g.id } });
+    const zip = await JSZip.loadAsync(Buffer.from(pres.contenido));
+    const [l] = Buffer.from(await zip.file('COMPRAS_CBTE.txt')!.async('uint8array')).toString('latin1').split('\r\n');
+    expect([l.slice(8, 11), l.slice(11, 16), l.slice(16, 36), l.slice(36, 52), l.slice(52, 54), l.slice(54, 74)])
+      .toEqual(['066', '00000', '0'.repeat(20), NUMERO, '80', '00000000033693450239']);
+    expect([l.slice(104, 119), l.slice(149, 164), l.slice(164, 179), l.slice(179, 194), l.slice(237, 238), l.slice(239, 254), l.slice(254, 269)])
+      .toEqual(['000000004775000', '000000000300000', '000000000600000', '000000000250000', '2', '000000002625000', '000000001000000']);
+    const alic = Buffer.from(await zip.file('COMPRAS_ALICUOTAS.txt')!.async('uint8array')).toString('latin1').split('\r\n').filter(Boolean);
+    expect(alic).toHaveLength(2);
   });
 });

@@ -70,17 +70,18 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
     const alicuotas = sinCredito ? [] : c.ivas.length ? c.ivas.map((i) => ({ alicuota: alic(i.alicuota), neto: i.base, impuesto: i.importe })) : [{ alicuota: '0003', neto: new D(0), impuesto: new D(0) }];
     const n = cCbte.length + 1;
     cCbte.push(agregar(linea(LIVA_COMPRAS_CBTE, {
-      fecha: c.fechaEmision, tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numero, despacho: '',
+      // E41: el despacho va sin punto de venta ni número, con su número de despacho
+      fecha: c.fechaEmision, tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numeroDespacho ? 0 : c.numero, despacho: c.numeroDespacho ?? '',
       codigoDocumento: doc.codigo, numeroDocumento: doc.numero(c.tercero.cuit), denominacion: c.tercero.razonSocial,
-      importeTotal: c.total.toString(), noGravado: c.noGravado.toString(), exento: c.exento.toString(), percepcionesIva: c.percepcionIva.toString(),
+      importeTotal: c.total.toString(), noGravado: c.noGravado.toString(), exento: c.exento.toString(), percepcionesIva: c.percepcionIva.toString(), percepcionesNacionales: c.percepcionGanancias.toString(),
       percepcionesIibb: c.percepcionesIibb.reduce((s, x) => s.plus(x.importe), new D(0)).toString(), impuestosInternos: c.impuestosInternos.toString(),
       moneda: monedaArca(c.monedaCodigo as 'ARS' | 'USD'), tipoCambio: c.cotizacion.toString(), cantidadAlicuotas: alicuotas.length,
       codigoOperacion: sinCredito ? ' ' : codigoOperacion(c.ivas.length > 0, c.exento.gt(0), c.noGravado.gt(0)),
-      creditoFiscalComputable: sinCredito ? '0' : c.iva.toString(), cuitCorredor: 0, denominacionCorredor: '', ivaComision: '0',
+      creditoFiscalComputable: sinCredito ? '0' : c.iva.toString(), otrosTributos: c.derechosImportacion.plus(c.tasaEstadistica).toString(), cuitCorredor: 0, denominacionCorredor: '', ivaComision: '0',
     }, n)));
     for (const a of alicuotas)
       cAlic.push(agregar(linea(LIVA_COMPRAS_ALICUOTAS, {
-        tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numero, codigoDocumento: doc.codigo, numeroDocumento: doc.numero(c.tercero.cuit),
+        tipoComprobante: tipo, puntoVenta: c.puntoVenta, numero: c.numeroDespacho ? 0 : c.numero, codigoDocumento: doc.codigo, numeroDocumento: doc.numero(c.tercero.cuit),
         netoGravado: a.neto.toString(), alicuota: a.alicuota, impuesto: a.impuesto.toString(),
       }, n)));
     acumular('compras', c);
