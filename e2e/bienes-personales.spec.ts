@@ -13,8 +13,11 @@ async function socio(page: Page, nombre: string, tipo: string, porcentaje: strin
   const d = page.getByRole('dialog');
   await d.getByLabel('Nombre o razón social').fill(nombre);
   await d.getByLabel('Número de documento').fill('20-12345678-6');
-  await d.getByRole('textbox', { name: 'Tipo de titular' }).click();
-  await page.getByRole('option', { name: tipo, exact: true }).click();
+  // «Persona humana del país» viene elegida por defecto: volver a elegirla la deselecciona
+  if ((await d.getByRole('textbox', { name: 'Tipo de titular' }).inputValue()) !== tipo) {
+    await d.getByRole('textbox', { name: 'Tipo de titular' }).click();
+    await page.getByRole('option', { name: tipo, exact: true }).click();
+  }
   await d.getByLabel('Participación (%)').fill(porcentaje);
   await d.getByRole('button', { name: 'Guardar' }).click();
   await expect(page.getByRole('cell', { name: nombre })).toBeVisible();
