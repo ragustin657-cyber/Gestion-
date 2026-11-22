@@ -52,9 +52,9 @@ export class AnulacionPagoService {
       await tx.chequePropio.updateMany({ where: { ordenPagoId: id }, data: { estado: 'ANULADO' } });
       await liberarOVerificar(tx, 'OP', id);
       await tx.movimientoTesoreria.updateMany({ where: { origenTipo: 'OP', origenId: id }, data: { anulado: true } });
-      await tx.ordenPagoRetencion.updateMany({ where: { ordenPagoId: id }, data: { anulada: true } });
-
       const fecha = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
+      // E43: la fecha de anulación decide en qué SIRE se informa la anulación
+      await tx.ordenPagoRetencion.updateMany({ where: { ordenPagoId: id }, data: { anulada: true, anuladaEn: fecha } });
       // Cheques de terceros endosados: vuelven a cartera en su caja original
       const endosos = await tx.ordenPagoMedio.findMany({ where: { ordenPagoId: id, tipo: 'CHEQUE_TERCERO' } });
       await bloquear(tx, 'ChequeTercero', empresaId, endosos.map((m) => m.chequeTerceroId!));

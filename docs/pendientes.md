@@ -22,8 +22,8 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 4. **Otras jurisdicciones de IIBB.** Hoy solo están ARBA (902) y AGIP (901). Faltan SIRCAR, SIRCREB y los padrones de otras provincias.
 5. **Prorrateo del crédito fiscal de IVA**, para empresas con operaciones exentas y gravadas.
 6. **Importaciones con despacho de aduana:** IVA, percepciones y su lugar en el Libro IVA.
-7. **Notas de crédito de retenciones y anulaciones por lote en el SIRE.** Hoy una retención anulada ya presentada se resuelve a mano.
-8. **F.2003 del SIRE:** Ganancias a beneficiarios del exterior.
+7. ~~**Notas de crédito de retenciones y anulaciones por lote en el SIRE.**~~ Hecho en la entrega 43.
+8. ~~**F.2003 del SIRE:** Ganancias a beneficiarios del exterior.~~ Hecho en la entrega 43.
 9. **Ganancias de sociedades y Bienes Personales (acciones y participaciones).** Hoy no está ni la DJ, ni los anticipos, ni el responsable sustituto.
 10. **Ajuste por inflación impositivo** (Título VI de Ganancias). Hoy solo está el contable.
 11. **Amortización impositiva** de bienes de uso. Hoy solo está la contable.
@@ -136,6 +136,11 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
    - lote del SIRE para las percepciones de IVA (hoy se cargan a mano con el informe) y el código de régimen de percepción de IVA.
 9. **Prorrateo del crédito fiscal (entrega 40):** cómo se declara el prorrateo en el Libro IVA Digital (hoy el archivo lleva el IVA entero de cada compra y la generación avisa declarar el prorrateo global con el coeficiente).
 10. **Despachos de importación (entrega 41):** en el Libro IVA Digital, si el importe total del despacho es lo liquidado o incluye la base, y si derechos y tasa van en «otros tributos»; y el diseño del archivo de alícuotas de importaciones (COMPRAS_IMPORTACIONES: despacho, base, alícuota, impuesto).
+11. **SIRE completo (entrega 43):**
+    - tabla de motivos de anulación del F.2005 (hoy se configura un código, por defecto 1);
+    - códigos de régimen del impuesto 218 y de las tablas ALICUOTA_SIN_CDI y ALICUOTA_CON_CDI (se cargan a mano en cada régimen exterior);
+    - tabla PAIS del SIRE (los códigos de país se cargan a mano en la ficha del proveedor);
+    - cómo devuelve ARCA los números de certificado al procesar el lote (hoy se cargan a mano en *Retenciones practicadas*), y el formato del número de nota de crédito (hoy `00001-` + número de la orden de pago).
 
 ---
 

@@ -18,7 +18,7 @@ export interface ImputacionComprobante {
 }
 
 export interface RetencionCalculada {
-  impuesto: 'GANANCIAS' | 'IIBB' | 'IVA' | 'SUSS';
+  impuesto: 'GANANCIAS' | 'IIBB' | 'IVA' | 'SUSS' | 'GANANCIAS_EXTERIOR';
   /** Factura retenida (IVA y SUSS, E35) */
   comprobanteCompraId?: string;
   jurisdiccion: string | null;
@@ -65,6 +65,8 @@ export class RetencionesService {
     // E41: a la Aduana no se le retiene
     if (tercero.cuit === CUIT_ADUANA) return [];
     const basePago = e.bases.reduce((s, b) => s.plus(b), new D(0));
+    // E43: al beneficiario del exterior solo se le retiene Ganancias exterior (no las locales)
+    if (tercero.residenteExterior) return this.exterior(tx, tercero, basePago);
     const r: RetencionCalculada[] = [];
     // Ganancias e IIBB solo con base positiva; IVA y SUSS se calculan por factura igual (revisión E35)
     const conBase = basePago.gt(0);
@@ -123,6 +125,25 @@ export class RetencionesService {
     // Lo retenido nunca puede igualar ni superar lo que se paga (el neto debe ser positivo)
     if (total.gt(0) && total.gte(e.tope ?? basePago)) throw new BadRequestException('Las retenciones superan el importe a pagar');
     return r;
+  }
+
+  /**
+   * Retención de Ganancias a beneficiarios del exterior (spec E43 §4): base × alícuota del régimen (con o sin convenio);
+   * con acrecentamiento la empresa asume el impuesto: base × a / (100 − a). Sin mínimo. Sin régimen: fila en cero con aviso.
+   */
+  private async exterior(tx: TxEmpresa, t: Tercero, basePago: Prisma.Decimal): Promise<RetencionCalculada[]> {
+    const base = basePago.toFixed(2);
+    const reg = t.regimenExteriorId ? await tx.regimenExterior.findUnique({ where: { id: t.regimenExteriorId } }) : null;
+    if (!reg?.activo)
+      return [{ impuesto: 'GANANCIAS_EXTERIOR', jurisdiccion: null, regimen: null, base, alicuota: '0', importe: '0.00', detalle: { aviso: `El proveedor del exterior ${t.razonSocial} no tiene régimen de Ganancias exterior` } }];
+    if (t.aplicaCdi && (reg.alicuotaConCdi == null || reg.codigoAlicuotaConCdi == null)) throw new BadRequestException(`El régimen ${reg.descripcion} no tiene alícuota con convenio`);
+    const a = t.aplicaCdi ? reg.alicuotaConCdi! : reg.alicuotaSinCdi;
+    const codigo = t.aplicaCdi ? reg.codigoAlicuotaConCdi! : reg.codigoAlicuotaSinCdi;
+    const importe = basePago.lte(0) ? new D(0) : t.acrecentamiento ? basePago.mul(a).div(new D(100).minus(a)) : basePago.mul(a).div(100);
+    return [{
+      impuesto: 'GANANCIAS_EXTERIOR', jurisdiccion: null, regimen: reg.id, base, alicuota: a.toString(), importe: importe.toDecimalPlaces(2).toFixed(2),
+      detalle: { basePago: base, codigoSire: reg.codigoSire, codigoAlicuota: String(codigo), aplicaCdi: t.aplicaCdi ? 'true' : 'false', acrecentamiento: t.acrecentamiento ? 'true' : 'false' },
+    }];
   }
 
   /**

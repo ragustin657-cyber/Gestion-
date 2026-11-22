@@ -170,3 +170,23 @@ export const SIRE_F2004: Campo[] = [
   impSire('importeComprobante'), impSire('importeRetencion'), txt('certificadoOriginal', 25), { nombre: 'certificadoOriginalFecha', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
   txt('certificadoOriginalImporte', 14), txt('otrosDatos', 30),
 ];
+
+/** SIRE F.2005 — anulación por lote (E43): solo versión, trazabilidad, impuesto, certificado original y motivo; el resto en blanco. */
+export const SIRE_F2005_ANULACION: Campo[] = [
+  { nombre: 'version', largo: 4, tipo: 'FIJO', valor: '0100' }, { nombre: 'trazabilidad', largo: 36, tipo: 'TXT' }, { nombre: 'impuesto', largo: 3, tipo: 'FIJO', valor: '216' },
+  { nombre: 'blanco1', largo: 212, tipo: 'FIJO', valor: '' }, { nombre: 'certificadoOriginal', largo: 25, tipo: 'TXT' }, { nombre: 'blanco2', largo: 24, tipo: 'FIJO', valor: '' },
+  { nombre: 'motivo', largo: 1, tipo: 'NUM' },
+];
+
+/** SIRE F.2003 — retenciones de Ganancias a beneficiarios del exterior (E43; referencia §3.1, 415 posiciones). */
+export const SIRE_F2003: Campo[] = [
+  { nombre: 'formulario', largo: 4, tipo: 'FIJO', valor: '2003' }, { nombre: 'version', largo: 4, tipo: 'FIJO', valor: '0100' }, txt('trazabilidad', 10),
+  { nombre: 'cuitAgente', largo: 11, tipo: 'NUM' }, { nombre: 'impuesto', largo: 3, tipo: 'FIJO', valor: '218' }, { nombre: 'regimen', largo: 3, tipo: 'NUM' },
+  { nombre: 'cuitOrdenante', largo: 11, tipo: 'NUM' }, { nombre: 'fechaRetencion', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
+  { nombre: 'tipoComprobante', largo: 2, tipo: 'NUM' }, { nombre: 'fechaComprobante', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' }, txt('numeroComprobante', 16),
+  impSire('importeComprobante'), { nombre: 'filler', largo: 14, tipo: 'FIJO', valor: '' }, txt('certificadoOriginal', 25),
+  { nombre: 'certificadoOriginalFecha', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' }, txt('certificadoOriginalImporte', 14), txt('motivoNotaCredito', 30),
+  { nombre: 'noRetencion', largo: 1, tipo: 'NUM' }, txt('noRetencionMotivo', 30), { nombre: 'aplicaCdi', largo: 1, tipo: 'NUM' }, { nombre: 'codigoAlicuota', largo: 4, tipo: 'NUM' },
+  { nombre: 'acrecentamiento', largo: 1, tipo: 'NUM' }, txt('nif', 50), txt('denominacion', 60), txt('domicilio', 60), { nombre: 'pais', largo: 3, tipo: 'NUM' }, txt('tipoPersona', 1),
+  txt('nacimientoPais', 3), { nombre: 'nacimientoFecha', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
+];

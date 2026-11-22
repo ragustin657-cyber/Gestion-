@@ -25,6 +25,8 @@ const esquema = z.object({
   prorrateoInicioMes: z.number().int().min(1).max(12).optional(),
   prorrateoGravadasIniciales: z.number().optional(),
   prorrateoExentasIniciales: z.number().optional(),
+  // Motivo de anulación del F.2005 (E43; tabla del SIRE, a verificar)
+  sireMotivoAnulacion: z.number().int().min(1).max(9).optional(),
 });
 
 @Controller('impuestos/config')

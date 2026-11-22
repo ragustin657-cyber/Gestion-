@@ -11,6 +11,7 @@ interface Config {
   iibbInicioAnio: number | null; iibbInicioMes: number | null;
   prorrateoIva: boolean; prorrateoDesdeAnio: number | null; prorrateoDesdeMes: number | null; prorrateoInicioMes: number;
   prorrateoGravadasIniciales: string | number; prorrateoExentasIniciales: string | number;
+  sireMotivoAnulacion: number;
 }
 
 export function ConfigImpuestosPage() {
@@ -70,6 +71,9 @@ export function ConfigImpuestosPage() {
           <NumberInput label="Primer mes de IIBB" w={160} min={1} max={12} value={c.iibbInicioMes ?? ''} onChange={(v) => setC({ ...c, iibbInicioMes: v === '' ? null : Number(v) })} />
           <NumberInput label="Año de inicio de IIBB" w={170} min={2000} max={2100} value={c.iibbInicioAnio ?? ''} onChange={(v) => setC({ ...c, iibbInicioAnio: v === '' ? null : Number(v) })} />
         </Group>
+        <Title order={5}>SIRE</Title>
+        <NumberInput label="Motivo de anulación (F.2005)" w={220} min={1} max={9} value={c.sireMotivoAnulacion} onChange={(v) => setC({ ...c, sireMotivoAnulacion: Number(v) || 1 })} />
+        <Text size="xs" c="dimmed">Código de la tabla de motivos de anulación del SIRE con que se informan las retenciones de IVA anuladas. Verifíquelo con el contador.</Text>
         {error && <Alert color="red">{error}</Alert>}
         <Group><Button onClick={() => void guardar()}>Guardar</Button></Group>
       </Stack>

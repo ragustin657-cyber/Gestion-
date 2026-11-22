@@ -10,10 +10,24 @@ import { pdfCertificado, pdfOrdenPago } from './pdf';
 const D = Prisma.Decimal;
 const NOMBRES_JUR: Record<string, string> = { '901': 'CABA', '902': 'Buenos Aires' };
 export const numeroOP = (n: number | null) => `0001-${String(n ?? 0).padStart(8, '0')}`;
-const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS' };
+const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS', GANANCIAS_EXTERIOR: 'RET-GAN-EXT' };
 export const numeroCertificado = (impuesto: string, jurisdiccion: string | null, n: number) =>
   `${PREFIJO[impuesto] ?? `RET-IIBB-${jurisdiccion}`} ${String(n).padStart(8, '0')}`;
-const NOMBRE_IMPUESTO: Record<string, string> = { GANANCIAS: 'Impuesto a las Ganancias', IVA: 'IVA', SUSS: 'SUSS (seguridad social)', IIBB: 'Ingresos Brutos' };
+/** Descripción de la retención en el PDF de la orden de pago (revisión E43: Ganancias exterior). */
+export const descripcionRetencionOP = (r: { impuesto: string; regimen: string | null; jurisdiccion: string | null; detalle: Prisma.JsonValue }) => {
+  const d = r.detalle as Record<string, string>;
+  if (r.impuesto === 'GANANCIAS') return `Ganancias (régimen ${r.regimen})`;
+  if (r.impuesto === 'GANANCIAS_EXTERIOR') return `Ganancias exterior (régimen ${d.codigoSire ?? ''})`;
+  if (r.impuesto === 'IVA' || r.impuesto === 'SUSS') return `${r.impuesto} ${String(d.puntoVenta ?? '').padStart(5, '0')}-${String(d.numero ?? '').padStart(8, '0')}`;
+  return `IIBB ${NOMBRES_JUR[r.jurisdiccion ?? ''] ?? r.jurisdiccion}`;
+};
+/** Detalle de la retención al exterior en la constancia (revisión E43): régimen, código SIRE, convenio y acrecentamiento. */
+export const detalleExterior = (reg: { descripcion: string } | null, detalle: Prisma.JsonValue) => {
+  const d = detalle as Record<string, string>;
+  return [reg?.descripcion ?? 'Régimen', `régimen SIRE ${d.codigoSire ?? ''}`, d.aplicaCdi === 'true' ? 'con convenio de doble imposición' : '', d.acrecentamiento === 'true' ? 'con acrecentamiento (impuesto a cargo del pagador)' : '']
+    .filter(Boolean).join(' — ');
+};
+const NOMBRE_IMPUESTO: Record<string, string> = { GANANCIAS: 'Impuesto a las Ganancias', IVA: 'IVA', SUSS: 'SUSS (seguridad social)', IIBB: 'Ingresos Brutos', GANANCIAS_EXTERIOR: 'Ganancias (beneficiarios del exterior)' };
 
 @Injectable()
 export class ConsultasPagosService {
@@ -36,6 +50,13 @@ export class ConsultasPagosService {
     };
   }
 
+  /** Guarda el número de certificado SIRE de una retención (E43). */
+  async certificadoSire(id: string, certificadoSire: string | null) {
+    const r = await this.tenant.db.ordenPagoRetencion.findUnique({ where: { id } });
+    if (!r) throw new NotFoundException('Retención inexistente');
+    return this.tenant.db.ordenPagoRetencion.update({ where: { id }, data: { certificadoSire } });
+  }
+
   async retenciones(f: { desde?: string; hasta?: string; impuesto?: string; jurisdiccion?: string; incluirAnuladas?: string }) {
     const filas = await this.tenant.db.ordenPagoRetencion.findMany({
       where: {
@@ -46,13 +67,16 @@ export class ConsultasPagosService {
       include: { ordenPago: { include: { tercero: { select: { razonSocial: true, cuit: true } } } } },
       orderBy: [{ impuesto: 'asc' }, { jurisdiccion: 'asc' }, { certificadoNumero: 'asc' }],
     });
-    // IVA y SUSS guardan el id del régimen: se muestra su descripción (revisión E35)
-    const ids = filas.filter((r) => (r.impuesto === 'IVA' || r.impuesto === 'SUSS') && r.regimen).map((r) => r.regimen!);
-    const nombres = new Map([...(await this.tenant.db.regimenIva.findMany({ where: { id: { in: ids } } })), ...(await this.tenant.db.regimenSuss.findMany({ where: { id: { in: ids } } }))].map((g) => [g.id, g.descripcion]));
+    // IVA, SUSS y Ganancias exterior guardan el id del régimen: se muestra su descripción (revisión E35, E43)
+    const ids = filas.filter((r) => (r.impuesto === 'IVA' || r.impuesto === 'SUSS' || r.impuesto === 'GANANCIAS_EXTERIOR') && r.regimen).map((r) => r.regimen!);
+    const nombres = new Map([
+      ...(await this.tenant.db.regimenIva.findMany({ where: { id: { in: ids } } })), ...(await this.tenant.db.regimenSuss.findMany({ where: { id: { in: ids } } })),
+      ...(await this.tenant.db.regimenExterior.findMany({ where: { id: { in: ids } } })),
+    ].map((g) => [g.id, g.descripcion]));
     return filas.map((r) => ({
       id: r.id, ordenPagoId: r.ordenPagoId, fechaPago: r.ordenPago.fechaPago, certificado: numeroCertificado(r.impuesto, r.jurisdiccion, r.certificadoNumero!),
       impuesto: r.impuesto, jurisdiccion: r.jurisdiccion, regimen: (r.regimen && nombres.get(r.regimen)) ?? r.regimen, razonSocial: r.ordenPago.tercero.razonSocial, cuit: r.ordenPago.tercero.cuit,
-      base: r.base.toFixed(2), alicuota: r.alicuota, importe: r.importe.toFixed(2), ordenPagoNumero: numeroOP(r.ordenPago.numero), anulada: r.anulada,
+      base: r.base.toFixed(2), alicuota: r.alicuota, importe: r.importe.toFixed(2), ordenPagoNumero: numeroOP(r.ordenPago.numero), anulada: r.anulada, certificadoSire: r.certificadoSire,
     }));
   }
 
@@ -92,7 +116,7 @@ export class ConsultasPagosService {
       empresa: await this.empresa(), proveedor: op.tercero, numero: numeroOP(op.numero), fecha: op.fecha, fechaPago: op.fechaPago, estado: op.estado,
       imputaciones: op.imputaciones.map((i) => ({ comprobante: desc.get(i.movimientoId) ?? '', moneda: movs.find((m) => m.id === i.movimientoId)?.monedaCodigo ?? 'ARS', importe: i.importe.toString(), importePesos: i.importePesos.toString() })),
       retenciones: op.retenciones.filter((r) => r.importe.gt(0)).map((r) => ({
-        descripcion: r.impuesto === 'GANANCIAS' ? `Ganancias (régimen ${r.regimen})` : r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? `${r.impuesto} ${String((r.detalle as Record<string, string>).puntoVenta ?? '').padStart(5, '0')}-${String((r.detalle as Record<string, string>).numero ?? '').padStart(8, '0')}` : `IIBB ${NOMBRES_JUR[r.jurisdiccion ?? ''] ?? r.jurisdiccion}`,
+        descripcion: descripcionRetencionOP(r),
         base: r.base.toString(), importe: r.importe.toString(), certificado: r.certificadoNumero ? numeroCertificado(r.impuesto, r.jurisdiccion, r.certificadoNumero) : '',
       })),
       medios: op.medios.map((m) => ({ descripcion: `${m.tipo === 'TRANSFERENCIA' ? 'Transferencia' : m.tipo === 'CHEQUE' ? `Cheque ${m.chequeNumero}` : 'Efectivo'} ${m.monedaCodigo}${m.monedaCodigo === 'USD' ? ` ${m.importe.toString()}` : ''}`, importe: m.importePesos.toString() })),
@@ -112,7 +136,9 @@ export class ConsultasPagosService {
       detalleImpuesto: await this.detalleImpuesto(r),
       base: r.base.toString(), alicuota: r.alicuota, importe: r.importe.toString(), ordenPago: numeroOP(r.ordenPago.numero), anulado: r.anulada,
       // E35: con el SIRE el certificado oficial lo emite ARCA; el PDF del sistema es una constancia
-      constancia: r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? { titulo: `CONSTANCIA DE RETENCIÓN DE ${r.impuesto}`, leyenda: 'El certificado oficial se emite en el SIRE de ARCA' } : null,
+      constancia: r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? { titulo: `CONSTANCIA DE RETENCIÓN DE ${r.impuesto}`, leyenda: 'El certificado oficial se emite en el SIRE de ARCA' }
+        // E43: Ganancias a beneficiarios del exterior (F.2003)
+        : r.impuesto === 'GANANCIAS_EXTERIOR' ? { titulo: 'CONSTANCIA DE RETENCIÓN DE GANANCIAS (BENEFICIARIO DEL EXTERIOR)', leyenda: 'El certificado oficial se emite en el SIRE de ARCA' } : null,
     });
     return { nombre: `certificado-${certificado.replace(' ', '-')}.pdf`, contenido };
   }
@@ -125,6 +151,7 @@ export class ConsultasPagosService {
       const d = r.detalle as Record<string, string>;
       return `${reg?.descripcion ?? 'Régimen'} — factura ${d.letra ?? ''} ${String(d.puntoVenta ?? '').padStart(5, '0')}-${String(d.numero ?? '').padStart(8, '0')} del ${d.fecha ?? ''} por $ ${d.total ?? ''}`.replace(/\s+/g, ' ');
     }
+    if (r.impuesto === 'GANANCIAS_EXTERIOR') return detalleExterior(r.regimen ? await this.tenant.db.regimenExterior.findUnique({ where: { id: r.regimen } }) : null, r.detalle);
     return `Jurisdicción ${r.jurisdiccion} ${NOMBRES_JUR[r.jurisdiccion ?? ''] ?? ''}`.trim();
   }
 }
