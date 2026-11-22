@@ -6,8 +6,9 @@ import { useState } from 'react';
 import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 import { FormAbm } from '../abm/FormAbm';
+import type { CampoAbm } from '../abm/tipos';
 
-interface NodoCuenta { id: string; codigo: string; nombre: string; imputable: boolean; tipo: string; activa: boolean; monetaria: boolean; cuentaAjusteId: string | null; hijos: NodoCuenta[] }
+interface NodoCuenta { id: string; codigo: string; nombre: string; imputable: boolean; tipo: string; activa: boolean; monetaria: boolean; cuentaAjusteId: string | null; ajusteImpositivo?: 'COMPUTABLE' | 'EXCLUIDO'; hijos: NodoCuenta[] }
 type Edicion = { modo: 'alta'; padre: NodoCuenta } | { modo: 'editar'; cuenta: NodoCuenta } | null;
 
 function Fila({ n, nivel, editable, abiertos, alternar, editar }: {
@@ -49,6 +50,18 @@ const sugerirCodigo = (p: NodoCuenta) => {
   return `${p.codigo}.${String((usados.length ? Math.max(...usados) : 0) + 1).padStart(largo, '0')}`;
 };
 
+/** Campos de la edición de una cuenta; el ajuste impositivo (E45) solo para activo y pasivo. */
+export const camposCuenta = (tipo: string, opcionesAjuste: { value: string; label: string }[]): CampoAbm[] => [
+  { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
+  { nombre: 'imputable', etiqueta: 'Imputable', tipo: 'booleano' },
+  { nombre: 'activa', etiqueta: 'Activa', tipo: 'booleano' },
+  { nombre: 'monetaria', etiqueta: 'Monetaria (no se reexpresa en el ajuste por inflación)', tipo: 'booleano' },
+  { nombre: 'cuentaAjusteId', etiqueta: 'Cuenta de ajuste por inflación (opcional)', tipo: 'select', opciones: opcionesAjuste },
+  ...(tipo === 'ACTIVO' || tipo === 'PASIVO'
+    ? [{ nombre: 'ajusteImpositivo', etiqueta: 'Ajuste por inflación impositivo', tipo: 'select' as const, requerido: true, opciones: [{ value: 'COMPUTABLE', label: 'Computable' }, { value: 'EXCLUIDO', label: 'Excluida (bienes de uso, intangibles, participaciones...)' }] }]
+    : []),
+];
+
 export function PlanCuentasPage() {
   const { puede } = useAuth();
   const qc = useQueryClient();
@@ -81,19 +94,13 @@ export function PlanCuentasPage() {
                   { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
                   { nombre: 'imputable', etiqueta: 'Imputable (recibe movimientos)', tipo: 'booleano' },
                 ]
-              : [
-                  { nombre: 'nombre', etiqueta: 'Nombre', tipo: 'texto', requerido: true },
-                  { nombre: 'imputable', etiqueta: 'Imputable', tipo: 'booleano' },
-                  { nombre: 'activa', etiqueta: 'Activa', tipo: 'booleano' },
-                  { nombre: 'monetaria', etiqueta: 'Monetaria (no se reexpresa en el ajuste por inflación)', tipo: 'booleano' },
-                  { nombre: 'cuentaAjusteId', etiqueta: 'Cuenta de ajuste por inflación (opcional)', tipo: 'select', opciones: opcionesAjuste.filter((o) => o.value !== edicion.cuenta.id) },
-                ]}
+              : camposCuenta(edicion.cuenta.tipo, opcionesAjuste.filter((o) => o.value !== edicion.cuenta.id))}
             valoresIniciales={edicion.modo === 'alta'
               ? { codigo: sugerirCodigo(edicion.padre), nombre: '', imputable: true }
-              : { nombre: edicion.cuenta.nombre, imputable: edicion.cuenta.imputable, activa: edicion.cuenta.activa, monetaria: edicion.cuenta.monetaria, cuentaAjusteId: edicion.cuenta.cuentaAjusteId ?? '' }}
+              : { nombre: edicion.cuenta.nombre, imputable: edicion.cuenta.imputable, activa: edicion.cuenta.activa, monetaria: edicion.cuenta.monetaria, cuentaAjusteId: edicion.cuenta.cuentaAjusteId ?? '', ajusteImpositivo: edicion.cuenta.ajusteImpositivo ?? 'COMPUTABLE' }}
             onEnviar={(v) => edicion.modo === 'alta'
               ? api('/plan-cuentas', { metodo: 'POST', body: { ...v, padreId: edicion.padre.id } })
-              : api(`/plan-cuentas/${edicion.cuenta.id}`, { metodo: 'PATCH', body: { ...v, cuentaAjusteId: v.cuentaAjusteId || null } })}
+              : api(`/plan-cuentas/${edicion.cuenta.id}`, { metodo: 'PATCH', body: { ...v, cuentaAjusteId: v.cuentaAjusteId || null, ajusteImpositivo: edicion.cuenta.tipo === 'ACTIVO' || edicion.cuenta.tipo === 'PASIVO' ? v.ajusteImpositivo || 'COMPUTABLE' : undefined } })}
             onExito={() => {
               if (edicion.modo === 'alta') setAbiertos((s) => new Set(s).add(edicion.padre.id));
               setEdicion(null);

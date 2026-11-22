@@ -25,7 +25,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 7. ~~**Notas de crédito de retenciones y anulaciones por lote en el SIRE.**~~ Hecho en la entrega 43.
 8. ~~**F.2003 del SIRE:** Ganancias a beneficiarios del exterior.~~ Hecho en la entrega 43.
 9. **Ganancias de sociedades y Bienes Personales (acciones y participaciones).** Hoy no está ni la DJ, ni los anticipos, ni el responsable sustituto.
-10. **Ajuste por inflación impositivo** (Título VI de Ganancias). Hoy solo está el contable.
+10. ~~**Ajuste por inflación impositivo** (Título VI de Ganancias).~~ Hecho en la entrega 45.
 11. ~~**Amortización impositiva** de bienes de uso.~~ Hecho en la entrega 44.
 12. **Presentación automática en los sitios de los organismos.** Hoy se generan los archivos y el usuario los sube.
 
@@ -146,6 +146,11 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - criterio de año completo de alta para muebles y de trimestres para inmuebles, contra el decreto reglamentario vigente;
     - que el coeficiente de actualización sea el cociente de IPC del sistema (mes de cierre / mes de alta) y no la tabla de ARCA;
     - bienes de ejercicios iniciados antes de 2018: hoy sin actualización.
+13. **Ajuste por inflación impositivo (entrega 45):**
+    - lista de activos excluidos del art. 106 y si las previsiones van al pasivo (hoy se marcan a mano en el plan de cuentas; bienes de uso ya excluidos);
+    - prueba de los 36 meses con el IPC del sistema (mes de cierre contra 36 meses antes, umbral 100 %);
+    - momento del ajuste de los dividendos (hoy la fecha del asiento) y de las ventas de bienes excluidos (hoy el valor neto contable que sale del Mayor);
+    - valuación impositiva de bienes de cambio y moneda extranjera: hoy partidas manuales.
 
 ---
 
