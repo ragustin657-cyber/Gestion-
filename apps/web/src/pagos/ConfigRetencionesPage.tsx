@@ -106,6 +106,13 @@ export function TablaJurisdiccionesIibb({ filas, onCambiar: cambiar }: { filas: 
   );
 }
 
+/** Cuerpo del PUT de jurisdicciones (revisión E48: incluye los regímenes de SIRCAR; vacío = sin régimen). */
+export const cuerpoJurisdicciones = (filas: Jurisdiccion[]) => filas.map((f) => ({
+  jurisdiccion: f.jurisdiccion, usaPadron: f.usaPadron, sinPadron: f.sinPadron, alicuotaDefecto: Number(f.alicuotaDefecto), minimoRetencion: Number(f.minimoRetencion),
+  percibe: f.percibe, sinPadronPercepcion: f.sinPadronPercepcion, alicuotaPercepcionDefecto: Number(f.alicuotaPercepcionDefecto), minimoPercepcion: Number(f.minimoPercepcion),
+  regimenSircarRetencion: f.regimenSircarRetencion || null, regimenSircarPercepcion: f.regimenSircarPercepcion || null,
+}));
+
 function Jurisdicciones() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['/pagos/config/jurisdicciones'], queryFn: () => api<Jurisdiccion[]>('/pagos/config/jurisdicciones') });
@@ -115,13 +122,7 @@ function Jurisdicciones() {
   }, [q.data]);
   const cambiar = (j: string, c: Partial<Jurisdiccion>) => setFilas(filas.map((f) => (f.jurisdiccion === j ? { ...f, ...c } : f)));
   async function guardar() {
-    await api('/pagos/config/jurisdicciones', {
-      metodo: 'PUT',
-      body: filas.map((f) => ({
-        jurisdiccion: f.jurisdiccion, usaPadron: f.usaPadron, sinPadron: f.sinPadron, alicuotaDefecto: Number(f.alicuotaDefecto), minimoRetencion: Number(f.minimoRetencion),
-        percibe: f.percibe, sinPadronPercepcion: f.sinPadronPercepcion, alicuotaPercepcionDefecto: Number(f.alicuotaPercepcionDefecto), minimoPercepcion: Number(f.minimoPercepcion),
-      })),
-    });
+    await api('/pagos/config/jurisdicciones', { metodo: 'PUT', body: cuerpoJurisdicciones(filas) });
     notifications.show({ color: 'green', message: 'Jurisdicciones guardadas' });
     void qc.invalidateQueries({ queryKey: ['/pagos/config/jurisdicciones'] });
   }

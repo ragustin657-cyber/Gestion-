@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { filtrarMenu, MENU, NodoMenu } from '../layout/menu';
-import { TablaJurisdiccionesIibb } from '../pagos/ConfigRetencionesPage';
+import { cuerpoJurisdicciones, TablaJurisdiccionesIibb } from '../pagos/ConfigRetencionesPage';
 import { descripcionRetencion } from '../pagos/tipos';
 import { NOMBRE_PRESENTACION } from './comun';
 import { DetallePosicionIibb, PosicionIibbWeb } from './PosicionIibbPage';
@@ -43,5 +43,10 @@ describe('otras jurisdicciones de IIBB (web, E48)', () => {
   it('menú: recaudaciones bancarias con permiso de ver impuestos', () => {
     const rutas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => [...(n.ruta ? [n.ruta] : []), ...rutas(n.hijos ?? [])]);
     expect(rutas(filtrarMenu(MENU, ['impuestos.ver']))).toContain('/impuestos/recaudaciones-bancarias');
+  });
+
+  it('revisión: guardar las jurisdicciones envía los regímenes SIRCAR', () => {
+    const [f] = cuerpoJurisdicciones([{ jurisdiccion: '904', alicuotaDefecto: '0', minimoRetencion: '0', usaPadron: false, sinPadron: 'NO_RETENER', percibe: false, alicuotaPercepcionDefecto: '0', minimoPercepcion: '0', sinPadronPercepcion: 'NO_RETENER', regimenSircarRetencion: '011', regimenSircarPercepcion: '' }]);
+    expect([f.regimenSircarRetencion, f.regimenSircarPercepcion]).toEqual(['011', null]);
   });
 });
