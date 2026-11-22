@@ -3032,3 +3032,61 @@ model RegimenExterior {
 
   @@unique([empresaId, descripcion])
 }
+
+enum EstadoDjGanancias {
+  BORRADOR
+  PRESENTADA
+}
+
+/// Escala de Ganancias de sociedades (art. 73) de un año (E46): tramos con monto fijo y alícuota sobre el excedente.
+model EscalaSociedades {
+  id        String  @id @default(uuid()) @db.Uuid
+  empresaId String  @db.Uuid
+  anio      Int
+  desde     Decimal @db.Decimal(18, 2)
+  fijo      Decimal @db.Decimal(18, 2)
+  alicuota  Decimal @db.Decimal(9, 4)
+
+  @@unique([empresaId, anio, desde])
+}
+
+/// DJ anual de Ganancias de sociedades de un ejercicio (E46): datos cargados y estado.
+model DjGananciasSociedades {
+  id                   String            @id @default(uuid()) @db.Uuid
+  empresaId            String            @db.Uuid
+  ejercicioId          String            @unique @db.Uuid
+  estado               EstadoDjGanancias @default(BORRADOR)
+  quebrantosAnteriores Decimal           @default(0) @db.Decimal(18, 2)
+  anticiposIngresados  Decimal           @default(0) @db.Decimal(18, 2)
+  saldoAFavorAnterior  Decimal           @default(0) @db.Decimal(18, 2)
+  impuestoCheque       Decimal           @default(0) @db.Decimal(18, 2)
+  otrosPagos           Decimal           @default(0) @db.Decimal(18, 2)
+}
+
+/// Ajuste manual de la DJ de Ganancias (E46): positivo suma al resultado impositivo, negativo resta.
+model DjGananciasAjuste {
+  id          String   @id @default(uuid()) @db.Uuid
+  empresaId   String   @db.Uuid
+  ejercicioId String   @db.Uuid
+  concepto    String
+  importe     Decimal  @db.Decimal(18, 2)
+  creadoEn    DateTime @default(now())
+
+  @@index([empresaId, ejercicioId])
+}
+
+/// Presentación de la DJ (E46): foto de la determinación; número 0 la original, 1, 2… las rectificativas.
+model DjGananciasPresentacion {
+  id              String    @id @default(uuid()) @db.Uuid
+  empresaId       String    @db.Uuid
+  ejercicioId     String    @db.Uuid
+  numero          Int
+  datos           Json
+  presentadaPor   String
+  presentadaEn    DateTime  @default(now())
+  anuladaEn       DateTime?
+  anuladaPor      String?
+  motivoAnulacion String?
+
+  @@unique([empresaId, ejercicioId, numero])
+}
