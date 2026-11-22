@@ -120,4 +120,56 @@ describe('DJ de Ganancias de sociedades (E46)', () => {
     const otro = await otroUsuario(app, prisma, x.empresaId, ['bienes.ver']);
     expect((await otro.http.get(`/api/impuestos/dj-ganancias?ejercicioId=${x.ej.id}`)).status).toBe(403);
   });
+
+  it('revisión: no se puede sacar un ajuste de una DJ presentada pasándolo a otro ejercicio', async () => {
+    const x = await escenario();
+    await x.escala();
+    const a = await x.http.post('/api/impuestos/dj-ganancias/ajustes', { ejercicioId: x.ej.id, concepto: 'Gastos no deducibles', importe: 500000 });
+    await x.cerrar();
+    expect((await x.http.post('/api/impuestos/dj-ganancias/presentar', { ejercicioId: x.ej.id })).status).toBe(200);
+    const ej2 = await prisma.ejercicio.findFirstOrThrow({ where: { empresaId: x.empresaId, numero: 2 } });
+    const r = await x.http.put(`/api/impuestos/dj-ganancias/ajustes/${a.body.id}`, { ejercicioId: ej2.id, concepto: 'Gastos no deducibles', importe: 500000 });
+    expect([r.status, r.body.message]).toEqual([400, 'La DJ de Ganancias del ejercicio está presentada']);
+  });
+
+  it('revisión: guardar datos espera a una presentación en curso y después la respeta', async () => {
+    const x = await escenario();
+    await x.escala();
+    await x.dj();
+    let liberar!: () => void;
+    const espera = new Promise<void>((res) => (liberar = res));
+    const tomado = new Promise<void>((ok) => {
+      void prisma.$transaction(async (tx) => {
+        await tx.$queryRawUnsafe('SELECT 1 FROM "DjGananciasSociedades" WHERE "ejercicioId" = $1::uuid FOR UPDATE', x.ej.id);
+        ok();
+        await espera;
+        // La «presentación» en curso termina marcando la DJ como presentada
+        await tx.$executeRawUnsafe('UPDATE "DjGananciasSociedades" SET "estado" = \'PRESENTADA\' WHERE "ejercicioId" = $1::uuid', x.ej.id);
+      }, { timeout: 20000 });
+    });
+    await tomado;
+    const inicio = Date.now();
+    const pedido = x.http.put('/api/impuestos/dj-ganancias/datos', { ejercicioId: x.ej.id, quebrantosAnteriores: 0, anticiposIngresados: 1, saldoAFavorAnterior: 0, impuestoCheque: 0, otrosPagos: 0 }).then((r) => ({ r, ms: Date.now() - inicio }));
+    setTimeout(liberar, 600);
+    const { r, ms } = await pedido;
+    expect(ms).toBeGreaterThanOrEqual(550);
+    expect([r.status, r.body.message]).toEqual([400, 'La DJ de Ganancias del ejercicio está presentada']);
+  });
+
+  it('revisión: las retenciones de Ganancias de liquidaciones de tarjetas son pago a cuenta (las anuladas no)', async () => {
+    const x = await escenario();
+    await x.escala();
+    const base = { empresaId: x.empresaId, tarjetaId: x.empresaId, fecha: new Date('2026-09-10'), bruto: 100000, arancel: 0, ivaArancel: 0, neto: 60000, cuentaBancariaId: x.empresaId, creadoPor: 't' };
+    await prisma.liquidacionTarjeta.create({ data: { ...base, numero: 1, impuestos: { create: [{ empresaId: x.empresaId, clase: 'RETENCION', tipo: 'GANANCIAS', importe: 40000 }, { empresaId: x.empresaId, clase: 'RETENCION', tipo: 'IVA', importe: 9000 }] } } });
+    await prisma.liquidacionTarjeta.create({ data: { ...base, numero: 2, estado: 'ANULADO', impuestos: { create: [{ empresaId: x.empresaId, clase: 'RETENCION', tipo: 'GANANCIAS', importe: 7000 }] } } });
+    const d = (await x.dj()).determinacion;
+    expect([d.retenciones, d.pagosACuenta]).toEqual(['40000.00', '40000.00']);
+  });
+
+  it('revisión: el monto fijo de cada tramo tiene que continuar el anterior', async () => {
+    const x = await escenario();
+    const r = await x.http.put('/api/impuestos/escala-sociedades/2026', { tramos: [{ desde: 0, fijo: 0, alicuota: 25 }, { desde: 5000000, fijo: 0, alicuota: 30 }] });
+    expect([r.status, r.body.message]).toEqual([400, 'El monto fijo del tramo 2 no continúa el tramo anterior (esperado 1250000.00)']);
+    expect((await x.escala()).status).toBe(200);
+  });
 });

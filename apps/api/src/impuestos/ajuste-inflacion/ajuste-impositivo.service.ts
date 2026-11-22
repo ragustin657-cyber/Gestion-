@@ -102,7 +102,8 @@ export class AjusteImpositivoService {
 
   /** E46: con la DJ de Ganancias del ejercicio presentada, las partidas no se modifican. */
   private async verificarEditable(tx: TxEmpresa, ejercicioId: string) {
-    const dj = await tx.djGananciasSociedades.findUnique({ where: { ejercicioId } });
+    // Revisión E46: FOR UPDATE sobre la fila de la DJ (si existe), para no cruzarse con una presentación en curso
+    const [dj] = await tx.$queryRaw<{ estado: string }[]>`SELECT "estado" FROM "DjGananciasSociedades" WHERE "ejercicioId" = ${ejercicioId}::uuid AND "empresaId" = ${this.tenant.empresaId}::uuid FOR UPDATE`;
     if (dj?.estado === 'PRESENTADA') throw new BadRequestException('La DJ de Ganancias del ejercicio está presentada');
   }
 

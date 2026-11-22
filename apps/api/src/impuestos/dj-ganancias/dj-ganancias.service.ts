@@ -49,6 +49,13 @@ export class DjGananciasService {
   guardarEscala(anio: number, tramos: Tramo[]) {
     if (!tramos.length || tramos[0].desde !== 0) throw new BadRequestException('El primer tramo empieza en 0');
     if (tramos.some((t, i) => i > 0 && t.desde <= tramos[i - 1].desde)) throw new BadRequestException('Los tramos deben estar ordenados de menor a mayor');
+    // Revisión E46: el fijo de cada tramo es el impuesto acumulado hasta su «desde» (tolerancia por el redondeo de ARCA)
+    for (let i = 1; i < tramos.length; i++) {
+      const a = tramos[i - 1];
+      const esperado = new D(a.fijo).plus(new D(tramos[i].desde).minus(a.desde).times(a.alicuota).div(100));
+      if (new D(tramos[i].fijo).minus(esperado).abs().gt(D.max(1, esperado.times('0.01'))))
+        throw new BadRequestException(`El monto fijo del tramo ${i + 1} no continúa el tramo anterior (esperado ${esperado.toFixed(2)})`);
+    }
     return this.tenant.transaccion(async (tx) => {
       await tx.escalaSociedades.deleteMany({ where: { anio } });
       await tx.escalaSociedades.createMany({ data: tramos.map((t) => ({ empresaId: this.tenant.empresaId, anio, ...t })) });
@@ -70,10 +77,14 @@ export class DjGananciasService {
     return (await tx.djGananciasSociedades.findUnique({ where: { ejercicioId } })) ?? tx.djGananciasSociedades.create({ data: { empresaId: this.tenant.empresaId, ejercicioId } });
   }
 
-  /** Error si la DJ del ejercicio está presentada (también lo usa el ajuste por inflación impositivo). */
+  /**
+   * Error si la DJ del ejercicio está presentada. Revisión E46: toma la fila con FOR UPDATE, así una presentación en curso
+   * termina antes (y la escritura la ve) o espera a esta escritura (y la foto la incluye).
+   */
   async verificarEditable(tx: TxEmpresa, ejercicioId: string) {
-    const dj = await tx.djGananciasSociedades.findUnique({ where: { ejercicioId } });
-    if (dj?.estado === 'PRESENTADA') throw new BadRequestException(DJ_PRESENTADA);
+    await this.dj(tx, ejercicioId);
+    const [fila] = await tx.$queryRaw<{ estado: string }[]>`SELECT "estado" FROM "DjGananciasSociedades" WHERE "ejercicioId" = ${ejercicioId}::uuid AND "empresaId" = ${this.tenant.empresaId}::uuid FOR UPDATE`;
+    if (fila?.estado === 'PRESENTADA') throw new BadRequestException(DJ_PRESENTADA);
   }
 
   /** Determinación al vuelo (spec E46 §3). */
@@ -85,6 +96,8 @@ export class DjGananciasService {
       WHERE a."empresaId" = ${this.tenant.empresaId}::uuid AND a."fecha" BETWEEN ${desde}::date AND ${hasta}::date
         AND a."tipo" IN ('AUTOMATICO', 'MANUAL') AND a."origenTipo" <> ${ORIGEN_AJUSTE} AND c."tipo" IN ('RESULTADO_POSITIVO', 'RESULTADO_NEGATIVO')`;
     const retenciones = (await tx.reciboRetencion.aggregate({ _sum: { importe: true }, where: { tipo: 'GANANCIAS', fecha: { gte: ej.desde, lte: ej.hasta }, recibo: { estado: 'CONFIRMADO' } } }))._sum.importe ?? new D(0);
+    // Revisión E46: también las retenciones de Ganancias de las liquidaciones de tarjetas
+    const deTarjetas = (await tx.liquidacionTarjetaImpuesto.aggregate({ _sum: { importe: true }, where: { clase: 'RETENCION', tipo: 'GANANCIAS', liquidacion: { fecha: { gte: ej.desde, lte: ej.hasta }, estado: 'CONFIRMADO' } } }))._sum.importe ?? new D(0);
     const percepciones = (await tx.comprobanteCompra.aggregate({ _sum: { percepcionGanancias: true }, where: { fechaContable: { gte: ej.desde, lte: ej.hasta }, estado: 'CONFIRMADO' } }))._sum.percepcionGanancias ?? new D(0);
     const anio = ej.desde.getUTCFullYear();
     const tramos = await tx.escalaSociedades.findMany({ where: { anio }, orderBy: { desde: 'asc' } });
@@ -99,12 +112,12 @@ export class DjGananciasService {
       resultadoContable: new D(resultado ?? 0), diferenciaAmortizaciones: new D(amort.totales.diferencia), ajusteInflacion: new D(ajuste.totalDj),
       ajustesManuales: ajustes.map((a) => ({ concepto: a.concepto, importe: new D(a.importe) })), quebrantosAnteriores: new D(dj.quebrantosAnteriores),
       tramos: tramos.map((t) => ({ desde: new D(t.desde), fijo: new D(t.fijo), alicuota: new D(t.alicuota) })),
-      retenciones: new D(retenciones), percepciones: new D(percepciones), impuestoCheque: new D(dj.impuestoCheque), anticiposIngresados: new D(dj.anticiposIngresados),
+      retenciones: new D(retenciones).plus(deTarjetas), percepciones: new D(percepciones), impuestoCheque: new D(dj.impuestoCheque), anticiposIngresados: new D(dj.anticiposIngresados),
       saldoAFavorAnterior: new D(dj.saldoAFavorAnterior), otrosPagos: new D(dj.otrosPagos), mesCierre: mes(ej.hasta), mesesEjercicio: meses,
     });
     const t = texto(r);
     t.avisos = [...t.avisos, ...amort.avisos, ...(ajuste.avisoApertura ? [ajuste.avisoApertura] : []), ...(ajuste.aviso ? [ajuste.aviso] : [])];
-    return { ...t, retenciones: new D(retenciones).toFixed(2), percepciones: new D(percepciones).toFixed(2) };
+    return { ...t, retenciones: new D(retenciones).plus(deTarjetas).toFixed(2), percepciones: new D(percepciones).toFixed(2) };
   }
 
   async consultar(q: { ejercicioId?: string }) {
@@ -141,7 +154,12 @@ export class DjGananciasService {
     return this.tenant.transaccion(async (tx) => {
       const ej = await this.ejercicio(tx, d.ejercicioId);
       await this.verificarEditable(tx, ej.id);
-      if (id && !(await tx.djGananciasAjuste.findUnique({ where: { id } }))) throw new NotFoundException('Ajuste no encontrado');
+      if (id) {
+        const actual = await tx.djGananciasAjuste.findUnique({ where: { id } });
+        if (!actual) throw new NotFoundException('Ajuste no encontrado');
+        // Revisión E46: tampoco se saca un ajuste de una DJ presentada pasándolo a otro ejercicio
+        await this.verificarEditable(tx, actual.ejercicioId);
+      }
       const a = id ? await tx.djGananciasAjuste.update({ where: { id }, data: d }) : await tx.djGananciasAjuste.create({ data: { ...d, empresaId: this.tenant.empresaId } });
       await this.auditoria.registrar(tx, { entidad: 'DjGananciasAjuste', entidadId: a.id, accion: id ? 'MODIFICAR' : 'CREAR', datos: d });
       return a;

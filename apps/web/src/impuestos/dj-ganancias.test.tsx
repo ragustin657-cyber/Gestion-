@@ -55,4 +55,16 @@ describe('DJ de Ganancias de sociedades (web, E46)', () => {
     const rutas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => [...(n.ruta ? [n.ruta] : []), ...rutas(n.hijos ?? [])]);
     expect(rutas(filtrarMenu(MENU, ['impuestos.ver']))).toContain('/impuestos/dj-ganancias');
   });
+
+  it('revisión: escala con un campo vacío no se guarda', async () => {
+    const f = vi.fn(async () => new Response('[]', { status: 200 }));
+    vi.stubGlobal('fetch', f);
+    envolver(<EscalaSociedades />);
+    await waitFor(() => expect(f).toHaveBeenCalled());
+    await new Promise((res) => setTimeout(res, 50));
+    fireEvent.click(await screen.findByRole('button', { name: 'Agregar tramo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar escala' }));
+    expect(await screen.findByText('Complete todos los campos de la escala')).toBeInTheDocument();
+    expect(f.mock.calls.some((c) => (c as unknown[])[1] && ((c as unknown[])[1] as RequestInit).method === 'PUT')).toBe(false);
+  });
 });

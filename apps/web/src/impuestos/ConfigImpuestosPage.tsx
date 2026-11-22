@@ -30,6 +30,11 @@ export function EscalaSociedades() {
   const cambiar = (i: number, k: keyof TramoForm, v: number | string) => setTramos(tramos.map((t, j) => (j === i ? { ...t, [k]: v } : t)));
   const guardar = async () => {
     setError('');
+    // Revisión E46: un campo vacío no se guarda como 0
+    if (tramos.some((t) => [t.desde, t.fijo, t.alicuota].some((v) => v === '' || v === null || Number.isNaN(Number(v))))) {
+      setError('Complete todos los campos de la escala');
+      return;
+    }
     try {
       await api(`/impuestos/escala-sociedades/${anio}`, { metodo: 'PUT', body: { tramos: tramos.map((t) => ({ desde: Number(t.desde) || 0, fijo: Number(t.fijo) || 0, alicuota: Number(t.alicuota) || 0 })) } });
       notifications.show({ color: 'green', message: 'Escala guardada' });
