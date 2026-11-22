@@ -42,8 +42,15 @@ export class SircrebService {
         const actual = await tx.recaudacionBancaria.findUnique({ where: { id } });
         if (!actual) throw new NotFoundException('Recaudación no encontrada');
         await this.editable(tx, actual.periodo);
-        r = await tx.recaudacionBancaria.update({ where: { id }, data: { ...d, cuentaBancariaId: d.cuentaBancariaId ?? null, cbu: d.cbu ?? null } });
-      } else r = await this.guardarEn(tx, d);
+        // Revisión E48: si no vienen, se conservan la cuenta y el CBU (la reimportación los usa para encontrar la fila)
+        r = await tx.recaudacionBancaria.update({ where: { id }, data: { ...d, cuentaBancariaId: d.cuentaBancariaId === undefined ? actual.cuentaBancariaId : d.cuentaBancariaId, cbu: d.cbu === undefined ? actual.cbu : d.cbu } });
+      } else {
+        // Revisión E48: la carga a mano no pisa otra recaudación (dos bancos pueden debitar la misma jurisdicción): se pide modificarla o distinguirla
+        const clave = { periodo: d.periodo, jurisdiccion: d.jurisdiccion, cuentaBancariaId: d.cuentaBancariaId ?? null, cbu: d.cbu ?? null };
+        if (await tx.recaudacionBancaria.findFirst({ where: clave }))
+          throw new BadRequestException(`Ya hay una recaudación de ${nombre(d.jurisdiccion)} en ${d.periodo.slice(4, 6)}/${d.periodo.slice(0, 4)}: modifíquela o indique la cuenta o el CBU`);
+        r = await this.guardarEn(tx, d);
+      }
       await this.auditoria.registrar(tx, { entidad: 'RecaudacionBancaria', entidadId: r.id, accion: id ? 'MODIFICAR' : 'CREAR', datos: d });
       return r;
     });
@@ -68,12 +75,14 @@ export class SircrebService {
       // El separador es «;» o tabulador; la coma solo si no hay otro (puede ser el decimal)
       const sep = linea.includes(';') ? ';' : linea.includes('\t') ? '\t' : ',';
       const c = linea.split(sep).map((x) => x.trim());
+      // Con coma de separador, «1500,50» se partiría: el cuarto campo tiene que ser un CBU (22 dígitos)
+      if (sep === ',' && (c.length > 4 || (c[3] !== undefined && !/^\d{22}$/.test(c[3])))) throw new BadRequestException(`Línea ${i + 1} inválida: use «;» como separador si el importe tiene coma decimal`);
       if (i === 0 && !/^\d{6}$/.test(c[0])) return; // encabezado
       const mal = (campo: string): never => { throw new BadRequestException(`Línea ${i + 1} inválida: ${campo}`); };
       if (!/^\d{6}$/.test(c[0]) || Number(c[0].slice(4)) < 1 || Number(c[0].slice(4)) > 12) mal('período');
       if (!(c[1] in JURISDICCIONES_CM)) mal('jurisdicción');
       const importe = Number((c[2] ?? '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
-      if (!c[2] || Number.isNaN(importe)) mal('importe');
+      if (!c[2] || Number.isNaN(importe) || importe < 0) mal('importe');
       filas.push({ periodo: c[0], jurisdiccion: c[1], importe, cbu: c[3] || null });
     });
     if (!filas.length) throw new BadRequestException('El archivo no tiene filas');

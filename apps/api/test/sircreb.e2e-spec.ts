@@ -65,4 +65,31 @@ describe('recaudaciones bancarias SIRCREB (E48)', () => {
     const otro = await otroUsuario(app, prisma, x.empresaId, ['bienes.ver']);
     expect((await otro.http.get('/api/impuestos/recaudaciones-bancarias?periodo=202610')).status).toBe(403);
   });
+
+  it('revisión: la carga a mano no pisa otra recaudación del mismo período y jurisdicción', async () => {
+    const x = await escenario();
+    expect((await x.alta({ importe: 1000, referencia: 'Banco A' })).status).toBe(201);
+    const r = await x.alta({ importe: 500, referencia: 'Banco B' });
+    expect([r.status, r.body.message]).toEqual([400, 'Ya hay una recaudación de Buenos Aires en 10/2026: modifíquela o indique la cuenta o el CBU']);
+    const l = (await x.http.get('/api/impuestos/recaudaciones-bancarias?periodo=202610')).body as { importe: string }[];
+    expect(l.map((f) => f.importe)).toEqual(['1000.00']);
+  });
+
+  it('revisión: modificar el importe conserva el CBU (y reimportar no duplica)', async () => {
+    const x = await escenario();
+    await x.http.post('/api/impuestos/recaudaciones-bancarias/importar', { texto: '202610;902;1500;0000003100000000000001\n' });
+    const [fila] = (await x.http.get('/api/impuestos/recaudaciones-bancarias?periodo=202610')).body as { id: string }[];
+    expect((await x.http.put(`/api/impuestos/recaudaciones-bancarias/${fila.id}`, { periodo: '202610', jurisdiccion: '902', importe: 1600 })).status).toBe(200);
+    await x.http.post('/api/impuestos/recaudaciones-bancarias/importar', { texto: '202610;902;1700;0000003100000000000001\n' });
+    const l = (await x.http.get('/api/impuestos/recaudaciones-bancarias?periodo=202610')).body as { importe: string; cbu: string }[];
+    expect(l.map((f) => [f.importe, f.cbu])).toEqual([['1700.00', '0000003100000000000001']]);
+  });
+
+  it('revisión: con coma de separador, la coma decimal da error; importes negativos rechazados', async () => {
+    const x = await escenario();
+    const r = await x.http.post('/api/impuestos/recaudaciones-bancarias/importar', { texto: '202610,902,1500,50\n' });
+    expect([r.status, r.body.message]).toEqual([400, 'Línea 1 inválida: use «;» como separador si el importe tiene coma decimal']);
+    const n = await x.http.post('/api/impuestos/recaudaciones-bancarias/importar', { texto: '202610;902;-100\n' });
+    expect([n.status, n.body.message]).toEqual([400, 'Línea 1 inválida: importe']);
+  });
 });
