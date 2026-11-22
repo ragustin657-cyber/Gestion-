@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
@@ -35,6 +35,7 @@ export class BienesPersonalesController {
   }
 
   @Put('socios/:id')
+  @Patch('socios/:id')
   @RequierePermiso('impuestos.presentar')
   modificarSocio(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaSocio)) d: DatosSocio) {
     return this.bp.guardarSocio(id, d);
