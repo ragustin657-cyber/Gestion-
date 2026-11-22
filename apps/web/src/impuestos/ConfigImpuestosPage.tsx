@@ -43,7 +43,7 @@ export function EscalaSociedades() {
     <Stack maw={720}>
       <Title order={5}>Escala de Ganancias de sociedades (art. 73)</Title>
       <Group align="flex-end">
-        <NumberInput label="Año" w={110} min={2018} max={2100} value={anio} onChange={(v) => setAnio(Number(v) || anio)} />
+        <NumberInput label="Año de la escala" w={150} min={2018} max={2100} value={anio} onChange={(v) => setAnio(Number(v) || anio)} />
         <Button variant="light" size="xs" onClick={() => setTramos(ESCALA_LEY)}>Copiar escala de la ley 27.630</Button>
         <Button variant="subtle" size="xs" onClick={() => setTramos([...tramos, { desde: '', fijo: '', alicuota: '' }])}>Agregar tramo</Button>
       </Group>
