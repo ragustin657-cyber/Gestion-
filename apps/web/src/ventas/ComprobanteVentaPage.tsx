@@ -35,6 +35,10 @@ export function renglonDesdeComprobante(r: { articuloId: string | null; descripc
   };
 }
 
+/** Pulido E42: ¿los renglones en pantalla difieren de los guardados? (las percepciones guardadas quedan viejas hasta guardar) */
+const claveRenglones = (rs: RenglonVentaEditable[]) => JSON.stringify(rs.map((r) => [r.descripcion, Number(String(r.cantidad).replace(',', '.')), Number(String(r.precioUnitario).replace(',', '.')), r.alicuota]));
+const renglonesCambiaron = (rs: RenglonVentaEditable[], c: ComprobanteVenta) => claveRenglones(rs) !== claveRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
+
 export function ComprobanteVentaPage() {
   const empresa = useEmpresa();
   const clientes = useClientes();
@@ -219,7 +223,7 @@ export function ComprobanteVentaPage() {
           {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
             onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
         </Group>}
-        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} percepciones={actual?.percepcionesDetalle}
+        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual)}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
         <Modal opened={selectorPendientes} onClose={() => setSelectorPendientes(false)} title="Remitos y pedidos pendientes de facturar" size="xl">
           <TablaPendientes pendientes={pendientesFacturar} seleccion={seleccionPend} onChange={setSeleccionPend} />

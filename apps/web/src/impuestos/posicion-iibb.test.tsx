@@ -46,4 +46,9 @@ describe('liquidación de IIBB (web)', () => {
     expect(screen.getByText('Sin provincia')).toBeTruthy();
     expect(screen.getByText('80,00 %')).toBeTruthy();
   });
+
+  it('pulido E42: la tabla de meses muestra a pagar y a favor en el mismo mes', () => {
+    envolver(<TablaMesesIibb meses={[{ mes: 9, estado: 'CERRADA', aPagar: '100.00', saldoAFavor: '50.00' }]} elegido={9} onElegir={() => undefined} />);
+    expect(screen.getByText('A pagar $ 100,00 · A favor $ 50,00')).toBeTruthy();
+  });
 });
