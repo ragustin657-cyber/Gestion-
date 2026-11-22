@@ -53,6 +53,10 @@ export function DetallePosicionIibb({ p }: { p: PosicionIibbWeb }) {
   );
 }
 
+/** Pulido E42: a pagar y a favor juntos cuando el mes tiene los dos (en distintas jurisdicciones). */
+const resultadoMes = (m: MesIibb) => [Number(m.aPagar) > 0 ? `A pagar ${formatoMoneda(m.aPagar)}` : null, Number(m.saldoAFavor) > 0 ? `A favor ${formatoMoneda(m.saldoAFavor)}` : null]
+  .filter(Boolean).join(' · ') || 'Sin saldo';
+
 export function TablaMesesIibb({ meses, elegido, onElegir }: { meses: MesIibb[]; elegido: number; onElegir: (mes: number) => void }) {
   return (
     <Table withTableBorder highlightOnHover>
@@ -62,7 +66,7 @@ export function TablaMesesIibb({ meses, elegido, onElegir }: { meses: MesIibb[];
           <Table.Tr key={m.mes} style={{ cursor: 'pointer', fontWeight: m.mes === elegido ? 700 : undefined }} onClick={() => onElegir(m.mes)}>
             <Table.Td>{MESES[m.mes - 1].label}</Table.Td>
             <Table.Td>{m.estado === 'CERRADA' ? <Badge color="green" variant="light">Cerrada</Badge> : <Badge color="gray" variant="light">Sin cerrar</Badge>}</Table.Td>
-            <Table.Td ta="right">{m.estado !== 'CERRADA' ? '' : Number(m.aPagar) > 0 ? `A pagar ${formatoMoneda(m.aPagar)}` : `A favor ${formatoMoneda(m.saldoAFavor)}`}</Table.Td>
+            <Table.Td ta="right">{m.estado !== 'CERRADA' ? '' : resultadoMes(m)}</Table.Td>
           </Table.Tr>
         ))}
       </Table.Tbody>

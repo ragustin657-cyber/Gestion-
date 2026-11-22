@@ -55,7 +55,7 @@ export const esquemaAnular = z.object({ motivo: zMotivo });
 export const esquemaDespacho = z.object({
   numeroDespacho: z.string().trim().toUpperCase().regex(/^\d{5}[A-Z]{2}\d{2}\d{6}[A-Z]$/, 'El número de despacho tiene 16 caracteres (por ejemplo 26001IC04012345K)'),
   fechaEmision: zFecha, fechaContable: zFecha.nullish(), fechaVencimiento: zFecha.nullish(),
-  renglones: z.array(z.object({ base: z.number().gt(0, 'La base imponible debe ser mayor que cero'), alicuotaIva: z.union([z.literal(21), z.literal(10.5), z.literal(27), z.literal(5), z.literal(2.5)]) })).min(1, 'Cargue al menos una base imponible'),
+  renglones: z.array(z.object({ base: z.number().gt(0, 'La base imponible debe ser mayor que cero'), alicuotaIva: z.number().refine((a) => a === 21 || a === 10.5, 'El despacho admite alícuotas de 21 % y 10,5 %') })).min(1, 'Cargue al menos una base imponible'),
   percepcionIva: z.number().min(0).default(0), percepcionGanancias: z.number().min(0).default(0),
   percepcionesIibb: z.array(z.object({ jurisdiccion: z.string().regex(/^9\d\d$/, 'Jurisdicción inválida'), importe: z.number().gt(0) })).default([]),
   derechosImportacion: z.number().min(0).default(0), tasaEstadistica: z.number().min(0).default(0),

@@ -4,11 +4,16 @@ const D = Prisma.Decimal;
 const f2 = (x: Prisma.Decimal) => x.toDecimalPlaces(2, D.ROUND_HALF_UP).toFixed(2);
 
 /** Coeficiente de prorrateo (spec E40 §4): gravadas / (gravadas + exentas y no gravadas), 4 decimales, acotado a [0, 1]. Sin ventas → 1. */
-export function coeficienteProrrateo(gravadas: string, exentas: string): { coeficiente: string; sinVentas: boolean } {
+export function coeficienteProrrateo(gravadas: string, exentas: string): { coeficiente: string; sinVentas: boolean; acotado: 0 | 1 | null } {
   const g = new D(gravadas), total = g.plus(exentas);
-  if (total.lte(0)) return { coeficiente: '1.0000', sinVentas: g.isZero() && new D(exentas).isZero() };
-  const c = D.min(D.max(g.div(total), 0), 1);
-  return { coeficiente: c.toDecimalPlaces(4, D.ROUND_HALF_UP).toFixed(4), sinVentas: false };
+  if (total.lte(0)) {
+    const sinVentas = g.isZero() && new D(exentas).isZero();
+    return { coeficiente: '1.0000', sinVentas, acotado: sinVentas ? null : 1 };
+  }
+  const r = g.div(total);
+  const c = D.min(D.max(r, 0), 1);
+  // Pulido E42: con ventas negativas el cociente sale de [0, 1] y se acota (la posición lo avisa)
+  return { coeficiente: c.toDecimalPlaces(4, D.ROUND_HALF_UP).toFixed(4), sinVentas: false, acotado: r.lt(0) ? 0 : r.gt(1) ? 1 : null };
 }
 
 /** Crédito del mes por destino (spec E40 §5): computable = gravado + común × coeficiente + ajuste; el no computable es el resto del total. */

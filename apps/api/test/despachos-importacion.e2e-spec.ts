@@ -168,4 +168,57 @@ describe('despachos de importación (E41)', () => {
     expect(r.status).toBe(201);
     expect(r.body.soloSistema).toEqual([]);
   });
+
+  it('pulido E42: el alta del despacho toma el lock de la Aduana (duplicados y primera Aduana simultáneos)', async () => {
+    const x = await escenario();
+    let soltar!: () => void;
+    await new Promise<void>((ok) => {
+      void prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `aduana:${x.empresaId}`);
+        ok();
+        await new Promise<void>((fin) => (soltar = fin));
+      }, { timeout: 20000 });
+    });
+    let listo = false;
+    const pedido = x.despacho().then((r) => ((listo = true), r));
+    await new Promise((ok) => setTimeout(ok, 600));
+    expect(listo).toBe(false);
+    soltar();
+    expect((await pedido).status).toBe(201);
+    // Simultáneos: uno se registra y el otro recibe el mensaje claro; distintos: los dos, con una sola Aduana
+    const [a, b] = await Promise.all([x.despacho({ numeroDespacho: '26001IC04012347M' }), x.despacho({ numeroDespacho: '26001IC04012347M' })]);
+    expect([a.status, b.status].sort()).toEqual([201, 400]);
+    expect([a, b].find((r) => r.status === 400)!.body.message).toBe('Ya existe el despacho 26001IC04012347M');
+    expect(await prisma.tercero.count({ where: { empresaId: x.empresaId, cuit: '33693450239' } })).toBe(1);
+  });
+
+  it('pulido E42: el despacho admite alícuotas de 21 % y 10,5 %', async () => {
+    const x = await escenario();
+    const r = await x.despacho({ renglones: [{ base: 1000, alicuotaIva: 27 }], percepcionIva: 0, percepcionGanancias: 0, percepcionesIibb: [], derechosImportacion: 0, tasaEstadistica: 0, totalDeclarado: 270 });
+    expect([r.status, r.body.message]).toEqual([400, 'El despacho admite alícuotas de 21 % y 10,5 %']);
+  });
+
+  it('pulido E42: el Excel del Libro IVA Compras de impuestos muestra el comprobante legible', async () => {
+    const x = await escenario();
+    await x.despacho();
+    const r = await request(app.getHttpServer()).get('/api/impuestos/libro-iva-compras?desde=2026-10-01&hasta=2026-10-31&formato=xlsx').set('Authorization', `Bearer ${x.token}`)
+      .buffer(true).parse((res, cb) => { const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p))); });
+    const ExcelJS = (await import('exceljs')).default;
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(r.body as unknown as ArrayBuffer);
+    const valores: string[] = [];
+    wb.worksheets[0].eachRow((row) => row.eachCell((c) => valores.push(String(c.value))));
+    expect(valores).toContain(`Despacho ${NUMERO}`);
+  });
+
+  it('pulido E42: anular un despacho de un mes abierto deja contraasiento y la cuenta corriente en cero', async () => {
+    const x = await escenario();
+    const r = await x.despacho();
+    const an = await x.http.post(`/api/compras/comprobantes/${r.body.id}/anular`, { motivo: 'Error' });
+    expect(an.status).toBe(200);
+    const c = await prisma.comprobanteCompra.findUniqueOrThrow({ where: { id: r.body.id } });
+    expect([c.estado, !!c.asientoAnulacionId]).toEqual(['ANULADO', true]);
+    const mov = await prisma.movimientoCuentaCorriente.findFirstOrThrow({ where: { origenId: r.body.id } });
+    expect([mov.anulado, mov.saldo.toFixed(2)]).toEqual([true, '0.00']);
+  });
 });

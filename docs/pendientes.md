@@ -139,6 +139,16 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 
 ---
 
+### Menores de las entregas 38 a 41 que siguen pendientes (después del pulido de la entrega 42)
+- Cadena de borradores de más de 24 meses (IVA e IIBB) y costo del borrador del último mes con prorrateo (rendimiento).
+- Meses de IVA cerrados antes de la entrega 38 sin el IVA de tarjetas (ajuste manual).
+- Saldo inicial de IIBB al mover el año de inicio: sin aviso.
+- Alícuota de percepción con 4 decimales y ARCA con 2.
+- Migraciones que reusan una cuenta existente con el mismo código (5.2.14, 5.1.02, etc.).
+- Letra C en el coeficiente de prorrateo.
+- Fecha contable del despacho distinta de la oficialización; volver a cargar un despacho anulado con el mismo número.
+- Pruebas e2e del ajuste julio–junio y del no computable negativo (cubiertas por pruebas unitarias).
+
 ## 3. Observaciones menores pendientes (139 de las 231)
 
 Son observaciones menores de las revisiones finales que todavía no resolvió ningún pulido. Están agrupadas por módulo.

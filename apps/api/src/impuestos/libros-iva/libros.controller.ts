@@ -29,6 +29,11 @@ const COLUMNAS_COMPRAS: Columna[] = [
 const porAlicuota = (neto: Record<string, string>, iva: Record<string, string>) =>
   ALICUOTAS_LIBRO.flatMap((a) => [neto[a] ?? null, ...(a === '0' ? [] : [iva[a] ?? null])]);
 
+/** Comprobante de compra legible en el libro exportado (pulido E42): «Factura A 00001-…», «Despacho <número>». */
+const ETIQUETA_COMPRA: Record<string, string> = { FACTURA: 'Factura', NOTA_DEBITO: 'Nota de débito', NOTA_CREDITO: 'Nota de crédito', TICKET: 'Ticket' };
+export const etiquetaCompra = (f: { tipo: string; letra: string; numero: string }) =>
+  f.tipo === 'DESPACHO_IMPORTACION' ? `Despacho ${f.numero}` : `${ETIQUETA_COMPRA[f.tipo] ?? f.tipo} ${f.letra} ${f.numero}`.replace(/\s+/g, ' ');
+
 @Controller('impuestos')
 @RequierePermiso('impuestos.ver')
 export class LibrosIvaController {
@@ -86,7 +91,7 @@ export class LibrosIvaController {
     if (formato !== 'xlsx' && formato !== 'pdf') return { ...l, advertencias };
     const extra = (f: { percepcionIva: string; percepcionesIibb: string; impuestosInternos: string; noComputable: string; noGravado: string; exento: string; percepcionGanancias: string; otrosTributos: string; total: string }) =>
       [f.percepcionIva, f.percepcionesIibb, f.impuestosInternos, f.noComputable, f.noGravado, f.exento, f.percepcionGanancias, f.otrosTributos, f.total];
-    const filas: Fila[] = l.filas.map((f) => [fecha(f.fechaContable), `${f.tipo} ${f.letra} ${f.numero}`, f.razonSocial, f.cuit, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), ...extra(f)]);
+    const filas: Fila[] = l.filas.map((f) => [fecha(f.fechaContable), etiquetaCompra(f), f.razonSocial, f.cuit, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), ...extra(f)]);
     filas.push(['', 'Totales', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), ...extra(l.totales)]);
     return this.salida(res, 'libro-iva-compras', 'Libro IVA Compras', desde, hasta, formato, COLUMNAS_COMPRAS, filas);
   }

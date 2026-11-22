@@ -1699,6 +1699,8 @@ model PosicionIibb {
   mes        Int
   ingresos   Decimal   @db.Decimal(18, 2)
   detalle    Json
+  /// Avisos del cierre (pulido E42)
+  avisos     Json      @default("[]")
   asientoId  String?   @db.Uuid
   cerradoEn  DateTime?
   cerradoPor String?   @db.Uuid

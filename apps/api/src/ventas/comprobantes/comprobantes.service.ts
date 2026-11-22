@@ -25,7 +25,7 @@ export const AUTORIZADO_NO_SE_ANULA = 'Un comprobante autorizado no se anula: em
 export const EMISION_SIN_CONFIRMAR = 'El comprobante tiene una emisión sin confirmar: reintente para resolverla';
 /** Una emisión se considera abandonada pasado este tiempo (más que el peor caso de llamadas a ARCA con sus timeouts). */
 export const EN_CURSO_MS = 5 * 60000;
-export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true, percepcionesDetalle: true } satisfies Prisma.ComprobanteVentaInclude;
+export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true, percepcionesDetalle: { orderBy: [{ tipo: 'asc' }, { jurisdiccion: 'asc' }, { tramo: 'asc' }] } } satisfies Prisma.ComprobanteVentaInclude;
 
 /** "0001-00000012" */
 export const numeroVenta = (puntoVenta: number, numero: number | null) => `${String(puntoVenta).padStart(4, '0')}-${String(numero ?? 0).padStart(8, '0')}`;

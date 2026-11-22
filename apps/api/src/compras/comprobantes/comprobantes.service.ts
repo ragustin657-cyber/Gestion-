@@ -348,6 +348,8 @@ export class ComprobantesService {
       if (d.letra != null || d.puntoVenta != null || d.numero != null) throw new BadRequestException('El despacho no lleva letra ni número de comprobante');
       const fechaContable = d.fechaContable ?? d.fechaEmision;
       await verificarMesesAbiertos(tx, empresaId, fechaContable);
+      // Pulido E42: los despachos de la empresa se serializan (número duplicado y alta de la Aduana simultáneos)
+      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `aduana:${empresaId}`);
       if (await tx.comprobanteCompra.findFirst({ where: { numeroDespacho: d.numeroDespacho }, select: { id: true } })) throw new BadRequestException(`Ya existe el despacho ${d.numeroDespacho}`);
       const aduana = await terceroAduana(tx, empresaId, () => this.numeracion.siguiente(tx, 'TERCERO', 0));
       const tot = calcularTotales({
@@ -406,6 +408,7 @@ export class ComprobantesService {
     return this.tenant.transaccion(async (tx) => {
       const c = await tx.comprobanteCompra.findUnique({ where: { id } });
       if (!c) throw new NotFoundException('Comprobante inexistente');
+      if (c.estado !== 'CONFIRMADO') throw new BadRequestException('Solo se cambia el destino de una compra confirmada');
       await verificarMesIvaAbierto(tx, this.tenant.empresaId, c.fechaContable);
       await tx.comprobanteCompra.update({ where: { id }, data: { destinoCreditoIva: destino } });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteCompra', entidadId: id, accion: 'MODIFICAR', datos: { destinoCreditoIva: destino, anterior: c.destinoCreditoIva } });

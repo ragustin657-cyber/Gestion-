@@ -7,7 +7,7 @@ import { api, ErrorApi } from '../api/cliente';
 import { SelectorDestinoIva, useProrrateoActivo } from './destino-iva';
 import { formatoMoneda, hoy } from './formato';
 
-const ALICUOTAS = [{ value: '21', label: '21 %' }, { value: '10.5', label: '10,5 %' }, { value: '27', label: '27 %' }, { value: '5', label: '5 %' }, { value: '2.5', label: '2,5 %' }];
+export const ALICUOTAS_DESPACHO = [{ value: '21', label: '21 %' }, { value: '10.5', label: '10,5 %' }];
 const n = (s: string) => (s === '' || !Number.isFinite(Number(s)) ? 0 : Number(s));
 const r2 = (x: number) => Math.round(x * 100) / 100;
 
@@ -90,7 +90,7 @@ export function DespachoImportacionPage() {
             {renglones.map((r, i) => (
               <Table.Tr key={i}>
                 <Table.Td><TextInput size="xs" aria-label="Base imponible" inputMode="decimal" value={r.base} onChange={(e) => setRenglones(renglones.map((x, j) => (j === i ? { ...x, base: e.currentTarget.value } : x)))} /></Table.Td>
-                <Table.Td><Select size="xs" aria-label="Alícuota" w={110} allowDeselect={false} data={ALICUOTAS} value={r.alicuotaIva} onChange={(v) => setRenglones(renglones.map((x, j) => (j === i ? { ...x, alicuotaIva: v ?? '21' } : x)))} /></Table.Td>
+                <Table.Td><Select size="xs" aria-label="Alícuota" w={110} allowDeselect={false} data={ALICUOTAS_DESPACHO} value={r.alicuotaIva} onChange={(v) => setRenglones(renglones.map((x, j) => (j === i ? { ...x, alicuotaIva: v ?? '21' } : x)))} /></Table.Td>
                 <Table.Td ta="right">{formatoMoneda(r2((n(r.base) * Number(r.alicuotaIva)) / 100))}</Table.Td>
                 <Table.Td><ActionIcon variant="subtle" color="red" aria-label="Quitar base" onClick={() => setRenglones(renglones.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon></Table.Td>
               </Table.Tr>
