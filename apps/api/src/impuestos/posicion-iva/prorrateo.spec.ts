@@ -1,11 +1,12 @@
 import { Prisma } from '@prisma/client';
 import { calcularPosicionIva, renglonesAsiento } from './calculo';
+import { filasPosicion } from './posicion-iva.controller';
 import { ajusteAnual, coeficienteProrrateo, mesesDelEjercicio, separarCredito, ultimoMesEjercicio } from './prorrateo';
 
 describe('prorrateo del crédito fiscal (E40)', () => {
   it('coeficiente', () => {
-    expect(coeficienteProrrateo('70000', '30000')).toEqual({ coeficiente: '0.7000', sinVentas: false });
-    expect(coeficienteProrrateo('0', '0')).toEqual({ coeficiente: '1.0000', sinVentas: true });
+    expect(coeficienteProrrateo('70000', '30000')).toEqual({ coeficiente: '0.7000', sinVentas: false, acotado: null });
+    expect(coeficienteProrrateo('0', '0')).toEqual({ coeficiente: '1.0000', sinVentas: true, acotado: null });
     expect(coeficienteProrrateo('-100', '300').coeficiente).toBe('0.0000');
     expect(coeficienteProrrateo('100', '-50').coeficiente).toBe('1.0000');
   });
@@ -50,5 +51,20 @@ describe('prorrateo del crédito fiscal (E40)', () => {
     expect(calcularPosicionIva(e).impuestoDeterminado).toBe('1575.00');
     const p = calcularPosicionIva({ ...e, creditoComputable: '315.00' });
     expect([p.totalCredito, p.impuestoDeterminado]).toEqual(['525.00', '1785.00']);
+  });
+
+  it('pulido E42: avisa cuando el coeficiente se acota por ventas negativas', () => {
+    expect(coeficienteProrrateo('-300', '100')).toMatchObject({ coeficiente: '1.0000', acotado: 1 });
+    expect(coeficienteProrrateo('-300', '500')).toMatchObject({ coeficiente: '0.0000', acotado: 0 });
+    expect(coeficienteProrrateo('70000', '30000')).toMatchObject({ acotado: null });
+  });
+
+  it('pulido E42: en la exportación las filas del prorrateo siguen al total del crédito fiscal', () => {
+    const p = { anio: 2026, mes: 10, estado: 'BORRADOR' as const, debito: { '21': '210.00' }, credito: { '21': '525.00' }, retenciones: '0.00', percepciones: '0.00',
+      saldoTecnicoAnterior: '0.00', libreAnterior: '0.00', totalDebito: '210.00', totalCredito: '525.00', saldoTecnicoAFavor: '105.00', impuestoDeterminado: '0.00',
+      impuestoAPagar: '0.00', libreDisponibilidad: '0.00', avisos: [], asientoId: null,
+      coeficiente: '0.5000', creditoComun: '210.00', creditoComputable: '315.00', creditoNoComputable: '210.00', ajusteProrrateo: '0.00' };
+    const conceptos = filasPosicion(p).map((f) => f[0]);
+    expect(conceptos.indexOf('Coeficiente de prorrateo')).toBe(conceptos.indexOf('Total crédito fiscal') + 1);
   });
 });

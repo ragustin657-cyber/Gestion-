@@ -12,14 +12,14 @@ export function filasPosicion(p: VistaPosicionIva): Fila[] {
   return [
     ...Object.entries(p.debito).map(([a, v]): Fila => [`Débito fiscal ${a} %`, v]), ['Total débito fiscal', p.totalDebito],
     ...Object.entries(p.credito).map(([a, v]): Fila => [`Crédito fiscal ${a} %`, v]), ['Total crédito fiscal', p.totalCredito],
-    ['Saldo técnico a favor del período anterior', p.saldoTecnicoAnterior], ['Impuesto determinado', p.impuestoDeterminado], ['Saldo técnico a favor del período', p.saldoTecnicoAFavor],
-    ['Retenciones de IVA sufridas', p.retenciones], ['Percepciones de IVA sufridas', p.percepciones], ['Saldo de libre disponibilidad del período anterior', p.libreAnterior],
-    ['Impuesto a pagar', p.impuestoAPagar], ['Saldo de libre disponibilidad del período', p.libreDisponibilidad],
-    // Prorrateo del crédito fiscal (E40)
-    ...(p.coeficiente === null ? [] : [
+    // Prorrateo del crédito fiscal (E40; pulido E42: junto al crédito, como en pantalla)
+    ...(p.coeficiente == null ? [] : [
       ['Coeficiente de prorrateo', p.coeficiente], ['Crédito fiscal de uso común', p.creditoComun!], ['Ajuste anual del prorrateo', p.ajusteProrrateo!],
       ['Crédito fiscal computable', p.creditoComputable!], ['Crédito fiscal no computable', p.creditoNoComputable!],
     ] as Fila[]),
+    ['Saldo técnico a favor del período anterior', p.saldoTecnicoAnterior], ['Impuesto determinado', p.impuestoDeterminado], ['Saldo técnico a favor del período', p.saldoTecnicoAFavor],
+    ['Retenciones de IVA sufridas', p.retenciones], ['Percepciones de IVA sufridas', p.percepciones], ['Saldo de libre disponibilidad del período anterior', p.libreAnterior],
+    ['Impuesto a pagar', p.impuestoAPagar], ['Saldo de libre disponibilidad del período', p.libreDisponibilidad],
   ];
 }
 

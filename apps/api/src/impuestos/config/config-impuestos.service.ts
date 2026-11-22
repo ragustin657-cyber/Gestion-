@@ -20,15 +20,19 @@ export class ConfigImpuestosService {
     return (await tx.configImpuestos.findFirst()) ?? tx.configImpuestos.create({ data: { empresaId: this.tenant.empresaId } });
   }
 
-  async guardar(d: DatosConfigImpuestos) {
-    const c = await this.obtener();
+  guardar(d: DatosConfigImpuestos) {
+    // Pulido E42: con los locks exclusivos de las posiciones, un cierre en curso termina antes (o ve el cambio)
+    return this.tenant.transaccion(async (tx) => {
+    await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `posicion-iva:${this.tenant.empresaId}`);
+    await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `posicion-iibb:${this.tenant.empresaId}`);
+    const c = await this.obtener(tx);
     // E37: el inicio de la posición de IVA y sus saldos no cambian con meses cerrados
     const cambiaInicio = (['ivaInicioAnio', 'ivaInicioMes'] as const).some((k) => d[k] !== undefined && d[k] !== c[k])
       || (['ivaSaldoTecnicoInicial', 'ivaSaldoLibreInicial'] as const).some((k) => d[k] !== undefined && !c[k].equals(d[k]!));
-    if (cambiaInicio && (await this.tenant.db.posicionIva.count())) throw new BadRequestException('Hay posiciones de IVA cerradas: reábralas para cambiar el inicio');
+    if (cambiaInicio && (await tx.posicionIva.count())) throw new BadRequestException('Hay posiciones de IVA cerradas: reábralas para cambiar el inicio');
     // E38: el inicio de la liquidación de IIBB tampoco cambia con meses cerrados
     const cambiaIibb = (['iibbInicioAnio', 'iibbInicioMes'] as const).some((k) => d[k] !== undefined && d[k] !== c[k]);
-    if (cambiaIibb && (await this.tenant.db.posicionIibb.count())) throw new BadRequestException('Hay liquidaciones de IIBB cerradas: reábralas para cambiar el inicio');
+    if (cambiaIibb && (await tx.posicionIibb.count())) throw new BadRequestException('Hay liquidaciones de IIBB cerradas: reábralas para cambiar el inicio');
     // E40: el prorrateo no cambia con posiciones cerradas desde su primer mes (el anterior o el nuevo, el menor)
     const cambiaProrrateo = (['prorrateoIva', 'prorrateoDesdeAnio', 'prorrateoDesdeMes', 'prorrateoInicioMes'] as const).some((k) => d[k] !== undefined && d[k] !== c[k])
       || (['prorrateoGravadasIniciales', 'prorrateoExentasIniciales'] as const).some((k) => d[k] !== undefined && !c[k].equals(d[k]!));
@@ -45,12 +49,13 @@ export class ConfigImpuestosService {
         .filter((x): x is [number, number] => !!x[0] && !!x[1]).sort((a, b) => a[0] * 12 + a[1] - (b[0] * 12 + b[1]));
       const desde = desdes[0];
       if (desde) {
-        const cerradas = await this.tenant.db.posicionIva.count({ where: { OR: [{ anio: { gt: desde[0] } }, { anio: desde[0], mes: { gte: desde[1] } }] } });
+        const cerradas = await tx.posicionIva.count({ where: { OR: [{ anio: { gt: desde[0] } }, { anio: desde[0], mes: { gte: desde[1] } }] } });
         if (cerradas) throw new BadRequestException(`Hay posiciones de IVA cerradas desde ${String(desde[1]).padStart(2, '0')}/${desde[0]}: reábralas para cambiar el prorrateo`);
       }
     }
-    const r = await this.tenant.db.configImpuestos.update({ where: { id: c.id }, data: d });
+    const r = await tx.configImpuestos.update({ where: { id: c.id }, data: d });
     await this.auditoria.registrar(this.tenant.db, { entidad: 'ConfigImpuestos', entidadId: c.id, accion: 'MODIFICAR', datos: d });
     return r;
+    });
   }
 }

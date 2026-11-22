@@ -406,6 +406,7 @@ export class ComprobantesService {
     return this.tenant.transaccion(async (tx) => {
       const c = await tx.comprobanteCompra.findUnique({ where: { id } });
       if (!c) throw new NotFoundException('Comprobante inexistente');
+      if (c.estado !== 'CONFIRMADO') throw new BadRequestException('Solo se cambia el destino de una compra confirmada');
       await verificarMesIvaAbierto(tx, this.tenant.empresaId, c.fechaContable);
       await tx.comprobanteCompra.update({ where: { id }, data: { destinoCreditoIva: destino } });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteCompra', entidadId: id, accion: 'MODIFICAR', datos: { destinoCreditoIva: destino, anterior: c.destinoCreditoIva } });

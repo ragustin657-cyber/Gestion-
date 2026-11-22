@@ -51,7 +51,7 @@ export class PosicionIibbController {
     const r = await this.posicion.ingresosPorProvincia(anio);
     if (formato !== 'xlsx' && formato !== 'pdf') return r;
     const columnas: Columna[] = [{ titulo: 'Jurisdicción', ancho: 30 }, { titulo: 'Ingresos', ancho: 18, importe: true }, { titulo: '% del total', ancho: 12 }];
-    const filas: Fila[] = [...r.filas.map((f): Fila => [f.nombre, f.ingresos, f.porcentaje]), ['Total', r.total, '100.00']];
+    const filas: Fila[] = [...r.filas.map((f): Fila => [f.nombre, f.ingresos, f.porcentaje]), ['Total', r.total, r.porcentajeTotal]];
     const titulo = 'Ingresos por provincia', sub = `Año ${anio}`, nombre = `ingresos-por-provincia-${anio}`;
     if (formato === 'xlsx') {
       res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="${nombre}.xlsx"` });

@@ -96,6 +96,7 @@ export class PosicionIvaService {
     if (!conProrrateo(c, anio, mes)) return SIN_PRORRATEO;
     const coef = await coeficienteDelMes(tx, c, anio, mes);
     if (coef.sinVentas) avisos.push('Sin ventas en el ejercicio: el crédito de uso común se computa entero');
+    if (coef.acotado !== null) avisos.push(`Las ventas del ejercicio son negativas: el coeficiente se acota a ${coef.acotado}`);
     let ajuste = new D(0);
     if (ultimoMesEjercicio(mes, c.prorrateoInicioMes)) {
       const comunPorMes = [];

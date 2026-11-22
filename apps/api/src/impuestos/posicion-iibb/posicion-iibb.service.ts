@@ -127,7 +127,7 @@ export class PosicionIibbService {
   private vista(p: PosicionIibb): VistaPosicionIibb {
     const detalle = p.detalle as unknown as DetalleJurisdiccion[];
     const totales = calcularTotales(detalle);
-    return { anio: p.anio, mes: p.mes, estado: 'CERRADA', ingresos: f2(p.ingresos), detalle, totales, avisos: [], asientoId: p.asientoId };
+    return { anio: p.anio, mes: p.mes, estado: 'CERRADA', ingresos: f2(p.ingresos), detalle, totales, avisos: (p.avisos as string[] | null) ?? [], asientoId: p.asientoId };
   }
 
   async ver(anio: number, mes: number, tx: TxEmpresa = this.tenant.db): Promise<VistaPosicionIibb> {
@@ -159,7 +159,9 @@ export class PosicionIibbService {
     }
     const filas = [...porJ].sort(([a, x], [b, y]) => (a === null ? 1 : b === null ? -1 : y.comparedTo(x)))
       .map(([j, v]) => ({ jurisdiccion: j, nombre: j ? nombreJurisdiccion(j) : 'Sin provincia', ingresos: f2(v), porcentaje: ing.total.isZero() ? '0.00' : v.div(ing.total).times(100).toFixed(2) }));
-    return { anio, filas, total: f2(ing.total), avisos: ing.avisos };
+    // Pulido E42: el porcentaje del total es la suma de las filas (0 sin ingresos)
+    const porcentajeTotal = filas.reduce((t, f) => t.plus(f.porcentaje), new D(0)).toFixed(2);
+    return { anio, filas, total: f2(ing.total), porcentajeTotal, avisos: ing.avisos };
   }
 
   private async bloquear(tx: TxEmpresa) {
@@ -195,7 +197,7 @@ export class PosicionIibbService {
         : null;
       await tx.posicionIibb.create({
         data: {
-          id, empresaId: this.tenant.empresaId, anio, mes, ingresos: b.ingresos, detalle: b.detalle as unknown as Prisma.InputJsonValue,
+          id, empresaId: this.tenant.empresaId, anio, mes, ingresos: b.ingresos, detalle: b.detalle as unknown as Prisma.InputJsonValue, avisos: b.avisos,
           asientoId: asiento?.id ?? null, cerradoEn: new Date(), cerradoPor: this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId,
         },
       });
