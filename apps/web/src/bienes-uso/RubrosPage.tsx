@@ -4,10 +4,20 @@ import { useState } from 'react';
 import { api } from '../api/cliente';
 import { useTodasLasCuentas } from '../contabilidad/comun';
 import { useOperacion } from '../tesoreria/comun';
-import { Rubro, useRubros } from './comun';
+import { Rubro, TIPOS_IMPOSITIVOS, TipoImpositivo, useRubros } from './comun';
 
-type Form = { id?: string; nombre: string; cuentaOrigenId: string | null; cuentaAmortizacionId: string | null; cuentaGastoId: string | null; vidaUtilMeses: string };
-const vacio: Form = { nombre: '', cuentaOrigenId: null, cuentaAmortizacionId: null, cuentaGastoId: null, vidaUtilMeses: '60' };
+/** Datos impositivos del rubro (E44). */
+export function CamposImpositivosRubro({ valor, onChange }: { valor: { vidaUtilImpositivaAnios: string; tipoImpositivo: TipoImpositivo }; onChange: (v: { vidaUtilImpositivaAnios: string; tipoImpositivo: TipoImpositivo }) => void }) {
+  return (
+    <Group grow>
+      <TextInput label="Vida útil impositiva (años)" inputMode="numeric" placeholder="La contable redondeada" value={valor.vidaUtilImpositivaAnios} onChange={(e) => onChange({ ...valor, vidaUtilImpositivaAnios: e.currentTarget.value })} />
+      <Select label="Tipo impositivo" allowDeselect={false} data={TIPOS_IMPOSITIVOS} value={valor.tipoImpositivo} onChange={(v) => onChange({ ...valor, tipoImpositivo: (v ?? 'MUEBLE') as TipoImpositivo })} />
+    </Group>
+  );
+}
+
+type Form = { id?: string; nombre: string; cuentaOrigenId: string | null; cuentaAmortizacionId: string | null; cuentaGastoId: string | null; vidaUtilMeses: string; vidaUtilImpositivaAnios: string; tipoImpositivo: TipoImpositivo };
+const vacio: Form = { nombre: '', cuentaOrigenId: null, cuentaAmortizacionId: null, cuentaGastoId: null, vidaUtilMeses: '60', vidaUtilImpositivaAnios: '', tipoImpositivo: 'MUEBLE' };
 
 export function RubrosPage() {
   const qc = useQueryClient();
@@ -15,10 +25,10 @@ export function RubrosPage() {
   const cuentas = useTodasLasCuentas();
   const op = useOperacion();
   const [form, setForm] = useState<Form | null>(null);
-  const editar = (r: Rubro) => setForm({ id: r.id, nombre: r.nombre, cuentaOrigenId: r.cuentaOrigenId ?? null, cuentaAmortizacionId: r.cuentaAmortizacionId ?? null, cuentaGastoId: r.cuentaGastoId ?? null, vidaUtilMeses: String(r.vidaUtilMeses) });
+  const editar = (r: Rubro) => setForm({ id: r.id, nombre: r.nombre, cuentaOrigenId: r.cuentaOrigenId ?? null, cuentaAmortizacionId: r.cuentaAmortizacionId ?? null, cuentaGastoId: r.cuentaGastoId ?? null, vidaUtilMeses: String(r.vidaUtilMeses), vidaUtilImpositivaAnios: r.vidaUtilImpositivaAnios ? String(r.vidaUtilImpositivaAnios) : '', tipoImpositivo: r.tipoImpositivo ?? 'MUEBLE' });
   const guardar = async () => {
     if (!form) return;
-    const body = { nombre: form.nombre, cuentaOrigenId: form.cuentaOrigenId, cuentaAmortizacionId: form.cuentaAmortizacionId, cuentaGastoId: form.cuentaGastoId, vidaUtilMeses: Number(form.vidaUtilMeses) };
+    const body = { nombre: form.nombre, cuentaOrigenId: form.cuentaOrigenId, cuentaAmortizacionId: form.cuentaAmortizacionId, cuentaGastoId: form.cuentaGastoId, vidaUtilMeses: Number(form.vidaUtilMeses), vidaUtilImpositivaAnios: form.vidaUtilImpositivaAnios.trim() ? Number(form.vidaUtilImpositivaAnios) : null, tipoImpositivo: form.tipoImpositivo };
     const r = await op.ejecutar(() => api(form.id ? `/bienes-uso/rubros/${form.id}` : '/bienes-uso/rubros', { metodo: form.id ? 'PUT' : 'POST', body }), () => 'Rubro guardado');
     if (r) { setForm(null); void qc.invalidateQueries({ queryKey: ['/bienes-uso/rubros'] }); }
   };
@@ -46,6 +56,7 @@ export function RubrosPage() {
           <Select label="Cuenta de amortización acumulada" searchable data={cuentas} value={form.cuentaAmortizacionId} onChange={(v) => setForm({ ...form, cuentaAmortizacionId: v })} />
           <Select label="Cuenta de gasto de amortización" searchable data={cuentas} value={form.cuentaGastoId} onChange={(v) => setForm({ ...form, cuentaGastoId: v })} />
           <TextInput label="Vida útil (meses)" inputMode="numeric" value={form.vidaUtilMeses} onChange={(e) => setForm({ ...form, vidaUtilMeses: e.currentTarget.value })} />
+          <CamposImpositivosRubro valor={form} onChange={(v) => setForm({ ...form, ...v })} />
           {op.alerta}
           <Group><Button loading={op.enviando} onClick={() => void guardar()}>Guardar</Button></Group>
         </Stack>}

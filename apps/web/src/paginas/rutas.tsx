@@ -71,6 +71,7 @@ import { TableroPage } from '../informes/TableroPage';
 import { AmortizacionPage } from '../bienes-uso/AmortizacionPage';
 import { BienesPage, FichaBienPage } from '../bienes-uso/BienesPage';
 import { PlanillaBienesPage } from '../bienes-uso/PlanillaBienesPage';
+import { PlanillaImpositivaPage } from '../bienes-uso/PlanillaImpositivaPage';
 import { RubrosPage } from '../bienes-uso/RubrosPage';
 import { ComparacionPage } from '../presupuestos/ComparacionPage';
 import { CargasSocialesPage } from '../sueldos/CargasSocialesPage';
@@ -212,6 +213,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/contabilidad/bienes/:id', elemento: <FichaBienPage /> },
   { ruta: '/contabilidad/amortizacion', elemento: <AmortizacionPage /> },
   { ruta: '/contabilidad/planilla-bienes', elemento: <PlanillaBienesPage /> },
+  { ruta: '/contabilidad/planilla-impositiva', elemento: <PlanillaImpositivaPage /> },
   { ruta: '/informes/tablero', elemento: <TableroPage /> },
   { ruta: '/informes/presupuestos', elemento: <PresupuestosPage /> },
   { ruta: '/informes/presupuestos/:id', elemento: <EditorPresupuestoPage /> },

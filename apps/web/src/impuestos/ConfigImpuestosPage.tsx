@@ -12,6 +12,7 @@ interface Config {
   prorrateoIva: boolean; prorrateoDesdeAnio: number | null; prorrateoDesdeMes: number | null; prorrateoInicioMes: number;
   prorrateoGravadasIniciales: string | number; prorrateoExentasIniciales: string | number;
   sireMotivoAnulacion: number;
+  topeAutomovilesCosto: string | number;
 }
 
 export function ConfigImpuestosPage() {
@@ -23,7 +24,7 @@ export function ConfigImpuestosPage() {
   const guardar = async () => {
     setError('');
     try {
-      await api('/impuestos/config', { metodo: 'PUT', body: { ...c, ivaSaldoTecnicoInicial: Number(c.ivaSaldoTecnicoInicial) || 0, ivaSaldoLibreInicial: Number(c.ivaSaldoLibreInicial) || 0, prorrateoGravadasIniciales: Number(c.prorrateoGravadasIniciales) || 0, prorrateoExentasIniciales: Number(c.prorrateoExentasIniciales) || 0 } });
+      await api('/impuestos/config', { metodo: 'PUT', body: { ...c, ivaSaldoTecnicoInicial: Number(c.ivaSaldoTecnicoInicial) || 0, ivaSaldoLibreInicial: Number(c.ivaSaldoLibreInicial) || 0, prorrateoGravadasIniciales: Number(c.prorrateoGravadasIniciales) || 0, prorrateoExentasIniciales: Number(c.prorrateoExentasIniciales) || 0, topeAutomovilesCosto: Number(c.topeAutomovilesCosto) || 0 } });
       notifications.show({ color: 'green', message: 'Configuración guardada' });
     } catch (e) {
       setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado');
@@ -71,6 +72,9 @@ export function ConfigImpuestosPage() {
           <NumberInput label="Primer mes de IIBB" w={160} min={1} max={12} value={c.iibbInicioMes ?? ''} onChange={(v) => setC({ ...c, iibbInicioMes: v === '' ? null : Number(v) })} />
           <NumberInput label="Año de inicio de IIBB" w={170} min={2000} max={2100} value={c.iibbInicioAnio ?? ''} onChange={(v) => setC({ ...c, iibbInicioAnio: v === '' ? null : Number(v) })} />
         </Group>
+        <Title order={5}>Amortización impositiva</Title>
+        <NumberInput label="Tope de costo de automóviles" w={260} min={0} decimalScale={2} thousandSeparator="." decimalSeparator="," value={Number(c.topeAutomovilesCosto)} onChange={(v) => setC({ ...c, topeAutomovilesCosto: Number(v) || 0 })} />
+        <Text size="xs" c="dimmed">Art. 88 inc. l de Ganancias: la amortización de automóviles es deducible hasta la que correspondería a este costo. Verifique el tope vigente.</Text>
         <Title order={5}>SIRE</Title>
         <NumberInput label="Motivo de anulación (F.2005)" w={220} min={1} max={9} value={c.sireMotivoAnulacion} onChange={(v) => setC({ ...c, sireMotivoAnulacion: Number(v) || 1 })} />
         <Text size="xs" c="dimmed">Código de la tabla de motivos de anulación del SIRE con que se informan las retenciones de IVA anuladas. Verifíquelo con el contador.</Text>
