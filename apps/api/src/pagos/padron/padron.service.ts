@@ -4,7 +4,8 @@ import { unlink } from 'fs/promises';
 import { createInterface } from 'readline';
 import { Readable } from 'stream';
 import { PrismaService } from '../../prisma/prisma.service';
-import { FilaPadron, parsearLineaAgip, parsearLineaArba } from './parsers';
+import { JURISDICCIONES_CM } from '@gestion/shared';
+import { FilaPadron, FormatoPadronDef, parsearLineaAgip, parsearLineaArba, parsearLineaConFormato } from './parsers';
 
 export const JURISDICCIONES_PADRON = { '901': parsearLineaAgip, '902': parsearLineaArba } as const;
 export type JurisdiccionPadron = keyof typeof JURISDICCIONES_PADRON;
@@ -28,19 +29,38 @@ export class PadronService implements OnModuleInit {
     });
   }
 
-  async cargar(jurisdiccion: string, nombreArchivo: string, origen: string | Buffer, usuarioId: string): Promise<{ id: string }> {
-    if (!(jurisdiccion in JURISDICCIONES_PADRON)) throw new BadRequestException('Solo se pueden cargar padrones de CABA (901) y Buenos Aires (902)');
+  // --- Formato de los padrones de otras jurisdicciones (E48) ---
+
+  formato(jurisdiccion: string) {
+    return this.prisma.formatoPadron.findUnique({ where: { jurisdiccion } });
+  }
+
+  guardarFormato(jurisdiccion: string, d: FormatoPadronDef) {
+    if (!(jurisdiccion in JURISDICCIONES_CM)) throw new BadRequestException('Jurisdicción inválida');
+    if (jurisdiccion in JURISDICCIONES_PADRON) throw new BadRequestException('CABA y Buenos Aires usan el formato de AGIP y ARBA');
+    return this.prisma.formatoPadron.upsert({ where: { jurisdiccion }, create: { jurisdiccion, ...d }, update: d });
+  }
+
+  async cargar(jurisdiccion: string, nombreArchivo: string, origen: string | Buffer, usuarioId: string, periodo?: string): Promise<{ id: string }> {
+    if (!(jurisdiccion in JURISDICCIONES_CM)) throw new BadRequestException('Jurisdicción inválida');
+    let parsear: (linea: string, nro: number) => FilaPadron | null;
+    if (jurisdiccion in JURISDICCIONES_PADRON) parsear = JURISDICCIONES_PADRON[jurisdiccion as JurisdiccionPadron];
+    else {
+      // E48: otras jurisdicciones con su formato configurado
+      const f = await this.formato(jurisdiccion);
+      if (!f) throw new BadRequestException(`Configure el formato del padrón de ${JURISDICCIONES_CM[jurisdiccion as keyof typeof JURISDICCIONES_CM]}`);
+      parsear = (linea, nro) => (f.encabezado && nro === 1 ? null : parsearLineaConFormato(linea, nro, f, periodo));
+    }
     if (await this.prisma.padronCarga.findFirst({ where: { jurisdiccion, estado: 'PROCESANDO' } }))
       throw new ConflictException('Ya hay un padrón de esa jurisdicción en proceso');
     const carga = await this.prisma.padronCarga.create({ data: { jurisdiccion, archivo: nombreArchivo, creadoPor: usuarioId } });
-    setImmediate(() => void this.procesar(carga.id, jurisdiccion as JurisdiccionPadron, origen));
+    setImmediate(() => void this.procesar(carga.id, jurisdiccion, origen, parsear));
     return { id: carga.id };
   }
 
   /** Procesa un archivo (ruta en disco o contenido) en una transacción: si falla, el padrón vigente no cambia. */
-  async procesar(id: string, jurisdiccion: JurisdiccionPadron, origen: string | Buffer): Promise<void> {
+  async procesar(id: string, jurisdiccion: string, origen: string | Buffer, parsear: (linea: string, nro: number) => FilaPadron | null = JURISDICCIONES_PADRON[jurisdiccion as JurisdiccionPadron]): Promise<void> {
     try {
-      const parsear = JURISDICCIONES_PADRON[jurisdiccion];
       const vigencias = new Set<string>();
       let periodo: string | null = null;
       await this.prisma.$transaction(async (tx) => {

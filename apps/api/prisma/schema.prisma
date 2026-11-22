@@ -3157,3 +3157,19 @@ model BienesPersonalesPresentacion {
 
   @@unique([empresaId, anio, numero])
 }
+
+/// Formato del padrón de IIBB de una jurisdicción distinta de 901 y 902 (E48): común a todas las empresas, como el padrón.
+/// Cada campo es el número de columna (1 = la primera) o «desde-hasta» (posiciones 1-based) en ancho fijo.
+model FormatoPadron {
+  id                 String  @id @default(uuid()) @db.Uuid
+  jurisdiccion       String  @unique
+  separador          String
+  encabezado         Boolean @default(false)
+  cuit               String
+  alicuotaPercepcion String?
+  alicuotaRetencion  String?
+  vigenciaDesde      String?
+  vigenciaHasta      String?
+  formatoFecha       String  @default("DD/MM/AAAA")
+  separadorDecimal   String  @default(".")
+}

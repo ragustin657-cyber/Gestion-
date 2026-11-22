@@ -1,3 +1,4 @@
+import { JURISDICCIONES_CM } from '@gestion/shared';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
@@ -8,7 +9,8 @@ import { describirMovimientos } from '../ordenes/describir';
 import { pdfCertificado, pdfOrdenPago } from './pdf';
 
 const D = Prisma.Decimal;
-const NOMBRES_JUR: Record<string, string> = { '901': 'CABA', '902': 'Buenos Aires' };
+/** E48: nombres de todas las jurisdicciones del Convenio (CABA abreviada como hasta ahora). */
+const NOMBRES_JUR: Record<string, string> = { ...JURISDICCIONES_CM, '901': 'CABA' };
 export const numeroOP = (n: number | null) => `0001-${String(n ?? 0).padStart(8, '0')}`;
 const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS', GANANCIAS_EXTERIOR: 'RET-GAN-EXT' };
 export const numeroCertificado = (impuesto: string, jurisdiccion: string | null, n: number) =>
