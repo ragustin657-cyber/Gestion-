@@ -128,7 +128,7 @@ export function ConfigImpuestosPage() {
         <NumberInput label="Tope de costo de automóviles" w={260} min={0} decimalScale={2} thousandSeparator="." decimalSeparator="," value={Number(c.topeAutomovilesCosto)} onChange={(v) => setC({ ...c, topeAutomovilesCosto: Number(v) || 0 })} />
         <Text size="xs" c="dimmed">Art. 88 inc. l de Ganancias: la amortización de automóviles es deducible hasta la que correspondería a este costo. Verifique el tope vigente.</Text>
         <Title order={5}>Bienes Personales (acciones y participaciones)</Title>
-        <NumberInput label="Alícuota de Bienes Personales (acciones y participaciones)" w={340} min={0} max={100} decimalScale={4} decimalSeparator="," value={Number(c.alicuotaBienesPersonalesAcciones)} onChange={(v) => setC({ ...c, alicuotaBienesPersonalesAcciones: Number(v) || 0 })} />
+        <NumberInput label="Tasa de Bienes Personales sobre acciones (%)" w={340} min={0} max={100} decimalScale={4} decimalSeparator="," value={Number(c.alicuotaBienesPersonalesAcciones)} onChange={(v) => setC({ ...c, alicuotaBienesPersonalesAcciones: Number(v) || 0 })} />
         <Title order={5}>SIRE</Title>
         <NumberInput label="Motivo de anulación (F.2005)" w={220} min={1} max={9} value={c.sireMotivoAnulacion} onChange={(v) => setC({ ...c, sireMotivoAnulacion: Number(v) || 1 })} />
         <Text size="xs" c="dimmed">Código de la tabla de motivos de anulación del SIRE con que se informan las retenciones de IVA anuladas. Verifíquelo con el contador.</Text>
