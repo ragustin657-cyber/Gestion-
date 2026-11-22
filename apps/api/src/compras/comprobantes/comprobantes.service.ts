@@ -1,4 +1,5 @@
 import { verificarMesesAbiertos, verificarMesIvaAbierto } from '../../impuestos/posicion-iva/bloqueo';
+import { terceroAduana } from './aduana';
 import { verificarDeEmpresa } from '../../comun/de-empresa';
 import {
   BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException,
@@ -23,7 +24,7 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { bloquear } from '../comun';
 import { ConceptoCuenta } from '../config/conceptos';
 import { ConfigComprasService } from '../config/config-compras.service';
-import { DatosComprobante } from './dto';
+import { DatosComprobante, DatosDespacho } from './dto';
 import { detectarDiferencias, LineaTresVias } from './tres-vias';
 
 const D = Prisma.Decimal;
@@ -31,7 +32,7 @@ type Dec = Prisma.Decimal;
 
 const DUPLICADO = 'Este comprobante ya fue cargado';
 const DIFERENCIAS = 'Hay diferencias con la orden de compra';
-const ETIQUETA_TIPO = { FACTURA: 'Factura', NOTA_DEBITO: 'Nota de débito', NOTA_CREDITO: 'Nota de crédito', TICKET: 'Ticket' } as const;
+const ETIQUETA_TIPO = { FACTURA: 'Factura', NOTA_DEBITO: 'Nota de débito', NOTA_CREDITO: 'Nota de crédito', TICKET: 'Ticket', DESPACHO_IMPORTACION: 'Despacho de importación' } as const;
 
 /** Formato de importe argentino: 1234.5 → "1.234,50". */
 export function formatoPesos(d: Dec): string {
@@ -336,6 +337,58 @@ export class ComprobantesService {
     return this.obtener(comp.id, tx);
   }
 
+  /**
+   * Despacho de importación (spec E41 §4–§5): contra la Aduana, en pesos, sin letra ni número. La deuda es lo liquidado
+   * (IVA, percepciones, derechos y tasa); la base imponible solo sirve para el IVA y los libros.
+   */
+  crearDespacho(d: DatosDespacho) {
+    return this.tenant.transaccion(async (tx) => {
+      const empresaId = this.tenant.empresaId;
+      const ctx = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO);
+      if (d.letra != null || d.puntoVenta != null || d.numero != null) throw new BadRequestException('El despacho no lleva letra ni número de comprobante');
+      const fechaContable = d.fechaContable ?? d.fechaEmision;
+      await verificarMesesAbiertos(tx, empresaId, fechaContable);
+      if (await tx.comprobanteCompra.findFirst({ where: { numeroDespacho: d.numeroDespacho }, select: { id: true } })) throw new BadRequestException(`Ya existe el despacho ${d.numeroDespacho}`);
+      const aduana = await terceroAduana(tx, empresaId, () => this.numeracion.siguiente(tx, 'TERCERO', 0));
+      const tot = calcularTotales({
+        discriminaIva: true, renglones: d.renglones.map((r) => ({ importe: new D(r.base).toFixed(2), alicuotaIva: r.alicuotaIva })),
+        percepcionIva: '0', percepcionesIibb: [], impuestosInternos: '0', noGravado: '0', exento: '0',
+      });
+      const iibb = d.percepcionesIibb.reduce((acc, x) => acc.plus(x.importe), new D(0));
+      const costo = new D(d.derechosImportacion).plus(d.tasaEstadistica);
+      const total = new D(tot.iva).plus(d.percepcionIva).plus(d.percepcionGanancias).plus(iibb).plus(costo);
+      const declarado = new D(d.totalDeclarado);
+      if (total.minus(declarado).abs().gt('0.05'))
+        throw new BadRequestException(`El total calculado ($${formatoPesos(total)}) no coincide con el total del comprobante ($${formatoPesos(declarado)})`);
+      const numeroInterno = await this.numeracion.siguiente(tx, 'FC', 1);
+      const fechaVencimiento = d.fechaVencimiento ?? d.fechaEmision;
+      const comp = await tx.comprobanteCompra.create({
+        data: {
+          // Sin punto de venta ni número propio: el número interno mantiene única la clave del comprobante
+          empresaId, numeroInterno, terceroId: aduana.id, tipo: 'DESPACHO_IMPORTACION', letra: '', puntoVenta: 0, numero: numeroInterno, numeroDespacho: d.numeroDespacho,
+          fechaEmision: d.fechaEmision, fechaContable, fechaVencimiento, monedaCodigo: 'ARS', cotizacion: new D(1),
+          netoGravado: tot.netoGravado, iva: tot.iva, percepcionIva: d.percepcionIva, percepcionGanancias: d.percepcionGanancias,
+          derechosImportacion: d.derechosImportacion, tasaEstadistica: d.tasaEstadistica, destinoCreditoIva: d.destinoCreditoIva ?? 'GRAVADO',
+          impuestosInternos: 0, noGravado: 0, exento: 0, total, totalPesos: total, creadoPor: ctx.usuarioId,
+          ivas: { create: tot.ivaPorAlicuota.map((x) => ({ empresaId, alicuota: x.alicuota, base: x.base, importe: x.importe })) },
+          percepcionesIibb: { create: d.percepcionesIibb.map((x) => ({ empresaId, jurisdiccion: x.jurisdiccion, importe: x.importe })) },
+        },
+      });
+      await tx.movimientoCuentaCorriente.create({
+        data: { empresaId, terceroId: aduana.id, origenTipo: 'COMPRA', origenId: comp.id, fecha: d.fechaEmision, fechaVencimiento, monedaCodigo: 'ARS', importe: total, importePesos: total, saldo: total, saldoPesos: total },
+      });
+      const asiento = await this.generarAsiento(tx, {
+        id: comp.id, tipo: 'DESPACHO_IMPORTACION', letra: null, puntoVenta: 0, numero: numeroInterno, razonSocial: aduana.razonSocial, fecha: fechaContable,
+        renglones: costo.gt(0) ? [{ cuentaContableId: await this.config.cuenta(tx, 'COSTO_IMPORTACION'), importe: costo.toFixed(2) }] : [],
+        iva: tot.iva, percepcionIva: String(d.percepcionIva), percepcionIibb: iibb.toFixed(2), percepcionGanancias: String(d.percepcionGanancias),
+        impuestosInternos: '0', noGravadoExento: '0', total: total.toFixed(2), cotizacion: '1', descripcion: `Despacho de importación ${d.numeroDespacho} - ${aduana.razonSocial}`,
+      });
+      await tx.comprobanteCompra.update({ where: { id: comp.id }, data: { asientoId: asiento.id } });
+      await this.auditoria.registrar(tx, { entidad: 'ComprobanteCompra', entidadId: comp.id, accion: 'CREAR', datos: { numeroInterno, comprobante: `Despacho ${d.numeroDespacho}` } });
+      return this.obtener(comp.id, tx);
+    });
+  }
+
   /** Anula: contraasiento, cuenta corriente en 0 y libera cantidades facturadas. */
   /** Revisión E40: sin destino indicado, la NC o ND hereda el de su comprobante asociado. */
   private async destinoDelAsociado(tx: TxEmpresa, asociadoId: string | null | undefined) {
@@ -400,9 +453,11 @@ export class ComprobantesService {
   private async generarAsiento(
     tx: TxEmpresa,
     c: {
-      id: string; tipo: DatosComprobante['tipo']; letra: Letra | null; puntoVenta: number; numero: number; razonSocial: string; fecha: Date;
+      id: string; tipo: DatosComprobante['tipo'] | 'DESPACHO_IMPORTACION'; letra: Letra | null; puntoVenta: number; numero: number; razonSocial: string; fecha: Date;
       renglones: { cuentaContableId: string; centroCostoId?: string | null; importe: unknown }[];
       iva: string; percepcionIva: string; percepcionIibb: string; impuestosInternos: string; noGravadoExento: string; total: string; cotizacion: string;
+      /** Despacho de importación (E41) */
+      percepcionGanancias?: string; descripcion?: string;
     },
   ) {
     const esNC = c.tipo === 'NOTA_CREDITO';
@@ -417,7 +472,7 @@ export class ComprobantesService {
     };
     c.renglones.forEach((r, i) => agregar(`r${i}`, r.cuentaContableId, r.centroCostoId ?? null, debe, String(r.importe)));
     const conceptos: [ConceptoCuenta, string][] = [
-      ['IVA_CREDITO_FISCAL', c.iva], ['PERCEPCION_IVA', c.percepcionIva], ['PERCEPCION_IIBB', c.percepcionIibb],
+      ['IVA_CREDITO_FISCAL', c.iva], ['PERCEPCION_IVA', c.percepcionIva], ['PERCEPCION_IIBB', c.percepcionIibb], ['PERCEPCION_GANANCIAS', c.percepcionGanancias ?? '0'],
       ['IMPUESTOS_INTERNOS', c.impuestosInternos], ['GASTO_POR_DEFECTO', c.noGravadoExento],
     ];
     for (const [concepto, importe] of conceptos)
@@ -433,7 +488,7 @@ export class ComprobantesService {
     const numero = `${String(c.puntoVenta).padStart(5, '0')}-${String(c.numero).padStart(8, '0')}`;
     const pesos = new Map(enPesos.map((l) => [l.clave, l.importe]));
     const generado = await this.asientos.generar(tx, {
-      fecha: c.fecha, descripcion: `${ETIQUETA_TIPO[c.tipo]} ${c.letra ?? ''} ${numero} - ${c.razonSocial}`.replace(/\s+/g, ' '),
+      fecha: c.fecha, descripcion: c.descripcion ?? `${ETIQUETA_TIPO[c.tipo]} ${c.letra ?? ''} ${numero} - ${c.razonSocial}`.replace(/\s+/g, ' '),
       origenTipo: 'COMPRA', origenId: c.id, renglones,
     });
     return { ...generado, pesos };

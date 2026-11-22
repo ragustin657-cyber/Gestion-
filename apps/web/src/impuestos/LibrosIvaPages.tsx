@@ -1,17 +1,17 @@
 import { LETRA_DESTINO } from '../compras/destino-iva';
-import { Alert, Button, Group, Paper, ScrollArea, Table, TextInput, Title } from '@mantine/core';
+import { Alert, Button, Group, Paper, ScrollArea, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api, descargar } from '../api/cliente';
 import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 
 const ALICUOTAS = ['21', '10.5', '27', '5', '2.5', '0'];
-interface Fila { destino?: string; condicionIva?: string; noDiscriminado?: string; percepcionesIva?: string; percepcionIva?: string; percepcionesIibb?: string; impuestosInternos?: string; noComputable?: string; fecha?: string; fechaContable?: string; comprobante?: string; tipo?: string; letra?: string; numero?: string; cliente?: string; razonSocial?: string; documento?: string; cuit?: string; netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noGravado: string; exento: string; total: string }
-interface Libro { filas: Fila[]; totales: Fila; advertencias: string[] }
+interface Fila { percepcionGanancias?: string; otrosTributos?: string; destino?: string; condicionIva?: string; noDiscriminado?: string; percepcionesIva?: string; percepcionIva?: string; percepcionesIibb?: string; impuestosInternos?: string; noComputable?: string; fecha?: string; fechaContable?: string; comprobante?: string; tipo?: string; letra?: string; numero?: string; cliente?: string; razonSocial?: string; documento?: string; cuit?: string; netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; noGravado: string; exento: string; total: string }
+interface Libro { filas: Fila[]; totales: Fila; advertencias: string[]; notas?: string[] }
 
 type Extra = { clave: keyof Fila; titulo: string };
 const EXTRA_VENTAS: Extra[] = [{ clave: 'noDiscriminado', titulo: 'No discriminado' }, { clave: 'percepcionesIva', titulo: 'Perc. IVA' }, { clave: 'percepcionesIibb', titulo: 'Perc. IIBB' }];
-const EXTRA_COMPRAS: Extra[] = [{ clave: 'percepcionIva', titulo: 'Perc. IVA' }, { clave: 'percepcionesIibb', titulo: 'Perc. IIBB' }, { clave: 'impuestosInternos', titulo: 'Imp. internos' }, { clave: 'noComputable', titulo: 'No computable' }];
+const EXTRA_COMPRAS: Extra[] = [{ clave: 'percepcionIva', titulo: 'Perc. IVA' }, { clave: 'percepcionesIibb', titulo: 'Perc. IIBB' }, { clave: 'impuestosInternos', titulo: 'Imp. internos' }, { clave: 'noComputable', titulo: 'No computable' }, { clave: 'percepcionGanancias', titulo: 'Perc. Ganancias' }, { clave: 'otrosTributos', titulo: 'Otros tributos' }];
 
 function LibroIva({ titulo, ruta, tercero, extra }: { titulo: string; ruta: string; tercero: string; extra: Extra[] }) {
   const inicio = `${hoy().slice(0, 7)}-01`;
@@ -32,6 +32,7 @@ function LibroIva({ titulo, ruta, tercero, extra }: { titulo: string; ruta: stri
         <Button variant="default" onClick={() => void descargar(ruta, { desde, hasta, formato: 'pdf' }, `${ruta.split('/').pop()}-${desde}-${hasta}.pdf`)}>PDF</Button>
       </Group>
       {q.data?.advertencias.map((a) => <Alert key={a} color="yellow" mb="sm">{a}</Alert>)}
+      {q.data?.notas?.map((a) => <Text key={a} size="xs" c="dimmed" mb="sm">{a}</Text>)}
       <ScrollArea>
         <Table withTableBorder striped miw={900}>
           <Table.Thead><Table.Tr><Table.Th>Fecha</Table.Th><Table.Th>Comprobante</Table.Th><Table.Th>{tercero}</Table.Th>{conDestino && <Table.Th>Destino</Table.Th>}

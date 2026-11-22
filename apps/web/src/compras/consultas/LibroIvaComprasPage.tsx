@@ -7,10 +7,10 @@ import { formatoFecha, formatoMoneda } from '../formato';
 import { FiltroFechas, finDelMes, primeroDelMes } from './comun';
 import { TIPOS_FC } from './DetalleComprobante';
 
-interface Importes { netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; percepcionIva: string; percepcionesIibb: string; impuestosInternos: string; noGravado: string; exento: string; noComputable: string; total: string }
+interface Importes { netoPorAlicuota: Record<string, string>; ivaPorAlicuota: Record<string, string>; percepcionIva: string; percepcionesIibb: string; impuestosInternos: string; noGravado: string; exento: string; noComputable: string; percepcionGanancias?: string; otrosTributos?: string; total: string }
 interface Fila extends Importes { fechaContable: string; tipo: string; letra: string; numero: string; razonSocial: string; cuit: string }
 
-const OTROS: [keyof Importes, string][] = [['percepcionIva', 'Perc. IVA'], ['percepcionesIibb', 'Perc. IIBB'], ['impuestosInternos', 'Imp. internos'], ['noGravado', 'No gravado'], ['exento', 'Exento'], ['noComputable', 'No computable'], ['total', 'Total']];
+const OTROS: [keyof Importes, string][] = [['percepcionIva', 'Perc. IVA'], ['percepcionesIibb', 'Perc. IIBB'], ['impuestosInternos', 'Imp. internos'], ['noGravado', 'No gravado'], ['exento', 'Exento'], ['noComputable', 'No computable'], ['percepcionGanancias', 'Perc. Ganancias'], ['otrosTributos', 'Otros tributos'], ['total', 'Total']];
 
 export function LibroIvaComprasPage() {
   const [desde, setDesde] = useState(primeroDelMes());

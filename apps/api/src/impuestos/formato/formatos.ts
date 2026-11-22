@@ -57,6 +57,14 @@ export const LIVA_COMPRAS_CBTE: Campo[] = [
 ];
 
 /** Libro IVA Digital — Compras alícuotas (84). */
+/** Libro IVA Digital — Compras importaciones (50, E41): alícuotas de los despachos, por número de despacho (diseño a verificar). */
+export const LIVA_COMPRAS_IMPORTACIONES: Campo[] = [
+  { nombre: 'despacho', largo: 16, tipo: 'TXT' },
+  imp('netoGravado'),
+  { nombre: 'alicuota', largo: 4, tipo: 'NUM' },
+  imp('impuesto'),
+];
+
 export const LIVA_COMPRAS_ALICUOTAS: Campo[] = [
   { nombre: 'tipoComprobante', largo: 3, tipo: 'NUM' },
   { nombre: 'puntoVenta', largo: 5, tipo: 'NUM' },

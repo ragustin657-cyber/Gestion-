@@ -24,7 +24,7 @@ const COLUMNAS_VENTAS: Columna[] = [
 ];
 const COLUMNAS_COMPRAS: Columna[] = [
   { titulo: 'Fecha', ancho: 11 }, { titulo: 'Comprobante', ancho: 26 }, { titulo: 'Proveedor', ancho: 28 }, { titulo: 'CUIT/Doc.', ancho: 15 },
-  ...porAlicuotaCols(), imp('Perc. IVA'), imp('Perc. IIBB'), imp('Imp. internos'), imp('No computable', 14), imp('No gravado'), imp('Exento'), imp('Total', 14),
+  ...porAlicuotaCols(), imp('Perc. IVA'), imp('Perc. IIBB'), imp('Imp. internos'), imp('No computable', 14), imp('No gravado'), imp('Exento'), imp('Perc. Ganancias'), imp('Otros tributos'), imp('Total', 14),
 ];
 const porAlicuota = (neto: Record<string, string>, iva: Record<string, string>) =>
   ALICUOTAS_LIBRO.flatMap((a) => [neto[a] ?? null, ...(a === '0' ? [] : [iva[a] ?? null])]);
@@ -84,8 +84,8 @@ export class LibrosIvaController {
     const ivaLibro = Object.values(l.totales.ivaPorAlicuota).reduce((a, x) => a.plus(x), new D(0));
     const advertencias = await this.ventas.cuadre(this.tenant.db, 'IVA_CREDITO_FISCAL', fechaQuery(desde, true)!, fechaQuery(hasta, true)!, ivaLibro);
     if (formato !== 'xlsx' && formato !== 'pdf') return { ...l, advertencias };
-    const extra = (f: { percepcionIva: string; percepcionesIibb: string; impuestosInternos: string; noComputable: string; noGravado: string; exento: string; total: string }) =>
-      [f.percepcionIva, f.percepcionesIibb, f.impuestosInternos, f.noComputable, f.noGravado, f.exento, f.total];
+    const extra = (f: { percepcionIva: string; percepcionesIibb: string; impuestosInternos: string; noComputable: string; noGravado: string; exento: string; percepcionGanancias: string; otrosTributos: string; total: string }) =>
+      [f.percepcionIva, f.percepcionesIibb, f.impuestosInternos, f.noComputable, f.noGravado, f.exento, f.percepcionGanancias, f.otrosTributos, f.total];
     const filas: Fila[] = l.filas.map((f) => [fecha(f.fechaContable), `${f.tipo} ${f.letra} ${f.numero}`, f.razonSocial, f.cuit, ...porAlicuota(f.netoPorAlicuota, f.ivaPorAlicuota), ...extra(f)]);
     filas.push(['', 'Totales', '', '', ...porAlicuota(l.totales.netoPorAlicuota, l.totales.ivaPorAlicuota), ...extra(l.totales)]);
     return this.salida(res, 'libro-iva-compras', 'Libro IVA Compras', desde, hasta, formato, COLUMNAS_COMPRAS, filas);

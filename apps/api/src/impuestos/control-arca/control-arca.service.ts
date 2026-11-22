@@ -36,7 +36,8 @@ export class ControlArcaService {
     const db = this.tenant.db;
     const sistema: Registro[] = [];
     if (d.sentido === 'RECIBIDOS') {
-      for (const c of await db.comprobanteCompra.findMany({ where: { estado: 'CONFIRMADO', fechaEmision: { gte: desde, lte: hasta } }, include: { tercero: true } })) {
+      // Revisión E41: los despachos de importación no figuran en Mis Comprobantes Recibidos
+      for (const c of await db.comprobanteCompra.findMany({ where: { estado: 'CONFIRMADO', tipo: { not: 'DESPACHO_IMPORTACION' }, fechaEmision: { gte: desde, lte: hasta } }, include: { tercero: true } })) {
         const tipo = codigoCompra(c.tipo, c.letra), doc = normalizarCuit(c.tercero.cuit);
         sistema.push({
           clave: `${doc}|${tipo}|${c.puntoVenta}|${c.numero}`, fecha: c.fechaEmision.toISOString().slice(0, 10), tipo, puntoVenta: c.puntoVenta, numero: c.numero, documento: doc,

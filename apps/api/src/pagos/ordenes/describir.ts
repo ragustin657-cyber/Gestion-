@@ -1,7 +1,7 @@
 import type { MovimientoCuentaCorriente } from '@prisma/client';
 import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
 
-const ABREV: Record<string, string> = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK' };
+const ABREV: Record<string, string> = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK', DESPACHO_IMPORTACION: 'DI' };
 const num = (pv: number, n: number) => `${String(pv).padStart(5, '0')}-${String(n).padStart(8, '0')}`;
 
 /** Descripción legible de cada movimiento de cuenta corriente (comprobante o anticipo). */
@@ -12,7 +12,7 @@ export async function describirMovimientos(tx: TxEmpresa, movs: Pick<MovimientoC
   for (const m of movs) {
     if (m.origenTipo === 'COMPRA') {
       const c = comps.find((x) => x.id === m.origenId);
-      r.set(m.id, c ? `${ABREV[c.tipo]} ${c.letra} ${num(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ') : 'Comprobante');
+      r.set(m.id, c ? (c.numeroDespacho ? `Despacho ${c.numeroDespacho}` : `${ABREV[c.tipo]} ${c.letra} ${num(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ')) : 'Comprobante');
     } else if (m.origenTipo === 'ANTICIPO') {
       const o = ops.find((x) => x.id === m.origenId);
       r.set(m.id, `Anticipo OP ${o?.numero ? `0001-${String(o.numero).padStart(8, '0')}` : ''}`.trim());

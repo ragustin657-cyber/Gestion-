@@ -23,6 +23,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Aprobación de OC', ruta: '/compras/oc/aprobacion', permiso: 'oc.aprobar' },
           { titulo: 'Informe de recepción', ruta: '/compras/recepcion', permiso: 'ir.crear' },
           { titulo: 'Factura de proveedor', ruta: '/compras/factura', permiso: 'fc.crear' },
+          { titulo: 'Despacho de importación', ruta: '/compras/despacho', permiso: 'fc.crear' },
         ],
       },
       {

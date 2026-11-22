@@ -96,8 +96,8 @@ export class FlujoService {
   private async descripciones(db: TxEmpresa, movs: { movimientoId: string; origenTipo: string; origenId: string }[]) {
     const ventas = new Map((await db.comprobanteVenta.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'VENTA').map((m) => m.origenId) } }, select: { id: true, tipo: true, letra: true, puntoVenta: true, numero: true } }))
       .map((c) => [c.id, `${c.tipo === 'FACTURA' ? 'FC' : c.tipo === 'NOTA_DEBITO' ? 'ND' : 'NC'} ${c.letra} ${String(c.puntoVenta).padStart(5, '0')}-${String(c.numero ?? 0).padStart(8, '0')}`]));
-    const compras = new Map((await db.comprobanteCompra.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'COMPRA').map((m) => m.origenId) } }, select: { id: true, tipo: true, letra: true, puntoVenta: true, numero: true } }))
-      .map((c) => [c.id, `${c.tipo === 'FACTURA' ? 'FC' : c.tipo === 'NOTA_DEBITO' ? 'ND' : c.tipo === 'NOTA_CREDITO' ? 'NC' : 'TK'} ${c.letra} ${String(c.puntoVenta).padStart(5, '0')}-${String(c.numero).padStart(8, '0')}`]));
+    const compras = new Map((await db.comprobanteCompra.findMany({ where: { id: { in: movs.filter((m) => m.origenTipo === 'COMPRA').map((m) => m.origenId) } }, select: { id: true, tipo: true, letra: true, puntoVenta: true, numero: true, numeroDespacho: true } }))
+      .map((c) => [c.id, c.numeroDespacho ? `Despacho ${c.numeroDespacho}` : `${c.tipo === 'FACTURA' ? 'FC' : c.tipo === 'NOTA_DEBITO' ? 'ND' : c.tipo === 'NOTA_CREDITO' ? 'NC' : 'TK'} ${c.letra} ${String(c.puntoVenta).padStart(5, '0')}-${String(c.numero).padStart(8, '0')}`]));
     return new Map(movs.map((m) => [m.movimientoId, ventas.get(m.origenId) ?? compras.get(m.origenId) ?? m.origenTipo]));
   }
 

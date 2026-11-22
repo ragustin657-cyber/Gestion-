@@ -489,6 +489,7 @@ enum TipoComprobanteCompra {
   NOTA_DEBITO
   NOTA_CREDITO
   TICKET
+  DESPACHO_IMPORTACION
 }
 
 enum EstadoComprobante {
@@ -520,6 +521,11 @@ model ComprobanteCompra {
   iva                   Decimal                           @db.Decimal(18, 2)
   percepcionIva         Decimal                           @default(0) @db.Decimal(18, 2)
   destinoCreditoIva     DestinoCreditoIva                 @default(GRAVADO)
+  /// Despacho de importación (E41): número del despacho, percepción de Ganancias y tributos al costo
+  numeroDespacho        String?
+  percepcionGanancias   Decimal                           @default(0) @db.Decimal(18, 2)
+  derechosImportacion   Decimal                           @default(0) @db.Decimal(18, 2)
+  tasaEstadistica       Decimal                           @default(0) @db.Decimal(18, 2)
   impuestosInternos     Decimal                           @default(0) @db.Decimal(18, 2)
   noGravado             Decimal                           @default(0) @db.Decimal(18, 2)
   exento                Decimal                           @default(0) @db.Decimal(18, 2)
@@ -542,6 +548,8 @@ model ComprobanteCompra {
   @@unique([empresaId, numeroInterno])
   @@unique([empresaId, terceroId, tipo, letra, puntoVenta, numero])
   @@index([empresaId, fechaContable])
+
+  @@unique([empresaId, numeroDespacho])
 }
 
 model ComprobanteCompraRenglon {

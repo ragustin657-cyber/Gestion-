@@ -1,3 +1,4 @@
+import { DespachosController } from './comprobantes/despachos.controller';
 import { Module } from '@nestjs/common';
 import { ComprobantesController } from './comprobantes/comprobantes.controller';
 import { ComprobantesService } from './comprobantes/comprobantes.service';
@@ -9,7 +10,7 @@ import { RecepcionesController } from './recepciones/recepciones.controller';
 import { RecepcionesService } from './recepciones/recepciones.service';
 
 @Module({
-  controllers: [OrdenesController, RecepcionesController, ComprobantesController, ConsultasComprasController],
+  controllers: [OrdenesController, RecepcionesController, ComprobantesController, DespachosController, ConsultasComprasController],
   providers: [OrdenesService, RecepcionesService, ComprobantesService, ConsultasComprasService],
   exports: [OrdenesService, RecepcionesService, ComprobantesService, ConsultasComprasService],
 })

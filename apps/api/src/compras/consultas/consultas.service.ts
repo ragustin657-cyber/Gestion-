@@ -11,8 +11,11 @@ const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
 const f2 = (d: Dec) => d.toFixed(2);
 const DIA = 86400000;
-const ABREV = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK' } as const;
+const ABREV = { FACTURA: 'FC', NOTA_DEBITO: 'ND', NOTA_CREDITO: 'NC', TICKET: 'TK', DESPACHO_IMPORTACION: 'DI' } as const;
 const numeroFc = (pv: number, n: number) => `${String(pv).padStart(5, '0')}-${String(n).padStart(8, '0')}`;
+/** Cómo se muestra un comprobante de compra: el despacho, por su número de despacho (revisión E41). */
+export const descripcionCompra = (c: { tipo: string; letra: string; puntoVenta: number; numero: number; numeroDespacho?: string | null }) =>
+  c.numeroDespacho ? `Despacho ${c.numeroDespacho}` : `${ABREV[c.tipo as keyof typeof ABREV]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ');
 
 /** Valida 'YYYY-MM-DD'; devuelve Date UTC o undefined si no viene. */
 export function fechaQuery(s: string | undefined, obligatoria = false): Date | undefined {
@@ -40,6 +43,9 @@ export interface FilaLibroIva {
   noGravado: string;
   exento: string;
   noComputable: string;
+  /** Despachos de importación (E41) */
+  percepcionGanancias: string;
+  otrosTributos: string;
   total: string;
   /** Destino del crédito de IVA (E40) */
   destino: 'GRAVADO' | 'EXENTO' | 'COMUN';
@@ -71,7 +77,7 @@ export class ConsultasComprasService {
       const c = comps.find((x) => x.id === m.origenId);
       const o = ops.find((x) => x.id === m.origenId);
       const comprobante = c
-        ? `${ABREV[c.tipo]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' ')
+        ? descripcionCompra(c)
         : o ? `Anticipo OP 0001-${String(o.numero).padStart(8, '0')}` : m.origenTipo;
       return { id: m.id, origenId: m.origenId, fecha: m.fecha, fechaVencimiento: m.fechaVencimiento, comprobante, monedaCodigo: m.monedaCodigo, importe: m.importe, importePesos: m.importePesos, saldo: m.saldo, saldoPesos: m.saldoPesos, orden: i };
     });
@@ -125,13 +131,13 @@ export class ConsultasComprasService {
       .map(({ _total, ...x }) => x);
   }
 
-  async libroIva(desde?: string, hasta?: string): Promise<{ filas: FilaLibroIva[]; totales: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit' | 'destino'> }> {
+  async libroIva(desde?: string, hasta?: string): Promise<{ filas: FilaLibroIva[]; totales: Omit<FilaLibroIva, 'fechaContable' | 'tipo' | 'letra' | 'numero' | 'razonSocial' | 'cuit' | 'destino'>; notas: string[] }> {
     const comps = await this.tenant.db.comprobanteCompra.findMany({
       where: { estado: 'CONFIRMADO', fechaContable: { gte: fechaQuery(desde, true), lte: fechaQuery(hasta, true) } },
       include: { ivas: true, percepcionesIibb: true, tercero: { select: { razonSocial: true, cuit: true } } },
       orderBy: [{ fechaContable: 'asc' }, { numeroInterno: 'asc' }],
     });
-    const sum = { neto: {} as Record<string, Dec>, iva: {} as Record<string, Dec>, percepcionIva: new D(0), percepcionesIibb: new D(0), impuestosInternos: new D(0), noGravado: new D(0), exento: new D(0), noComputable: new D(0), total: new D(0) };
+    const sum = { neto: {} as Record<string, Dec>, iva: {} as Record<string, Dec>, percepcionIva: new D(0), percepcionesIibb: new D(0), impuestosInternos: new D(0), noGravado: new D(0), exento: new D(0), noComputable: new D(0), percepcionGanancias: new D(0), otrosTributos: new D(0), total: new D(0) };
     const filas = comps.map((c) => {
       const s = c.tipo === 'NOTA_CREDITO' ? -1 : 1;
       const p = (x: Dec) => x.mul(c.cotizacion).toDecimalPlaces(2).mul(s);
@@ -149,11 +155,12 @@ export class ConsultasComprasService {
         percepcionesIibb: p(c.percepcionesIibb.reduce((t, x) => t.plus(x.importe), new D(0))),
         impuestosInternos: p(c.impuestosInternos), noGravado: p(c.noGravado), exento: p(c.exento),
         noComputable: c.ivas.length ? new D(0) : p(c.netoGravado),
+        percepcionGanancias: p(c.percepcionGanancias), otrosTributos: p(c.derechosImportacion.plus(c.tasaEstadistica)),
         total: c.totalPesos.mul(s),
       };
       for (const k of Object.keys(campos) as (keyof typeof campos)[]) sum[k] = sum[k].plus(campos[k]);
       return {
-        fechaContable: c.fechaContable, tipo: c.tipo, letra: c.letra, numero: numeroFc(c.puntoVenta, c.numero),
+        fechaContable: c.fechaContable, tipo: c.tipo, letra: c.letra, numero: c.numeroDespacho ?? numeroFc(c.puntoVenta, c.numero),
         razonSocial: c.tercero.razonSocial, cuit: c.tercero.cuit, netoPorAlicuota: neto, ivaPorAlicuota: iva, destino: c.destinoCreditoIva,
         ...Object.fromEntries(Object.entries(campos).map(([k, v]) => [k, f2(v)])),
       } as FilaLibroIva;
@@ -163,8 +170,10 @@ export class ConsultasComprasService {
       filas,
       totales: {
         netoPorAlicuota: mapa(sum.neto), ivaPorAlicuota: mapa(sum.iva), percepcionIva: f2(sum.percepcionIva), percepcionesIibb: f2(sum.percepcionesIibb),
-        impuestosInternos: f2(sum.impuestosInternos), noGravado: f2(sum.noGravado), exento: f2(sum.exento), noComputable: f2(sum.noComputable), total: f2(sum.total),
+        impuestosInternos: f2(sum.impuestosInternos), noGravado: f2(sum.noGravado), exento: f2(sum.exento), noComputable: f2(sum.noComputable),
+        percepcionGanancias: f2(sum.percepcionGanancias), otrosTributos: f2(sum.otrosTributos), total: f2(sum.total),
       },
+      notas: comps.some((c) => c.tipo === 'DESPACHO_IMPORTACION') ? ['En los despachos de importación el total es lo liquidado por la Aduana; la base imponible no lo integra'] : [],
     };
   }
 
@@ -204,11 +213,11 @@ export class ConsultasComprasService {
       const fcs = await this.tenant.db.comprobanteCompra.findMany({
         where: {
           fechaContable: rango,
-          ...(pvNum ? { puntoVenta: pv, numero: num } : texto ? { OR: [...(entero !== undefined ? [{ numero: entero }] : []), ...(terceroWhere ? [{ tercero: terceroWhere }] : [])] } : {}),
+          ...(pvNum ? { puntoVenta: pv, numero: num } : texto ? { OR: [...(entero !== undefined ? [{ numero: entero }] : []), ...(terceroWhere ? [{ tercero: terceroWhere }] : []), { numeroDespacho: { contains: texto.toUpperCase() } }] } : {}),
         },
         include: { tercero: { select: { razonSocial: true } } }, take: 100, orderBy: { fechaContable: 'desc' },
       });
-      r.push(...fcs.map((c) => ({ tipo: 'FC' as const, id: c.id, numero: `${ABREV[c.tipo]} ${c.letra} ${numeroFc(c.puntoVenta, c.numero)}`.replace(/\s+/g, ' '), fecha: c.fechaContable, razonSocial: c.tercero.razonSocial, estado: c.estado, total: c.total.toFixed(2) })));
+      r.push(...fcs.map((c) => ({ tipo: 'FC' as const, id: c.id, numero: descripcionCompra(c), fecha: c.fechaContable, razonSocial: c.tercero.razonSocial, estado: c.estado, total: c.total.toFixed(2) })));
     }
     return r.sort((a, b) => b.fecha.getTime() - a.fecha.getTime()).slice(0, 100);
   }
