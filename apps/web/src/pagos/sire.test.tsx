@@ -60,3 +60,11 @@ describe('SIRE completo (web, E43)', () => {
     expect(screen.getByText('31,5 %')).toBeInTheDocument();
   });
 });
+
+describe('revisión E43: aviso del proveedor del exterior sin régimen', () => {
+  it('la tabla de retenciones de la orden muestra el aviso de la fila en cero', async () => {
+    const { TablaRetenciones } = await import('./TablaRetenciones');
+    render(<MantineProvider><TablaRetenciones retenciones={[{ id: 'r', impuesto: 'GANANCIAS_EXTERIOR', jurisdiccion: null, regimen: null, base: '1000', alicuota: '0', importe: '0', detalle: { aviso: 'El proveedor del exterior ACME no tiene régimen de Ganancias exterior' }, certificadoNumero: null, anulada: false }]} /></MantineProvider>);
+    expect(screen.getByText('El proveedor del exterior ACME no tiene régimen de Ganancias exterior')).toBeInTheDocument();
+  });
+});

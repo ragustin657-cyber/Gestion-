@@ -1,4 +1,4 @@
-import { Button, Table, Text, Tooltip } from '@mantine/core';
+import { Alert, Button, Stack, Table, Text, Tooltip } from '@mantine/core';
 import { IconDownload } from '@tabler/icons-react';
 import { descargar } from '../api/cliente';
 import { formatoMoneda } from '../compras/formato';
@@ -13,8 +13,13 @@ const OCULTOS = new Set(['tipo', 'letra', 'puntoVenta', 'numero', 'exclusionPubl
 
 export function TablaRetenciones({ retenciones, opId, certificados }: { retenciones: RetencionOP[]; opId?: string; certificados?: boolean }) {
   const visibles = retenciones.filter((r) => Number(r.importe) > 0);
-  if (!visibles.length) return <Text size="sm" c="dimmed">Sin retenciones.</Text>;
+  // Revisión E43: las filas en cero con aviso (p. ej. proveedor del exterior sin régimen) se muestran como alerta
+  const avisos = [...new Set(retenciones.map((r) => r.detalle?.aviso).filter((a): a is string => !!a))];
+  const alertas = avisos.map((a) => <Alert key={a} color="orange" p="xs">{a}</Alert>);
+  if (!visibles.length) return <Stack gap="xs">{alertas}<Text size="sm" c="dimmed">Sin retenciones.</Text></Stack>;
   return (
+    <Stack gap="xs">
+    {alertas}
     <Table withTableBorder>
       <Table.Thead>
         <Table.Tr><Table.Th>Retención</Table.Th><Table.Th ta="right">Base</Table.Th><Table.Th ta="right">Alícuota</Table.Th><Table.Th ta="right">Importe</Table.Th>{certificados && <Table.Th>Certificado</Table.Th>}</Table.Tr>
@@ -44,5 +49,6 @@ export function TablaRetenciones({ retenciones, opId, certificados }: { retencio
         ))}
       </Table.Tbody>
     </Table>
+    </Stack>
   );
 }

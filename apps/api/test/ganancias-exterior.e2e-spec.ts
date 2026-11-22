@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { descripcionRetencionOP, detalleExterior } from '../src/pagos/consultas/consultas-pagos.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararPagos } from './helpers-pagos';
 
@@ -144,6 +145,17 @@ describe('Ganancias a beneficiarios del exterior (E43)', () => {
     expect((await x.http.put('/api/impuestos/config', { ...c.body, sireMotivoAnulacion: 3 })).status).toBe(200);
     expect((await x.http.get('/api/impuestos/config')).body.sireMotivoAnulacion).toBe(3);
     expect((await x.http.put('/api/impuestos/config', { ...c.body, sireMotivoAnulacion: 10 })).status).toBe(400);
+  });
+
+  it('revisión: el PDF de la OP y la constancia describen la retención al exterior (no IIBB ni jurisdicción)', async () => {
+    const x = await escenario({ cdi: true });
+    const m = await x.factura(100000);
+    const op = await x.opAprobada([{ movimientoId: m.id, importe: 100000 }]);
+    const [r] = await prisma.ordenPagoRetencion.findMany({ where: { ordenPagoId: op.id } });
+    expect(descripcionRetencionOP(r)).toBe('Ganancias exterior (régimen 160)');
+    const reg = await prisma.regimenExterior.findUniqueOrThrow({ where: { id: x.regimenId } });
+    expect(detalleExterior(reg, r.detalle)).toBe('Honorarios del exterior — régimen SIRE 160 — con convenio de doble imposición');
+    expect(detalleExterior(reg, { ...(r.detalle as object), aplicaCdi: 'false', acrecentamiento: 'true' })).toBe('Honorarios del exterior — régimen SIRE 160 — con acrecentamiento (impuesto a cargo del pagador)');
   });
 
   describe('F.2003', () => {
