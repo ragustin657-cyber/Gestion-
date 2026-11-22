@@ -11,6 +11,7 @@ export interface DatosConfigImpuestos {
   prorrateoGravadasIniciales?: number; prorrateoExentasIniciales?: number;
   sireMotivoAnulacion?: number;
   topeAutomovilesCosto?: number;
+  alicuotaBienesPersonalesAcciones?: number;
 }
 
 @Injectable()

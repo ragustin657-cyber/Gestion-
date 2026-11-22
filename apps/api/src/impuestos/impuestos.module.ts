@@ -1,3 +1,6 @@
+import { BienesPersonalesController } from './bienes-personales/bienes-personales.controller';
+import { BienesPersonalesService } from './bienes-personales/bienes-personales.service';
+import { ContabilidadModule } from '../contabilidad/contabilidad.module';
 import { DjGananciasController } from './dj-ganancias/dj-ganancias.controller';
 import { DjGananciasService } from './dj-ganancias/dj-ganancias.service';
 import { AjusteImpositivoController } from './ajuste-inflacion/ajuste-impositivo.controller';
@@ -18,8 +21,8 @@ import { PosicionIibbController } from './posicion-iibb/posicion-iibb.controller
 import { PosicionIibbService } from './posicion-iibb/posicion-iibb.service';
 
 @Module({
-  imports: [ComprasModule],
-  controllers: [DjGananciasController, AjusteImpositivoController, ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController, PosicionIibbController],
-  providers: [DjGananciasService, AjusteImpositivoService, ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService, PosicionIibbService],
+  imports: [ComprasModule, ContabilidadModule],
+  controllers: [BienesPersonalesController, DjGananciasController, AjusteImpositivoController, ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController, PosicionIibbController],
+  providers: [BienesPersonalesService, DjGananciasService, AjusteImpositivoService, ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService, PosicionIibbService],
 })
 export class ImpuestosModule {}

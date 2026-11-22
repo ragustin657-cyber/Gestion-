@@ -29,6 +29,8 @@ const esquema = z.object({
   sireMotivoAnulacion: z.number().int().min(1).max(9).optional(),
   // Tope de costo de automóviles para la amortización impositiva (E44)
   topeAutomovilesCosto: z.number().min(0, 'No puede ser negativo').optional(),
+  // Alícuota de Bienes Personales, acciones y participaciones (E47)
+  alicuotaBienesPersonalesAcciones: z.number().min(0).max(100).optional(),
 });
 
 @Controller('impuestos/config')
