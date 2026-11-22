@@ -50,4 +50,9 @@ describe('ajuste por inflación impositivo (web, E45)', () => {
     const rutas = (ns: NodoMenu[]): string[] => ns.flatMap((n) => [...(n.ruta ? [n.ruta] : []), ...rutas(n.hijos ?? [])]);
     expect(rutas(filtrarMenu(MENU, ['impuestos.ver']))).toContain('/impuestos/ajuste-inflacion');
   });
+
+  it('revisión: aviso de apertura inicial no encontrada', () => {
+    envolver(<ResumenAjuste datos={{ ...datos, avisoApertura: 'No se encontró la apertura inicial del primer ejercicio: configúrela en el ajuste por inflación contable o cargue los saldos al inicio como partidas manuales' }} />);
+    expect(screen.getByText(/No se encontró la apertura inicial/)).toBeInTheDocument();
+  });
 });

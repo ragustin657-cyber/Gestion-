@@ -14,7 +14,7 @@ export interface AjusteImpositivo {
   ejercicio: { numero: number; desde: string; hasta: string };
   estatico: { cuentas: { codigo: string; nombre: string; tipo: string; saldo: string }[]; activo: string; pasivo: string; manualActivo: string; manualPasivo: string; base: string; coeficiente: string; ajuste: string };
   dinamico: { movimientos: Movimiento[]; total: string };
-  partidas: Partida[]; variacion36: string; corresponde: boolean; total: string; totalDj: string; aviso: string | null;
+  partidas: Partida[]; avisoApertura?: string | null; variacion36: string; corresponde: boolean; total: string; totalDj: string; aviso: string | null;
 }
 const NOMBRE_TIPO: Record<string, string> = { APORTE: 'Aporte', RETIRO: 'Retiro', COMPRA_EXCLUIDO: 'Compra de bien excluido', VENTA_EXCLUIDO: 'Venta de bien excluido', MANUAL: 'Partida manual' };
 const TIPOS_PARTIDA = [{ value: 'ACTIVO_INICIO', label: 'Activo al inicio' }, { value: 'PASIVO_INICIO', label: 'Pasivo al inicio' }, { value: 'DINAMICO', label: 'Movimiento del ejercicio' }];
@@ -25,6 +25,7 @@ export function ResumenAjuste({ datos }: { datos: AjusteImpositivo }) {
   const dato = (t: string, v: string) => <Paper withBorder p="xs"><Text size="xs" c="dimmed">{t}</Text><Text fw={600}>{formatoMoneda(v)}</Text></Paper>;
   return (
     <Stack gap="xs">
+      {datos.avisoApertura && <Alert color="yellow">{datos.avisoApertura}</Alert>}
       {datos.aviso && <Alert color="orange">{datos.aviso}</Alert>}
       <SimpleGrid cols={{ base: 2, md: 4 }}>
         {dato('Ajuste estático', datos.estatico.ajuste)}{dato('Ajuste dinámico', datos.dinamico.total)}{dato('Total del ajuste', datos.total)}{dato('Para la DJ', datos.totalDj)}

@@ -5,7 +5,7 @@ import { crearApp, limpiarBase, otroUsuario, sesionConPlan } from './helpers';
 type Planilla = {
   estatico: { cuentas: { codigo: string; saldo: string }[]; activo: string; pasivo: string; base: string; coeficiente: string; ajuste: string };
   dinamico: { movimientos: { tipo: string; importe: string; ajuste: string; descripcion: string }[]; total: string };
-  partidas: { id: string }[]; variacion36: string; corresponde: boolean; total: string; totalDj: string; aviso: string | null;
+  partidas: { id: string }[]; avisoApertura: string | null; variacion36: string; corresponde: boolean; total: string; totalDj: string; aviso: string | null;
 };
 const INDICES: Record<string, number> = { '2023-12': 50, '2024-12': 40, '2025-12': 100, '2026-03': 110, '2026-05': 120, '2026-07': 125, '2026-08': 130, '2026-10': 140, '2026-12': 150, '2027-12': 300 };
 
@@ -20,7 +20,7 @@ describe('ajuste por inflación impositivo (E45)', () => {
   afterAll(async () => app.close());
 
   let numero = 9000;
-  const escenario = async (o: { indices?: Record<string, number>; aperturaManual?: boolean } = {}) => {
+  const escenario = async (o: { indices?: Record<string, number>; aperturaManual?: boolean; sinApertura?: boolean } = {}) => {
     const s = await sesionConPlan(app, prisma);
     for (const [k, valor] of Object.entries({ ...INDICES, ...o.indices })) await prisma.indiceInflacion.create({ data: { anio: Number(k.slice(0, 4)), mes: Number(k.slice(5, 7)), valor, actualizadoPor: 't' } });
     const ej = await prisma.ejercicio.findFirstOrThrow({ where: { empresaId: s.empresaId, numero: 1 }, include: { periodos: { orderBy: { mes: 'asc' } } } });
@@ -35,7 +35,7 @@ describe('ajuste por inflación impositivo (E45)', () => {
     if (o.aperturaManual) {
       const a = await asiento('2026-01-01', 'Apertura', apertura.map((r) => ({ cuentaContableId: r.cuentaContableId, ...(r.debe ? { debe: r.debe } : { haber: r.haber }) })));
       await prisma.configAjusteInflacion.create({ data: { empresaId: s.empresaId, primerEjercicioId: ej.id, asientoAperturaId: a.id, actualizadoPor: 't' } });
-    } else {
+    } else if (!o.sinApertura) {
       await prisma.asiento.create({ data: { empresaId: s.empresaId, numero: ++numero, fecha: ej.desde, descripcion: 'Apertura', origenTipo: 'APERTURA', origenId: ej.id, creadoPor: 't', tipo: 'APERTURA', ejercicioId: ej.id, renglones: { create: apertura } } });
     }
     await asiento('2026-03-10', 'Compra de rodado', [{ cuentaContableId: await c('1.2.01.002'), debe: 200000 }, { cuentaContableId: await c('1.1.01.001'), haber: 200000 }]);
@@ -123,5 +123,25 @@ describe('ajuste por inflación impositivo (E45)', () => {
     expect([r.status, r.body.message]).toEqual([400, 'Indique el ejercicio']);
     const otro = await otroUsuario(app, prisma, x.empresaId, ['bienes.ver']);
     expect((await otro.http.get(`/api/impuestos/ajuste-inflacion?ejercicioId=${x.ej.id}`)).status).toBe(403);
+  });
+
+  it('revisión: sin apertura inicial ni configuración, la planilla igual lee el Mayor y avisa', async () => {
+    const x = await escenario({ sinApertura: true });
+    const p = await x.datos();
+    expect(p.dinamico.movimientos.map((m) => m.tipo)).toEqual(['COMPRA_EXCLUIDO', 'APORTE', 'RETIRO', 'VENTA_EXCLUIDO']);
+    expect(p.avisoApertura).toBe('No se encontró la apertura inicial del primer ejercicio: configúrela en el ajuste por inflación contable o cargue los saldos al inicio como partidas manuales');
+    for (const per of x.ej.periodos.slice(0, 11)) expect((await x.http.post(`/api/contabilidad/periodos/${per.id}/cerrar`, {})).status).toBe(200);
+    await x.http.post('/api/contabilidad/ejercicios/siguiente', {});
+    expect((await x.http.post(`/api/contabilidad/ejercicios/${x.ej.id}/cerrar`, {})).status).toBe(200);
+    const ej2 = await prisma.ejercicio.findFirstOrThrow({ where: { empresaId: x.empresaId, numero: 2 } });
+    // caja −200.000 − 50.000 + 30.000 y banco 100.000
+    expect((await x.datos(ej2.id)).estatico.activo).toBe('-120000.00');
+  });
+
+  it('revisión: la fecha de la partida dinámica tiene que estar dentro del ejercicio', async () => {
+    const x = await escenario();
+    const r = await x.http.post('/api/impuestos/ajuste-inflacion/partidas', { ejercicioId: x.ej.id, concepto: 'Retiro', tipo: 'DINAMICO', fecha: '2019-05-01', importe: 1000 });
+    expect([r.status, r.body.message]).toEqual([400, 'La fecha debe estar dentro del ejercicio']);
+    expect((await x.datos()).avisoApertura).toBeNull();
   });
 });

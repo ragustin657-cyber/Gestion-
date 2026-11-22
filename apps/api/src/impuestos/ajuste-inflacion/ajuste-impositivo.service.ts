@@ -37,7 +37,8 @@ export class AjusteImpositivoService {
     if (!ej) throw new NotFoundException('Ejercicio no encontrado');
     const empresaId = this.tenant.empresaId;
     const apertura = await this.aperturaInicial(tx);
-    const ids = apertura.length ? Prisma.sql`${Prisma.join(apertura.map((id) => Prisma.sql`${id}::uuid`))}` : Prisma.sql`NULL::uuid`;
+    // Revisión E45: sin apertura inicial, NOT IN (NULL) descartaba todo; con un arreglo vacío no hay nulos
+    const ids = Prisma.sql`ARRAY[${apertura.length ? Prisma.join(apertura.map((id) => Prisma.sql`${id}::uuid`)) : Prisma.empty}]::uuid[]`;
     const desde = dia(ej.desde), hasta = dia(ej.hasta);
 
     // Saldos nominales al inicio: sin cierres, aperturas ni ajustes contables; más la apertura inicial del sistema
@@ -45,8 +46,8 @@ export class AjusteImpositivoService {
       SELECT c."id", c."codigo", c."nombre", c."tipo", SUM(r."debe" - r."haber") AS saldo
       FROM "AsientoRenglon" r JOIN "Asiento" a ON a."id" = r."asientoId" JOIN "CuentaContable" c ON c."id" = r."cuentaContableId"
       WHERE a."empresaId" = ${empresaId}::uuid AND c."tipo" IN ('ACTIVO', 'PASIVO') AND c."ajusteImpositivo" = 'COMPUTABLE'
-        AND ((a."fecha" < ${desde}::date AND a."tipo" NOT IN ('CIERRE', 'APERTURA', 'AJUSTE_INFLACION') AND a."origenTipo" <> ${ORIGEN_AJUSTE} AND a."id" NOT IN (${ids}))
-             OR a."id" IN (${ids}))
+        AND ((a."fecha" < ${desde}::date AND a."tipo" NOT IN ('CIERRE', 'APERTURA', 'AJUSTE_INFLACION') AND a."origenTipo" <> ${ORIGEN_AJUSTE} AND NOT (a."id" = ANY(${ids})))
+             OR a."id" = ANY(${ids}))
       GROUP BY 1, 2, 3, 4 HAVING SUM(r."debe" - r."haber") <> 0 ORDER BY c."codigo"`;
     const cuentas = saldos.map((s) => ({ codigo: s.codigo, nombre: s.nombre, tipo: s.tipo, saldo: s.tipo === 'ACTIVO' ? new D(s.saldo) : new D(s.saldo).negated() }));
     const activo = cuentas.filter((c) => c.tipo === 'ACTIVO').reduce((t, c) => t.plus(c.saldo), new D(0));
@@ -58,7 +59,7 @@ export class AjusteImpositivoService {
              c."tipo" AS "tipoCuenta", (c."ajusteImpositivo" = 'EXCLUIDO') AS excluida, r."debe", r."haber"
       FROM "AsientoRenglon" r JOIN "Asiento" a ON a."id" = r."asientoId" JOIN "CuentaContable" c ON c."id" = r."cuentaContableId"
       WHERE a."empresaId" = ${empresaId}::uuid AND a."fecha" BETWEEN ${desde}::date AND ${hasta}::date AND a."tipo" IN ('AUTOMATICO', 'MANUAL')
-        AND a."origenTipo" <> ${ORIGEN_AJUSTE} AND a."id" NOT IN (${ids}) AND c."tipo" IN ('PATRIMONIO_NETO', 'ACTIVO')
+        AND a."origenTipo" <> ${ORIGEN_AJUSTE} AND NOT (a."id" = ANY(${ids})) AND c."tipo" IN ('PATRIMONIO_NETO', 'ACTIVO')
       ORDER BY a."fecha", 2`;
     const porAsiento = new Map<string, typeof renglones>();
     for (const r of renglones) porAsiento.set(r.asientoId, [...(porAsiento.get(r.asientoId) ?? []), r]);
@@ -93,6 +94,8 @@ export class AjusteImpositivoService {
       },
       dinamico: { movimientos: r.dinamico.map((m) => ({ fecha: dia(m.fecha), asientoNumero: m.asientoNumero, descripcion: m.descripcion, tipo: m.tipo, importe: t(m.importe), coeficiente: m.coeficiente.toFixed(6), ajuste: t(m.ajuste) })), total: t(r.totalDinamico) },
       partidas: partidas.map((p) => ({ id: p.id, concepto: p.concepto, tipo: p.tipo, fecha: p.fecha ? dia(p.fecha) : null, importe: t(new D(p.importe)) })),
+      // Revisión E45: sin apertura inicial reconocida, el saldo de arranque cargado como asiento manual entraría como aporte
+      avisoApertura: apertura.length ? null : 'No se encontró la apertura inicial del primer ejercicio: configúrela en el ajuste por inflación contable o cargue los saldos al inicio como partidas manuales',
       variacion36: t(r.variacion36), corresponde: r.corresponde, total: t(r.total), totalDj: t(r.totalDj), aviso: r.aviso,
     };
   }
@@ -105,7 +108,9 @@ export class AjusteImpositivoService {
   guardarPartida(id: string | null, d: DatosPartida) {
     const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
     return this.tenant.transaccion(async (tx) => {
-      if (!(await tx.ejercicio.findUnique({ where: { id: d.ejercicioId } }))) throw new NotFoundException('Ejercicio no encontrado');
+      const ej = await tx.ejercicio.findUnique({ where: { id: d.ejercicioId } });
+      if (!ej) throw new NotFoundException('Ejercicio no encontrado');
+      if (d.tipo === 'DINAMICO' && d.fecha && (d.fecha < ej.desde || d.fecha > ej.hasta)) throw new BadRequestException('La fecha debe estar dentro del ejercicio');
       const data = { ejercicioId: d.ejercicioId, concepto: d.concepto, tipo: d.tipo, fecha: d.tipo === 'DINAMICO' ? d.fecha ?? null : null, importe: d.importe };
       if (id && !(await tx.ajusteImpositivoPartida.findUnique({ where: { id } }))) throw new NotFoundException('Partida no encontrada');
       const p = id ? await tx.ajusteImpositivoPartida.update({ where: { id }, data }) : await tx.ajusteImpositivoPartida.create({ data: { ...data, empresaId: this.tenant.empresaId, creadoPor: usuario } });
