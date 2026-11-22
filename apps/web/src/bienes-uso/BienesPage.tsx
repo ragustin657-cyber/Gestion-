@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Modal, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Badge, Button, Group, Modal, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -16,10 +16,10 @@ interface DatosImpositivos { id: string; valorOrigen: string; vidaUtilImpositiva
 export function DatosImpositivosBien({ bien, puedeEditar, alGuardar }: { bien: DatosImpositivos; puedeEditar: boolean; alGuardar: () => void }) {
   const op = useOperacion();
   const [vida, setVida] = useState(bien.vidaUtilImpositivaAnios ? String(bien.vidaUtilImpositivaAnios) : '');
-  const [terreno, setTerreno] = useState(String(Number(bien.valorTerreno) || ''));
+  const [terreno, setTerreno] = useState<number | string>(Number(bien.valorTerreno) || '');
   const inmueble = bien.rubro.tipoImpositivo === 'INMUEBLE';
   const guardar = async () => {
-    const body = { vidaUtilImpositivaAnios: vida.trim() ? Number(vida) : null, valorTerreno: inmueble ? Number(terreno.replace(',', '.')) || 0 : 0 };
+    const body = { vidaUtilImpositivaAnios: vida.trim() ? Number(vida) : null, valorTerreno: inmueble ? Number(terreno) || 0 : Number(bien.valorTerreno) || 0 };
     if (await op.ejecutar(() => api(`/bienes-uso/${bien.id}/impositivo`, { metodo: 'PUT', body }), () => 'Datos impositivos guardados')) alGuardar();
   };
   return (
@@ -28,7 +28,7 @@ export function DatosImpositivosBien({ bien, puedeEditar, alGuardar }: { bien: D
       <Group align="flex-end">
         <TextInput label="Vida útil impositiva (años)" w={200} inputMode="numeric" disabled={!puedeEditar} value={vida} onChange={(e) => setVida(e.currentTarget.value)}
           placeholder={bien.rubro.vidaUtilImpositivaAnios ? `${bien.rubro.vidaUtilImpositivaAnios} (del rubro)` : inmueble ? '50' : 'La del rubro'} />
-        {inmueble && <TextInput label="Valor del terreno" w={200} inputMode="decimal" disabled={!puedeEditar} value={terreno} onChange={(e) => setTerreno(e.currentTarget.value)} />}
+        {inmueble && <NumberInput label="Valor del terreno" w={200} min={0} decimalScale={2} thousandSeparator="." decimalSeparator="," disabled={!puedeEditar} value={terreno} onChange={setTerreno} />}
         {puedeEditar && <Button size="xs" variant="light" loading={op.enviando} onClick={() => void guardar()}>Guardar datos impositivos</Button>}
       </Group>
       {op.alerta}

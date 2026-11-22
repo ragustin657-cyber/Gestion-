@@ -127,4 +127,12 @@ describe('bienes de uso: amortización impositiva (E44)', () => {
     expect(Number((await x.http.get('/api/impuestos/config')).body.topeAutomovilesCosto)).toBe(25000000);
     expect((await x.http.put('/api/impuestos/config', { ...body, topeAutomovilesCosto: -1 })).status).toBe(400);
   });
+
+  it('revisión: la amortización inicial de un bien cargado por saldo inicial no es gasto del ejercicio', async () => {
+    const x = await escenario();
+    const rubro = await x.rubro('Muebles y útiles');
+    await prisma.bienUso.create({ data: { empresaId: x.empresaId, numero: 950, descripcion: 'Estantería', rubroId: rubro.id, fechaAlta: new Date('2015-06-01'), valorOrigen: 100000, vidaUtilMeses: 120, origen: 'INICIAL', creadoPor: 't', amortizacionInicial: 80000, fechaAmortizacionInicial: new Date('2026-03-31') } });
+    const p = await x.datos();
+    expect(p.filas[0].bienes[0].contable).toBe('0.00');
+  });
 });

@@ -73,7 +73,8 @@ export class PlanillaImpositivaService {
     for (const { b, bi } of datos) {
       const r = amortizacionImpositiva(bi, ejercicio, ctx);
       // Contable del ejercicio, nominal (decisión de la spec): procesos vigentes y la inicial si cae en el ejercicio
-      const inicial = b.fechaAmortizacionInicial && b.fechaAmortizacionInicial >= ej.desde && b.fechaAmortizacionInicial <= ej.hasta ? new D(b.amortizacionInicial) : new D(0);
+      // La amortización inicial es la acumulada a la carga: solo cuenta en el ejercicio si el alta es del ejercicio (como la planilla contable; revisión E44)
+      const inicial = b.fechaAlta >= ej.desde ? new D(b.amortizacionInicial) : new D(0);
       const contable = b.amortizaciones.filter((a) => a.mes >= mesDesde && a.mes <= mesHasta).reduce((s, a) => s.plus(a.importe), inicial);
       const g = porRubro.get(b.rubroId) ?? { rubro: b.rubro.nombre, bienes: [], t: vacio() };
       g.bienes.push(fila(b, bi.vidaUtilAnios, r, contable));

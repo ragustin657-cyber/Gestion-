@@ -68,7 +68,8 @@ export function amortizacionImpositiva(b: BienImpositivo, ej: EjercicioFiscal, c
   const cuotaPrimera = r2(base.times(primeraFraccion).div(b.vidaUtilAnios));
   const k = posicion(ctx.ejercicios, ej) - posicion(ctx.ejercicios, ejAlta);
   const aniosAnteriores = k <= 0 ? 0 : primeraFraccion + (k - 1);
-  const acumuladaAnterior = k <= 0 ? new D(0) : D.min(base, cuotaPrimera.plus(cuotaAnual.times(k - 1)));
+  // Terminada la vida útil la acumulada es la base (revisión E44: la suma de cuotas redondeadas no deja centavos para el año siguiente)
+  const acumuladaAnterior = k <= 0 ? new D(0) : aniosAnteriores >= b.vidaUtilAnios ? base : D.min(base, cuotaPrimera.plus(cuotaAnual.times(k - 1)));
   const resto = base.minus(acumuladaAnterior);
   let cuota: Dec;
   if (bajaEnEjercicio || k < 0) cuota = cero; // el ejercicio de la baja no se amortiza

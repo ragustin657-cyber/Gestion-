@@ -76,4 +76,11 @@ describe('amortización impositiva (E44)', () => {
     expect(mesesQueActualiza(bien({}), ej(2026), CAL)).toEqual(['2024-07', '2026-12']);
     expect(mesesQueActualiza(bien({ fechaAlta: f('2017-05-02') }), ej(2026), ejerciciosFiscales(CAL, f('2017-05-02')))).toEqual([]);
   });
+
+  it('revisión: después de la vida útil no hay cuota fantasma por redondeo', () => {
+    const b = bien({ fechaAlta: f('2022-01-10'), valorOrigen: new D(1000), vidaUtilAnios: 3 });
+    const c = ctx({ '2022-01': 100, '2025-12': 100 }, { ejercicios: ejerciciosFiscales(CAL, f('2022-01-10')) });
+    const r = amortizacionImpositiva(b, ej(2025), c);
+    expect(n(r as never, 'acumuladaAnterior', 'cuota', 'acumuladaCierre', 'valorResidual')).toEqual([1000, 0, 1000, 0]);
+  });
 });

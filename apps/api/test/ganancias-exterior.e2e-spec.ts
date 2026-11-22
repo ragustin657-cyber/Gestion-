@@ -141,7 +141,7 @@ describe('Ganancias a beneficiarios del exterior (E43)', () => {
     const c = await x.http.get('/api/impuestos/config');
     expect(c.body.sireMotivoAnulacion).toBe(1);
     const n = (k: string) => Number(c.body[k]);
-    c.body = { ...c.body, ivaSaldoTecnicoInicial: n('ivaSaldoTecnicoInicial'), ivaSaldoLibreInicial: n('ivaSaldoLibreInicial'), prorrateoGravadasIniciales: n('prorrateoGravadasIniciales'), prorrateoExentasIniciales: n('prorrateoExentasIniciales') };
+    c.body = { ...c.body, ivaSaldoTecnicoInicial: n('ivaSaldoTecnicoInicial'), ivaSaldoLibreInicial: n('ivaSaldoLibreInicial'), prorrateoGravadasIniciales: n('prorrateoGravadasIniciales'), prorrateoExentasIniciales: n('prorrateoExentasIniciales'), topeAutomovilesCosto: n('topeAutomovilesCosto') };
     expect((await x.http.put('/api/impuestos/config', { ...c.body, sireMotivoAnulacion: 3 })).status).toBe(200);
     expect((await x.http.get('/api/impuestos/config')).body.sireMotivoAnulacion).toBe(3);
     expect((await x.http.put('/api/impuestos/config', { ...c.body, sireMotivoAnulacion: 10 })).status).toBe(400);
