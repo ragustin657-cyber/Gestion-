@@ -1692,6 +1692,8 @@ enum PeriodicidadArba {
 model ConfigImpuestos {
   id                     String           @id @default(uuid()) @db.Uuid
   empresaId              String           @unique @db.Uuid
+  /// Alícuota de Bienes Personales, acciones y participaciones (responsable sustituto, E47; a verificar)
+  alicuotaBienesPersonalesAcciones Decimal @default(0.5) @db.Decimal(9, 4)
   /// Tope de costo de automóviles para la amortización impositiva (art. 88 inc. l; E44, a verificar)
   topeAutomovilesCosto   Decimal          @default(20000) @db.Decimal(18, 2)
   arbaActividad          String           @default("6")
@@ -3089,4 +3091,69 @@ model DjGananciasPresentacion {
   motivoAnulacion String?
 
   @@unique([empresaId, ejercicioId, numero])
+}
+
+enum TipoTitularSocio {
+  PERSONA_HUMANA_PAIS
+  PERSONA_HUMANA_EXTERIOR
+  SUCESION_INDIVISA
+  SOCIEDAD_EXTERIOR
+  SOCIEDAD_PAIS
+}
+
+enum EstadoBienesPersonales {
+  BORRADOR
+  PRESENTADA
+}
+
+/// Registro de socios (E47): titulares de las acciones y participaciones.
+model Socio {
+  id            String           @id @default(uuid()) @db.Uuid
+  empresaId     String           @db.Uuid
+  nombre        String
+  tipoDocumento String
+  documento     String
+  tipoTitular   TipoTitularSocio
+  porcentaje    Decimal          @db.Decimal(9, 4)
+  activo        Boolean          @default(true)
+}
+
+/// Liquidación anual de Bienes Personales, acciones y participaciones (E47).
+model BienesPersonalesAcciones {
+  id               String                 @id @default(uuid()) @db.Uuid
+  empresaId        String                 @db.Uuid
+  anio             Int
+  ajustePatrimonio Decimal                @default(0) @db.Decimal(18, 2)
+  conceptoAjuste   String?
+  estado           EstadoBienesPersonales @default(BORRADOR)
+
+  @@unique([empresaId, anio])
+}
+
+/// Participación de un socio al 31/12 del año (E47): copiada del registro y editable por año.
+model BienesPersonalesParticipacion {
+  id          String           @id @default(uuid()) @db.Uuid
+  empresaId   String           @db.Uuid
+  anio        Int
+  socioId     String           @db.Uuid
+  tipoTitular TipoTitularSocio
+  porcentaje  Decimal          @db.Decimal(9, 4)
+
+  @@unique([empresaId, anio, socioId])
+}
+
+/// Presentación de la liquidación (E47): foto completa; 0 la original, 1, 2… las rectificativas.
+model BienesPersonalesPresentacion {
+  id              String    @id @default(uuid()) @db.Uuid
+  empresaId       String    @db.Uuid
+  anio            Int
+  numero          Int
+  datos           Json
+  presentadaPor   String
+  presentadaEn    DateTime  @default(now())
+  anuladaEn       DateTime?
+  anuladaPor      String?
+  motivoAnulacion String?
+
+  @@unique([empresaId, anio, numero])
 }

@@ -177,6 +177,8 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Percepciones practicadas', ruta: '/impuestos/percepciones-practicadas', permiso: 'impuestos.ver' },
           { titulo: 'Ajuste por inflación impositivo', ruta: '/impuestos/ajuste-inflacion', permiso: 'impuestos.ver' },
           { titulo: 'DJ de Ganancias (sociedades)', ruta: '/impuestos/dj-ganancias', permiso: 'impuestos.ver' },
+          { titulo: 'Bienes Personales (acciones)', ruta: '/impuestos/bienes-personales', permiso: 'impuestos.ver' },
+          { titulo: 'Socios', ruta: '/impuestos/socios', permiso: 'impuestos.ver' },
         ],
       },
     ],

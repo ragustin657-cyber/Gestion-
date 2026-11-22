@@ -13,6 +13,7 @@ interface Config {
   prorrateoGravadasIniciales: string | number; prorrateoExentasIniciales: string | number;
   sireMotivoAnulacion: number;
   topeAutomovilesCosto: string | number;
+  alicuotaBienesPersonalesAcciones: string | number;
 }
 
 type TramoForm = { desde: number | string; fijo: number | string; alicuota: number | string };
@@ -75,7 +76,7 @@ export function ConfigImpuestosPage() {
   const guardar = async () => {
     setError('');
     try {
-      await api('/impuestos/config', { metodo: 'PUT', body: { ...c, ivaSaldoTecnicoInicial: Number(c.ivaSaldoTecnicoInicial) || 0, ivaSaldoLibreInicial: Number(c.ivaSaldoLibreInicial) || 0, prorrateoGravadasIniciales: Number(c.prorrateoGravadasIniciales) || 0, prorrateoExentasIniciales: Number(c.prorrateoExentasIniciales) || 0, topeAutomovilesCosto: Number(c.topeAutomovilesCosto) || 0 } });
+      await api('/impuestos/config', { metodo: 'PUT', body: { ...c, ivaSaldoTecnicoInicial: Number(c.ivaSaldoTecnicoInicial) || 0, ivaSaldoLibreInicial: Number(c.ivaSaldoLibreInicial) || 0, prorrateoGravadasIniciales: Number(c.prorrateoGravadasIniciales) || 0, prorrateoExentasIniciales: Number(c.prorrateoExentasIniciales) || 0, topeAutomovilesCosto: Number(c.topeAutomovilesCosto) || 0, alicuotaBienesPersonalesAcciones: Number(c.alicuotaBienesPersonalesAcciones) || 0 } });
       notifications.show({ color: 'green', message: 'Configuración guardada' });
     } catch (e) {
       setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado');
@@ -126,6 +127,8 @@ export function ConfigImpuestosPage() {
         <Title order={5}>Amortización impositiva</Title>
         <NumberInput label="Tope de costo de automóviles" w={260} min={0} decimalScale={2} thousandSeparator="." decimalSeparator="," value={Number(c.topeAutomovilesCosto)} onChange={(v) => setC({ ...c, topeAutomovilesCosto: Number(v) || 0 })} />
         <Text size="xs" c="dimmed">Art. 88 inc. l de Ganancias: la amortización de automóviles es deducible hasta la que correspondería a este costo. Verifique el tope vigente.</Text>
+        <Title order={5}>Bienes Personales (acciones y participaciones)</Title>
+        <NumberInput label="Tasa de Bienes Personales sobre acciones (%)" w={340} min={0} max={100} decimalScale={4} decimalSeparator="," value={Number(c.alicuotaBienesPersonalesAcciones)} onChange={(v) => setC({ ...c, alicuotaBienesPersonalesAcciones: Number(v) || 0 })} />
         <Title order={5}>SIRE</Title>
         <NumberInput label="Motivo de anulación (F.2005)" w={220} min={1} max={9} value={c.sireMotivoAnulacion} onChange={(v) => setC({ ...c, sireMotivoAnulacion: Number(v) || 1 })} />
         <Text size="xs" c="dimmed">Código de la tabla de motivos de anulación del SIRE con que se informan las retenciones de IVA anuladas. Verifíquelo con el contador.</Text>
