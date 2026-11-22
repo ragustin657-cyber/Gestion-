@@ -19,12 +19,13 @@ El SIRE de la E35 informa las retenciones de IVA (F.2005) y SUSS (F.2004) del me
   - `anuladaEn DateTime? @db.Date`: la fecha de la anulación de la orden (hoy, como el contraasiento);
   - `certificadoSire String?`: el número de certificado que asignó ARCA (hasta 25 caracteres).
 - **Carga del número SIRE:** en *Pagos › Retenciones practicadas*, cada retención de IVA o SUSS tiene el campo *Certificado SIRE* editable (`PATCH /api/pagos/retenciones/:id/certificado-sire`, permiso `op.pagar`).
+- **Retenciones anuladas antes de esta entrega** (`anulada` sin `anuladaEn`): se consideran resueltas a mano; nunca se informan como anulación y siguen fuera de los archivos (como hoy).
 - **SIRE del mes M:**
   - retenciones normales: las de fecha de pago en M que no están anuladas o que se anularon después de M (así regenerar un mes ya presentado da el mismo archivo);
   - anulaciones: las retenciones anuladas con `anuladaEn` en M y fecha de pago anterior a M.
-- **F.2005 (IVA), anulación por lote:** solo `VERSIÓN`, `CÓDIGO DE TRAZABILIDAD`, `IMPUESTO`, `CERTIFICADO ORIGINAL NRO` y `MOTIVO DE LA ANULACIÓN`; el resto en blanco o cero según el tipo de campo.
+- **F.2005 (IVA), anulación por lote, en un archivo aparte** (presentación nueva `SIRE_IVA_ANULACIONES`, mensual, nombre `SIRE-F2005-ANULACIONES_<cuit>_<período>.txt`): la referencia da otro juego de campos para la anulación y exige que todos los registros de un archivo sean del mismo mes de retención, así que no se mezclan con los certificados nuevos. Cada registro lleva solo `VERSIÓN`, `CÓDIGO DE TRAZABILIDAD`, `IMPUESTO`, `CERTIFICADO ORIGINAL NRO` y `MOTIVO DE LA ANULACIÓN`; el resto en blanco o cero según el tipo de campo.
   - Motivo: `ConfigImpuestos.sireMotivoAnulacion Int @default(1)` (código de la tabla MOTIVO_DE_ANULACION del SIRE; la tabla no está en la referencia: dato a verificar).
-- **F.2004 (SUSS), nota de crédito:** el F.2004 no tiene anulación: se informa una nota de crédito (`TIPO COMPROBANTE` 3) con fecha de retención y de comprobante = `anuladaEn`, número de comprobante = el de la orden de pago, importe del comprobante y de la retención = los originales, y certificado original número (SIRE), fecha e importe.
+- **F.2004 (SUSS), nota de crédito en el archivo del mes:** el F.2004 no tiene anulación: se informa una nota de crédito (`TIPO COMPROBANTE` 3) con fecha de retención y de comprobante = `anuladaEn`, número de comprobante = la orden de pago con formato `00001-NNNNNNNN`, importe del comprobante y de la retención = los originales, y certificado original número (SIRE), fecha e importe.
 - Sin número de certificado SIRE: `Cargue el número de certificado SIRE de la retención <certificado interno> (<proveedor>) para informar su anulación`.
 - Anulada en el mismo mes que su pago: no se informa (como hoy).
 
@@ -34,12 +35,13 @@ El SIRE de la E35 informa las retenciones de IVA (F.2005) y SUSS (F.2004) del me
 - **Cálculo en la orden de pago** (proveedor `residenteExterior` con régimen activo; reemplaza a la retención de Ganancias local, que no se calcula para él):
   - alícuota = la con CDI si `aplicaCdi` (si el régimen no la tiene: `El régimen <x> no tiene alícuota con convenio`), si no la sin CDI;
   - `retención = base × a / 100`; con acrecentamiento (la empresa toma a su cargo el impuesto): `retención = base × a / (100 − a)`;
+  - **con acrecentamiento la retención no se descuenta del pago**: el proveedor cobra todo lo imputado; el asiento debita la cuenta nueva `5.2.15 Impuesto a las ganancias asumido (exterior)` (concepto `GANANCIAS_ASUMIDO`; total de conceptos 52) y acredita `RETENCION_GANANCIAS`. La anulación lo revierte con el contraasiento;
   - sin mínimo; base = lo que se paga imputado a comprobantes (como la local) en pesos.
   - Se guarda como `impuesto 'GANANCIAS_EXTERIOR'` con el régimen, la alícuota y el código de alícuota en el detalle; certificado con el talonario `RET-GAN-EXT`; cuenta `RETENCION_GANANCIAS` (la misma deuda que la local).
 - **SICORE** no incluye estas retenciones (filtra `GANANCIAS`).
-- **F.2003** (presentación nueva `SIRE_GANANCIAS_EXTERIOR`, mensual): un registro por retención según el diseño 3.1 de la referencia: formulario 2003, versión 0100, trazabilidad (certificado interno), CUIT agente, impuesto 218, régimen, CUIT ordenante (la empresa), fecha de retención (pago), tipo de comprobante 1 (factura) o 6 (orden de pago) con su número, importe del comprobante (la base), no retención 0, aplica CDI, código de alícuota, acrecentamiento, NIF, denominación, domicilio y país del exterior, tipo de persona y los de nacimiento para personas físicas.
+- **F.2003** (presentación nueva `SIRE_GANANCIAS_EXTERIOR`, mensual): un registro por retención según el diseño 3.1 de la referencia: formulario 2003, versión 0100, trazabilidad (certificado interno), CUIT agente, impuesto 218, régimen, CUIT ordenante (la empresa), fecha de retención (pago), tipo de comprobante 6 (orden de pago: la retención es una por orden, sobre todo lo imputado) con el número de la orden en 8 dígitos y la fecha de la orden, importe del comprobante (la base), no retención 0, aplica CDI, código de alícuota, acrecentamiento, NIF, denominación, domicilio y país del exterior, tipo de persona y los de nacimiento para personas físicas.
   - Faltan datos del proveedor: `Complete los datos del exterior de: <proveedores>` (NIF, país, domicilio, tipo de persona; nacimiento si es persona física).
-  - Las anulaciones posteriores al mes se informan como nota de crédito (tipo 3, certificado original SIRE, fecha, importe y motivo `Anulación de la orden de pago`), igual que §3.
+  - Las anulaciones posteriores al mes se informan como nota de crédito en el F.2003 del mes de la anulación (tipo 3, número `00001-NNNNNNNN` de la orden, certificado original SIRE, fecha, importe y motivo `Anulación de la orden de pago`), igual que §3.
 - **Certificado PDF** de la retención al exterior con la leyenda del SIRE (como el de IVA de la E35).
 
 ## 5. Pantallas
@@ -47,7 +49,7 @@ El SIRE de la E35 informa las retenciones de IVA (F.2005) y SUSS (F.2004) del me
 - *Configuración de retenciones*: pestaña *Ganancias exterior* (regímenes).
 - Ficha del tercero, pestaña *Impuestos*: datos del exterior.
 - *Impuestos › Configuración*: motivo de anulación del SIRE.
-- *Presentaciones*: *SIRE Ganancias exterior (F.2003)*.
+- *Presentaciones*: *SIRE Ganancias exterior (F.2003)* y *SIRE IVA anulaciones (F.2005)*.
 
 ## 6. Mensajes
 - `Cargue el número de certificado SIRE de la retención <n> (<proveedor>) para informar su anulación`.
