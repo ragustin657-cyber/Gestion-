@@ -348,6 +348,8 @@ export class ComprobantesService {
       if (d.letra != null || d.puntoVenta != null || d.numero != null) throw new BadRequestException('El despacho no lleva letra ni número de comprobante');
       const fechaContable = d.fechaContable ?? d.fechaEmision;
       await verificarMesesAbiertos(tx, empresaId, fechaContable);
+      // Pulido E42: los despachos de la empresa se serializan (número duplicado y alta de la Aduana simultáneos)
+      await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `aduana:${empresaId}`);
       if (await tx.comprobanteCompra.findFirst({ where: { numeroDespacho: d.numeroDespacho }, select: { id: true } })) throw new BadRequestException(`Ya existe el despacho ${d.numeroDespacho}`);
       const aduana = await terceroAduana(tx, empresaId, () => this.numeracion.siguiente(tx, 'TERCERO', 0));
       const tot = calcularTotales({
