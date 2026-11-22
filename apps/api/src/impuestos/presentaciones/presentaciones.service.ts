@@ -13,6 +13,7 @@ import { arba } from '../retenciones/arba';
 import { arbaPercepciones } from '../retenciones/arba-percepciones';
 import { sireIva, sireSuss, sireIvaAnulaciones } from '../retenciones/sire';
 import { sireGananciasExterior } from '../retenciones/sire-exterior';
+import { sircarPercepciones, sircarRetenciones } from '../retenciones/sircar';
 import { sicore } from '../retenciones/sicore';
 import { NumeracionService } from '../../numeracion/numeracion.service';
 import { ContextoGeneracion, Generador } from './generado';
@@ -24,7 +25,7 @@ const EN_PARALELO = 4;
 
 @Injectable()
 export class PresentacionesService {
-  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital], ['SICORE', sicore], ['ARBA', arba], ['AGIP', agip], ['SIRE_IVA', sireIva], ['SIRE_SUSS', sireSuss], ['ARBA_PERCEPCIONES', arbaPercepciones], ['SIRE_IVA_ANULACIONES', sireIvaAnulaciones], ['SIRE_GANANCIAS_EXTERIOR', sireGananciasExterior]]);
+  private readonly generadores = new Map<TipoPresentacion, Generador>([['LIBRO_IVA_DIGITAL', libroIvaDigital], ['SICORE', sicore], ['ARBA', arba], ['AGIP', agip], ['SIRE_IVA', sireIva], ['SIRE_SUSS', sireSuss], ['ARBA_PERCEPCIONES', arbaPercepciones], ['SIRE_IVA_ANULACIONES', sireIvaAnulaciones], ['SIRE_GANANCIAS_EXTERIOR', sireGananciasExterior], ['SIRCAR_RETENCIONES', sircarRetenciones], ['SIRCAR_PERCEPCIONES', sircarPercepciones]]);
 
   constructor(
     private readonly tenant: TenantPrisma,

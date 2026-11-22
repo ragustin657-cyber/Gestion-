@@ -24,6 +24,9 @@ const esquemaJurisdicciones = z.array(z.object({
   usaPadron: z.boolean(), sinPadron: z.nativeEnum(SinPadron),
   // Percepción en ventas (E39)
   percibe: z.boolean().optional(), alicuotaPercepcionDefecto: noNeg.max(100).optional(), minimoPercepcion: noNeg.optional(), sinPadronPercepcion: z.nativeEnum(SinPadron).optional(),
+  // Códigos de régimen de SIRCAR (E48)
+  regimenSircarRetencion: z.string().trim().regex(/^\d{3}$/, 'El régimen de SIRCAR tiene 3 dígitos').nullish().or(z.literal('').transform(() => null)),
+  regimenSircarPercepcion: z.string().trim().regex(/^\d{3}$/, 'El régimen de SIRCAR tiene 3 dígitos').nullish().or(z.literal('').transform(() => null)),
 }));
 const esquemaRegimenExterior = z.object({
   codigoSire: z.string().trim().regex(/^\d{3}$/, 'El código SIRE tiene 3 dígitos'), descripcion: zTexto, alicuotaSinCdi: noNeg.max(100), codigoAlicuotaSinCdi: z.number().int().min(0),
