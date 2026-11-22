@@ -12,7 +12,7 @@ export default defineConfig({
   projects: [
     // Intereses factura en el mes anterior: corre antes de que la prueba de contabilidad (general) cierre ese mes
     { name: 'intereses', testMatch: /intereses\.spec\.ts/ },
-    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias|ganancias-anual|retenciones-iva-suss|posicion-iva|posicion-iibb|percepciones-ventas|prorrateo-iva|despachos-importacion|sire-completo|bienes-impositiva|ajuste-impositivo)\.spec\.ts/ },
+    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias|ganancias-anual|retenciones-iva-suss|posicion-iva|posicion-iibb|percepciones-ventas|prorrateo-iva|despachos-importacion|sire-completo|bienes-impositiva|ajuste-impositivo|dj-ganancias)\.spec\.ts/ },
     // La baja crea un empleado que no debe quedar en las mensuales que cierran las pruebas de sueldos: corre después de ellas
     // Comisiones reabre la mensual del mes (que cerró la prueba de sueldos), carga la comisión y la vuelve a cerrar
     { name: 'comisiones', testMatch: /comisiones\.spec\.ts/, dependencies: ['general'] },
@@ -34,6 +34,7 @@ export default defineConfig({
     { name: 'sire-completo', testMatch: /sire-completo\.spec\.ts/, dependencies: ['despachos-importacion'] },
     { name: 'bienes-impositiva', testMatch: /bienes-impositiva\.spec\.ts/, dependencies: ['sire-completo'] },
     { name: 'ajuste-impositivo', testMatch: /ajuste-impositivo\.spec\.ts/, dependencies: ['bienes-impositiva'] },
+    { name: 'dj-ganancias', testMatch: /dj-ganancias\.spec\.ts/, dependencies: ['ajuste-impositivo'] },
   ],
   webServer: [
     {

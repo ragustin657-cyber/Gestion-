@@ -24,7 +24,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 6. **Importaciones con despacho de aduana:** IVA, percepciones y su lugar en el Libro IVA.
 7. ~~**Notas de crédito de retenciones y anulaciones por lote en el SIRE.**~~ Hecho en la entrega 43.
 8. ~~**F.2003 del SIRE:** Ganancias a beneficiarios del exterior.~~ Hecho en la entrega 43.
-9. **Ganancias de sociedades y Bienes Personales (acciones y participaciones).** Hoy no está ni la DJ, ni los anticipos, ni el responsable sustituto.
+9. **Ganancias de sociedades y Bienes Personales (acciones y participaciones).** ~~DJ de Ganancias de sociedades y anticipos~~: hecho en la entrega 46 (papel de trabajo; la presentación sigue en ARCA). Falta Bienes Personales acciones y participaciones (responsable sustituto).
 10. ~~**Ajuste por inflación impositivo** (Título VI de Ganancias).~~ Hecho en la entrega 45.
 11. ~~**Amortización impositiva** de bienes de uso.~~ Hecho en la entrega 44.
 12. **Presentación automática en los sitios de los organismos.** Hoy se generan los archivos y el usuario los sube.
@@ -151,6 +151,11 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - prueba de los 36 meses con el IPC del sistema (mes de cierre contra 36 meses antes, umbral 100 %);
     - momento del ajuste de los dividendos (hoy la fecha del asiento) y de las ventas de bienes excluidos (hoy el valor neto contable que sale del Mayor);
     - valuación impositiva de bienes de cambio y moneda extranjera: hoy partidas manuales.
+14. **DJ de Ganancias de sociedades (entrega 46):**
+    - escala del art. 73 vigente de cada año (se carga a mano; el botón copia la de 2021 de la ley 27.630);
+    - anticipos de sociedades (RG 5211): 25 % y 8,33 %, base (impuesto menos retenciones, percepciones e impuesto sobre débitos y créditos) y vencimientos (5.º mes después del cierre para la DJ, desde el 6.º para los anticipos);
+    - qué retenciones y percepciones se computan como pago a cuenta y en qué ejercicio (hoy por fecha de la retención y fecha contable de la compra);
+    - escala en ejercicios irregulares (hoy no se prorratea y se avisa).
 
 ---
 

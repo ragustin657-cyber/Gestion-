@@ -100,6 +100,13 @@ export class AjusteImpositivoService {
     };
   }
 
+  /** E46: con la DJ de Ganancias del ejercicio presentada, las partidas no se modifican. */
+  private async verificarEditable(tx: TxEmpresa, ejercicioId: string) {
+    // Revisión E46: FOR UPDATE sobre la fila de la DJ (si existe), para no cruzarse con una presentación en curso
+    const [dj] = await tx.$queryRaw<{ estado: string }[]>`SELECT "estado" FROM "DjGananciasSociedades" WHERE "ejercicioId" = ${ejercicioId}::uuid AND "empresaId" = ${this.tenant.empresaId}::uuid FOR UPDATE`;
+    if (dj?.estado === 'PRESENTADA') throw new BadRequestException('La DJ de Ganancias del ejercicio está presentada');
+  }
+
   partidas(ejercicioId?: string) {
     if (!ejercicioId) throw new BadRequestException('Indique el ejercicio');
     return this.tenant.db.ajusteImpositivoPartida.findMany({ where: { ejercicioId }, orderBy: [{ tipo: 'asc' }, { creadoEn: 'asc' }] });
@@ -111,6 +118,8 @@ export class AjusteImpositivoService {
       const ej = await tx.ejercicio.findUnique({ where: { id: d.ejercicioId } });
       if (!ej) throw new NotFoundException('Ejercicio no encontrado');
       if (d.tipo === 'DINAMICO' && d.fecha && (d.fecha < ej.desde || d.fecha > ej.hasta)) throw new BadRequestException('La fecha debe estar dentro del ejercicio');
+      await this.verificarEditable(tx, ej.id);
+      if (id) { const actual = await tx.ajusteImpositivoPartida.findUnique({ where: { id } }); if (actual) await this.verificarEditable(tx, actual.ejercicioId); }
       const data = { ejercicioId: d.ejercicioId, concepto: d.concepto, tipo: d.tipo, fecha: d.tipo === 'DINAMICO' ? d.fecha ?? null : null, importe: d.importe };
       if (id && !(await tx.ajusteImpositivoPartida.findUnique({ where: { id } }))) throw new NotFoundException('Partida no encontrada');
       const p = id ? await tx.ajusteImpositivoPartida.update({ where: { id }, data }) : await tx.ajusteImpositivoPartida.create({ data: { ...data, empresaId: this.tenant.empresaId, creadoPor: usuario } });
@@ -121,7 +130,9 @@ export class AjusteImpositivoService {
 
   eliminarPartida(id: string) {
     return this.tenant.transaccion(async (tx) => {
-      if (!(await tx.ajusteImpositivoPartida.findUnique({ where: { id } }))) throw new NotFoundException('Partida no encontrada');
+      const p = await tx.ajusteImpositivoPartida.findUnique({ where: { id } });
+      if (!p) throw new NotFoundException('Partida no encontrada');
+      await this.verificarEditable(tx, p.ejercicioId);
       await tx.ajusteImpositivoPartida.delete({ where: { id } });
       await this.auditoria.registrar(tx, { entidad: 'AjusteImpositivoPartida', entidadId: id, accion: 'ELIMINAR' });
       return { ok: true };
