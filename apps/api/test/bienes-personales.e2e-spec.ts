@@ -113,4 +113,22 @@ describe('Bienes Personales acciones y participaciones (E47)', () => {
     expect((await otro.http.get('/api/impuestos/bienes-personales?anio=2026')).status).toBe(403);
     expect((await otro.http.get('/api/impuestos/socios')).status).toBe(403);
   });
+
+  it('revisión: el socio se edita por PATCH (como el ABM de la web) y se puede dar de baja', async () => {
+    const x = await escenario();
+    const a = await x.socio('Ana', 'PERSONA_HUMANA_PAIS', 100);
+    const r = await x.http.patch(`/api/impuestos/socios/${a.id}`, { nombre: 'Ana María', tipoDocumento: 'CUIT', documento: '20-12345678-6', tipoTitular: 'PERSONA_HUMANA_PAIS', porcentaje: 100, activo: false });
+    expect(r.status).toBe(200);
+    expect((await prisma.socio.findUniqueOrThrow({ where: { id: a.id } })).activo).toBe(false);
+  });
+
+  it('revisión: aviso si las participaciones del año difieren del registro de socios', async () => {
+    const x = await escenario();
+    const { a } = await tres(x);
+    expect((await x.liq()).liquidacion.avisos).toEqual([]);
+    await x.http.put(`/api/impuestos/socios/${a.id}`, { nombre: 'Ana', tipoDocumento: 'CUIT', documento: '20-12345678-6', tipoTitular: 'SUCESION_INDIVISA', porcentaje: 60, activo: true });
+    expect((await x.liq()).liquidacion.avisos).toEqual(['Las participaciones del año difieren del registro de socios: revíselas o vuelva a copiar del registro']);
+    await x.http.post('/api/impuestos/bienes-personales/copiar-socios', { anio: 2026 });
+    expect((await x.liq()).liquidacion.avisos).toEqual([]);
+  });
 });

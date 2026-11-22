@@ -5,6 +5,8 @@ import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { ConfigImpuestosService, DatosConfigImpuestos } from './config-impuestos.service';
 
+/** Revisión E47: los importes decimales llegan como texto en el GET (Decimal); se aceptan así al reenviarlos. */
+const decimal = () => z.preprocess((v) => (typeof v === 'string' && v.trim() !== '' && !Number.isNaN(Number(v)) ? Number(v) : v), z.number());
 const esquema = z.object({
   arbaActividad: z.string().trim().regex(/^\d{1,3}$/, 'Código de actividad inválido'),
   arbaSucursal: z.number().int().min(1).max(99999),
@@ -13,8 +15,8 @@ const esquema = z.object({
   // Posición de IVA (E37)
   ivaInicioAnio: z.number().int().min(2000).max(2100).nullish(),
   ivaInicioMes: z.number().int().min(1).max(12).nullish(),
-  ivaSaldoTecnicoInicial: z.number().min(0, 'No puede ser negativo').optional(),
-  ivaSaldoLibreInicial: z.number().min(0, 'No puede ser negativo').optional(),
+  ivaSaldoTecnicoInicial: decimal().pipe(z.number().min(0, 'No puede ser negativo')).optional(),
+  ivaSaldoLibreInicial: decimal().pipe(z.number().min(0, 'No puede ser negativo')).optional(),
   // Liquidación de IIBB (E38)
   iibbInicioAnio: z.number().int().min(2000).max(2100).nullish(),
   iibbInicioMes: z.number().int().min(1).max(12).nullish(),
@@ -23,14 +25,14 @@ const esquema = z.object({
   prorrateoDesdeAnio: z.number().int().min(2000).max(2100).nullish(),
   prorrateoDesdeMes: z.number().int().min(1).max(12).nullish(),
   prorrateoInicioMes: z.number().int().min(1).max(12).optional(),
-  prorrateoGravadasIniciales: z.number().optional(),
-  prorrateoExentasIniciales: z.number().optional(),
+  prorrateoGravadasIniciales: decimal().optional(),
+  prorrateoExentasIniciales: decimal().optional(),
   // Motivo de anulación del F.2005 (E43; tabla del SIRE, a verificar)
   sireMotivoAnulacion: z.number().int().min(1).max(9).optional(),
   // Tope de costo de automóviles para la amortización impositiva (E44)
-  topeAutomovilesCosto: z.number().min(0, 'No puede ser negativo').optional(),
+  topeAutomovilesCosto: decimal().pipe(z.number().min(0, 'No puede ser negativo')).optional(),
   // Alícuota de Bienes Personales, acciones y participaciones (E47)
-  alicuotaBienesPersonalesAcciones: z.number().min(0).max(100).optional(),
+  alicuotaBienesPersonalesAcciones: decimal().pipe(z.number().min(0).max(100)).optional(),
 });
 
 @Controller('impuestos/config')

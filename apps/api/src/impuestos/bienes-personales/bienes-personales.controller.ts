@@ -35,9 +35,15 @@ export class BienesPersonalesController {
   }
 
   @Put('socios/:id')
-  @Patch('socios/:id')
   @RequierePermiso('impuestos.presentar')
   modificarSocio(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaSocio)) d: DatosSocio) {
+    return this.bp.guardarSocio(id, d);
+  }
+
+  /** Revisión E47: el ABM de la web edita con PATCH (dos decoradores en un mismo método registran solo uno). */
+  @Patch('socios/:id')
+  @RequierePermiso('impuestos.presentar')
+  modificarSocioPatch(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaSocio)) d: DatosSocio) {
     return this.bp.guardarSocio(id, d);
   }
 

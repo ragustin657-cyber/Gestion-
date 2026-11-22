@@ -84,6 +84,11 @@ export class BienesPersonalesService {
       participaciones: parts.map((p) => ({ socioId: p.socioId, nombre: socios.get(p.socioId)?.nombre ?? '', documento: socios.get(p.socioId)?.documento ?? '', tipoTitular: p.tipoTitular, porcentaje: new D(p.porcentaje) }))
         .sort((a, b) => b.porcentaje.cmp(a.porcentaje) || a.nombre.localeCompare(b.nombre)),
     });
+    // Revisión E47: el año se copió del registro y el registro cambió después (venta, fallecimiento, mudanza): avisar
+    const activos = await tx.socio.findMany({ where: { activo: true } });
+    const clave = (xs: { socioId: string; tipoTitular: string; porcentaje: Prisma.Decimal }[]) => xs.map((x) => `${x.socioId}|${x.tipoTitular}|${new D(x.porcentaje).toFixed(4)}`).sort().join(';');
+    if (fila.estado === 'BORRADOR' && clave(parts) !== clave(activos.map((s) => ({ socioId: s.id, tipoTitular: s.tipoTitular, porcentaje: s.porcentaje }))))
+      r.avisos.push('Las participaciones del año difieren del registro de socios: revíselas o vuelva a copiar del registro');
     const t = (x: Prisma.Decimal) => x.toFixed(2);
     return {
       ejercicio: { numero: ej.numero, desde: dia(ej.desde), hasta: dia(ej.hasta), estado: ej.estado },
