@@ -1,3 +1,5 @@
+import { AjusteImpositivoController } from './ajuste-inflacion/ajuste-impositivo.controller';
+import { AjusteImpositivoService } from './ajuste-inflacion/ajuste-impositivo.service';
 import { Module } from '@nestjs/common';
 import { ComprasModule } from '../compras/compras.module';
 import { LibroVentasService } from './libros-iva/libro-ventas.service';
@@ -15,7 +17,7 @@ import { PosicionIibbService } from './posicion-iibb/posicion-iibb.service';
 
 @Module({
   imports: [ComprasModule],
-  controllers: [ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController, PosicionIibbController],
-  providers: [ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService, PosicionIibbService],
+  controllers: [AjusteImpositivoController, ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController, PosicionIibbController],
+  providers: [AjusteImpositivoService, ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService, PosicionIibbService],
 })
 export class ImpuestosModule {}

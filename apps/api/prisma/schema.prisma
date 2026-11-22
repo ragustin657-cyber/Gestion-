@@ -199,6 +199,32 @@ enum TipoCuenta {
   RESULTADO_NEGATIVO
 }
 
+enum AjusteImpositivoCuenta {
+  COMPUTABLE
+  EXCLUIDO
+}
+
+enum AjusteImpositivoPartidaTipo {
+  ACTIVO_INICIO
+  PASIVO_INICIO
+  DINAMICO
+}
+
+/// Partida manual del ajuste por inflación impositivo de un ejercicio (E45).
+model AjusteImpositivoPartida {
+  id          String                      @id @default(uuid()) @db.Uuid
+  empresaId   String                      @db.Uuid
+  ejercicioId String                      @db.Uuid
+  concepto    String
+  tipo        AjusteImpositivoPartidaTipo
+  fecha       DateTime?                   @db.Date
+  importe     Decimal                     @db.Decimal(18, 2)
+  creadoPor   String
+  creadoEn    DateTime                    @default(now())
+
+  @@index([empresaId, ejercicioId])
+}
+
 model CuentaContable {
   id             String           @id @default(uuid()) @db.Uuid
   empresaId      String           @db.Uuid
@@ -212,6 +238,8 @@ model CuentaContable {
   monetaria      Boolean          @default(true)
   /// Cuenta donde se registra el ajuste por inflación de esta (p. ej. Capital → Ajuste de capital).
   cuentaAjusteId String?          @db.Uuid
+  /// Ajuste por inflación impositivo (E45): activo o pasivo computable o excluido
+  ajusteImpositivo AjusteImpositivoCuenta @default(COMPUTABLE)
   empresa        Empresa          @relation(fields: [empresaId], references: [id])
   padre          CuentaContable?  @relation("Jerarquia", fields: [padreId], references: [id])
   hijos          CuentaContable[] @relation("Jerarquia")

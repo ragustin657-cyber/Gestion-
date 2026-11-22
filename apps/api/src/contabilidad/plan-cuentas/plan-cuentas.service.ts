@@ -14,6 +14,7 @@ export interface NodoCuenta {
   activa: boolean;
   monetaria: boolean;
   cuentaAjusteId: string | null;
+  ajusteImpositivo: 'COMPUTABLE' | 'EXCLUIDO';
   hijos: NodoCuenta[];
 }
 
@@ -46,7 +47,7 @@ export class PlanCuentasService {
     cuentas.sort((a, b) => compararCodigos(a.codigo, b.codigo));
     const nodos = new Map<string, NodoCuenta>();
     for (const c of cuentas)
-      nodos.set(c.id, { id: c.id, codigo: c.codigo, nombre: c.nombre, imputable: c.imputable, tipo: c.tipo, activa: c.activa, monetaria: c.monetaria, cuentaAjusteId: c.cuentaAjusteId, hijos: [] });
+      nodos.set(c.id, { id: c.id, codigo: c.codigo, nombre: c.nombre, imputable: c.imputable, tipo: c.tipo, activa: c.activa, monetaria: c.monetaria, cuentaAjusteId: c.cuentaAjusteId, ajusteImpositivo: c.ajusteImpositivo, hijos: [] });
     const raices: NodoCuenta[] = [];
     for (const c of cuentas) {
       const n = nodos.get(c.id)!;
@@ -69,6 +70,7 @@ export class PlanCuentasService {
       this.tenant.transaccion(async (tx) => {
         let tipo = d.tipo;
         let monetaria = d.monetaria;
+        let ajusteImpositivo: 'COMPUTABLE' | 'EXCLUIDO' = 'COMPUTABLE';
         if (d.padreId) {
           const padre = await tx.cuentaContable.findUnique({ where: { id: d.padreId } });
           if (!padre) throw new NotFoundException('Cuenta padre no encontrada');
@@ -77,13 +79,14 @@ export class PlanCuentasService {
             throw new BadRequestException(`El código debe comenzar con ${padre.codigo}.`);
           tipo = padre.tipo;
           monetaria ??= padre.monetaria;
+          ajusteImpositivo = padre.ajusteImpositivo;
         } else if (d.codigo.includes('.')) {
           throw new BadRequestException('Una subcuenta debe indicar su cuenta padre');
         } else if (!tipo) {
           throw new BadRequestException('Debe indicar el tipo de la cuenta');
         }
         const cuenta = await tx.cuentaContable.create({
-          data: { empresaId: this.tenant.empresaId, codigo: d.codigo, nombre: d.nombre, padreId: d.padreId ?? null, imputable: d.imputable, tipo: tipo!, monetaria: monetaria ?? monetariaPorDefecto(d.codigo, tipo!) },
+          data: { empresaId: this.tenant.empresaId, codigo: d.codigo, nombre: d.nombre, padreId: d.padreId ?? null, imputable: d.imputable, tipo: tipo!, monetaria: monetaria ?? monetariaPorDefecto(d.codigo, tipo!), ajusteImpositivo },
         });
         await this.auditoria.registrar(tx, { entidad: 'CuentaContable', entidadId: cuenta.id, accion: 'CREAR', datos: d });
         return cuenta;
@@ -91,7 +94,7 @@ export class PlanCuentasService {
     );
   }
 
-  modificar(id: string, d: { nombre?: string; imputable?: boolean; activa?: boolean; monetaria?: boolean; cuentaAjusteId?: string | null }): Promise<CuentaContable> {
+  modificar(id: string, d: { nombre?: string; imputable?: boolean; activa?: boolean; monetaria?: boolean; cuentaAjusteId?: string | null; ajusteImpositivo?: 'COMPUTABLE' | 'EXCLUIDO' }): Promise<CuentaContable> {
     return this.tenant.transaccion(async (tx) => {
       const actual = await tx.cuentaContable.findUnique({ where: { id } });
       if (!actual) throw new NotFoundException('Cuenta no encontrada');

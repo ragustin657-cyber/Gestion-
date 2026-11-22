@@ -17,6 +17,8 @@ const esquemaAlta = z.object({
 const esquemaMod = z.object({
   nombre: zTexto.optional(), imputable: z.boolean().optional(), activa: z.boolean().optional(),
   monetaria: z.boolean().optional(), cuentaAjusteId: z.string().uuid().nullable().optional(),
+  // Ajuste por inflación impositivo (E45)
+  ajusteImpositivo: z.enum(['COMPUTABLE', 'EXCLUIDO'], { message: 'Valor inválido' }).optional(),
 });
 
 @Controller('plan-cuentas')

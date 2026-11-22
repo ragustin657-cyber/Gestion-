@@ -7,6 +7,7 @@ export interface CuentaModelo {
   imputable: boolean;
   tipo: TipoCuenta;
   monetaria: boolean;
+  ajusteImpositivo: 'COMPUTABLE' | 'EXCLUIDO';
 }
 
 /** Clasificación por defecto para el ajuste por inflación: PN, resultados y bienes de uso son no monetarios. */
@@ -15,8 +16,12 @@ export function monetariaPorDefecto(codigo: string, tipo: TipoCuenta): boolean {
   return !['1.2.01', '1.2.02', '1.1.05'].some((r) => codigo === r || codigo.startsWith(`${r}.`));
 }
 
+/** Ajuste por inflación impositivo (E45): bienes de uso y sus amortizaciones son activo excluido. */
+export const ajusteImpositivoPorDefecto = (codigo: string): 'COMPUTABLE' | 'EXCLUIDO' =>
+  ['1.2.01', '1.2.02'].some((r) => codigo === r || codigo.startsWith(`${r}.`)) ? 'EXCLUIDO' : 'COMPUTABLE';
+
 const c = (codigo: string, nombre: string, tipo: TipoCuenta, imputable = false): CuentaModelo => ({
-  codigo, nombre, tipo, imputable, monetaria: monetariaPorDefecto(codigo, tipo),
+  codigo, nombre, tipo, imputable, monetaria: monetariaPorDefecto(codigo, tipo), ajusteImpositivo: ajusteImpositivoPorDefecto(codigo),
 });
 const A = 'ACTIVO', P = 'PASIVO', PN = 'PATRIMONIO_NETO', RP = 'RESULTADO_POSITIVO', RN = 'RESULTADO_NEGATIVO';
 
