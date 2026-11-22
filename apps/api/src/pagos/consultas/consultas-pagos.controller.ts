@@ -1,4 +1,6 @@
-import { Controller, Get, Param, ParseUUIDPipe, Query, Res, StreamableFile } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query, Res, StreamableFile } from '@nestjs/common';
+import { z } from 'zod';
+import { ZodValidationPipe } from '../../comun/zod.pipe';
 import type { Response } from 'express';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ConsultasPagosService } from './consultas-pagos.service';
@@ -23,6 +25,13 @@ export class ConsultasPagosController {
       'Content-Disposition': `attachment; filename="retenciones-${f.desde}-${f.hasta}.xlsx"`,
     });
     return new StreamableFile(await this.consultas.retencionesXlsx(f));
+  }
+
+  /** Número de certificado que asignó ARCA en el SIRE (E43): lo necesita la anulación posterior. */
+  @Patch('retenciones/:id/certificado-sire')
+  @RequierePermiso('op.crear')
+  certificadoSire(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ certificadoSire: z.string().trim().max(25, 'El certificado SIRE tiene hasta 25 caracteres').nullable() }))) b: { certificadoSire: string | null }) {
+    return this.consultas.certificadoSire(id, b.certificadoSire || null);
   }
 
   @Get('ordenes/:id/pdf')

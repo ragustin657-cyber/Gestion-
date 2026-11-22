@@ -36,6 +36,13 @@ export class ConsultasPagosService {
     };
   }
 
+  /** Guarda el número de certificado SIRE de una retención (E43). */
+  async certificadoSire(id: string, certificadoSire: string | null) {
+    const r = await this.tenant.db.ordenPagoRetencion.findUnique({ where: { id } });
+    if (!r) throw new NotFoundException('Retención inexistente');
+    return this.tenant.db.ordenPagoRetencion.update({ where: { id }, data: { certificadoSire } });
+  }
+
   async retenciones(f: { desde?: string; hasta?: string; impuesto?: string; jurisdiccion?: string; incluirAnuladas?: string }) {
     const filas = await this.tenant.db.ordenPagoRetencion.findMany({
       where: {

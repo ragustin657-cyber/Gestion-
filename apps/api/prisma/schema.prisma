@@ -794,6 +794,10 @@ model OrdenPagoRetencion {
   detalle             Json
   certificadoNumero   Int?
   anulada             Boolean   @default(false)
+  /// Fecha de la anulación de la OP (E43); nula en las anuladas antes (resueltas a mano)
+  anuladaEn           DateTime? @db.Date
+  /// Número de certificado que asignó ARCA en el SIRE (E43)
+  certificadoSire     String?
   /// Factura retenida (IVA y SUSS se retienen por comprobante, E35)
   comprobanteCompraId String?   @db.Uuid
   ordenPago           OrdenPago @relation(fields: [ordenPagoId], references: [id], onDelete: Cascade)
@@ -1637,6 +1641,8 @@ enum TipoPresentacion {
   SIRE_IVA
   SIRE_SUSS
   ARBA_PERCEPCIONES
+  SIRE_IVA_ANULACIONES
+  SIRE_GANANCIAS_EXTERIOR
 }
 
 enum PeriodicidadArba {
@@ -1661,6 +1667,8 @@ model ConfigImpuestos {
   iibbInicioMes          Int?
   /// Actividad del lote de percepciones de ARBA (E39)
   arbaActividadPercepcion String          @default("7")
+  /// Código de la tabla MOTIVO_DE_ANULACION del SIRE (E43; a verificar)
+  sireMotivoAnulacion     Int             @default(1)
   /// Prorrateo del crédito fiscal de IVA (E40)
   prorrateoIva              Boolean @default(false)
   prorrateoDesdeAnio        Int?

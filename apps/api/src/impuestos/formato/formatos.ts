@@ -170,3 +170,10 @@ export const SIRE_F2004: Campo[] = [
   impSire('importeComprobante'), impSire('importeRetencion'), txt('certificadoOriginal', 25), { nombre: 'certificadoOriginalFecha', largo: 10, tipo: 'FECHA', formato: 'DD/MM/AAAA' },
   txt('certificadoOriginalImporte', 14), txt('otrosDatos', 30),
 ];
+
+/** SIRE F.2005 — anulación por lote (E43): solo versión, trazabilidad, impuesto, certificado original y motivo; el resto en blanco. */
+export const SIRE_F2005_ANULACION: Campo[] = [
+  { nombre: 'version', largo: 4, tipo: 'FIJO', valor: '0100' }, { nombre: 'trazabilidad', largo: 36, tipo: 'TXT' }, { nombre: 'impuesto', largo: 3, tipo: 'FIJO', valor: '216' },
+  { nombre: 'blanco1', largo: 212, tipo: 'FIJO', valor: '' }, { nombre: 'certificadoOriginal', largo: 25, tipo: 'TXT' }, { nombre: 'blanco2', largo: 24, tipo: 'FIJO', valor: '' },
+  { nombre: 'motivo', largo: 1, tipo: 'NUM' },
+];
