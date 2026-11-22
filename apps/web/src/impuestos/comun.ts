@@ -6,6 +6,8 @@ export const TIPOS_PRESENTACION = [
   { value: 'SIRE_IVA', label: 'SIRE IVA (F.2005)' },
   { value: 'SIRE_SUSS', label: 'SIRE SUSS (F.2004)' },
   { value: 'ARBA_PERCEPCIONES', label: 'ARBA percepciones (IIBB Buenos Aires)' },
+  { value: 'SIRE_GANANCIAS_EXTERIOR', label: 'SIRE Ganancias exterior (F.2003)' },
+  { value: 'SIRE_IVA_ANULACIONES', label: 'SIRE IVA anulaciones (F.2005)' },
 ];
 export const NOMBRE_PRESENTACION: Record<string, string> = Object.fromEntries(TIPOS_PRESENTACION.map((t) => [t.value, t.label]));
 export const periodoTexto = (p: string, quincena = 0) => `${p.slice(4, 6)}/${p.slice(0, 4)}${quincena ? ` (${quincena}ª quincena)` : ''}`;

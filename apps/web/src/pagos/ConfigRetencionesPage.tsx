@@ -182,6 +182,36 @@ export function RegimenesSire({ impuesto }: { impuesto: 'IVA' | 'SUSS' }) {
   );
 }
 
+interface RegimenExteriorFila { id: string; codigoSire: string; descripcion: string; alicuotaSinCdi: string; codigoAlicuotaSinCdi: number; alicuotaConCdi: string | null; codigoAlicuotaConCdi: number | null; activo: boolean }
+
+/** Regímenes de Ganancias a beneficiarios del exterior (E43): alícuota efectiva sobre lo pagado, con y sin convenio, y sus códigos del SIRE. */
+export function RegimenesExterior() {
+  return (
+    <Stack>
+      <Alert color="yellow">Los códigos de régimen (impuesto 218) y de alícuota se cargan a mano desde las tablas del SIRE (REGIMEN, ALICUOTA_SIN_CDI y ALICUOTA_CON_CDI). La alícuota es la efectiva sobre lo pagado (p. ej. 31,5 % = 35 % sobre el 90 % presunto). Verifíquelos antes de operar.</Alert>
+      <Maestro<RegimenExteriorFila> sinMarco config={{
+        titulo: 'Régimen de Ganancias exterior', ruta: '/pagos/config/regimenes-exterior', permisoEditar: 'retenciones.config', valoresNuevos: { activo: true },
+        campos: [
+          { nombre: 'codigoSire', etiqueta: 'Código de régimen SIRE (3 dígitos)', tipo: 'texto', requerido: true },
+          { nombre: 'descripcion', etiqueta: 'Descripción', tipo: 'texto', requerido: true },
+          { nombre: 'alicuotaSinCdi', etiqueta: 'Alícuota sin convenio (%)', tipo: 'numero', requerido: true },
+          { nombre: 'codigoAlicuotaSinCdi', etiqueta: 'Código de alícuota sin convenio', tipo: 'numero', requerido: true },
+          { nombre: 'alicuotaConCdi', etiqueta: 'Alícuota con convenio (%)', tipo: 'numero' },
+          { nombre: 'codigoAlicuotaConCdi', etiqueta: 'Código de alícuota con convenio', tipo: 'numero' },
+          { nombre: 'activo', etiqueta: 'Activo', tipo: 'booleano' },
+        ],
+        columnas: [
+          { campo: 'codigoSire', titulo: 'Código SIRE' },
+          { campo: 'descripcion', titulo: 'Descripción' },
+          { campo: 'alicuotaSinCdi', titulo: 'Sin convenio', render: (r) => pct(r.alicuotaSinCdi) },
+          { campo: 'alicuotaConCdi', titulo: 'Con convenio', render: (r) => (r.alicuotaConCdi == null ? '—' : pct(r.alicuotaConCdi)) },
+          { campo: 'activo', titulo: 'Estado', render: (r) => estado(r.activo) },
+        ],
+      }} />
+    </Stack>
+  );
+}
+
 interface RegimenPercepcionIvaFila { id: string; codigo: string; descripcion: string; alicuotaGeneral: string; alicuotaReducida: string; minimoNeto: string; activo: boolean }
 
 /** Régimen de percepción de IVA en las ventas (E39): uno solo activo; el agente se marca en Administración › Empresa. */
@@ -222,6 +252,7 @@ export function ConfigRetencionesPage() {
           <Tabs.Tab value="iibb">Ingresos Brutos</Tabs.Tab>
           <Tabs.Tab value="iva">IVA</Tabs.Tab>
           <Tabs.Tab value="suss">SUSS</Tabs.Tab>
+          <Tabs.Tab value="exterior">Ganancias exterior</Tabs.Tab>
           <Tabs.Tab value="percepcion-iva">Percepción de IVA</Tabs.Tab>
           <Tabs.Tab value="general">General</Tabs.Tab>
         </Tabs.List>
@@ -256,6 +287,7 @@ export function ConfigRetencionesPage() {
         <Tabs.Panel value="iibb"><Jurisdicciones /></Tabs.Panel>
         <Tabs.Panel value="iva"><RegimenesSire impuesto="IVA" /></Tabs.Panel>
         <Tabs.Panel value="suss"><RegimenesSire impuesto="SUSS" /></Tabs.Panel>
+        <Tabs.Panel value="exterior"><RegimenesExterior /></Tabs.Panel>
         <Tabs.Panel value="percepcion-iva"><RegimenPercepcionIva /></Tabs.Panel>
         <Tabs.Panel value="general"><General /></Tabs.Panel>
       </Tabs>

@@ -41,7 +41,7 @@ const CAMPOS_GENERALES: CampoAbm[] = [
 ];
 
 type RegimenSire = { id: string; descripcion: string };
-export const camposImpuestos = (regimenes: { codigo: string; descripcion: string }[], iva: RegimenSire[] = [], suss: RegimenSire[] = []): CampoAbm[] => [
+export const camposImpuestos = (regimenes: { codigo: string; descripcion: string }[], iva: RegimenSire[] = [], suss: RegimenSire[] = [], exterior: RegimenSire[] = []): CampoAbm[] => [
   { nombre: 'regimenGanancias', etiqueta: 'Régimen de Ganancias (RG 830)', tipo: 'select', opciones: regimenes.map((r) => ({ value: r.codigo, label: `${r.codigo} - ${r.descripcion}` })), ayuda: 'Vacío: no se retiene Ganancias' },
   { nombre: 'inscriptoGanancias', etiqueta: 'Inscripto en Ganancias', tipo: 'booleano' },
   { nombre: 'exencionHasta', etiqueta: 'Exención vigente hasta', tipo: 'fecha' },
@@ -55,6 +55,17 @@ export const camposImpuestos = (regimenes: { codigo: string; descripcion: string
   { nombre: 'regimenSussId', etiqueta: 'Régimen de retención de SUSS', tipo: 'select', opciones: suss.map((r) => ({ value: r.id, label: r.descripcion })), ayuda: 'Vacío: no se retiene SUSS' },
   { nombre: 'situacionIibb', etiqueta: 'Situación en Ingresos Brutos', tipo: 'select', opciones: [{ value: 'LOCAL', label: 'Local' }, { value: 'CONVENIO', label: 'Convenio Multilateral' }, { value: 'NO_INSCRIPTO', label: 'No inscripto' }, { value: 'SIMPLIFICADO', label: 'Régimen simplificado' }], ayuda: 'Lo pide la presentación de AGIP' },
   { nombre: 'numeroIibb', etiqueta: 'Número de inscripción en IIBB', tipo: 'texto' },
+  // Beneficiario del exterior (E43): retención de Ganancias exterior y F.2003
+  { nombre: 'residenteExterior', etiqueta: 'Beneficiario del exterior', tipo: 'booleano' },
+  { nombre: 'regimenExteriorId', etiqueta: 'Régimen de Ganancias exterior', tipo: 'select', opciones: exterior.map((r) => ({ value: r.id, label: r.descripcion })), ayuda: 'Vacío: no se retiene' },
+  { nombre: 'aplicaCdi', etiqueta: 'Aplica convenio de doble imposición', tipo: 'booleano' },
+  { nombre: 'acrecentamiento', etiqueta: 'Acrecentamiento (la empresa asume el impuesto)', tipo: 'booleano' },
+  { nombre: 'nif', etiqueta: 'Clave tributaria en su país (NIF)', tipo: 'texto' },
+  { nombre: 'paisSire', etiqueta: 'País de residencia (código SIRE)', tipo: 'numero' },
+  { nombre: 'domicilioExterior', etiqueta: 'Domicilio en el exterior', tipo: 'texto' },
+  { nombre: 'tipoPersona', etiqueta: 'Tipo de persona', tipo: 'select', opciones: [{ value: 'F', label: 'Física' }, { value: 'J', label: 'Jurídica' }] },
+  { nombre: 'nacimientoPais', etiqueta: 'País de nacimiento (código SIRE, persona física)', tipo: 'numero' },
+  { nombre: 'nacimientoFecha', etiqueta: 'Fecha de nacimiento (persona física)', tipo: 'fecha' },
 ];
 
 const valores = (t: Tercero | null, campos: CampoAbm[]) =>
@@ -113,7 +124,8 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
   const regimenes = useQuery({ queryKey: ['/pagos/config/regimenes', 'ficha'], queryFn: () => api<{ codigo: string; descripcion: string }[]>('/pagos/config/regimenes').catch(() => []) });
   const regIva = useQuery({ queryKey: ['/pagos/config/regimenes-iva', 'ficha'], queryFn: () => api<RegimenSire[]>('/pagos/config/regimenes-iva').catch(() => []) });
   const regSuss = useQuery({ queryKey: ['/pagos/config/regimenes-suss', 'ficha'], queryFn: () => api<RegimenSire[]>('/pagos/config/regimenes-suss').catch(() => []) });
-  const CAMPOS_IMPUESTOS = camposImpuestos(regimenes.data ?? [], regIva.data ?? [], regSuss.data ?? []);
+  const regExterior = useQuery({ queryKey: ['/pagos/config/regimenes-exterior', 'ficha'], queryFn: () => api<RegimenSire[]>('/pagos/config/regimenes-exterior').catch(() => []) });
+  const CAMPOS_IMPUESTOS = camposImpuestos(regimenes.data ?? [], regIva.data ?? [], regSuss.data ?? [], regExterior.data ?? []);
   const listas = (useQuery({ queryKey: ['/ventas/listas', 'tercero'], queryFn: () => api<{ id: string; nombre: string }[]>('/ventas/listas').catch(() => []) }).data ?? []).map((l) => ({ value: l.id, label: l.nombre }));
   const vendedores = useVendedores().filter((v) => v.activo || v.id === detalle.data?.vendedorId).map((v) => ({ value: v.id, label: v.nombre }));
   const refrescar = () => qc.invalidateQueries({ queryKey: ['/terceros'] });

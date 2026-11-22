@@ -128,6 +128,24 @@ describe('Ganancias a beneficiarios del exterior (E43)', () => {
     expect(pdf.status).toBe(200);
   });
 
+  it('retenciones practicadas: certificado RET-GAN-EXT, régimen y certificado SIRE; motivo de anulación configurable', async () => {
+    const x = await escenario();
+    const m = await x.factura(100000);
+    const op = await x.opAprobada([{ movimientoId: m.id, importe: 100000 }]);
+    await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: 68500, cuentaBancariaId: x.ars.id }]);
+    const [ret] = await prisma.ordenPagoRetencion.findMany({ where: { ordenPagoId: op.id } });
+    await x.http.patch(`/api/pagos/retenciones/${ret.id}/certificado-sire`, { certificadoSire: 'ABC-1' });
+    const l = await x.http.get('/api/pagos/retenciones?desde=2026-11-01&hasta=2026-11-30');
+    expect(l.body.map((f: Record<string, unknown>) => [f.certificado, f.regimen, f.certificadoSire])).toEqual([['RET-GAN-EXT 00000001', 'Honorarios del exterior', 'ABC-1']]);
+    const c = await x.http.get('/api/impuestos/config');
+    expect(c.body.sireMotivoAnulacion).toBe(1);
+    const n = (k: string) => Number(c.body[k]);
+    c.body = { ...c.body, ivaSaldoTecnicoInicial: n('ivaSaldoTecnicoInicial'), ivaSaldoLibreInicial: n('ivaSaldoLibreInicial'), prorrateoGravadasIniciales: n('prorrateoGravadasIniciales'), prorrateoExentasIniciales: n('prorrateoExentasIniciales') };
+    expect((await x.http.put('/api/impuestos/config', { ...c.body, sireMotivoAnulacion: 3 })).status).toBe(200);
+    expect((await x.http.get('/api/impuestos/config')).body.sireMotivoAnulacion).toBe(3);
+    expect((await x.http.put('/api/impuestos/config', { ...c.body, sireMotivoAnulacion: 10 })).status).toBe(400);
+  });
+
   describe('F.2003', () => {
     const lineas = async (x: Awaited<ReturnType<typeof escenario>>, periodo: string) => {
       const g = await x.http.post('/api/impuestos/presentaciones', { tipo: 'SIRE_GANANCIAS_EXTERIOR', periodo });

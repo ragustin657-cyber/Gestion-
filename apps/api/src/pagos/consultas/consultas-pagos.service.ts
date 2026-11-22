@@ -10,10 +10,10 @@ import { pdfCertificado, pdfOrdenPago } from './pdf';
 const D = Prisma.Decimal;
 const NOMBRES_JUR: Record<string, string> = { '901': 'CABA', '902': 'Buenos Aires' };
 export const numeroOP = (n: number | null) => `0001-${String(n ?? 0).padStart(8, '0')}`;
-const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS' };
+const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS', GANANCIAS_EXTERIOR: 'RET-GAN-EXT' };
 export const numeroCertificado = (impuesto: string, jurisdiccion: string | null, n: number) =>
   `${PREFIJO[impuesto] ?? `RET-IIBB-${jurisdiccion}`} ${String(n).padStart(8, '0')}`;
-const NOMBRE_IMPUESTO: Record<string, string> = { GANANCIAS: 'Impuesto a las Ganancias', IVA: 'IVA', SUSS: 'SUSS (seguridad social)', IIBB: 'Ingresos Brutos' };
+const NOMBRE_IMPUESTO: Record<string, string> = { GANANCIAS: 'Impuesto a las Ganancias', IVA: 'IVA', SUSS: 'SUSS (seguridad social)', IIBB: 'Ingresos Brutos', GANANCIAS_EXTERIOR: 'Ganancias (beneficiarios del exterior)' };
 
 @Injectable()
 export class ConsultasPagosService {
@@ -53,13 +53,16 @@ export class ConsultasPagosService {
       include: { ordenPago: { include: { tercero: { select: { razonSocial: true, cuit: true } } } } },
       orderBy: [{ impuesto: 'asc' }, { jurisdiccion: 'asc' }, { certificadoNumero: 'asc' }],
     });
-    // IVA y SUSS guardan el id del régimen: se muestra su descripción (revisión E35)
-    const ids = filas.filter((r) => (r.impuesto === 'IVA' || r.impuesto === 'SUSS') && r.regimen).map((r) => r.regimen!);
-    const nombres = new Map([...(await this.tenant.db.regimenIva.findMany({ where: { id: { in: ids } } })), ...(await this.tenant.db.regimenSuss.findMany({ where: { id: { in: ids } } }))].map((g) => [g.id, g.descripcion]));
+    // IVA, SUSS y Ganancias exterior guardan el id del régimen: se muestra su descripción (revisión E35, E43)
+    const ids = filas.filter((r) => (r.impuesto === 'IVA' || r.impuesto === 'SUSS' || r.impuesto === 'GANANCIAS_EXTERIOR') && r.regimen).map((r) => r.regimen!);
+    const nombres = new Map([
+      ...(await this.tenant.db.regimenIva.findMany({ where: { id: { in: ids } } })), ...(await this.tenant.db.regimenSuss.findMany({ where: { id: { in: ids } } })),
+      ...(await this.tenant.db.regimenExterior.findMany({ where: { id: { in: ids } } })),
+    ].map((g) => [g.id, g.descripcion]));
     return filas.map((r) => ({
       id: r.id, ordenPagoId: r.ordenPagoId, fechaPago: r.ordenPago.fechaPago, certificado: numeroCertificado(r.impuesto, r.jurisdiccion, r.certificadoNumero!),
       impuesto: r.impuesto, jurisdiccion: r.jurisdiccion, regimen: (r.regimen && nombres.get(r.regimen)) ?? r.regimen, razonSocial: r.ordenPago.tercero.razonSocial, cuit: r.ordenPago.tercero.cuit,
-      base: r.base.toFixed(2), alicuota: r.alicuota, importe: r.importe.toFixed(2), ordenPagoNumero: numeroOP(r.ordenPago.numero), anulada: r.anulada,
+      base: r.base.toFixed(2), alicuota: r.alicuota, importe: r.importe.toFixed(2), ordenPagoNumero: numeroOP(r.ordenPago.numero), anulada: r.anulada, certificadoSire: r.certificadoSire,
     }));
   }
 

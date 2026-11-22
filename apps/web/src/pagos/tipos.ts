@@ -1,5 +1,5 @@
 export interface RetencionOP {
-  id: string; impuesto: 'GANANCIAS' | 'IIBB' | 'IVA' | 'SUSS'; jurisdiccion: string | null; regimen: string | null; base: string; alicuota: string;
+  id: string; impuesto: 'GANANCIAS' | 'IIBB' | 'IVA' | 'SUSS' | 'GANANCIAS_EXTERIOR'; jurisdiccion: string | null; regimen: string | null; base: string; alicuota: string;
   importe: string; detalle: Record<string, string>; certificadoNumero: number | null; anulada: boolean;
 }
 export interface OrdenPago {
@@ -26,8 +26,9 @@ const JUR: Record<string, string> = { '901': 'CABA', '902': 'Buenos Aires' };
 /** IVA y SUSS se retienen por factura (E35): la descripción lleva la factura retenida. */
 export const descripcionRetencion = (r: Pick<RetencionOP, 'impuesto' | 'jurisdiccion' | 'regimen'> & { detalle?: Record<string, string> }) =>
   r.impuesto === 'GANANCIAS' ? `Ganancias (régimen ${r.regimen})`
+    : r.impuesto === 'GANANCIAS_EXTERIOR' ? `Ganancias exterior (régimen ${r.detalle?.codigoSire ?? ''})`
     : r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? `${r.impuesto} factura ${r.detalle?.letra ?? ''} ${String(r.detalle?.puntoVenta ?? '').padStart(5, '0')}-${String(r.detalle?.numero ?? '').padStart(8, '0')}`.replace(/\s+/g, ' ')
       : `IIBB ${JUR[r.jurisdiccion ?? ''] ?? r.jurisdiccion}`;
-const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS' };
+const PREFIJO: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS', GANANCIAS_EXTERIOR: 'RET-GAN-EXT' };
 export const numeroCertificado = (r: Pick<RetencionOP, 'impuesto' | 'jurisdiccion' | 'certificadoNumero'>) =>
   r.certificadoNumero ? `${PREFIJO[r.impuesto] ?? `RET-IIBB-${r.jurisdiccion}`} ${String(r.certificadoNumero).padStart(8, '0')}` : '';

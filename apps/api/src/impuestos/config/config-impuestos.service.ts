@@ -9,6 +9,7 @@ export interface DatosConfigImpuestos {
   iibbInicioAnio?: number | null; iibbInicioMes?: number | null;
   prorrateoIva?: boolean; prorrateoDesdeAnio?: number | null; prorrateoDesdeMes?: number | null; prorrateoInicioMes?: number;
   prorrateoGravadasIniciales?: number; prorrateoExentasIniciales?: number;
+  sireMotivoAnulacion?: number;
 }
 
 @Injectable()
