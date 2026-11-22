@@ -59,6 +59,7 @@ import { LibroIvaComprasPage as LibroIvaComprasImpuestosPage, LibroIvaVentasPage
 import { GenerarPresentacionPage, PresentacionesPage } from '../impuestos/PresentacionesPages';
 import { PosicionIvaPage } from '../impuestos/PosicionIvaPage';
 import { AjusteImpositivoPage } from '../impuestos/AjusteImpositivoPage';
+import { DjGananciasPage } from '../impuestos/DjGananciasPage';
 import { PosicionIibbPage } from '../impuestos/PosicionIibbPage';
 import { IngresosProvinciaPage } from '../impuestos/IngresosProvinciaPage';
 import { PercepcionesPracticadasPage } from '../impuestos/PercepcionesPracticadasPage';
@@ -185,6 +186,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/impuestos/generar', elemento: <GenerarPresentacionPage /> },
   { ruta: '/impuestos/posicion-iva', elemento: <PosicionIvaPage /> },
   { ruta: '/impuestos/ajuste-inflacion', elemento: <AjusteImpositivoPage /> },
+  { ruta: '/impuestos/dj-ganancias', elemento: <DjGananciasPage /> },
   { ruta: '/impuestos/iibb', elemento: <PosicionIibbPage /> },
   { ruta: '/impuestos/ingresos-por-provincia', elemento: <IngresosProvinciaPage /> },
   { ruta: '/impuestos/percepciones-practicadas', elemento: <PercepcionesPracticadasPage /> },

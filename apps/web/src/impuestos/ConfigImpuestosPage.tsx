@@ -1,6 +1,6 @@
 import { Alert, Button, Group, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api, ErrorApi } from '../api/cliente';
 import { JurisdiccionesCm } from './JurisdiccionesCm';
@@ -13,6 +13,52 @@ interface Config {
   prorrateoGravadasIniciales: string | number; prorrateoExentasIniciales: string | number;
   sireMotivoAnulacion: number;
   topeAutomovilesCosto: string | number;
+}
+
+type TramoForm = { desde: number | string; fijo: number | string; alicuota: number | string };
+/** Escala de la ley 27.630 (2021): punto de partida; ARCA la actualiza cada año. */
+const ESCALA_LEY: TramoForm[] = [{ desde: 0, fijo: 0, alicuota: 25 }, { desde: 5000000, fijo: 1250000, alicuota: 30 }, { desde: 50000000, fijo: 14750000, alicuota: 35 }];
+
+/** Escala de Ganancias de sociedades por año (E46). */
+export function EscalaSociedades() {
+  const qc = useQueryClient();
+  const [anio, setAnio] = useState(new Date().getFullYear());
+  const q = useQuery({ queryKey: ['/impuestos/escala-sociedades', anio], queryFn: () => api<{ desde: string; fijo: string; alicuota: string }[]>(`/impuestos/escala-sociedades/${anio}`) });
+  const [tramos, setTramos] = useState<TramoForm[]>([]);
+  const [error, setError] = useState('');
+  useEffect(() => { if (q.data) setTramos(q.data.map((t) => ({ desde: Number(t.desde), fijo: Number(t.fijo), alicuota: Number(t.alicuota) }))); }, [q.data]);
+  const cambiar = (i: number, k: keyof TramoForm, v: number | string) => setTramos(tramos.map((t, j) => (j === i ? { ...t, [k]: v } : t)));
+  const guardar = async () => {
+    setError('');
+    try {
+      await api(`/impuestos/escala-sociedades/${anio}`, { metodo: 'PUT', body: { tramos: tramos.map((t) => ({ desde: Number(t.desde) || 0, fijo: Number(t.fijo) || 0, alicuota: Number(t.alicuota) || 0 })) } });
+      notifications.show({ color: 'green', message: 'Escala guardada' });
+      void qc.invalidateQueries({ queryKey: ['/impuestos/escala-sociedades'] });
+    } catch (e) {
+      setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado');
+    }
+  };
+  const num = { decimalScale: 2, thousandSeparator: '.', decimalSeparator: ',' } as const;
+  return (
+    <Stack maw={720}>
+      <Title order={5}>Escala de Ganancias de sociedades (art. 73)</Title>
+      <Group align="flex-end">
+        <NumberInput label="Año" w={110} min={2018} max={2100} value={anio} onChange={(v) => setAnio(Number(v) || anio)} />
+        <Button variant="light" size="xs" onClick={() => setTramos(ESCALA_LEY)}>Copiar escala de la ley 27.630</Button>
+        <Button variant="subtle" size="xs" onClick={() => setTramos([...tramos, { desde: '', fijo: '', alicuota: '' }])}>Agregar tramo</Button>
+      </Group>
+      {tramos.map((t, i) => (
+        <Group key={i} grow>
+          <NumberInput label={`Desde (tramo ${i + 1})`} min={0} {...num} value={t.desde} onChange={(v) => cambiar(i, 'desde', v)} />
+          <NumberInput label={`Monto fijo (tramo ${i + 1})`} min={0} {...num} value={t.fijo} onChange={(v) => cambiar(i, 'fijo', v)} />
+          <NumberInput label={`Alícuota % (tramo ${i + 1})`} min={0} max={100} {...num} value={t.alicuota} onChange={(v) => cambiar(i, 'alicuota', v)} />
+        </Group>
+      ))}
+      <Text size="xs" c="dimmed">Los montos se actualizan cada año por IPC: cargue los que publica ARCA para el año del inicio del ejercicio.</Text>
+      {error && <Alert color="red">{error}</Alert>}
+      <Group><Button size="xs" onClick={() => void guardar()} disabled={!tramos.length}>Guardar escala</Button></Group>
+    </Stack>
+  );
 }
 
 export function ConfigImpuestosPage() {
@@ -81,6 +127,7 @@ export function ConfigImpuestosPage() {
         {error && <Alert color="red">{error}</Alert>}
         <Group><Button onClick={() => void guardar()}>Guardar</Button></Group>
       </Stack>
+      <Stack mt="xl"><EscalaSociedades /></Stack>
       <Stack mt="xl" maw={820}>
         <JurisdiccionesCm inicioAnio={q.data?.iibbInicioAnio ?? null} />
       </Stack>
