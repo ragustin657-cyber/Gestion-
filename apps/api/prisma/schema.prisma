@@ -3180,3 +3180,17 @@ model FormatoPadron {
   formatoFecha       String  @default("DD/MM/AAAA")
   separadorDecimal   String  @default(".")
 }
+
+/// Recaudación bancaria de IIBB (SIRCREB) de un período y jurisdicción (E48): pago a cuenta en la liquidación de IIBB.
+model RecaudacionBancaria {
+  id               String  @id @default(uuid()) @db.Uuid
+  empresaId        String  @db.Uuid
+  periodo          String
+  jurisdiccion     String
+  cuentaBancariaId String? @db.Uuid
+  cbu              String?
+  importe          Decimal @db.Decimal(18, 2)
+  referencia       String?
+
+  @@index([empresaId, periodo])
+}
