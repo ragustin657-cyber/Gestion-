@@ -61,4 +61,20 @@ describe('pulido E42: impuestos', () => {
     const r = await s.http.patch(`/api/compras/comprobantes/${c.comprobanteId}/destino-iva`, { destinoCreditoIva: 'COMUN' });
     expect([r.status, r.body.message]).toEqual([400, 'Solo se cambia el destino de una compra confirmada']);
   });
+
+  it('revisión E42: un cierre largo no hace fallar el guardado de la configuración (espera más de 5 s)', async () => {
+    const s = await sesionConPlan(app, prisma);
+    let soltar!: () => void;
+    await new Promise<void>((ok) => {
+      void prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `posicion-iva:${s.empresaId}`);
+        ok();
+        await new Promise<void>((fin) => (soltar = fin));
+      }, { timeout: 30000 });
+    });
+    const pedido = s.http.put('/api/impuestos/config', { ...CONFIG, ivaInicioAnio: 2026, ivaInicioMes: 10 });
+    await new Promise((ok) => setTimeout(ok, 6000));
+    soltar();
+    expect((await pedido).status).toBe(200);
+  }, 20000);
 });

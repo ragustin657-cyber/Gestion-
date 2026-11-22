@@ -6,6 +6,7 @@ import { TablaJurisdiccionesIibb } from '../pagos/ConfigRetencionesPage';
 import { cuerpoGenerar, quincenasPara, TIPOS_PRESENTACION } from '../impuestos/comun';
 import { GrillaVenta, etiquetaPercepcion } from './GrillaVenta';
 import { ALICUOTAS_DESPACHO } from '../compras/DespachoImportacionPage';
+import { renglonesCambiaron } from './ComprobanteVentaPage';
 
 const envolver = (n: ReactNode) => render(<MantineProvider>{n}</MantineProvider>);
 
@@ -53,5 +54,11 @@ describe('percepciones en ventas (web, E39)', () => {
 
   it('pulido E42: el despacho ofrece solo 21 % y 10,5 %', () => {
     expect(ALICUOTAS_DESPACHO.map((a) => a.value)).toEqual(['21', '10.5']);
+  });
+
+  it('revisión E42: un precio con separador de miles o una descripción con espacios no marca las percepciones como viejas', () => {
+    const guardado = { renglones: [{ id: 'r1', articuloId: null, descripcion: 'Servicio', cantidad: '1', precioUnitario: '1234.5', alicuota: '21', neto: '1234.5', iva: '259.25' }] } as never;
+    expect(renglonesCambiaron([{ articuloId: null, descripcion: 'Servicio ', cantidad: '1', precioUnitario: '1.234,50', alicuota: '21' }], guardado)).toBe(false);
+    expect(renglonesCambiaron([{ articuloId: null, descripcion: 'Servicio', cantidad: '1', precioUnitario: '1.300,00', alicuota: '21' }], guardado)).toBe(true);
   });
 });

@@ -36,8 +36,9 @@ export function renglonDesdeComprobante(r: { articuloId: string | null; descripc
 }
 
 /** Pulido E42: ¿los renglones en pantalla difieren de los guardados? (las percepciones guardadas quedan viejas hasta guardar) */
-const claveRenglones = (rs: RenglonVentaEditable[]) => JSON.stringify(rs.map((r) => [r.descripcion, Number(String(r.cantidad).replace(',', '.')), Number(String(r.precioUnitario).replace(',', '.')), r.alicuota]));
-const renglonesCambiaron = (rs: RenglonVentaEditable[], c: ComprobanteVenta) => claveRenglones(rs) !== claveRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
+// Revisión E42: mismo lector de números que el guardado (separador de miles) y descripción sin espacios, como la guarda la API
+const claveRenglones = (rs: RenglonVentaEditable[]) => JSON.stringify(rs.map((r) => [r.descripcion.trim(), numero(String(r.cantidad)), numero(String(r.precioUnitario)), r.alicuota]));
+export const renglonesCambiaron = (rs: RenglonVentaEditable[], c: ComprobanteVenta) => claveRenglones(rs) !== claveRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
 
 export function ComprobanteVentaPage() {
   const empresa = useEmpresa();
