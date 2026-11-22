@@ -36,8 +36,8 @@ const MONEDA_DISTINTA = 'La moneda del medio de pago no coincide con la de la cu
 
 /** Ejecuta el pago de una OP aprobada: medios, cheques, tesorería, aplicaciones, certificados y asiento. */
 /** Talonario y cuenta del pasivo de cada retención practicada (IVA y SUSS: E35). */
-const TALONARIO_RETENCION: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS' };
-const CUENTA_RETENCION: Record<string, 'RETENCION_GANANCIAS' | 'RETENCION_IVA' | 'RETENCION_SUSS'> = { GANANCIAS: 'RETENCION_GANANCIAS', IVA: 'RETENCION_IVA', SUSS: 'RETENCION_SUSS' };
+const TALONARIO_RETENCION: Record<string, string> = { GANANCIAS: 'RET-GAN', IVA: 'RET-IVA', SUSS: 'RET-SUSS', GANANCIAS_EXTERIOR: 'RET-GAN-EXT' };
+const CUENTA_RETENCION: Record<string, 'RETENCION_GANANCIAS' | 'RETENCION_IVA' | 'RETENCION_SUSS'> = { GANANCIAS: 'RETENCION_GANANCIAS', IVA: 'RETENCION_IVA', SUSS: 'RETENCION_SUSS', GANANCIAS_EXTERIOR: 'RETENCION_GANANCIAS' };
 
 @Injectable()
 export class PagoService {
@@ -239,6 +239,8 @@ export class PagoService {
         const talonario = TALONARIO_RETENCION[r.impuesto] ?? `RET-IIBB-${r.jurisdiccion}`;
         await tx.ordenPagoRetencion.update({ where: { id: r.id }, data: { certificadoNumero: await this.numeracion.siguiente(tx, talonario, 0) } });
         haber(await cuenta(CUENTA_RETENCION[r.impuesto] ?? 'RETENCION_IIBB'), r.importe);
+        // E43: con acrecentamiento el impuesto lo asume la empresa (gasto), no se descuenta del proveedor
+        if ((r.detalle as { acrecentamiento?: string }).acrecentamiento === 'true') debe(await cuenta('GANANCIAS_ASUMIDO'), r.importe);
       }
 
       // 8. Asiento y estado

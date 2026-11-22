@@ -25,6 +25,10 @@ const esquemaJurisdicciones = z.array(z.object({
   // Percepción en ventas (E39)
   percibe: z.boolean().optional(), alicuotaPercepcionDefecto: noNeg.max(100).optional(), minimoPercepcion: noNeg.optional(), sinPadronPercepcion: z.nativeEnum(SinPadron).optional(),
 }));
+const esquemaRegimenExterior = z.object({
+  codigoSire: z.string().trim().regex(/^\d{3}$/, 'El código SIRE tiene 3 dígitos'), descripcion: zTexto, alicuotaSinCdi: noNeg.max(100), codigoAlicuotaSinCdi: z.number().int().min(0),
+  alicuotaConCdi: noNeg.max(100).nullish(), codigoAlicuotaConCdi: z.number().int().min(0).nullish(), activo: z.boolean().optional(),
+});
 const esquemaRegimenPercepcionIva = z.object({
   codigo: z.string().trim().regex(/^\d{1,3}$/, 'Código de régimen inválido'), descripcion: zTexto, alicuotaGeneral: noNeg.max(100), alicuotaReducida: noNeg.max(100), minimoNeto: noNeg, activo: z.boolean().optional(),
 });
@@ -98,6 +102,25 @@ export class ConfigPagosController {
   @Patch('regimenes-iva/:id')
   modificarRegimenIva(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegimenIva.partial())) d: Partial<z.infer<typeof esquemaRegimenIva>>) {
     return this.config.guardarRegimenIva(id, d);
+  }
+
+  // --- Ganancias a beneficiarios del exterior (E43) ---
+
+  @Get('regimenes-exterior')
+  @RequierePermiso()
+  @RequiereAlguno('retenciones.config', 'op.crear', 'tercero.editar')
+  regimenesExterior() {
+    return this.config.regimenesExterior();
+  }
+
+  @Post('regimenes-exterior')
+  crearRegimenExterior(@Body(new ZodValidationPipe(esquemaRegimenExterior)) d: z.infer<typeof esquemaRegimenExterior>) {
+    return this.config.guardarRegimenExterior(null, d);
+  }
+
+  @Patch('regimenes-exterior/:id')
+  modificarRegimenExterior(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRegimenExterior.partial())) d: Partial<z.infer<typeof esquemaRegimenExterior>>) {
+    return this.config.guardarRegimenExterior(id, d);
   }
 
   // --- Régimen de percepción de IVA (E39) ---

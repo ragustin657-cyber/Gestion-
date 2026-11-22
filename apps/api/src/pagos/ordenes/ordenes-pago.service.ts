@@ -225,7 +225,7 @@ export class OrdenesPagoService {
   async previsualizarRetenciones(id: string, fechaPago: Date) {
     const op = await this.obtener(id);
     const retenciones = await this.calcularRetenciones(this.tenant.db, id, fechaPago);
-    const total = retenciones.reduce((s, r) => s.plus(r.importe), new D(0));
+    const total = retenciones.filter((r) => (r.detalle as { acrecentamiento?: string }).acrecentamiento !== 'true').reduce((s, r) => s.plus(r.importe), new D(0));
     return { retenciones, totalRetenciones: total.toFixed(2), netoPagar: op.totalCancelarPesos.minus(total).toFixed(2) };
   }
 
@@ -235,7 +235,8 @@ export class OrdenesPagoService {
     await tx.ordenPagoRetencion.createMany({
       data: rets.map((r) => ({ empresaId: this.tenant.empresaId, ordenPagoId: opId, impuesto: r.impuesto, jurisdiccion: r.jurisdiccion, regimen: r.regimen, base: r.base, alicuota: r.alicuota, importe: r.importe, detalle: r.detalle, comprobanteCompraId: r.comprobanteCompraId ?? null })),
     });
-    const totalRet = rets.reduce((s, r) => s.plus(r.importe), new D(0));
+    // E43: con acrecentamiento la empresa asume la retención: no se descuenta de lo que cobra el proveedor
+    const totalRet = rets.filter((r) => (r.detalle as { acrecentamiento?: string }).acrecentamiento !== 'true').reduce((s, r) => s.plus(r.importe), new D(0));
     return { totalRetenciones: totalRet, netoPagar: total.minus(totalRet) };
   }
 

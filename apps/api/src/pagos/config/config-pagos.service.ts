@@ -18,6 +18,7 @@ export interface DatosJurisdiccion {
   jurisdiccion: string; alicuotaDefecto: number; minimoRetencion: number; usaPadron: boolean; sinPadron: SinPadron;
   percibe?: boolean; alicuotaPercepcionDefecto?: number; minimoPercepcion?: number; sinPadronPercepcion?: SinPadron;
 }
+export interface DatosRegimenExterior { codigoSire: string; descripcion: string; alicuotaSinCdi: number; codigoAlicuotaSinCdi: number; alicuotaConCdi?: number | null; codigoAlicuotaConCdi?: number | null; activo?: boolean }
 export interface DatosRegimenPercepcionIva { codigo: string; descripcion: string; alicuotaGeneral: number; alicuotaReducida: number; minimoNeto: number; activo?: boolean }
 
 @Injectable()
@@ -109,6 +110,24 @@ export class ConfigPagosService {
       await this.auditoria.registrar(tx, { entidad: 'JurisdiccionIibb', entidadId: this.tenant.empresaId, accion: 'MODIFICAR', datos: lista });
       return tx.jurisdiccionIibb.findMany({ orderBy: { jurisdiccion: 'asc' } });
     });
+  }
+
+  // --- Ganancias a beneficiarios del exterior (E43) ---
+
+  regimenesExterior() {
+    return this.tenant.db.regimenExterior.findMany({ orderBy: { descripcion: 'asc' } });
+  }
+
+  guardarRegimenExterior(id: string | null, d: Partial<DatosRegimenExterior>) {
+    return conUnicidad('Ya existe un régimen con esa descripción', () =>
+      this.tenant.transaccion(async (tx) => {
+        const r = id
+          ? await tx.regimenExterior.update({ where: { id }, data: d })
+          : await tx.regimenExterior.create({ data: { ...(d as DatosRegimenExterior), empresaId: this.tenant.empresaId } });
+        await this.auditoria.registrar(tx, { entidad: 'RegimenExterior', entidadId: r.id, accion: id ? 'MODIFICAR' : 'CREAR', datos: d });
+        return r;
+      }),
+    );
   }
 
   // --- Régimen de percepción de IVA (E39) ---

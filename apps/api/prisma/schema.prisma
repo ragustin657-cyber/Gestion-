@@ -150,6 +150,17 @@ model Tercero {
   exclusionIvaPorcentaje  Int?
   exclusionIvaPublicacion DateTime?           @db.Date
   exclusionIvaHasta       DateTime?           @db.Date
+  /// Beneficiario del exterior (E43): datos del F.2003 y régimen de Ganancias exterior
+  residenteExterior       Boolean             @default(false)
+  nif                     String?
+  paisSire                Int?
+  domicilioExterior       String?
+  tipoPersona             String?
+  nacimientoPais          Int?
+  nacimientoFecha         DateTime?           @db.Date
+  regimenExteriorId       String?             @db.Uuid
+  aplicaCdi               Boolean             @default(false)
+  acrecentamiento         Boolean             @default(false)
   exencionHasta           DateTime?           @db.Date
   inscriptoGanancias      Boolean             @default(true)
   activo                  Boolean             @default(true)
@@ -2962,4 +2973,19 @@ model RegimenPercepcionIva {
   activo           Boolean @default(true)
 
   @@unique([empresaId, codigo])
+}
+
+/// Régimen de retención de Ganancias a beneficiarios del exterior (E43): códigos del SIRE (impuesto 218) y alícuotas efectivas.
+model RegimenExterior {
+  id                   String   @id @default(uuid()) @db.Uuid
+  empresaId            String   @db.Uuid
+  codigoSire           String
+  descripcion          String
+  alicuotaSinCdi       Decimal  @db.Decimal(9, 4)
+  codigoAlicuotaSinCdi Int
+  alicuotaConCdi       Decimal? @db.Decimal(9, 4)
+  codigoAlicuotaConCdi Int?
+  activo               Boolean  @default(true)
+
+  @@unique([empresaId, descripcion])
 }

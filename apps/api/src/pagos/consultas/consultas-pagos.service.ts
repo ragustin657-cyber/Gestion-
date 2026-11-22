@@ -119,7 +119,9 @@ export class ConsultasPagosService {
       detalleImpuesto: await this.detalleImpuesto(r),
       base: r.base.toString(), alicuota: r.alicuota, importe: r.importe.toString(), ordenPago: numeroOP(r.ordenPago.numero), anulado: r.anulada,
       // E35: con el SIRE el certificado oficial lo emite ARCA; el PDF del sistema es una constancia
-      constancia: r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? { titulo: `CONSTANCIA DE RETENCIÓN DE ${r.impuesto}`, leyenda: 'El certificado oficial se emite en el SIRE de ARCA' } : null,
+      constancia: r.impuesto === 'IVA' || r.impuesto === 'SUSS' ? { titulo: `CONSTANCIA DE RETENCIÓN DE ${r.impuesto}`, leyenda: 'El certificado oficial se emite en el SIRE de ARCA' }
+        // E43: Ganancias a beneficiarios del exterior (F.2003)
+        : r.impuesto === 'GANANCIAS_EXTERIOR' ? { titulo: 'CONSTANCIA DE RETENCIÓN DE GANANCIAS (BENEFICIARIO DEL EXTERIOR)', leyenda: 'El certificado oficial se emite en el SIRE de ARCA' } : null,
     });
     return { nombre: `certificado-${certificado.replace(' ', '-')}.pdf`, contenido };
   }
