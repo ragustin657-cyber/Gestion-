@@ -125,6 +125,8 @@ export class ConfigPagosService {
   guardarRegimenPercepcionIva(id: string | null, d: Partial<DatosRegimenPercepcionIva>) {
     return conUnicidad('Ya existe un régimen con ese código', () =>
       this.tenant.transaccion(async (tx) => {
+        // Pulido E42: altas y cambios simultáneos se serializan (un solo régimen activo)
+        await tx.$executeRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', `regimen-percepcion-iva:${this.tenant.empresaId}`);
         const activo = d.activo ?? (id ? (await tx.regimenPercepcionIva.findUniqueOrThrow({ where: { id } })).activo : true);
         if (activo && (await tx.regimenPercepcionIva.count({ where: { activo: true, ...(id ? { id: { not: id } } : {}) } })))
           throw new BadRequestException('Active solo un régimen de percepción de IVA');
