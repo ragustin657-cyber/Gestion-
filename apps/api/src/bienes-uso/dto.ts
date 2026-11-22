@@ -8,6 +8,9 @@ export const esquemaRubro = z.object({
   cuentaGastoId: uuid,
   vidaUtilMeses: z.number().int('Debe ser un número entero').min(1, 'Debe ser al menos 1').max(1200, 'No puede superar 1200'),
   activo: z.boolean().optional(),
+  // Amortización impositiva (E44)
+  vidaUtilImpositivaAnios: z.number().int('Debe ser un número entero').min(1, 'Debe ser al menos 1').max(100, 'No puede superar 100').nullish(),
+  tipoImpositivo: z.enum(['MUEBLE', 'INMUEBLE', 'AUTOMOVIL', 'NO_AMORTIZABLE'], { message: 'Tipo inválido' }).optional(),
 });
 export type DatosRubro = z.infer<typeof esquemaRubro>;
 
@@ -46,6 +49,13 @@ export const esquemaEdicionBien = z.object({
   valorResidual: zImporte.optional(),
 });
 export type EdicionBien = z.infer<typeof esquemaEdicionBien>;
+
+/** Datos impositivos del bien (E44). */
+export const esquemaImpositivoBien = z.object({
+  vidaUtilImpositivaAnios: z.number().int('Debe ser un número entero').min(1, 'Debe ser al menos 1').max(100, 'No puede superar 100').nullable(),
+  valorTerreno: z.number().min(0, 'No puede ser negativo'),
+});
+export type ImpositivoBien = z.infer<typeof esquemaImpositivoBien>;
 
 export const esquemaBaja = z.object({ fecha: zFecha, motivo: z.enum(['DESUSO', 'SINIESTRO', 'ROBO'], { message: 'Motivo inválido' }) });
 export type DatosBaja = z.infer<typeof esquemaBaja>;

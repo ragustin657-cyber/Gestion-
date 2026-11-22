@@ -3,7 +3,10 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/cliente';
 import { useAuth } from '../auth/AuthContext';
 
-export interface Rubro { id: string; nombre: string; vidaUtilMeses: number; cuentaOrigenId?: string; cuentaAmortizacionId?: string; cuentaGastoId?: string; activo?: boolean; cuentaOrigen?: { codigo: string; nombre: string }; cuentaAmortizacion?: { codigo: string; nombre: string }; cuentaGasto?: { codigo: string; nombre: string } }
+export interface Rubro { id: string; nombre: string; vidaUtilMeses: number; vidaUtilImpositivaAnios?: number | null; tipoImpositivo?: TipoImpositivo; cuentaOrigenId?: string; cuentaAmortizacionId?: string; cuentaGastoId?: string; activo?: boolean; cuentaOrigen?: { codigo: string; nombre: string }; cuentaAmortizacion?: { codigo: string; nombre: string }; cuentaGasto?: { codigo: string; nombre: string } }
+/** Tipo impositivo del rubro (E44). */
+export type TipoImpositivo = 'MUEBLE' | 'INMUEBLE' | 'AUTOMOVIL' | 'NO_AMORTIZABLE';
+export const TIPOS_IMPOSITIVOS = [{ value: 'MUEBLE', label: 'Mueble' }, { value: 'INMUEBLE', label: 'Inmueble' }, { value: 'AUTOMOVIL', label: 'Automóvil' }, { value: 'NO_AMORTIZABLE', label: 'No amortizable' }];
 export interface BienRenglon { descripcion: string; vidaUtilMeses: string; valorResidual: string }
 export interface Bien {
   id: string; numero: number; descripcion: string; rubro: string; fechaAlta: string; valorOrigen: string; vidaUtilMeses: number; valorResidual: string;

@@ -1,3 +1,4 @@
+import { AuditoriaService } from '../auditoria/auditoria.service';
 import { NumeracionService } from '../numeracion/numeracion.service';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
@@ -7,7 +8,7 @@ import { CLAVE_CONTEXTO, ContextoRequest } from '../contexto/contexto';
 import { AsientosService } from '../contabilidad/asientos/asientos.service';
 import { TenantPrisma, TxEmpresa } from '../prisma/tenant-prisma.service';
 import { acumuladaEsperada, mesDe } from './calculo';
-import { DatosBien, DatosBienRenglon, EdicionBien } from './dto';
+import { DatosBien, DatosBienRenglon, EdicionBien, ImpositivoBien } from './dto';
 
 type Dec = Prisma.Decimal;
 const D = Prisma.Decimal;
@@ -24,7 +25,7 @@ export function bienSalida(b: BienUso) {
 
 @Injectable()
 export class BienesService {
-  constructor(private readonly tenant: TenantPrisma, private readonly asientos: AsientosService, private readonly cls: ClsService, private readonly numeracion: NumeracionService) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly asientos: AsientosService, private readonly cls: ClsService, private readonly numeracion: NumeracionService, private readonly auditoria: AuditoriaService) {}
 
   private usuario() {
     return this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
@@ -134,6 +135,18 @@ export class BienesService {
       });
       await tx.bienUso.update({ where: { id: b.id }, data: { asientoAltaId: asiento.id } });
       return this.obtener(b.id, tx);
+    });
+  }
+
+  /** Datos impositivos del bien (E44): vida útil impositiva y terreno; no afectan la contabilidad. */
+  impositivo(id: string, d: ImpositivoBien) {
+    return this.tenant.transaccion(async (tx) => {
+      const b = await tx.bienUso.findUnique({ where: { id } });
+      if (!b) throw new NotFoundException('Bien inexistente');
+      if (new Prisma.Decimal(d.valorTerreno).gt(b.valorOrigen)) throw new BadRequestException('El terreno no puede superar el valor de origen');
+      const r = await tx.bienUso.update({ where: { id }, data: d });
+      await this.auditoria.registrar(tx, { entidad: 'BienUso', entidadId: id, accion: 'MODIFICAR', datos: d });
+      return r;
     });
   }
 

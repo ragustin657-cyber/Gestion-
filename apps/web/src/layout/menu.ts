@@ -162,6 +162,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Estado de resultados', ruta: '/contabilidad/resultados', permiso: 'plancuentas.ver' },
           { titulo: 'Libros legales', ruta: '/contabilidad/libros', permiso: 'contabilidad.cerrar' },
           { titulo: 'Planilla de bienes de uso', ruta: '/contabilidad/planilla-bienes', permiso: 'bienes.ver' },
+          { titulo: 'Amortización impositiva', ruta: '/contabilidad/planilla-impositiva', permiso: 'bienes.ver' },
         ],
       },
       {

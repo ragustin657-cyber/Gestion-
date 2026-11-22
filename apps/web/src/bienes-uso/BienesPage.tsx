@@ -1,4 +1,4 @@
-import { Badge, Button, Group, Modal, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { Badge, Button, Group, Modal, NumberInput, Paper, SegmentedControl, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -8,7 +8,33 @@ import { formatoFecha, formatoMoneda, hoy } from '../compras/formato';
 import { useTodasLasCuentas } from '../contabilidad/comun';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { numeroCelda } from '../presupuestos/PresupuestosPage';
-import { Bien, MOTIVOS, ORIGENES, useRubros } from './comun';
+import { Bien, MOTIVOS, ORIGENES, TipoImpositivo, useRubros } from './comun';
+
+interface DatosImpositivos { id: string; valorOrigen: string; vidaUtilImpositivaAnios: number | null; valorTerreno: string; rubro: { id: string; nombre: string; tipoImpositivo?: TipoImpositivo; vidaUtilImpositivaAnios?: number | null } }
+
+/** Datos impositivos del bien (E44): vida útil impositiva (pisa al rubro) y terreno de los inmuebles; no afectan la contabilidad. */
+export function DatosImpositivosBien({ bien, puedeEditar, alGuardar }: { bien: DatosImpositivos; puedeEditar: boolean; alGuardar: () => void }) {
+  const op = useOperacion();
+  const [vida, setVida] = useState(bien.vidaUtilImpositivaAnios ? String(bien.vidaUtilImpositivaAnios) : '');
+  const [terreno, setTerreno] = useState<number | string>(Number(bien.valorTerreno) || '');
+  const inmueble = bien.rubro.tipoImpositivo === 'INMUEBLE';
+  const guardar = async () => {
+    const body = { vidaUtilImpositivaAnios: vida.trim() ? Number(vida) : null, valorTerreno: inmueble ? Number(terreno) || 0 : Number(bien.valorTerreno) || 0 };
+    if (await op.ejecutar(() => api(`/bienes-uso/${bien.id}/impositivo`, { metodo: 'PUT', body }), () => 'Datos impositivos guardados')) alGuardar();
+  };
+  return (
+    <Stack gap="xs" mb="md">
+      <Title order={5}>Amortización impositiva</Title>
+      <Group align="flex-end">
+        <TextInput label="Vida útil impositiva (años)" w={200} inputMode="numeric" disabled={!puedeEditar} value={vida} onChange={(e) => setVida(e.currentTarget.value)}
+          placeholder={bien.rubro.vidaUtilImpositivaAnios ? `${bien.rubro.vidaUtilImpositivaAnios} (del rubro)` : inmueble ? '50' : 'La del rubro'} />
+        {inmueble && <NumberInput label="Valor del terreno" w={200} min={0} decimalScale={2} thousandSeparator="." decimalSeparator="," disabled={!puedeEditar} value={terreno} onChange={setTerreno} />}
+        {puedeEditar && <Button size="xs" variant="light" loading={op.enviando} onClick={() => void guardar()}>Guardar datos impositivos</Button>}
+      </Group>
+      {op.alerta}
+    </Stack>
+  );
+}
 
 const estado = (b: { estado: string; motivoBaja: string | null }) =>
   b.estado === 'ACTIVO' ? <Badge variant="light" color="green">Activo</Badge> : <Badge variant="light" color="gray">{`Baja (${MOTIVOS[b.motivoBaja ?? ''] ?? ''})`}</Badge>;
@@ -128,7 +154,7 @@ export function FormEdicionBien({ bien, conAmortizaciones = false, onGuardado }:
 }
 
 interface Ficha extends Omit<Bien, 'rubro' | 'acumulada' | 'residual'> {
-  rubro: { id: string; nombre: string }; amortizaciones: { mes: string; importe: string; asientoId: string }[]; amortizacionContabilizada: string; residualContable: string; asientoAltaId: string | null; asientoBajaId: string | null; amortizacionInicial: string; fechaAmortizacionInicial: string | null;
+  rubro: { id: string; nombre: string; tipoImpositivo?: TipoImpositivo; vidaUtilImpositivaAnios?: number | null }; vidaUtilImpositivaAnios: number | null; valorTerreno: string; amortizaciones: { mes: string; importe: string; asientoId: string }[]; amortizacionContabilizada: string; residualContable: string; asientoAltaId: string | null; asientoBajaId: string | null; amortizacionInicial: string; fechaAmortizacionInicial: string | null;
 }
 
 export function FichaBienPage() {
@@ -177,6 +203,7 @@ export function FichaBienPage() {
           <Text size="sm"><b>Residual contable:</b> {formatoMoneda(b.residualContable)}</Text>
           <Text size="sm"><b>Estado:</b> {estado(b)} {b.fechaBaja ? formatoFecha(b.fechaBaja) : ''}</Text>
         </SimpleGrid>
+        <DatosImpositivosBien key={`${b.id}-${b.vidaUtilImpositivaAnios}-${b.valorTerreno}`} bien={b} puedeEditar={puede('bienes.gestionar')} alGuardar={refrescar} />
         <Title order={5} mb="xs">Amortizaciones</Title>
         <Table withTableBorder striped>
           <Table.Thead><Table.Tr><Table.Th>Mes</Table.Th><Table.Th ta="right">Importe</Table.Th></Table.Tr></Table.Thead>

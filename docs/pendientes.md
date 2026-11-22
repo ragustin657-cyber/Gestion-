@@ -26,7 +26,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 8. ~~**F.2003 del SIRE:** Ganancias a beneficiarios del exterior.~~ Hecho en la entrega 43.
 9. **Ganancias de sociedades y Bienes Personales (acciones y participaciones).** Hoy no está ni la DJ, ni los anticipos, ni el responsable sustituto.
 10. **Ajuste por inflación impositivo** (Título VI de Ganancias). Hoy solo está el contable.
-11. **Amortización impositiva** de bienes de uso. Hoy solo está la contable.
+11. ~~**Amortización impositiva** de bienes de uso.~~ Hecho en la entrega 44.
 12. **Presentación automática en los sitios de los organismos.** Hoy se generan los archivos y el usuario los sube.
 
 ### 1.2 Ventas y facturación
@@ -141,6 +141,11 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - códigos de régimen del impuesto 218 y de las tablas ALICUOTA_SIN_CDI y ALICUOTA_CON_CDI (se cargan a mano en cada régimen exterior);
     - tabla PAIS del SIRE (los códigos de país se cargan a mano en la ficha del proveedor);
     - cómo devuelve ARCA los números de certificado al procesar el lote (hoy se cargan a mano en *Retenciones practicadas*), y el formato del número de nota de crédito (hoy `00001-` + número de la orden de pago).
+12. **Amortización impositiva (entrega 44):**
+    - tope de costo de automóviles vigente (art. 88 inc. l; hoy 20.000 por defecto, configurable) y si la amortización no deducible reduce el costo computable en la venta;
+    - criterio de año completo de alta para muebles y de trimestres para inmuebles, contra el decreto reglamentario vigente;
+    - que el coeficiente de actualización sea el cociente de IPC del sistema (mes de cierre / mes de alta) y no la tabla de ARCA;
+    - bienes de ejercicios iniciados antes de 2018: hoy sin actualización.
 
 ---
 

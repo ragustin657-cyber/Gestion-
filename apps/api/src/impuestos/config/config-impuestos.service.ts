@@ -10,6 +10,7 @@ export interface DatosConfigImpuestos {
   prorrateoIva?: boolean; prorrateoDesdeAnio?: number | null; prorrateoDesdeMes?: number | null; prorrateoInicioMes?: number;
   prorrateoGravadasIniciales?: number; prorrateoExentasIniciales?: number;
   sireMotivoAnulacion?: number;
+  topeAutomovilesCosto?: number;
 }
 
 @Injectable()
