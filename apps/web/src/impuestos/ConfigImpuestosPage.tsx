@@ -1,4 +1,5 @@
-import { Alert, Button, Group, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
+import { JURISDICCIONES_CM } from '@gestion/shared';
+import { Alert, Button, Group, MultiSelect, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -14,6 +15,7 @@ interface Config {
   sireMotivoAnulacion: number;
   topeAutomovilesCosto: string | number;
   alicuotaBienesPersonalesAcciones: string | number;
+  jurisdiccionesSircar?: string[];
 }
 
 type TramoForm = { desde: number | string; fijo: number | string; alicuota: number | string };
@@ -129,6 +131,8 @@ export function ConfigImpuestosPage() {
         <Text size="xs" c="dimmed">Art. 88 inc. l de Ganancias: la amortización de automóviles es deducible hasta la que correspondería a este costo. Verifique el tope vigente.</Text>
         <Title order={5}>Bienes Personales (acciones y participaciones)</Title>
         <NumberInput label="Tasa de Bienes Personales sobre acciones (%)" w={340} min={0} max={100} decimalScale={4} decimalSeparator="," value={Number(c.alicuotaBienesPersonalesAcciones)} onChange={(v) => setC({ ...c, alicuotaBienesPersonalesAcciones: Number(v) || 0 })} />
+        <Title order={5}>SIRCAR (IIBB Convenio)</Title>
+        <MultiSelect label="Jurisdicciones adheridas a SIRCAR" searchable data={Object.entries(JURISDICCIONES_CM).map(([value, n]) => ({ value, label: `${value} ${n}` }))} value={c.jurisdiccionesSircar ?? []} onChange={(v) => setC({ ...c, jurisdiccionesSircar: v })} />
         <Title order={5}>SIRE</Title>
         <NumberInput label="Motivo de anulación (F.2005)" w={220} min={1} max={9} value={c.sireMotivoAnulacion} onChange={(v) => setC({ ...c, sireMotivoAnulacion: Number(v) || 1 })} />
         <Text size="xs" c="dimmed">Código de la tabla de motivos de anulación del SIRE con que se informan las retenciones de IVA anuladas. Verifíquelo con el contador.</Text>

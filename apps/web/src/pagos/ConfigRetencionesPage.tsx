@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Group, Loader, NumberInput, Paper, Select, Stack, Switch, Table, Tabs, Text, Title } from '@mantine/core';
+import { Alert, Badge, Button, Group, Loader, NumberInput, Paper, Select, Stack, Switch, Table, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -11,6 +11,7 @@ interface Tramo { desde: number; hasta: number | null; fijo: number; porcentaje:
 interface Jurisdiccion {
   jurisdiccion: string; alicuotaDefecto: string; minimoRetencion: string; usaPadron: boolean; sinPadron: 'NO_RETENER' | 'ALICUOTA_DEFECTO';
   percibe: boolean; alicuotaPercepcionDefecto: string; minimoPercepcion: string; sinPadronPercepcion: 'NO_RETENER' | 'ALICUOTA_DEFECTO';
+  regimenSircarRetencion?: string | null; regimenSircarPercepcion?: string | null;
 }
 
 const NOMBRES: Record<string, string> = {
@@ -73,7 +74,7 @@ export function TablaJurisdiccionesIibb({ filas, onCambiar: cambiar }: { filas: 
       <Table withTableBorder striped>
         <Table.Thead>
           <Table.Tr><Table.Th>Jurisdicción</Table.Th><Table.Th>Usa padrón</Table.Th><Table.Th>Si no figura en padrón ni en la ficha</Table.Th><Table.Th>Alícuota por defecto</Table.Th><Table.Th>Mínimo de retención</Table.Th>
-            <Table.Th>Percibe</Table.Th><Table.Th>Percepción sin padrón</Table.Th><Table.Th>Alícuota percepción</Table.Th><Table.Th>Mínimo percepción</Table.Th></Table.Tr>
+            <Table.Th>Percibe</Table.Th><Table.Th>Percepción sin padrón</Table.Th><Table.Th>Alícuota percepción</Table.Th><Table.Th>Mínimo percepción</Table.Th><Table.Th>Régimen SIRCAR ret. / perc.</Table.Th></Table.Tr>
         </Table.Thead>
         <Table.Tbody>
           {filas.map((f) => (
@@ -93,6 +94,10 @@ export function TablaJurisdiccionesIibb({ filas, onCambiar: cambiar }: { filas: 
               </Table.Td>
               <Table.Td><NumberInput size="xs" aria-label="Alícuota de percepción por defecto" decimalSeparator="," value={Number(f.alicuotaPercepcionDefecto ?? 0)} onChange={(v) => cambiar(f.jurisdiccion, { alicuotaPercepcionDefecto: String(v || 0) })} /></Table.Td>
               <Table.Td><NumberInput size="xs" aria-label="Mínimo de percepción" value={Number(f.minimoPercepcion ?? 0)} onChange={(v) => cambiar(f.jurisdiccion, { minimoPercepcion: String(v || 0) })} /></Table.Td>
+              <Table.Td><Group gap={4} wrap="nowrap">
+                <TextInput size="xs" w={60} maxLength={3} aria-label="Régimen SIRCAR de retención" value={f.regimenSircarRetencion ?? ''} onChange={(e) => cambiar(f.jurisdiccion, { regimenSircarRetencion: e.currentTarget.value || null })} />
+                <TextInput size="xs" w={60} maxLength={3} aria-label="Régimen SIRCAR de percepción" value={f.regimenSircarPercepcion ?? ''} onChange={(e) => cambiar(f.jurisdiccion, { regimenSircarPercepcion: e.currentTarget.value || null })} />
+              </Group></Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>

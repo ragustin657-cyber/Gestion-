@@ -1,3 +1,4 @@
+import { JURISDICCIONES_CM } from '@gestion/shared';
 export interface RetencionOP {
   id: string; impuesto: 'GANANCIAS' | 'IIBB' | 'IVA' | 'SUSS' | 'GANANCIAS_EXTERIOR'; jurisdiccion: string | null; regimen: string | null; base: string; alicuota: string;
   importe: string; detalle: Record<string, string>; certificadoNumero: number | null; anulada: boolean;
@@ -22,7 +23,8 @@ export const ESTADOS_OP: Record<string, { etiqueta: string; color: string }> = {
 };
 
 export const numeroOP = (n: number | null) => (n ? `0001-${String(n).padStart(8, '0')}` : '—');
-const JUR: Record<string, string> = { '901': 'CABA', '902': 'Buenos Aires' };
+/** E48: todas las jurisdicciones del Convenio (CABA abreviada). */
+const JUR: Record<string, string> = { ...JURISDICCIONES_CM, '901': 'CABA' };
 /** IVA y SUSS se retienen por factura (E35): la descripción lleva la factura retenida. */
 export const descripcionRetencion = (r: Pick<RetencionOP, 'impuesto' | 'jurisdiccion' | 'regimen'> & { detalle?: Record<string, string> }) =>
   r.impuesto === 'GANANCIAS' ? `Ganancias (régimen ${r.regimen})`

@@ -179,6 +179,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'DJ de Ganancias (sociedades)', ruta: '/impuestos/dj-ganancias', permiso: 'impuestos.ver' },
           { titulo: 'Bienes Personales (acciones)', ruta: '/impuestos/bienes-personales', permiso: 'impuestos.ver' },
           { titulo: 'Socios', ruta: '/impuestos/socios', permiso: 'impuestos.ver' },
+          { titulo: 'Recaudaciones bancarias (SIRCREB)', ruta: '/impuestos/recaudaciones-bancarias', permiso: 'impuestos.ver' },
         ],
       },
     ],

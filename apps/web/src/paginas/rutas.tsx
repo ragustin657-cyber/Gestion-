@@ -62,6 +62,7 @@ import { AjusteImpositivoPage } from '../impuestos/AjusteImpositivoPage';
 import { DjGananciasPage } from '../impuestos/DjGananciasPage';
 import { BienesPersonalesPage } from '../impuestos/BienesPersonalesPage';
 import { SociosPage } from '../impuestos/SociosPage';
+import { RecaudacionesBancariasPage } from '../impuestos/RecaudacionesBancariasPage';
 import { PosicionIibbPage } from '../impuestos/PosicionIibbPage';
 import { IngresosProvinciaPage } from '../impuestos/IngresosProvinciaPage';
 import { PercepcionesPracticadasPage } from '../impuestos/PercepcionesPracticadasPage';
@@ -191,6 +192,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/impuestos/dj-ganancias', elemento: <DjGananciasPage /> },
   { ruta: '/impuestos/bienes-personales', elemento: <BienesPersonalesPage /> },
   { ruta: '/impuestos/socios', elemento: <SociosPage /> },
+  { ruta: '/impuestos/recaudaciones-bancarias', elemento: <RecaudacionesBancariasPage /> },
   { ruta: '/impuestos/iibb', elemento: <PosicionIibbPage /> },
   { ruta: '/impuestos/ingresos-por-provincia', elemento: <IngresosProvinciaPage /> },
   { ruta: '/impuestos/percepciones-practicadas', elemento: <PercepcionesPracticadasPage /> },
