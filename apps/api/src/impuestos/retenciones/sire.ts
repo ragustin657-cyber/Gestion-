@@ -27,8 +27,8 @@ async function retenciones(tx: TxEmpresa, ctx: ContextoGeneracion, impuesto: 'IV
   });
 }
 
-const nombre = (form: string, ctx: ContextoGeneracion) => `SIRE-${form}_${normalizarCuit(ctx.empresa.cuit)}_${ctx.periodo}.txt`;
-const generado = (form: string, ctx: ContextoGeneracion, lineas: string[], total: InstanceType<typeof D>, advertencias: string[]): Generado => {
+export const nombre = (form: string, ctx: ContextoGeneracion) => `SIRE-${form}_${normalizarCuit(ctx.empresa.cuit)}_${ctx.periodo}.txt`;
+export const generado = (form: string, ctx: ContextoGeneracion, lineas: string[], total: InstanceType<typeof D>, advertencias: string[]): Generado => {
   const contenido = archivo(lineas);
   return { nombreArchivo: nombre(form, ctx), contenido, huellaDe: contenido, registros: lineas.length, total, advertencias };
 };

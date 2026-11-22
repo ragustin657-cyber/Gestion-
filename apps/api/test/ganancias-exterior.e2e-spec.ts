@@ -1,9 +1,12 @@
 import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararPagos } from './helpers-pagos';
 
 let numero = 8000;
+const ddmmaaaa = (d: Date) => d.toISOString().slice(0, 10).split('-').reverse().join('/');
+const pos = (l: string, desde: number, hasta: number) => l.slice(desde - 1, hasta);
 interface Ret { impuesto: string; importe: string; base: string; detalle: Record<string, unknown>; certificadoNumero: number | null }
 
 describe('Ganancias a beneficiarios del exterior (E43)', () => {
@@ -123,5 +126,75 @@ describe('Ganancias a beneficiarios del exterior (E43)', () => {
     const [ret] = await prisma.ordenPagoRetencion.findMany({ where: { ordenPagoId: op.id } });
     const pdf = await x.http.get(`/api/pagos/ordenes/${op.id}/certificados/${ret.id}/pdf`);
     expect(pdf.status).toBe(200);
+  });
+
+  describe('F.2003', () => {
+    const lineas = async (x: Awaited<ReturnType<typeof escenario>>, periodo: string) => {
+      const g = await x.http.post('/api/impuestos/presentaciones', { tipo: 'SIRE_GANANCIAS_EXTERIOR', periodo });
+      if (g.status !== 201) return { g, ls: [] as string[] };
+      const b = await request(app.getHttpServer()).get(`/api/impuestos/presentaciones/${g.body.id}/archivo`).set('Authorization', `Bearer ${x.token}`).buffer(true)
+        .parse((res, cb) => { const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p))); });
+      return { g, ls: (b.body as Buffer).toString('latin1').split('\r\n').filter(Boolean) };
+    };
+    const pagada = async (x: Awaited<ReturnType<typeof escenario>>) => {
+      const m = await x.factura(100000);
+      const op = await x.opAprobada([{ movimientoId: m.id, importe: 100000 }]);
+      const pago = await x.pagar(op, [{ tipo: 'TRANSFERENCIA', monedaCodigo: 'ARS', importe: Number(op.netoPagar), cuentaBancariaId: x.ars.id }]);
+      if (pago.status !== 200) throw new Error(JSON.stringify(pago.body));
+      return { op: await prisma.ordenPago.findUniqueOrThrow({ where: { id: op.id } }), version: pago.body.version as number };
+    };
+
+    it('un registro de 415 posiciones por retención, con los datos del beneficiario', async () => {
+      const x = await escenario({ cdi: true });
+      await prisma.tercero.update({ where: { id: x.proveedorId }, data: { tipoPersona: 'F', nacimientoPais: 205, nacimientoFecha: new Date('1980-05-01') } });
+      const { op } = await pagada(x);
+      const { g, ls } = await lineas(x, '202611');
+      expect(g.status).toBe(201);
+      expect(g.body.nombreArchivo).toMatch(/^SIRE-F2003_\d{11}_202611\.txt$/);
+      expect(ls).toHaveLength(1);
+      const [l] = ls;
+      expect(l).toHaveLength(415);
+      const empresa = await prisma.empresa.findUniqueOrThrow({ where: { id: x.empresaId } });
+      const cuit = empresa.cuit.replace(/\D/g, '');
+      const t = await prisma.tercero.findUniqueOrThrow({ where: { id: x.proveedorId } });
+      expect([
+        pos(l, 1, 4), pos(l, 5, 8), pos(l, 9, 18).trim(), pos(l, 19, 29), pos(l, 30, 32), pos(l, 33, 35), pos(l, 36, 46), pos(l, 47, 56), pos(l, 57, 58),
+        pos(l, 69, 84).trimEnd(), pos(l, 85, 98), pos(l, 113, 191).trim(), pos(l, 192, 192), pos(l, 223, 223), pos(l, 224, 227), pos(l, 228, 228),
+        pos(l, 229, 278).trimEnd(), pos(l, 279, 338).trimEnd(), pos(l, 339, 398).trimEnd(), pos(l, 399, 401), pos(l, 402, 402), pos(l, 403, 405), pos(l, 406, 415),
+      ]).toEqual([
+        '2003', '0100', '00000001', cuit, '218', '160', cuit, ddmmaaaa(op.fechaPago!), '06',
+        String(op.numero).padStart(8, '0'), '00000100000.00', '', '0', '1', '0200', '0',
+        'US-123456789', t.razonSocial, '1 Main St, New York', '212', 'F', '205', '01/05/1980',
+      ]);
+      expect(pos(l, 59, 68)).toBe(ddmmaaaa(op.fecha));
+      expect(Number(g.body.total)).toBe(15000);
+    });
+
+    it('faltan datos del exterior del proveedor: error', async () => {
+      const x = await escenario();
+      await pagada(x);
+      await prisma.tercero.update({ where: { id: x.proveedorId }, data: { nif: null, tipoPersona: 'F' } });
+      const { g } = await lineas(x, '202611');
+      expect([g.status, g.body.message]).toEqual([400, `Complete los datos del exterior de: ${(await prisma.tercero.findUniqueOrThrow({ where: { id: x.proveedorId } })).razonSocial}`]);
+    });
+
+    it('anulada el mes siguiente: nota de crédito en el F.2003 de la anulación', async () => {
+      const x = await escenario();
+      const { op, version } = await pagada(x);
+      await prisma.ordenPago.update({ where: { id: op.id }, data: { fechaPago: new Date('2026-10-15') } });
+      const antes = (await lineas(x, '202610')).ls;
+      expect(antes).toHaveLength(1);
+      const [ret] = await prisma.ordenPagoRetencion.findMany({ where: { ordenPagoId: op.id } });
+      expect((await x.http.patch(`/api/pagos/retenciones/${ret.id}/certificado-sire`, { certificadoSire: 'SIRE-EXT-1' })).status).toBe(200);
+      expect((await x.http.post(`/api/pagos/ordenes/${op.id}/anular`, { version, motivo: 'Error' })).status).toBe(200);
+      expect((await lineas(x, '202610')).ls).toEqual(antes);
+      const { g, ls } = await lineas(x, '202611');
+      expect(ls).toHaveLength(1);
+      const [n] = ls;
+      expect(n).toHaveLength(415);
+      expect([pos(n, 47, 56), pos(n, 57, 58), pos(n, 59, 68), pos(n, 69, 84).trimEnd(), pos(n, 85, 98), pos(n, 113, 137).trim(), pos(n, 138, 147), pos(n, 148, 161), pos(n, 162, 191).trimEnd(), pos(n, 192, 192)])
+        .toEqual(['06/11/2026', '03', '06/11/2026', `00001-${String(op.numero).padStart(8, '0')}`, '00000100000.00', 'SIRE-EXT-1', '15/10/2026', '00000031500.00', 'Anulacion de la orden de pago', '0']);
+      expect(Number(g.body.total)).toBe(-31500);
+    });
   });
 });
