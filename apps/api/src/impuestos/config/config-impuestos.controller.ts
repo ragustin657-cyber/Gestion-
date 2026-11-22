@@ -27,6 +27,8 @@ const esquema = z.object({
   prorrateoExentasIniciales: z.number().optional(),
   // Motivo de anulación del F.2005 (E43; tabla del SIRE, a verificar)
   sireMotivoAnulacion: z.number().int().min(1).max(9).optional(),
+  // Tope de costo de automóviles para la amortización impositiva (E44)
+  topeAutomovilesCosto: z.number().min(0, 'No puede ser negativo').optional(),
 });
 
 @Controller('impuestos/config')

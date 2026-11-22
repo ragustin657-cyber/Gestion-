@@ -1664,6 +1664,8 @@ enum PeriodicidadArba {
 model ConfigImpuestos {
   id                     String           @id @default(uuid()) @db.Uuid
   empresaId              String           @unique @db.Uuid
+  /// Tope de costo de automóviles para la amortización impositiva (art. 88 inc. l; E44, a verificar)
+  topeAutomovilesCosto   Decimal          @default(20000) @db.Decimal(18, 2)
   arbaActividad          String           @default("6")
   arbaSucursal           Int              @default(1)
   arbaPeriodicidad       PeriodicidadArba @default(MENSUAL)
@@ -2077,6 +2079,13 @@ enum EstadoProcesoAmortizacion {
   ANULADO
 }
 
+enum TipoImpositivoBien {
+  MUEBLE
+  INMUEBLE
+  AUTOMOVIL
+  NO_AMORTIZABLE
+}
+
 model RubroBienUso {
   id                   String    @id @default(uuid()) @db.Uuid
   empresaId            String    @db.Uuid
@@ -2086,6 +2095,9 @@ model RubroBienUso {
   cuentaGastoId        String    @db.Uuid
   vidaUtilMeses        Int
   activo               Boolean   @default(true)
+  /// Amortización impositiva (E44): vida útil en años (vacío: la contable redondeada) y tipo
+  vidaUtilImpositivaAnios Int?
+  tipoImpositivo       TipoImpositivoBien @default(MUEBLE)
   bienes               BienUso[]
 
   @@unique([empresaId, nombre])
@@ -2115,6 +2127,9 @@ model BienUso {
   creadoPor                  String
   creadoEn                   DateTime           @default(now())
   amortizaciones             AmortizacionBien[]
+  /// Amortización impositiva (E44): vida útil en años (pisa al rubro) y terreno de los inmuebles
+  vidaUtilImpositivaAnios    Int?
+  valorTerreno               Decimal            @default(0) @db.Decimal(18, 2)
 
   @@unique([empresaId, numero])
   @@index([empresaId, comprobanteCompraRenglonId])

@@ -3,7 +3,7 @@ import { RequiereAlguno, RequierePermiso } from '../auth/requiere-permiso.decora
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { BajasService } from './bajas.service';
 import { BienesService } from './bienes.service';
-import { DatosBaja, DatosBien, EdicionBien, esquemaBaja, esquemaBien, esquemaEdicionBien } from './dto';
+import { DatosBaja, DatosBien, EdicionBien, esquemaBaja, esquemaBien, esquemaEdicionBien, esquemaImpositivoBien, ImpositivoBien } from './dto';
 
 @Controller('bienes-uso')
 export class BienesController {
@@ -31,6 +31,12 @@ export class BienesController {
   @RequierePermiso('bienes.gestionar')
   modificar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaEdicionBien)) d: EdicionBien) {
     return this.bienes.modificar(id, d);
+  }
+
+  @Put(':id/impositivo')
+  @RequierePermiso('bienes.gestionar')
+  impositivo(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaImpositivoBien)) d: ImpositivoBien) {
+    return this.bienes.impositivo(id, d);
   }
 
   @Post(':id/baja')

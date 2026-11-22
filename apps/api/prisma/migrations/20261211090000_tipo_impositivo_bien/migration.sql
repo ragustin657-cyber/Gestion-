@@ -1,0 +1,2 @@
+-- CreateEnum
+CREATE TYPE "TipoImpositivoBien" AS ENUM ('MUEBLE', 'INMUEBLE', 'AUTOMOVIL', 'NO_AMORTIZABLE');
