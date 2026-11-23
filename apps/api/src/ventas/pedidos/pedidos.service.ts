@@ -65,7 +65,8 @@ export class PedidosService {
     else if (vendedorId && !(await tx.vendedor.findFirst({ where: { id: vendedorId, activo: true } }))) vendedorId = null;
     const ids = d.renglones.map((r) => r.articuloId).filter((x): x is string => !!x);
     if (ids.length && (await tx.articulo.count({ where: { id: { in: ids } } })) !== new Set(ids).size) throw new BadRequestException('Artículo inexistente');
-    const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
+    const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta, bonificacionPct: String(r.bonificacionPct ?? 0) })), letra);
+    if (!new D(calc.total).gt(0)) throw new BadRequestException('El total del comprobante debe ser mayor a cero');
     const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
     return {
       datos: {
@@ -75,7 +76,7 @@ export class PedidosService {
       },
       renglones: d.renglones.map((r, i) => ({
         empresaId: this.tenant.empresaId, orden: i, articuloId: r.articuloId ?? null, descripcion: r.descripcion, cantidad: r.cantidad, precioUnitario: r.precioUnitario,
-        alicuota: String(r.alicuota), neto: calc.renglones[i].neto, iva: calc.renglones[i].iva,
+        alicuota: String(r.alicuota), bonificacionPct: r.bonificacionPct ?? 0, neto: calc.renglones[i].neto, iva: calc.renglones[i].iva,
       })),
     };
   }
@@ -185,7 +186,7 @@ export class PedidosService {
     const contenido = await pdfDocumento({
       titulo, numero: String(p.numero).padStart(8, '0'), empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), domicilio: empresa.domicilio },
       cliente: { razonSocial: cliente.razonSocial, cuit: cliente.cuit }, fecha: fAR(p.fecha)!, validoHasta: fAR(p.validoHasta), moneda: p.monedaCodigo,
-      renglones: renglonesPdf(p.letra, p.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), precioUnitario: new D(r.precioUnitario).toString(), neto: new D(r.neto).toString(), iva: new D(r.iva).toString() }))),
+      renglones: renglonesPdf(p.letra, p.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), precioUnitario: new D(r.precioUnitario).toString(), alicuota: r.alicuota, bonificacionPct: new D(r.bonificacionPct).toString(), neto: new D(r.neto).toString(), iva: new D(r.iva).toString() }))),
       totales: { neto: new D(p.netoGravado).plus(p.noGravado).plus(p.exento).toString(), iva: p.iva.toString(), total: p.total.toString() }, observaciones: p.observaciones,
     });
     return { nombre: `${titulo.toLowerCase().replace(/ /g, '-')}-${p.numero}.pdf`, contenido };

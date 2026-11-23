@@ -34,7 +34,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 13. ~~**Factura de crédito electrónica MiPyME (FCE).**~~ Hecho en la entrega 50 (emisión, obligación del cliente, estado de las emitidas, aceptación y rechazo de las recibidas, control con «Mis Comprobantes»). Quedan la negociación y cesión, y informar la cancelación al registro.
 14. **Factura de exportación (E).**
 15. **Facturación por lotes.**
-16. **Descuentos y bonificaciones** en la factura, por renglón y por cantidad.
+16. ~~**Descuentos y bonificaciones** en la factura, por renglón y por cantidad.~~ Hecho en la entrega 51: % de bonificación por renglón (pedido y comprobante) y % de descuento general en el comprobante. Quedan los descuentos por cantidad automáticos (escalas por artículo o lista), el tope por usuario, el descuento en importe fijo y el de pronto pago.
 17. **Listas de precios derivadas y precio calculado desde el costo.**
 18. **COT de ARBA** (código de operación de traslado para los remitos).
 19. **Remitos de devolución** con circuito propio.

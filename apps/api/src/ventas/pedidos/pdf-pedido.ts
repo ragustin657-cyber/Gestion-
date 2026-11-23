@@ -10,18 +10,24 @@ export interface DatosPdfPedido {
   validoHasta?: string | null;
   moneda: string;
   /** Sin precios (remito). */
-  renglones: { descripcion: string; cantidad: string; precioUnitario?: string; importe?: string }[];
+  renglones: { descripcion: string; cantidad: string; precioUnitario?: string; bonificacion?: string; importe?: string }[];
   totales?: { neto: string; iva: string; total: string };
   observaciones?: string | null;
   copias?: string[];
 }
 
 /** Renglones del PDF: en letra B (y C) con IVA incluido, como la factura; en A, netos. */
-export function renglonesPdf(letra: string, renglones: { descripcion: string; cantidad: string; precioUnitario: string; neto: string; iva: string }[]) {
+export function renglonesPdf(letra: string, renglones: { descripcion: string; cantidad: string; precioUnitario: string; neto: string; iva: string; alicuota?: string; bonificacionPct?: string }[]) {
   return renglones.map((r) => {
-    if (letra === 'A') return { descripcion: r.descripcion, cantidad: r.cantidad, precioUnitario: r.precioUnitario, importe: r.neto };
+    // E51: con bonificación el precio es el de lista (con IVA en B y C) y va el %
+    const bonif = r.bonificacionPct && Number(r.bonificacionPct) ? { bonificacion: String(Number(r.bonificacionPct)) } : {};
+    if (letra === 'A') return { descripcion: r.descripcion, cantidad: r.cantidad, precioUnitario: r.precioUnitario, ...bonif, importe: r.neto };
     const importe = Number(r.neto) + Number(r.iva);
-    return { descripcion: r.descripcion, cantidad: r.cantidad, precioUnitario: String(Number((importe / Number(r.cantidad)).toFixed(4))), importe: importe.toFixed(2) };
+    const gravado = r.alicuota !== undefined && r.alicuota !== 'NO_GRAVADO' && r.alicuota !== 'EXENTO';
+    const precio = bonif.bonificacion !== undefined
+      ? Number(r.precioUnitario) * (gravado && letra === 'B' ? 1 + Number(r.alicuota) / 100 : 1)
+      : importe / Number(r.cantidad);
+    return { descripcion: r.descripcion, cantidad: r.cantidad, precioUnitario: String(Number(precio.toFixed(4))), ...bonif, importe: importe.toFixed(2) };
   });
 }
 
@@ -45,9 +51,11 @@ export function pdfDocumento(d: DatosPdfPedido): Promise<Buffer> {
       doc.font('Helvetica-Bold').fontSize(9);
       doc.text('Descripción', 40, 125).text('Cantidad', 330, 125, { width: 60, align: 'right' });
       if (conPrecios) doc.text(`Precio (${d.moneda})`, 395, 125, { width: 75, align: 'right' }).text('Importe', 475, 125, { width: 80, align: 'right' });
+      if (conBonif) doc.text('Bonif. %', 280, 125, { width: 45, align: 'right' });
       doc.font('Helvetica');
     };
     const conPrecios = d.renglones.some((r) => r.precioUnitario);
+    const conBonif = d.renglones.some((r) => r.bonificacion);
     // Lo que va al pie (totales, observaciones o firma) no puede pisar los renglones: salto antes de 700
     const LIMITE = 700;
     copias.forEach((copia, i) => {
@@ -57,7 +65,8 @@ export function pdfDocumento(d: DatosPdfPedido): Promise<Buffer> {
       for (const r of d.renglones) {
         y += 16;
         if (y > LIMITE) { doc.addPage(); encabezado(copia); y = 141; }
-        doc.text(r.descripcion, 40, y, { width: 285 }).text(r.cantidad, 330, y, { width: 60, align: 'right' });
+        doc.text(r.descripcion, 40, y, { width: conBonif ? 235 : 285 }).text(r.cantidad, 330, y, { width: 60, align: 'right' });
+        if (conBonif && r.bonificacion) doc.text(r.bonificacion.replace('.', ','), 280, y, { width: 45, align: 'right' });
         if (conPrecios) doc.text(importeAR(r.precioUnitario ?? 0), 395, y, { width: 75, align: 'right' }).text(importeAR(r.importe ?? 0), 475, y, { width: 80, align: 'right' });
       }
       if (y > LIMITE - 40) { doc.addPage(); encabezado(copia); y = 141; }

@@ -107,7 +107,8 @@ export class ComprobantesVentaService {
     // Venta de bienes de uso (spec E14 §5): el neto va al resultado por venta y la baja se registra al autorizar
     await this.bajas.validarVenta(tx, { id, tipo: d.tipo, fecha: d.fecha }, d.renglones);
     if (letra === 'A' && tercero.tipoDocumento !== 'CUIT') throw new BadRequestException('El cliente no tiene CUIT válido para una factura A');
-    const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
+    const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta, bonificacionPct: String(r.bonificacionPct ?? 0) })), letra, String(d.descuentoPct ?? 0));
+    if (!new D(calc.total).gt(0)) throw new BadRequestException('El total del comprobante debe ser mayor a cero');
     const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
     // Percepciones practicadas (E39): el total las incluye
     const perc = await this.percepciones.calcular(tx, {
@@ -127,7 +128,7 @@ export class ComprobantesVentaService {
       if (r.articuloId && !articulos.some((a) => a.id === r.articuloId)) throw new BadRequestException('Artículo inexistente');
       const o = origenes[i];
       return {
-        empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota),
+        empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota), bonificacionPct: r.bonificacionPct ?? 0,
         neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, bienUsoId: r.bienUsoId ?? null,
         cuentaContableId: opciones.cuentaContableId ?? (r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas)),
       };
@@ -148,6 +149,7 @@ export class ComprobantesVentaService {
         // E50: en la FCE el vencimiento del pago es el del comprobante (factura); las notas no lo llevan
         fechaVencimientoPago: d.fce ? (d.tipo === 'FACTURA' ? d.fechaVencimiento : null) : d.concepto === 'PRODUCTOS' ? null : d.fechaVencimientoPago,
         fce: !!d.fce, transferenciaFce: d.fce && d.tipo === 'FACTURA' ? (d.transferenciaFce ?? (await tx.configArca.findFirst())?.transferenciaFce ?? 'SCA') : null, anulacionFce: d.fce && d.tipo !== 'FACTURA' ? !!d.anulacionFce : null,
+        descuentoPct: d.descuentoPct ?? 0,
         monedaCodigo: d.monedaCodigo, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total, percepciones: perc.total,
         totalPesos: new D(total).mul(cot).toDecimalPlaces(2), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId, aplicarAAsociado: d.aplicarAAsociado,
         vendedorId: vendedor.vendedorId, comisionPct: vendedor.comisionPct,
@@ -256,8 +258,19 @@ export class ComprobantesVentaService {
     const fce = c.fce
       ? { cbu: cuentaFce?.cbu ?? null, transferencia: c.tipo === 'FACTURA' ? (c.transferenciaFce ?? config?.transferenciaFce ?? 'SCA') : null, anulacion: c.tipo === 'FACTURA' ? null : !!c.anulacionFce }
       : null;
-    const importesB = importesConIva(c.renglones.map((r) => ({ neto: r.neto.toString(), iva: r.iva.toString(), alicuota: r.alicuota })), c.ivas.map((x) => ({ alicuota: x.alicuota.toString(), importe: x.importe.toString() })));
+    // E51: importes de antes del descuento general (calculados al mostrar); el neto guardado es el final
+    const hayDescuento = !c.descuentoPct.isZero();
+    const sinDesc = calcularVenta(c.renglones.map((r) => ({ cantidad: r.cantidad.toString(), precioUnitario: r.precioUnitario.toString(), alicuota: (r.alicuota === 'NO_GRAVADO' || r.alicuota === 'EXENTO' ? r.alicuota : Number(r.alicuota)) as AlicuotaVenta, bonificacionPct: r.bonificacionPct.toString() })), letra);
+    const importesB = hayDescuento
+      ? importesConIva(c.renglones.map((r, i) => ({ neto: sinDesc.renglones[i].neto, iva: sinDesc.renglones[i].iva, alicuota: r.alicuota })), sinDesc.ivas.map((x) => ({ alicuota: String(x.alicuota), importe: x.importe })))
+      : importesConIva(c.renglones.map((r) => ({ neto: r.neto.toString(), iva: r.iva.toString(), alicuota: r.alicuota })), c.ivas.map((x) => ({ alicuota: x.alicuota.toString(), importe: x.importe.toString() })));
     const totales: [string, string][] = [];
+    if (hayDescuento) {
+      const pct = `${Number(c.descuentoPct).toLocaleString('es-AR', { maximumFractionDigits: 2 })} %`;
+      const subtotal = !a && letra === 'B' ? importesB.reduce((s, x) => s.plus(x), new D(0)) : new D(sinDesc.subtotal);
+      const descuento = !a && letra === 'B' ? subtotal.minus(c.total.minus(c.percepciones)) : subtotal.minus(c.renglones.reduce((x, r) => x.plus(r.neto), new D(0)));
+      totales.push(['Subtotal', importeAR(subtotal.toString())], [`Descuento general ${pct}`, `-${importeAR(descuento.toString())}`]);
+    }
     if (a) {
       totales.push(['Neto gravado', importeAR(c.netoGravado.toString())]);
       for (const iva of c.ivas) totales.push([`IVA ${Number(iva.alicuota).toLocaleString('es-AR')}%`, importeAR(iva.importe.toString())]);
@@ -284,7 +297,8 @@ export class ComprobantesVentaService {
           descripcion: r.descripcion, cantidad: Number(r.cantidad).toLocaleString('es-AR', { maximumFractionDigits: 4 }),
           precio: Number(r.precioUnitario.mul(factor).toDecimalPlaces(2)).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
           alicuota: r.alicuota === 'NO_GRAVADO' ? 'No grav.' : r.alicuota === 'EXENTO' ? 'Exento' : `${Number(r.alicuota).toLocaleString('es-AR')}%`,
-          importe: importeAR(a ? r.neto.toString() : conIva ? importesB[i] : r.neto.plus(r.iva).toString()),
+          importe: importeAR(conIva ? importesB[i] : hayDescuento ? sinDesc.renglones[i].importe : a ? r.neto.toString() : r.neto.plus(r.iva).toString()),
+          ...(r.bonificacionPct.isZero() ? {} : { bonificacion: Number(r.bonificacionPct).toLocaleString('es-AR', { maximumFractionDigits: 2 }) }),
         };
       }),
       totales, total: importeAR(c.total.toString()), cae: c.cae, caeVencimiento: fechaAR(c.caeVencimiento!),

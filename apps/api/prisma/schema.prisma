@@ -1558,6 +1558,8 @@ model ComprobanteVenta {
   iva                   Decimal                   @db.Decimal(18, 2)
   total                 Decimal                   @db.Decimal(18, 2)
   totalPesos            Decimal                   @db.Decimal(18, 2)
+  /// E51: % de descuento general (repartido en los netos de los renglones)
+  descuentoPct          Decimal                   @default(0) @db.Decimal(5, 2)
   estado                EstadoComprobanteVenta    @default(PENDIENTE_CAE)
   emisionEnCurso        DateTime?
   numeroReservado       Int?
@@ -1602,6 +1604,8 @@ model ComprobanteVentaRenglon {
   descripcion      String
   cantidad         Decimal          @db.Decimal(18, 4)
   precioUnitario   Decimal          @db.Decimal(18, 4)
+  /// E51: % de bonificación del renglón (el precio unitario es el de lista)
+  bonificacionPct  Decimal          @default(0) @db.Decimal(5, 2)
   alicuota         String
   neto             Decimal          @db.Decimal(18, 2)
   iva              Decimal          @db.Decimal(18, 2)
@@ -2063,6 +2067,8 @@ model PedidoVentaRenglon {
   descripcion       String
   cantidad          Decimal     @db.Decimal(18, 4)
   precioUnitario    Decimal     @db.Decimal(18, 4)
+  /// E51: % de bonificación del renglón
+  bonificacionPct   Decimal     @default(0) @db.Decimal(5, 2)
   alicuota          String
   neto              Decimal     @db.Decimal(18, 2)
   iva               Decimal     @db.Decimal(18, 2)
