@@ -133,12 +133,14 @@ export class ComprobantesService {
     if (!prov || !prov.esProveedor || !prov.activo) throw new BadRequestException('El tercero no es un proveedor activo');
     const empresa = await tx.empresa.findUniqueOrThrow({ where: { id: empresaId } });
     const letra = d.tipo === 'TICKET' ? null : (d.letra as Letra);
+    const fce = !!d.fce;
+    if (fce && (!letra || letra === 'M')) throw new BadRequestException('La factura de crédito MiPyME es una factura, nota de débito o de crédito A, B o C');
     if (letra && !letrasValidas(empresa.condicionIva as CondicionIva, prov.condicionIva as CondicionIva).includes(letra))
       throw new BadRequestException(`La letra ${letra} no corresponde para este proveedor`);
 
     // 2. Duplicado (la restricción única cubre la carrera)
     const dup = await tx.comprobanteCompra.findFirst({
-      where: { terceroId: d.terceroId, tipo: d.tipo, letra: letra ?? '', puntoVenta: d.puntoVenta, numero: d.numero },
+      where: { terceroId: d.terceroId, tipo: d.tipo, letra: letra ?? '', fce, puntoVenta: d.puntoVenta, numero: d.numero },
     });
     if (dup) throw new ConflictException(DUPLICADO);
 
@@ -278,7 +280,7 @@ export class ComprobantesService {
     const fechaVencimiento = d.fechaVencimiento ?? sumarDias(d.fechaEmision, prov.diasPago);
     const comp = await tx.comprobanteCompra.create({
       data: {
-        empresaId, numeroInterno, terceroId: d.terceroId, tipo: d.tipo, letra: letra ?? '', puntoVenta: d.puntoVenta, numero: d.numero,
+        empresaId, numeroInterno, terceroId: d.terceroId, tipo: d.tipo, letra: letra ?? '', fce, puntoVenta: d.puntoVenta, numero: d.numero,
         fechaEmision: d.fechaEmision, fechaContable: d.fechaContable, fechaVencimiento, monedaCodigo: d.monedaCodigo, cotizacion,
         netoGravado: tot.netoGravado, iva: tot.iva, percepcionIva: d.percepcionIva, destinoCreditoIva: d.destinoCreditoIva ?? (await this.destinoDelAsociado(tx, d.comprobanteAsociadoId)), impuestosInternos: d.impuestosInternos,
         noGravado: d.noGravado, exento: d.exento, total, totalPesos, comprobanteAsociadoId: d.comprobanteAsociadoId ?? null, depositoId: d.depositoId ?? null,

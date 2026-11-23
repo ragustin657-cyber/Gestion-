@@ -164,4 +164,19 @@ describe('intereses: liquidación', () => {
     const ids = (await x.grupos()).flatMap((g) => g.renglones.map((r) => r.comprobanteId));
     expect(ids).not.toContain(n.id);
   });
+
+  it('revisión E50: la factura vencida más vieja es una FCE: la nota de intereses es FCE', async () => {
+    const x = await escenario();
+    const { ArcaSimuladoFce } = await import('../src/arca/arca-simulado-fce');
+    const banco = (await x.http.post('/api/tesoreria/bancos', { nombre: 'Banco Nación' })).body;
+    const cuenta = (await x.http.post('/api/tesoreria/cuentas-bancarias', { bancoId: banco.id, numero: '1', monedaCodigo: 'ARS', cuentaContableId: await x.cuenta('1.1.01.002'), cbu: '2850590940090418135201' })).body;
+    await x.http.put('/api/arca/config', { mipyme: true, cuentaBancariaFceId: cuenta.id });
+    ArcaSimuladoFce.obligar(x.empresaId, '20172543597', '1.00');
+    const fce = await x.octubre({ fce: true });
+    const r = await x.liquidar();
+    expect([r.status, r.body.message]).toEqual([201, undefined]);
+    const nd = await prisma.comprobanteVenta.findUniqueOrThrow({ where: { id: (r.body.notas as Nota[])[0].id } });
+    expect([nd.comprobanteAsociadoId, nd.fce, nd.estado]).toEqual([fce.id, true, 'AUTORIZADO']);
+  });
 });
+

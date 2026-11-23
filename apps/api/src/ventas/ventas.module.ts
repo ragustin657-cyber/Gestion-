@@ -1,3 +1,6 @@
+import { FceRegistroService } from './fce/registro.service';
+import { FceComprasController, FceVentasController } from './fce/fce.controller';
+import { ObligacionFceService } from './fce/obligacion.service';
 import { MailCobranzasService } from './cobranzas/mail.service';
 import { CorreoModule } from '../correo/correo.module';
 import { LiquidacionesInteresesService } from './intereses/liquidaciones.service';
@@ -35,8 +38,8 @@ import { DatosVentasController } from './consultas/datos-ventas.controller';
 
 @Module({
   imports: [ArcaModule, SueldosModule, CorreoModule],
-  controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController, CobranzasController, InteresesController],
-  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, PercepcionesVentaService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService, ConfigInteresesService, InteresesCalculoService, LiquidacionesInteresesService, MailCobranzasService],
+  controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController, CobranzasController, InteresesController, FceVentasController, FceComprasController],
+  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, PercepcionesVentaService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService, ConfigInteresesService, InteresesCalculoService, LiquidacionesInteresesService, MailCobranzasService, ObligacionFceService, FceRegistroService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}

@@ -2,7 +2,8 @@ import { BadRequestException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 export interface FilaArca {
-  fecha: string; tipo: number; puntoVenta: number; numero: number; documento: string;
+  /** `tipo` es el código base (1…13); `fce` marca los 201…213 (E50). */
+  fecha: string; tipo: number; fce: boolean; puntoVenta: number; numero: number; documento: string;
   netoGravado: string | null; iva: string | null; total: string; moneda: string | null; tipoCambio: string | null;
 }
 
@@ -82,8 +83,9 @@ export function leerMisComprobantes(buf: Buffer): { filas: FilaArca[] } {
   const filas = lineas.slice(1).map((l) => {
     const fs = campos(l, sep);
     const neto = valor(fs, 'netoGravado'), iva = valor(fs, 'iva'), tc = valor(fs, 'tipoCambio');
+    const codigo = Number(/^\s*(\d+)/.exec(valor(fs, 'tipo')!)?.[1] ?? NaN);
     return {
-      fecha: fecha(valor(fs, 'fecha')!), tipo: tipoBase(Number(/^\s*(\d+)/.exec(valor(fs, 'tipo')!)?.[1] ?? NaN)), puntoVenta: Number(valor(fs, 'puntoVenta')),
+      fecha: fecha(valor(fs, 'fecha')!), tipo: tipoBase(codigo), fce: codigo >= 201 && codigo <= 213, puntoVenta: Number(valor(fs, 'puntoVenta')),
       numero: Number(valor(fs, 'numero')), documento: valor(fs, 'documento')!.replace(/\D/g, ''), netoGravado: neto === null ? null : importe(neto),
       iva: iva === null ? null : importe(iva), total: importe(valor(fs, 'total')!) as string, moneda: valor(fs, 'moneda'), tipoCambio: tc === null || tc === '' ? null : importe(tc),
     };

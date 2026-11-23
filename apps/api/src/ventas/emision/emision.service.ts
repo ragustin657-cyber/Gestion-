@@ -1,3 +1,5 @@
+import { FceRegistroService } from '../fce/registro.service';
+import { Obligacion, ObligacionFceService } from '../fce/obligacion.service';
 import { verificarMesesAbiertos } from '../../impuestos/posicion-iva/bloqueo';
 import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadGatewayException, BadRequestException, ConflictException, Injectable } from '@nestjs/common';
@@ -43,6 +45,8 @@ export class EmisionService {
     private readonly origenes: OrigenesVenta,
     private readonly bajas: BajasService,
     private readonly percepciones: PercepcionesVentaService,
+    private readonly obligacionFce: ObligacionFceService,
+    private readonly registroFce: FceRegistroService,
   ) {}
 
   registrarAlAutorizar(f: AlAutorizar) {
@@ -56,7 +60,10 @@ export class EmisionService {
   async emitir(id: string) {
     const cliente = await this.arca.cliente();
     const { ambiente } = await this.arca.obtener();
-    const r = await this.reservar(id, ambiente);
+    // E50: la obligación de FCE se consulta fuera de la transacción (llama a ARCA); la regla se aplica con el total definitivo
+    const previo = await this.tenant.db.comprobanteVenta.findUnique({ where: { id } });
+    const obligacion = previo && previo.tipo === 'FACTURA' && previo.estado !== 'AUTORIZADO' ? await this.obligacionFce.obligacion(previo.terceroId, previo.fecha.toISOString().slice(0, 10)) : null;
+    const r = await this.reservar(id, ambiente, obligacion);
     let resultado: ResultadoCae;
     let numero: number;
     try {
@@ -103,7 +110,7 @@ export class EmisionService {
   }
 
   /** Paso 1: bloquea el comprobante y el talonario ARCA, valida y marca la emisión en curso. */
-  private reservar(id: string, ambiente: AmbienteArca) {
+  private reservar(id: string, ambiente: AmbienteArca, obligacion: Obligacion | null = null) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
       await this.comprobantes.obtener(id, tx);
@@ -115,13 +122,20 @@ export class EmisionService {
       // Dos NC de la misma factura se serializan (aunque sean de otro punto de venta): la reversión ve a la otra (revisión E39)
       if (leido.tipo === 'NOTA_CREDITO' && leido.comprobanteAsociadoId) await bloquear(tx, 'ComprobanteVenta', empresaId, [leido.comprobanteAsociadoId]);
       const c = leido.numeroReservado === null ? await this.recalcularPercepciones(tx, leido) : leido;
-      const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta);
+      const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
+      // Revisión E50: con un número ya reservado el reintento repite lo que se mandó (puede estar autorizado en ARCA): no se vuelven a aplicar las reglas de FCE
+      const reintento = c.numeroReservado !== null;
+      if (c.fce && !reintento) await this.validarFce(tx, c);
+      if (obligacion && c.tipo === 'FACTURA' && !reintento) {
+        const error = ObligacionFceService.errorEmision(obligacion, c.fce, c.totalPesos);
+        if (error) throw new BadRequestException(error);
+      }
       const clave = `ARCA-${ambiente}-${tipoArca}`;
       await tx.$executeRaw`INSERT INTO "Talonario" ("id", "empresaId", "tipoComprobante", "puntoVenta", "ultimoNumero")
         VALUES (gen_random_uuid(), ${empresaId}::uuid, ${clave}, ${c.puntoVenta}, 0) ON CONFLICT ("empresaId", "tipoComprobante", "puntoVenta") DO NOTHING`;
       const talonario = await tx.talonario.findFirstOrThrow({ where: { tipoComprobante: clave, puntoVenta: c.puntoVenta } });
       await bloquear(tx, 'Talonario', empresaId, [talonario.id]);
-      const otras = await tx.comprobanteVenta.findMany({ where: { puntoVenta: c.puntoVenta, tipo: c.tipo, letra: c.letra, emisionEnCurso: { not: null } } });
+      const otras = await tx.comprobanteVenta.findMany({ where: { puntoVenta: c.puntoVenta, tipo: c.tipo, letra: c.letra, fce: c.fce, emisionEnCurso: { not: null } } });
       if (c.numeroReservado !== null && c.ambiente !== ambiente) throw new BadRequestException(`El comprobante tiene una emisión sin confirmar en ${c.ambiente}: vuelva a ese ambiente para resolverla`);
       if (otras.some(emisionEnCurso)) throw new ConflictException(OTRA_EN_CURSO);
       if (c.tipo === 'NOTA_CREDITO') {
@@ -161,7 +175,7 @@ export class EmisionService {
     const asociados = [];
     if (c.comprobanteAsociadoId) {
       const a = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: c.comprobanteAsociadoId } });
-      asociados.push({ tipo: cbteTipo(a.tipo, a.letra as LetraVenta), ptoVta: a.puntoVenta, nro: a.numero!, cuit: normalizarCuit(empresa.cuit), fecha: yyyymmdd(a.fecha) });
+      asociados.push({ tipo: cbteTipo(a.tipo, a.letra as LetraVenta, a.fce), ptoVta: a.puntoVenta, nro: a.numero!, cuit: normalizarCuit(empresa.cuit), fecha: yyyymmdd(a.fecha) });
     }
     const servicio = c.concepto !== 'PRODUCTOS';
     return {
@@ -169,7 +183,9 @@ export class EmisionService {
       docNro: c.tercero.tipoDocumento === 'OTRO' ? '0' : c.tercero.cuit, condicionIvaReceptor: condicionIvaReceptorArca(c.tercero.condicionIva), fecha: yyyymmdd(c.fecha),
       impTotal: c.total.toFixed(2), impTotConc: letraC ? '0.00' : c.noGravado.toFixed(2), impNeto: letraC ? c.total.toFixed(2) : c.netoGravado.toFixed(2),
       impOpEx: letraC ? '0.00' : c.exento.toFixed(2), impIva: letraC ? '0.00' : c.iva.toFixed(2), monId: monedaArca(c.monedaCodigo as 'ARS' | 'USD'), monCotiz: c.cotizacion.toString(),
-      ...(servicio ? { fchServDesde: yyyymmdd(c.fechaServicioDesde!), fchServHasta: yyyymmdd(c.fechaServicioHasta!), fchVtoPago: yyyymmdd(c.fechaVencimientoPago!) } : {}),
+      ...(servicio ? { fchServDesde: yyyymmdd(c.fechaServicioDesde!), fchServHasta: yyyymmdd(c.fechaServicioHasta!) } : {}),
+      ...(c.fechaVencimientoPago && (servicio || (c.fce && c.tipo === 'FACTURA')) ? { fchVtoPago: yyyymmdd(c.fechaVencimientoPago) } : {}),
+      ...(c.fce ? { opcionales: await this.opcionalesFce(tx, c) } : {}),
       iva: letraC ? [] : ivas.map((x) => ({ id: alicuotaArca(Number(x.alicuota) as AlicuotaIva), baseImp: x.base.toFixed(2), importe: x.importe.toFixed(2) })),
       asociados,
       // Percepciones (E39): Id 7 IIBB, 6 IVA (tabla FEParamGetTiposTributos)
@@ -180,6 +196,24 @@ export class EmisionService {
     };
   }
 
+  /** E50: la empresa tiene que ser MiPyME y tener la cuenta con CBU de la FCE. */
+  private async validarFce(tx: TxEmpresa, c: ComprobanteVenta) {
+    const conf = await tx.configArca.findFirst();
+    if (!conf?.mipyme) throw new BadRequestException('La empresa no está marcada como MiPyME: no puede emitir factura de crédito');
+    const cuenta = conf.cuentaBancariaFceId ? await tx.cuentaBancaria.findUnique({ where: { id: conf.cuentaBancariaFceId } }) : null;
+    if (c.tipo === 'FACTURA' && !cuenta?.cbu) throw new BadRequestException('Configure la cuenta bancaria (CBU) para la factura de crédito');
+    if (c.tipo !== 'FACTURA' && c.anulacionFce && c.comprobanteAsociadoId) await this.registroFce.verificarAnulable(tx, c.comprobanteAsociadoId);
+    if (c.tipo === 'FACTURA' && c.fechaVencimientoPago && c.fechaVencimientoPago < c.fecha) throw new BadRequestException('La fecha de vencimiento del pago no puede ser anterior a la fecha del comprobante');
+  }
+
+  /** E50: opcionales de la FCE (2101 CBU y 27 transferencia en la factura; 22 anulación en las notas). */
+  private async opcionalesFce(tx: TxEmpresa, c: ComprobanteVenta): Promise<{ id: string; valor: string }[]> {
+    if (c.tipo !== 'FACTURA') return [{ id: '22', valor: c.anulacionFce ? 'S' : 'N' }];
+    const conf = await tx.configArca.findFirstOrThrow();
+    const cuenta = await tx.cuentaBancaria.findUniqueOrThrow({ where: { id: conf.cuentaBancariaFceId! } });
+    return [{ id: '2101', valor: cuenta.cbu!.replace(/\D/g, '') }, { id: '27', valor: c.transferenciaFce ?? conf.transferenciaFce }];
+  }
+
   /** Paso 2, fuera de transacción: recuperación de un intento previo sin respuesta y solicitud del CAE. */
   private async pedir(cliente: ClienteArca, c: ComprobanteVenta, d: Omit<DatosCae, 'numero'>): Promise<{ resultado: ResultadoCae; numero: number }> {
     const ultimo = await cliente.ultimoAutorizado(d.ptoVta, d.cbteTipo);
@@ -187,7 +221,7 @@ export class EmisionService {
       const previo = await cliente.consultar(d.ptoVta, d.cbteTipo, c.numeroReservado);
       const coincide = previo && previo.docNro === d.docNro && previo.fecha.replace(/-/g, '') === d.fecha && new D(previo.impTotal).eq(d.impTotal) && previo.monId === d.monId;
       // Un número que ya tiene otro comprobante local no es de este
-      const ocupado = await this.tenant.db.comprobanteVenta.findFirst({ where: { id: { not: c.id }, ambiente: c.ambiente, puntoVenta: c.puntoVenta, tipo: c.tipo, letra: c.letra, numero: c.numeroReservado } });
+      const ocupado = await this.tenant.db.comprobanteVenta.findFirst({ where: { id: { not: c.id }, ambiente: c.ambiente, puntoVenta: c.puntoVenta, tipo: c.tipo, letra: c.letra, fce: c.fce, numero: c.numeroReservado } });
       if (previo && coincide && !ocupado) return { resultado: { resultado: 'A', cae: previo.cae, caeVencimiento: previo.caeVencimiento, observaciones: ['Recuperado de un intento anterior'] }, numero: c.numeroReservado };
       await this.auditoria.registrar(this.tenant.db, { entidad: 'ComprobanteVenta', entidadId: c.id, accion: 'MODIFICAR', datos: { recuperacion: 'el número reservado no corresponde a este comprobante', numeroReservado: c.numeroReservado } });
     }

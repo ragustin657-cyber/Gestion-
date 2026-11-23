@@ -8,7 +8,7 @@ import { ventasDelAmbiente } from '../libros-iva/libro-ventas.service';
 import { leerMisComprobantes } from './lector-mis-comprobantes';
 
 interface Importes { total: string; neto: string | null; iva: string | null }
-interface Registro { clave: string; fecha: string; tipo: number; puntoVenta: number; numero: number; documento: string; importes: Importes }
+interface Registro { clave: string; claveComun?: string | null; fecha: string; tipo: number; puntoVenta: number; numero: number; documento: string; importes: Importes }
 
 const f2 = (d: Dec) => d.toFixed(2);
 const distinto = (a: string | null, b: string | null) => a !== null && b !== null && new D(a).minus(b).abs().gt('0.01');
@@ -29,7 +29,9 @@ export class ControlArcaService {
       const tc = f.tipoCambio && new D(f.tipoCambio).gt(0) ? new D(f.tipoCambio) : new D(1);
       const p = (x: string | null) => (x === null ? null : f2(new D(x).mul(tc)));
       return {
-        clave: d.sentido === 'RECIBIDOS' ? `${f.documento}|${f.tipo}|${f.puntoVenta}|${f.numero}` : `${f.tipo}|${f.puntoVenta}|${f.numero}`,
+        // E50: la FCE (201…213) tiene numeración propia; si es recibida y la compra está cargada como común, se empareja con aviso
+        clave: d.sentido === 'RECIBIDOS' ? `${f.documento}|${f.tipo + (f.fce ? 200 : 0)}|${f.puntoVenta}|${f.numero}` : `${f.tipo + (f.fce ? 200 : 0)}|${f.puntoVenta}|${f.numero}`,
+        claveComun: f.fce && d.sentido === 'RECIBIDOS' ? `${f.documento}|${f.tipo}|${f.puntoVenta}|${f.numero}` : null,
         fecha: f.fecha, tipo: f.tipo, puntoVenta: f.puntoVenta, numero: f.numero, documento: f.documento, importes: { total: p(f.total)!, neto: p(f.netoGravado), iva: p(f.iva) },
       };
     });
@@ -38,7 +40,7 @@ export class ControlArcaService {
     if (d.sentido === 'RECIBIDOS') {
       // Revisión E41: los despachos de importación no figuran en Mis Comprobantes Recibidos
       for (const c of await db.comprobanteCompra.findMany({ where: { estado: 'CONFIRMADO', tipo: { not: 'DESPACHO_IMPORTACION' }, fechaEmision: { gte: desde, lte: hasta } }, include: { tercero: true } })) {
-        const tipo = codigoCompra(c.tipo, c.letra), doc = normalizarCuit(c.tercero.cuit);
+        const tipo = codigoCompra(c.tipo, c.letra, c.fce), doc = normalizarCuit(c.tercero.cuit);
         sistema.push({
           clave: `${doc}|${tipo}|${c.puntoVenta}|${c.numero}`, fecha: c.fechaEmision.toISOString().slice(0, 10), tipo, puntoVenta: c.puntoVenta, numero: c.numero, documento: doc,
           importes: c.letra === 'A' || c.letra === 'M'
@@ -49,7 +51,7 @@ export class ControlArcaService {
     } else {
       const { ambiente } = await ventasDelAmbiente(db, desde, hasta);
       for (const c of await db.comprobanteVenta.findMany({ where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: desde, lte: hasta } }, include: { tercero: true } })) {
-        const tipo = cbteTipo(c.tipo, c.letra as LetraVenta);
+        const tipo = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
         sistema.push({
           clave: `${tipo}|${c.puntoVenta}|${c.numero}`, fecha: c.fecha.toISOString().slice(0, 10), tipo, puntoVenta: c.puntoVenta, numero: c.numero!, documento: c.tercero.cuit,
           importes: c.letra === 'C'
@@ -63,10 +65,16 @@ export class ControlArcaService {
     const soloArca = [], diferencias = [];
     let coinciden = 0;
     for (const a of arca) {
-      const s = porClave.get(a.clave);
+      let s = porClave.get(a.clave);
+      let clave = a.clave;
+      const comun = !s && a.claveComun ? porClave.get(a.claveComun) : undefined;
+      if (comun && !vistos.has(a.claveComun!)) {
+        s = comun;
+        clave = a.claveComun!;
+      }
       if (!s) { soloArca.push({ fecha: a.fecha, tipo: a.tipo, puntoVenta: a.puntoVenta, numero: a.numero, documento: a.documento, total: a.importes.total }); continue; }
-      vistos.add(a.clave);
-      const campos = camposDistintos(a.importes, s.importes);
+      vistos.add(clave);
+      const campos = [...(clave !== a.clave ? ['La compra es una factura de crédito MiPyME'] : []), ...camposDistintos(a.importes, s.importes)];
       if (campos.length) diferencias.push({ fecha: a.fecha, tipo: a.tipo, puntoVenta: a.puntoVenta, numero: a.numero, documento: a.documento, campos, arca: a.importes, sistema: s.importes });
       else coinciden++;
     }

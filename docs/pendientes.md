@@ -31,7 +31,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 
 ### 1.2 Ventas y facturación
 
-13. **Factura de crédito electrónica MiPyME (FCE).** Además, sus códigos (201, 206 y otros) no se emparejan en el control con «Mis Comprobantes».
+13. ~~**Factura de crédito electrónica MiPyME (FCE).**~~ Hecho en la entrega 50 (emisión, obligación del cliente, estado de las emitidas, aceptación y rechazo de las recibidas, control con «Mis Comprobantes»). Quedan la negociación y cesión, y informar la cancelación al registro.
 14. **Factura de exportación (E).**
 15. **Facturación por lotes.**
 16. **Descuentos y bonificaciones** en la factura, por renglón y por cantidad.
@@ -166,6 +166,13 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - códigos de régimen de SIRCAR de cada jurisdicción (se cargan a mano);
     - formato de la consulta de recaudaciones SIRCREB (hoy `periodo;jurisdiccion;importe[;cbu]`);
     - formatos de los padrones de cada provincia que use la empresa (se configuran por jurisdicción).
+17. **Factura de crédito MiPyME (entrega 50):**
+    - diseño del web service `wsfecred` (operaciones, campos, estados, motivos de rechazo) y sus URL de homologación y producción;
+    - códigos de los opcionales de WSFEv1 (CBU 2101, transferencia 27, anulación 22) y si la FCE C y la FCE a exentos llevan los mismos datos;
+    - plazo para aceptar o rechazar (hoy 30 días corridos, lo informa el registro) y quiénes pueden recibir FCE (hoy responsables inscriptos y exentos con CUIT);
+    - qué notas de débito y crédito admite el registro después de la aceptación y cómo suman al importe a aceptar;
+    - si se puede emitir FCE voluntariamente a un obligado por debajo del mínimo (hoy se permite);
+    - en el ambiente SIMULADO la marca manual del cliente hace de registro (solo para probar).
 
 ---
 
@@ -267,7 +274,6 @@ Son observaciones menores de las revisiones finales que todavía no resolvió ni
 ### 3.4 Compras, pagos, tesorería y conciliación
 - El «disponible» se compara con valor absoluto: podría admitir importes si lo comprometido superara el saldo.
 - `CorreoModule` se importa dos veces. Es inofensivo.
-- Los códigos FCE MiPyME de «Mis Comprobantes» no se emparejan con compras cargadas como factura A o B.
 - La edición de una orden de pago no controla la versión: dos personas editando se pisan.
 - Por API se puede dejar un tercero sin marcar como proveedor ni como cliente.
 - El selector de cheques suma pesos y dólares bajo un mismo total.

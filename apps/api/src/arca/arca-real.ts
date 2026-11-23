@@ -1,10 +1,13 @@
 import { ClienteArca, ComprobanteArca, DatosCae, ErrorConexionArca, ResultadoCae } from './cliente-arca';
+import { ClaveFce, ClienteFce, FceArca, ObligacionFce } from './cliente-fce';
 import { armarTra, firmarTra, leerLoginResponse, xmlLoginCms } from './wsaa';
+import { leerComprobantesFce, leerMotivos, leerObligacion, leerSinDatos, xmlAceptar, xmlConsultarComprobantes, xmlMotivos, xmlObligacion, xmlRechazar } from './wsfecred';
 import { AuthWsfe, leerConsultar, leerDummy, leerSolicitarCae, leerUltimoAutorizado, NS_WSFE, xmlConsultar, xmlDummy, xmlSolicitarCae, xmlUltimoAutorizado } from './wsfe';
 
 export const ENDPOINTS = {
-  HOMOLOGACION: { wsaa: 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx' },
-  PRODUCCION: { wsaa: 'https://wsaa.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://servicios1.afip.gov.ar/wsfev1/service.asmx' },
+  // wsfecred (E50): URLs del manual del registro de FCE, a verificar
+  HOMOLOGACION: { wsaa: 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx', wsfecred: 'https://fwshomo.afip.gov.ar/wsfecred/FECredService' },
+  PRODUCCION: { wsaa: 'https://wsaa.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://servicios1.afip.gov.ar/wsfev1/service.asmx', wsfecred: 'https://serviciosjava.afip.gob.ar/wsfecred/FECredService' },
 } as const;
 
 export interface Token { token: string; sign: string; vence: Date }
@@ -28,9 +31,9 @@ const MARGEN_TOKEN_MS = 10 * 60000;
 
 /** Cliente de ARCA por SOAP: login WSAA con el certificado de la empresa (token guardado) y operaciones WSFEv1. */
 export class ArcaReal implements ClienteArca {
-  constructor(private readonly o: OpcionesArcaReal) {}
+  constructor(protected readonly o: OpcionesArcaReal) {}
 
-  private async post(url: string, accion: string, cuerpo: string): Promise<string> {
+  protected async post(url: string, accion: string, cuerpo: string): Promise<string> {
     const f = this.o.fetch ?? fetch;
     try {
       const r = await f(url, {
@@ -45,10 +48,13 @@ export class ArcaReal implements ClienteArca {
     }
   }
 
-  private async auth(): Promise<AuthWsfe> {
+  /** Servicio de WSAA del ticket (E50: `wsfecred` para el registro de FCE). */
+  protected servicio = 'wsfe';
+
+  protected async auth(): Promise<AuthWsfe> {
     const guardado = await this.o.tokens.leer();
     if (guardado && guardado.vence.getTime() - Date.now() > MARGEN_TOKEN_MS) return { token: guardado.token, sign: guardado.sign, cuit: this.o.cuit };
-    const cms = firmarTra(armarTra('wsfe', new Date()), this.o.crt, this.o.key);
+    const cms = firmarTra(armarTra(this.servicio, new Date()), this.o.crt, this.o.key);
     let t: Token;
     try {
       t = leerLoginResponse(await this.post(ENDPOINTS[this.o.ambiente].wsaa, '', xmlLoginCms(cms)));
@@ -95,5 +101,45 @@ export class ArcaReal implements ClienteArca {
     if (!dummy.ok) return dummy;
     await this.auth();
     return { ok: true, detalle: `${dummy.detalle}. Acceso con el certificado: OK` };
+  }
+}
+
+/** Registro de facturas de crédito MiPyME (`wsfecred`, E50): mismo certificado, su propio ticket de WSAA. */
+export class ArcaRealFce extends ArcaReal implements ClienteFce {
+  protected servicio = 'wsfecred';
+
+  private async fce<T>(op: string, xml: (a: AuthWsfe) => string, leer: (x: string) => T): Promise<T> {
+    for (let intento = 0; ; intento++) {
+      const a = await this.auth();
+      try {
+        return leer(await this.post(ENDPOINTS[this.o.ambiente].wsfecred, '', xml(a)));
+      } catch (e) {
+        if (e instanceof ErrorConexionArca && e.tokenInvalido && intento === 0) {
+          await this.o.tokens.borrar();
+          continue;
+        }
+        throw e;
+      }
+    }
+  }
+
+  consultarObligacion(cuit: string, fecha: string): Promise<ObligacionFce> {
+    return this.fce('consultarMontoObligadoRecepcion', (a) => xmlObligacion(a, cuit, fecha), leerObligacion);
+  }
+
+  consultarComprobantes(rol: 'EMISOR' | 'RECEPTOR', desde: string, hasta: string): Promise<FceArca[]> {
+    return this.fce('consultarComprobantes', (a) => xmlConsultarComprobantes(a, rol, desde, hasta), leerComprobantesFce);
+  }
+
+  aceptar(f: ClaveFce & { importe: string }): Promise<void> {
+    return this.fce('aceptarFECred', (a) => xmlAceptar(a, f), leerSinDatos('aceptarFECred'));
+  }
+
+  rechazar(f: ClaveFce, motivos: string[], texto: string): Promise<void> {
+    return this.fce('rechazarFECred', (a) => xmlRechazar(a, f, motivos, texto), leerSinDatos('rechazarFECred'));
+  }
+
+  motivosRechazo(): Promise<{ codigo: string; descripcion: string }[]> {
+    return this.fce('consultarTiposMotivosRechazo', (a) => xmlMotivos(a), leerMotivos);
   }
 }

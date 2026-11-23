@@ -33,6 +33,17 @@ describe('WSFE', () => {
     expect(xml).toContain('<ar:MonId>DOL</ar:MonId>');
     expect(xml).not.toContain('<ar:CbtesAsoc>');
   });
+  it('FCE (E50): vencimiento del pago con productos y opcionales después del IVA', () => {
+    const xml = xmlSolicitarCae(auth, {
+      ptoVta: 2, cbteTipo: 201, numero: 1, concepto: 1, docTipo: 80, docNro: '30712345671', condicionIvaReceptor: 1, fecha: '20261108',
+      impTotal: '121.00', impTotConc: '0.00', impNeto: '100.00', impOpEx: '0.00', impIva: '21.00', monId: 'PES', monCotiz: '1', fchVtoPago: '20261208',
+      iva: [{ id: 5, baseImp: '100.00', importe: '21.00' }], asociados: [], opcionales: [{ id: '2101', valor: '2850590940090418135201' }, { id: '27', valor: 'SCA' }],
+    });
+    expect(xml).toContain('<ar:FchVtoPago>20261208</ar:FchVtoPago>');
+    expect(xml).not.toContain('<ar:FchServDesde>');
+    expect(xml).toContain('</ar:Iva><ar:Opcionales><ar:Opcional><ar:Id>2101</ar:Id><ar:Valor>2850590940090418135201</ar:Valor></ar:Opcional><ar:Opcional><ar:Id>27</ar:Id><ar:Valor>SCA</ar:Valor></ar:Opcional></ar:Opcionales>');
+  });
+
   it('arma los tributos (percepciones, E39) y ImpTrib', () => {
     const xml = xmlSolicitarCae(auth, {
       ptoVta: 2, cbteTipo: 1, numero: 1, concepto: 1, docTipo: 80, docNro: '30712345671', condicionIvaReceptor: 1, fecha: '20261108',

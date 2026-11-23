@@ -5,6 +5,8 @@ export interface DatosPdfVenta {
   empresa: { razonSocial: string; cuit: string; condicionIva: string; domicilio: string | null };
   cliente: { razonSocial: string; documento: string; condicionIva: string; domicilio: string | null };
   titulo: string;
+  /** E50: datos de la factura de crédito MiPyME. */
+  fce?: { cbu: string | null; transferencia: string | null; anulacion: boolean | null } | null;
   letra: string;
   codigo: string;
   numero: string;
@@ -55,6 +57,8 @@ export async function pdfVenta(d: DatosPdfVenta): Promise<Buffer> {
     doc.text(`Vencimiento del pago: ${d.vencimiento}   Moneda: ${d.moneda}${d.cotizacion ? `   Cotización: ${d.cotizacion}` : ''}`);
     if (d.servicio) doc.text(`Período facturado: ${d.servicio.desde} al ${d.servicio.hasta}   Vencimiento: ${d.servicio.vencePago}`);
     if (d.asociado) doc.text(`Comprobante asociado: ${d.asociado}`);
+    if (d.fce?.cbu) doc.text(`CBU del emisor: ${d.fce.cbu}   Transferencia: ${d.fce.transferencia === 'ADC' ? 'agente de depósito colectivo (ADC)' : 'sistema de circulación abierta (SCA)'}`);
+    if (d.fce && d.fce.anulacion !== null) doc.text(`Anulación de la factura de crédito: ${d.fce.anulacion ? 'Sí' : 'No'}`);
     doc.moveDown();
 
     const cols = d.discriminaIva ? [40, 300, 360, 440, 490] : [40, 330, 400, 490];

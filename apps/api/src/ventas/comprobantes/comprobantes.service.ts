@@ -1,3 +1,4 @@
+import { FceRegistroService } from '../fce/registro.service';
 import { verificarDeEmpresa } from '../../comun/de-empresa';
 import { vendedorActivo } from '../comisiones/vendedor-activo';
 import { BajasService } from '../../bienes-uso/bajas.service';
@@ -46,6 +47,7 @@ export class ComprobantesVentaService {
     private readonly origenes: OrigenesVenta,
     private readonly bajas: BajasService,
     private readonly percepciones: PercepcionesVentaService,
+    private readonly registroFce: FceRegistroService,
   ) {}
 
   obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -98,6 +100,8 @@ export class ComprobantesVentaService {
       if (!asoc || asoc.estado !== 'AUTORIZADO' || asoc.tipo === 'NOTA_CREDITO') throw new BadRequestException('El comprobante asociado debe ser una factura o nota de débito autorizada');
       if (asoc.terceroId !== d.terceroId) throw new BadRequestException('El comprobante asociado es de otro cliente');
       if (asoc.monedaCodigo !== d.monedaCodigo) throw new BadRequestException('El comprobante asociado está en otra moneda');
+      if (asoc.fce !== !!d.fce) throw new BadRequestException('La nota tiene que ser de la misma clase que la factura: factura de crédito MiPyME o común');
+      if (d.fce && d.anulacionFce) await this.registroFce.verificarAnulable(tx, asoc.id);
       letra = asoc.letra as LetraVenta;
     }
     // Venta de bienes de uso (spec E14 §5): el neto va al resultado por venta y la baja se registra al autorizar
@@ -141,7 +145,9 @@ export class ComprobantesVentaService {
         depositoId, devuelveMercaderia: d.devuelveMercaderia,
         tipo: d.tipo, letra, puntoVentaId: pv.id, puntoVenta: pv.numero, terceroId: d.terceroId, fecha: d.fecha, fechaVencimiento: d.fechaVencimiento, concepto: d.concepto,
         fechaServicioDesde: d.concepto === 'PRODUCTOS' ? null : d.fechaServicioDesde, fechaServicioHasta: d.concepto === 'PRODUCTOS' ? null : d.fechaServicioHasta,
-        fechaVencimientoPago: d.concepto === 'PRODUCTOS' ? null : d.fechaVencimientoPago,
+        // E50: en la FCE el vencimiento del pago es el del comprobante (factura); las notas no lo llevan
+        fechaVencimientoPago: d.fce ? (d.tipo === 'FACTURA' ? d.fechaVencimiento : null) : d.concepto === 'PRODUCTOS' ? null : d.fechaVencimientoPago,
+        fce: !!d.fce, transferenciaFce: d.fce && d.tipo === 'FACTURA' ? (d.transferenciaFce ?? (await tx.configArca.findFirst())?.transferenciaFce ?? 'SCA') : null, anulacionFce: d.fce && d.tipo !== 'FACTURA' ? !!d.anulacionFce : null,
         monedaCodigo: d.monedaCodigo, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total, percepciones: perc.total,
         totalPesos: new D(total).mul(cot).toDecimalPlaces(2), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId, aplicarAAsociado: d.aplicarAAsociado,
         vendedorId: vendedor.vendedorId, comisionPct: vendedor.comisionPct,
@@ -239,11 +245,17 @@ export class ComprobantesVentaService {
     const config = await db.configArca.findFirst();
     const asoc = c.comprobanteAsociadoId ? await db.comprobanteVenta.findUnique({ where: { id: c.comprobanteAsociadoId } }) : null;
     const letra = c.letra as LetraVenta;
-    const codigo = cbteTipo(c.tipo, letra);
+    const codigo = cbteTipo(c.tipo, letra, c.fce);
     const a = letra === 'A';
     const t = c.tercero;
     const documento = t.tipoDocumento === 'CUIT' ? `CUIT ${formatearCuit(t.cuit)}` : t.tipoDocumento === 'DNI' ? `DNI ${t.cuit}` : 'Sin identificar';
+    const TITULOS_FCE = { FACTURA: 'FACTURA DE CRÉDITO ELECTRÓNICA MiPyMEs (FCE)', NOTA_DEBITO: 'NOTA DE DÉBITO ELECTRÓNICA MiPyMEs (FCE)', NOTA_CREDITO: 'NOTA DE CRÉDITO ELECTRÓNICA MiPyMEs (FCE)' } as const;
     const titulos = { FACTURA: 'FACTURA', NOTA_DEBITO: 'NOTA DE DÉBITO', NOTA_CREDITO: 'NOTA DE CRÉDITO' } as const;
+    // E50: factura de crédito electrónica MiPyME
+    const cuentaFce = c.fce && c.tipo === 'FACTURA' && config?.cuentaBancariaFceId ? await db.cuentaBancaria.findUnique({ where: { id: config.cuentaBancariaFceId } }) : null;
+    const fce = c.fce
+      ? { cbu: cuentaFce?.cbu ?? null, transferencia: c.tipo === 'FACTURA' ? (c.transferenciaFce ?? config?.transferenciaFce ?? 'SCA') : null, anulacion: c.tipo === 'FACTURA' ? null : !!c.anulacionFce }
+      : null;
     const importesB = importesConIva(c.renglones.map((r) => ({ neto: r.neto.toString(), iva: r.iva.toString(), alicuota: r.alicuota })), c.ivas.map((x) => ({ alicuota: x.alicuota.toString(), importe: x.importe.toString() })));
     const totales: [string, string][] = [];
     if (a) {
@@ -260,8 +272,8 @@ export class ComprobantesVentaService {
     const contenido = await pdfVenta({
       empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), condicionIva: ETIQUETAS_CONDICION_IVA[empresa.condicionIva], domicilio: empresa.domicilio },
       cliente: { razonSocial: t.razonSocial, documento, condicionIva: ETIQUETAS_CONDICION_IVA[t.condicionIva], domicilio: t.domicilio },
-      titulo: titulos[c.tipo], letra, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
-      servicio: c.concepto === 'PRODUCTOS' ? null : { desde: fechaAR(c.fechaServicioDesde!), hasta: fechaAR(c.fechaServicioHasta!), vencePago: fechaAR(c.fechaVencimientoPago!) },
+      titulo: c.fce ? TITULOS_FCE[c.tipo] : titulos[c.tipo], fce, letra, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
+      servicio: c.concepto === 'PRODUCTOS' ? null : { desde: fechaAR(c.fechaServicioDesde!), hasta: fechaAR(c.fechaServicioHasta!), vencePago: fechaAR(c.fechaVencimientoPago ?? c.fechaVencimiento) },
       moneda: c.monedaCodigo === 'ARS' ? 'Pesos' : 'Dólares', cotizacion: c.monedaCodigo === 'ARS' ? null : importeAR(c.cotizacion.toString()),
       asociado: asoc ? `${asoc.letra} ${numeroVenta(asoc.puntoVenta, asoc.numero)}` : null,
       discriminaIva: a,

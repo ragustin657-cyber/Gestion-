@@ -128,7 +128,7 @@ describe('entrega 8: pulido para producción', () => {
     expect((await v.http.get('/api/impuestos/presentaciones')).body[0].cambiaron).toBe(false);
   });
 
-  it('control con ARCA: una FCE coincide con la factura A cargada', async () => {
+  it('control con ARCA: una FCE se empareja con la factura A cargada (E50: con el aviso de que la compra es FCE)', async () => {
     const s = await sesionConPlan(app, prisma);
     const { proveedorId } = await datosCompras(prisma, s.empresaId);
     const c = await facturaPendiente(s.http, prisma, { proveedorId, neto: 1000 });
@@ -136,6 +136,7 @@ describe('entrega 8: pulido para producción', () => {
     const csv = `Fecha;Tipo;Punto de Venta;Número Desde;Nro. Doc. Emisor;Imp. Neto Gravado;IVA;Imp. Total\n02/11/2026;201 - Factura de Crédito Electrónica MiPyMEs (FCE) A;1;${comp.numero};30700123452;1.000,00;210,00;1.210,00\n`;
     const r = await request(app.getHttpServer()).post('/api/impuestos/control-arca').set('Authorization', `Bearer ${s.token}`)
       .field('sentido', 'RECIBIDOS').field('desde', '2026-11-01').field('hasta', '2026-11-30').attach('archivo', Buffer.from(csv), 'mc.csv');
-    expect(r.body).toMatchObject({ coinciden: 1, soloArca: [], soloSistema: [] });
+    expect(r.body).toMatchObject({ coinciden: 0, soloArca: [], soloSistema: [] });
+    expect(r.body.diferencias.map((d: { campos: string[] }) => d.campos)).toEqual([['La compra es una factura de crédito MiPyME']]);
   });
 });

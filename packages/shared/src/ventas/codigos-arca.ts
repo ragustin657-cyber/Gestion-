@@ -7,7 +7,8 @@ const CBTE: Record<TipoVenta, Record<LetraVenta, number>> = {
   NOTA_DEBITO: { A: 2, B: 7, C: 12 },
   NOTA_CREDITO: { A: 3, B: 8, C: 13 },
 };
-export const cbteTipo = (tipo: TipoVenta, letra: LetraVenta): number => CBTE[tipo][letra];
+/** Con `fce` (E50), el código de la factura de crédito electrónica MiPyME: 201…213. */
+export const cbteTipo = (tipo: TipoVenta, letra: LetraVenta, fce = false): number => CBTE[tipo][letra] + (fce ? 200 : 0);
 
 /** Condición frente al IVA del receptor (RG 5616). NO_RESPONSABLE → 15 "IVA No Alcanzado": a verificar por el contador. */
 const RECEPTOR: Record<CondicionIva, number> = {

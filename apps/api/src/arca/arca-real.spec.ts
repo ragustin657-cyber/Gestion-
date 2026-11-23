@@ -55,3 +55,22 @@ describe('ArcaReal', () => {
     await expect(arca.ultimoAutorizado(2, 1)).rejects.toBeInstanceOf(ErrorConexionArca);
   });
 });
+
+describe('ArcaRealFce (E50)', () => {
+  it('consulta el registro de FCE en su URL con el ticket de wsfecred', async () => {
+    const { ArcaRealFce } = await import('./arca-real');
+    const llamadas: { url: string; accion: string }[] = [];
+    const respuestas = [fx('wsfecred-obligado.xml')];
+    const fetchFalso = (async (url: string, init: { headers: Record<string, string> }) => {
+      llamadas.push({ url, accion: init.headers.SOAPAction });
+      return { text: async () => respuestas.shift()! } as Response;
+    }) as unknown as typeof fetch;
+    const { crt, key } = certificadoDePrueba('30712345671');
+    const fce = new ArcaRealFce({
+      ambiente: 'HOMOLOGACION', cuit: '30712345671', crt, key, fetch: fetchFalso,
+      tokens: { leer: async () => ({ token: 'T', sign: 'S', vence: new Date(Date.now() + 3600000) }), guardar: async () => {}, borrar: async () => {} },
+    });
+    expect(await fce.consultarObligacion('20172543597', '20261102')).toEqual({ obligado: true, montoMinimo: '3958316.00' });
+    expect(llamadas).toEqual([{ url: expect.stringContaining('wsfecred'), accion: '' }]);
+  });
+});

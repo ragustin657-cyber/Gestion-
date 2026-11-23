@@ -60,6 +60,8 @@ export class LiquidacionesInteresesService {
           terceroId: a.terceroId, puntoVentaId: a.puntoVentaId, tipo: 'NOTA_DEBITO', concepto: 'SERVICIOS', fecha, fechaVencimiento: fecha,
           fechaServicioDesde: iso(new Date(Date.UTC(anio, mes - 1, 1))), fechaServicioHasta: iso(new Date(Date.UTC(anio, mes, 0))), fechaVencimientoPago: fecha,
           monedaCodigo: a.monedaCodigo, cotizacion: null, comprobanteAsociadoId: a.id, aplicarAAsociado: false, devuelveMercaderia: false,
+          // Revisión E50: la nota es de la misma clase que la factura asociada (FCE o común)
+          fce: a.fce, anulacionFce: a.fce ? false : null,
           renglones: rs.map((r) => ({ origen: 'DIRECTO' as const, descripcion: `${cfg.descripcion} ${r.comprobante} (${r.dias} días)`, cantidad: 1, precioUnitario: Number(r.interes), alicuota: r.alicuota === 'EXENTO' ? 'EXENTO' : Number(r.alicuota) })),
         }), { cuentaContableId: cuenta, sinVendedor: true }));
         await tx.liquidacionInteresesRenglon.createMany({

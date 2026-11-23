@@ -66,7 +66,18 @@ export const camposImpuestos = (regimenes: { codigo: string; descripcion: string
   { nombre: 'tipoPersona', etiqueta: 'Tipo de persona', tipo: 'select', opciones: [{ value: 'F', label: 'Física' }, { value: 'J', label: 'Jurídica' }] },
   { nombre: 'nacimientoPais', etiqueta: 'País de nacimiento (código SIRE, persona física)', tipo: 'numero' },
   { nombre: 'nacimientoFecha', etiqueta: 'Fecha de nacimiento (persona física)', tipo: 'fecha' },
+  // E50: factura de crédito MiPyME
+  { nombre: 'fceObligadoManual', etiqueta: 'Obligado a recibir factura de crédito MiPyME (marca manual)', tipo: 'booleano', ayuda: 'Se usa solo si ARCA no responde y no hay una consulta anterior' },
 ];
+
+/** E50: resultado de la última consulta a ARCA de la obligación de recibir FCE. */
+export function textoConsultaFce(t: { fceConsultadoEn?: string | null; fceObligado?: boolean | null; fceMontoMinimo?: string | null }): string | null {
+  if (!t.fceConsultadoEn) return null;
+  const fecha = t.fceConsultadoEn.slice(0, 10).split('-').reverse().join('/');
+  return t.fceObligado
+    ? `Según ARCA al ${fecha}: obligado a recibir factura de crédito MiPyME${t.fceMontoMinimo ? ` desde $ ${Number(t.fceMontoMinimo).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}`
+    : `Según ARCA al ${fecha}: no obligado a recibir factura de crédito MiPyME`;
+}
 
 const valores = (t: Tercero | null, campos: CampoAbm[]) =>
   Object.fromEntries(campos.map((c) => [c.nombre, t ? (t[c.nombre] ?? '') : '']));
@@ -152,6 +163,7 @@ function FichaTercero({ id, alCerrar }: { id: string | null; alCerrar: () => voi
       {t && (
         <Tabs.Panel value="impuestos">
           <Stack>
+            {textoConsultaFce(t as never) && <Text size="sm" c="dimmed">{textoConsultaFce(t as never)}</Text>}
             <FormAbm
               campos={CAMPOS_IMPUESTOS}
               valoresIniciales={valores(t, CAMPOS_IMPUESTOS)}

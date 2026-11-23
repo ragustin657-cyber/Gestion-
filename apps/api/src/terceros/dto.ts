@@ -5,6 +5,8 @@ import { zTexto, zTextoOpcional } from '../comun/esquemas';
 
 const base = z.object({
   razonSocial: zTexto,
+  // E50: marca manual de obligado a recibir factura de crédito MiPyME (si ARCA no responde)
+  fceObligadoManual: z.boolean().optional(),
   nombreFantasia: zTextoOpcional,
   cuit: z.string({ required_error: 'Campo obligatorio' }).trim().min(1, 'Campo obligatorio'),
   tipoDocumento: z.nativeEnum(TipoDocumento).optional(),

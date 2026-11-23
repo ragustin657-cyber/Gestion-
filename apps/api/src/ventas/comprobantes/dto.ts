@@ -39,10 +39,15 @@ export const esquemaComprobanteVenta = z
       }))
       .min(1, 'El comprobante debe tener al menos un renglón'),
     emitir: z.boolean().default(false),
+    // E50: factura de crédito electrónica MiPyME
+    fce: z.boolean().optional(),
+    transferenciaFce: z.enum(['SCA', 'ADC'], { message: 'Valor inválido' }).nullish(),
+    anulacionFce: z.boolean().nullish(),
   })
   .superRefine((c, ctx) => {
     if (c.concepto !== 'PRODUCTOS') {
-      for (const campo of ['fechaServicioDesde', 'fechaServicioHasta', 'fechaVencimientoPago'] as const)
+      // En la FCE el vencimiento del pago es el del comprobante (E50)
+      for (const campo of ['fechaServicioDesde', 'fechaServicioHasta', ...(c.fce ? [] : ['fechaVencimientoPago' as const])] as const)
         if (!c[campo]) ctx.addIssue({ code: 'custom', path: [campo], message: 'Campo obligatorio para servicios' });
       if (c.fechaServicioDesde && c.fechaServicioHasta && c.fechaServicioDesde > c.fechaServicioHasta)
         ctx.addIssue({ code: 'custom', path: ['fechaServicioHasta'], message: 'Debe ser posterior al inicio del período' });

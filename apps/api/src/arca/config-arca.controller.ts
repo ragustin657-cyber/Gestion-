@@ -6,7 +6,11 @@ import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { ConfigArcaService } from './config-arca.service';
 
-const esquema = z.object({ ambiente: z.nativeEnum(AmbienteArca) });
+const esquema = z.object({
+  ambiente: z.nativeEnum(AmbienteArca).optional(),
+  // E50: factura de crédito MiPyME
+  mipyme: z.boolean().optional(), cuentaBancariaFceId: z.string().uuid('Valor inválido').nullish(), transferenciaFce: z.enum(['SCA', 'ADC'], { message: 'Valor inválido' }).optional(),
+});
 type Archivos = { certificado?: { buffer: Buffer }[]; clave?: { buffer: Buffer }[] };
 const subida = FileFieldsInterceptor([{ name: 'certificado', maxCount: 1 }, { name: 'clave', maxCount: 1 }], { limits: { fileSize: 64 * 1024 } });
 

@@ -175,6 +175,12 @@ model Tercero {
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
+  /// E50: obligación de recibir factura de crédito MiPyME (última consulta a ARCA y marca manual)
+  fceObligado            Boolean?
+  fceMontoMinimo         Decimal?      @db.Decimal(18, 2)
+  fceConsultadoEn        DateTime?
+  fceConsultadoAmbiente  AmbienteArca?
+  fceObligadoManual      Boolean       @default(false)
 }
 
 model TerceroIibb {
@@ -576,6 +582,8 @@ model ComprobanteCompra {
   depositoId            String?                           @db.Uuid
   asientoAnulacionId    String?                           @db.Uuid
   aceptoDiferencias     Boolean                           @default(false)
+  /// E50: factura de crédito electrónica MiPyME recibida (numeración propia del proveedor)
+  fce                   Boolean                           @default(false)
   motivoAnulacion       String?
   creadoPor             String
   creadoEn              DateTime                          @default(now())
@@ -585,7 +593,7 @@ model ComprobanteCompra {
   percepcionesIibb      ComprobanteCompraPercepcionIibb[]
 
   @@unique([empresaId, numeroInterno])
-  @@unique([empresaId, terceroId, tipo, letra, puntoVenta, numero])
+  @@unique([empresaId, terceroId, tipo, letra, fce, puntoVenta, numero])
   @@index([empresaId, fechaContable])
 
   @@unique([empresaId, numeroDespacho])
@@ -1491,6 +1499,10 @@ model ConfigArca {
   claveCifrada       String?
   certificadoSujeto  String?
   certificadoVence   DateTime?
+  /// E50: factura de crédito electrónica MiPyME
+  mipyme              Boolean @default(false)
+  cuentaBancariaFceId String? @db.Uuid
+  transferenciaFce    String  @default("SCA")
 }
 
 model TokenArca {
@@ -1556,6 +1568,10 @@ model ComprobanteVenta {
   comprobanteAsociadoId String?                   @db.Uuid
   depositoId            String?                   @db.Uuid
   devuelveMercaderia    Boolean                   @default(false)
+  /// E50: factura de crédito electrónica MiPyME (códigos 201…213, numeración propia)
+  fce                   Boolean                   @default(false)
+  transferenciaFce      String?
+  anulacionFce          Boolean?
   aplicarAAsociado      Boolean                   @default(true)
   vendedorId            String?                   @db.Uuid
   /// Copia del porcentaje del vendedor al emitir.
@@ -1572,7 +1588,7 @@ model ComprobanteVenta {
   percepcionesDetalle   ComprobanteVentaPercepcion[]
 
   @@unique([empresaId, numeroInterno])
-  @@unique([empresaId, ambiente, puntoVenta, tipo, letra, numero])
+  @@unique([empresaId, ambiente, puntoVenta, tipo, letra, fce, numero])
   @@index([empresaId, terceroId])
   @@index([empresaId, fecha])
 }
@@ -3193,4 +3209,44 @@ model RecaudacionBancaria {
   referencia       String?
 
   @@index([empresaId, periodo])
+}
+
+/// E50: rol de la empresa en una factura de crédito MiPyME del registro de ARCA.
+enum RolFce {
+  EMISOR
+  RECEPTOR
+}
+
+enum EstadoFceRegistro {
+  PENDIENTE
+  ACEPTADA
+  RECHAZADA
+  ACEPTADA_TACITA
+}
+
+/// E50: factura de crédito MiPyME en el registro de ARCA (emitida o recibida), por ambiente; las notas se muestran con su factura.
+model FceRegistro {
+  id                   String            @id @default(uuid()) @db.Uuid
+  empresaId            String            @db.Uuid
+  ambiente             AmbienteArca
+  rol                  RolFce
+  cuitContraparte      String
+  cbteTipo             Int
+  puntoVenta           Int
+  numero               Int
+  fecha                DateTime          @db.Date
+  importe              Decimal           @db.Decimal(18, 2)
+  moneda               String
+  fechaVencimientoPago DateTime?         @db.Date
+  estado               EstadoFceRegistro
+  fechaRecepcion       DateTime?         @db.Date
+  fechaLimite          DateTime?         @db.Date
+  motivosRechazo       String[]
+  textoRechazo         String?
+  consultadoEn         DateTime
+  comprobanteVentaId   String?           @db.Uuid
+  comprobanteCompraId  String?           @db.Uuid
+
+  @@unique([empresaId, ambiente, rol, cuitContraparte, cbteTipo, puntoVenta, numero])
+  @@index([empresaId, ambiente, rol, estado])
 }

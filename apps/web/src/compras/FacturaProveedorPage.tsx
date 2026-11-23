@@ -1,4 +1,4 @@
-import { ActionIcon, Alert, Button, Divider, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
+import { ActionIcon, Alert, Button, Checkbox, Divider, Group, Modal, NumberInput, Paper, Select, SimpleGrid, Stack, Table, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -43,6 +43,8 @@ export function FacturaProveedorPage() {
   const m = useMaestrosCompras();
   const cuentas = useCuentasImputables();
   const [cab, setCab] = useState(inicial());
+  // E50: factura de crédito MiPyME recibida
+  const [fce, setFce] = useState(false);
   const [iibb, setIibb] = useState<{ jurisdiccion: string; importe: string }[]>([]);
   const [renglones, setRenglones] = useState<RenglonEditable[]>([]);
   const rubros = useRubros().data ?? [];
@@ -92,7 +94,7 @@ export function FacturaProveedorPage() {
   }
 
   const cuerpo = () => ({
-    terceroId: cab.terceroId, tipo: cab.tipo, letra: esTicket ? null : cab.letra || null, puntoVenta: n(cab.puntoVenta), numero: n(cab.numero),
+    terceroId: cab.terceroId, tipo: cab.tipo, letra: esTicket ? null : cab.letra || null, fce: !esTicket && cab.letra !== 'M' && fce, puntoVenta: n(cab.puntoVenta), numero: n(cab.numero),
     fechaEmision: cab.fechaEmision, fechaContable: cab.fechaContable || cab.fechaEmision, fechaVencimiento: cab.fechaVencimiento || null,
     monedaCodigo: cab.monedaCodigo, cotizacion: cab.monedaCodigo === 'USD' && cab.cotizacion ? n(cab.cotizacion) : null,
     totalDeclarado: n(cab.totalDeclarado), percepcionIva: n(cab.percepcionIva), impuestosInternos: n(cab.impuestosInternos),
@@ -120,6 +122,7 @@ export function FacturaProveedorPage() {
           <Select label="Tipo" data={TIPOS} value={cab.tipo} allowDeselect={false}
             onChange={(v) => { setCab({ ...cab, tipo: v ?? 'FACTURA' }); if (v === 'NOTA_CREDITO' || v === 'NOTA_DEBITO') setRenglones(renglones.filter((r) => !r.origen)); }} />
           {!esTicket && <Select label="Letra" withAsterisk data={letras} value={cab.letra || null} onChange={(v) => setCab({ ...cab, letra: v ?? '' })} />}
+          {!esTicket && cab.letra !== 'M' && <Checkbox mt="lg" label="Factura de crédito MiPyME (FCE)" checked={fce} onChange={(e) => setFce(e.currentTarget.checked)} />}
           <Group grow gap="xs" align="flex-end">
             <TextInput label="Punto de venta" withAsterisk inputMode="numeric" {...campo('puntoVenta')} />
             <TextInput label="Número" withAsterisk inputMode="numeric" {...campo('numero')} />
@@ -181,6 +184,7 @@ export function FacturaProveedorPage() {
           onExito={(r) => {
             notifications.show({ color: 'green', message: `Comprobante cargado (N° interno ${r.numeroInterno})` });
             setCab({ ...inicial(), terceroId: cab.terceroId, fechaEmision: cab.fechaEmision });
+            setFce(false);
             setRenglones([]);
             setIibb([]);
             void qc.invalidateQueries({ queryKey: ['/compras'] });
