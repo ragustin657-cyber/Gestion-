@@ -9,6 +9,8 @@ export const esquemaComprobante = z
     terceroId: z.string().uuid(),
     tipo: z.enum(['FACTURA', 'NOTA_DEBITO', 'NOTA_CREDITO', 'TICKET']),
     letra: z.enum(['A', 'B', 'C', 'M']).nullish(),
+    // E50: factura de crédito electrónica MiPyME (solo factura, nota de débito o de crédito A, B o C)
+    fce: z.boolean().optional(),
     puntoVenta: z.number().int().min(1).max(99999),
     numero: z.number().int().min(1).max(99999999),
     fechaEmision: zFecha,

@@ -582,6 +582,8 @@ model ComprobanteCompra {
   depositoId            String?                           @db.Uuid
   asientoAnulacionId    String?                           @db.Uuid
   aceptoDiferencias     Boolean                           @default(false)
+  /// E50: factura de crédito electrónica MiPyME recibida (numeración propia del proveedor)
+  fce                   Boolean                           @default(false)
   motivoAnulacion       String?
   creadoPor             String
   creadoEn              DateTime                          @default(now())
@@ -591,7 +593,7 @@ model ComprobanteCompra {
   percepcionesIibb      ComprobanteCompraPercepcionIibb[]
 
   @@unique([empresaId, numeroInterno])
-  @@unique([empresaId, terceroId, tipo, letra, puntoVenta, numero])
+  @@unique([empresaId, terceroId, tipo, letra, fce, puntoVenta, numero])
   @@index([empresaId, fechaContable])
 
   @@unique([empresaId, numeroDespacho])

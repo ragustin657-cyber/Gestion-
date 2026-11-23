@@ -6,13 +6,14 @@ const COMPRA: Record<string, Record<string, number>> = {
   NOTA_CREDITO: { A: 3, B: 8, C: 13, M: 53 },
 };
 /** Código del comprobante de compra; el tique es 083. */
-export function codigoCompra(tipo: 'FACTURA' | 'NOTA_DEBITO' | 'NOTA_CREDITO' | 'TICKET' | 'DESPACHO_IMPORTACION', letra: string): number {
+export function codigoCompra(tipo: 'FACTURA' | 'NOTA_DEBITO' | 'NOTA_CREDITO' | 'TICKET' | 'DESPACHO_IMPORTACION', letra: string, fce = false): number {
   if (tipo === 'TICKET') return 83;
   // E41: despacho de importación
   if (tipo === 'DESPACHO_IMPORTACION') return 66;
   const c = COMPRA[tipo]?.[letra];
   if (!c) throw new Error(`Sin código ARCA para ${tipo} ${letra}`);
-  return c;
+  // E50: factura de crédito MiPyME (201…213)
+  return fce && letra !== 'M' ? c + 200 : c;
 }
 
 export const ALICUOTA_LIVA: Record<string, string> = { '0': '0003', '10.5': '0004', '21': '0005', '27': '0006', '5': '0008', '2.5': '0009' };

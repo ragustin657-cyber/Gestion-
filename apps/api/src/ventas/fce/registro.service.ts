@@ -1,5 +1,7 @@
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { AuditoriaService } from '../../auditoria/auditoria.service';
+import { fechaAR } from '../../compras/comun';
 import { EstadoFceRegistro, FceRegistro, RolFce } from '@prisma/client';
 import { ConfigArcaService } from '../../arca/config-arca.service';
 import { ErrorConexionArca, ErrorServicioArca } from '../../arca/cliente-arca';
@@ -24,7 +26,7 @@ export const mensajeArca = (e: Error) => `No se pudo consultar ARCA: ${e.message
 /** Registro de facturas de crédito MiPyME (spec E50 §5 y §6). */
 @Injectable()
 export class FceRegistroService {
-  constructor(private readonly tenant: TenantPrisma, private readonly arca: ConfigArcaService) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly arca: ConfigArcaService, private readonly auditoria: AuditoriaService) {}
 
   /** Trae del registro de ARCA las FCE del rol de los últimos 90 días y actualiza estados y emparejamientos. */
   async actualizar(rol: RolFce): Promise<{ actualizadas: number }> {
@@ -70,9 +72,60 @@ export class FceRegistroService {
     return { comprobanteCompraId: await this.compraDe(f, tipo, letra) };
   }
 
-  /** Recepción (tarea 5): la compra emparejada. */
-  protected async compraDe(_f: FceArca, _tipo: string, _letra: string): Promise<string | null> {
-    return null;
+  /** La compra cargada del mismo proveedor y comprobante: primero la marcada FCE; la común emparejada queda marcada (E50 §6). */
+  protected async compraDe(f: FceArca, tipo: string, letra: string): Promise<string | null> {
+    const db = this.tenant.db;
+    const where = { estado: 'CONFIRMADO' as const, tercero: { cuit: f.cuitEmisor.replace(/\D/g, '') }, tipo: tipo as 'FACTURA', letra, puntoVenta: f.ptoVta, numero: f.numero };
+    const marcada = await db.comprobanteCompra.findFirst({ where: { ...where, fce: true } });
+    if (marcada) return marcada.id;
+    const comun = await db.comprobanteCompra.findFirst({ where: { ...where, fce: false } });
+    if (!comun) return null;
+    await db.comprobanteCompra.update({ where: { id: comun.id }, data: { fce: true } });
+    return comun.id;
+  }
+
+  /** Aceptar o rechazar una FCE recibida (E50 §6): pendiente, dentro del plazo; llama a ARCA y guarda el estado. */
+  async responder(id: string, r: { acepta: true } | { acepta: false; motivos: string[]; texto: string }) {
+    const db = this.tenant.db;
+    const f = await db.fceRegistro.findFirst({ where: { id, rol: 'RECEPTOR' } });
+    if (!f) throw new NotFoundException('Factura de crédito inexistente');
+    if (f.estado !== 'PENDIENTE') throw new BadRequestException('La factura de crédito no está pendiente');
+    if (f.fechaLimite && f.fechaLimite.getTime() < new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`).getTime())
+      throw new BadRequestException(`El plazo para aceptar o rechazar venció el ${fechaAR(f.fechaLimite)}`);
+    const clave = { cuitEmisor: f.cuitContraparte, cbteTipo: f.cbteTipo, ptoVta: f.puntoVenta, numero: f.numero };
+    const cliente = await this.arca.clienteFce();
+    let motivos: string[] = [];
+    try {
+      if (r.acepta) await cliente.aceptar({ ...clave, importe: f.importe.toFixed(2) });
+      else {
+        await cliente.rechazar(clave, r.motivos, r.texto);
+        const lista = await cliente.motivosRechazo();
+        motivos = r.motivos.map((m) => lista.find((x) => x.codigo === m)?.descripcion ?? m);
+      }
+    } catch (e) {
+      if (e instanceof ErrorConexionArca || e instanceof ErrorServicioArca) throw new BadRequestException(mensajeArca(e));
+      throw e;
+    }
+    const actualizado = await this.tenant.transaccion(async (tx) => {
+      const u = await tx.fceRegistro.update({
+        where: { id }, data: r.acepta ? { estado: 'ACEPTADA' } : { estado: 'RECHAZADA', motivosRechazo: motivos, textoRechazo: r.texto },
+      });
+      await this.auditoria.registrar(tx, { entidad: 'FceRegistro', entidadId: id, accion: r.acepta ? 'APROBAR' : 'ANULAR', datos: r.acepta ? { aceptada: true } : { motivos: r.motivos, texto: r.texto } });
+      return u;
+    });
+    const aviso = !f.comprobanteCompraId
+      ? (r.acepta ? 'La compra no está cargada' : null)
+      : (r.acepta ? null : 'La compra está cargada: anúlela o registre la nota de crédito del proveedor');
+    return { id, estado: actualizado.estado, aviso };
+  }
+
+  async motivos() {
+    try {
+      return await (await this.arca.clienteFce()).motivosRechazo();
+    } catch (e) {
+      if (e instanceof ErrorConexionArca || e instanceof ErrorServicioArca) throw new BadRequestException(mensajeArca(e));
+      throw e;
+    }
   }
 
   /** Listado del rol (actualiza antes si nunca se consultó o la última consulta tiene más de una hora). */

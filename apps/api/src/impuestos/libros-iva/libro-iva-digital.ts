@@ -64,7 +64,7 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
     orderBy: [{ fechaContable: 'asc' }, { numeroInterno: 'asc' }],
   });
   for (const c of compras) {
-    const tipo = codigoCompra(c.tipo, c.letra);
+    const tipo = codigoCompra(c.tipo, c.letra, c.fce);
     const doc = documentoArca(c.tercero.tipoDocumento);
     const sinCredito = c.tipo === 'TICKET' || c.letra === 'C' || c.letra === 'B';
     const alicuotas = sinCredito ? [] : c.ivas.length ? c.ivas.map((i) => ({ alicuota: alic(i.alicuota), neto: i.base, impuesto: i.importe })) : [{ alicuota: '0003', neto: new D(0), impuesto: new D(0) }];
