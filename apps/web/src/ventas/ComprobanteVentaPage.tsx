@@ -11,7 +11,8 @@ import { accionesComprobante, NOMBRE_TIPO, numero, numeroVenta, TIPOS_VENTA, use
 import { EstadoEmision } from './EstadoEmision';
 import { TablaPendientes, type Pendiente } from './PedidosRemitosPages';
 import { convertirPrecio, precioSugerido } from './precios';
-import { alicuotaDe, GrillaVenta, renglonVacio, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
+import { CamposFce } from './fce';
+import { alicuotaDe, GrillaVenta, renglonVacio, totalesVenta, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
 
 const sumarDias = (f: string, d: number) => {
   const x = new Date(`${f}T00:00:00Z`);
@@ -60,6 +61,10 @@ export function ComprobanteVentaPage() {
   const [moneda, setMoneda] = useState('ARS');
   const [cotizacion, setCotizacion] = useState('');
   const [asociadoId, setAsociadoId] = useState<string | null>(null);
+  // E50: factura de crédito MiPyME
+  const [fce, setFce] = useState(false);
+  const [transferenciaFce, setTransferenciaFce] = useState<string | null>(null);
+  const [anulacionFce, setAnulacionFce] = useState(false);
   // Vendedor: undefined = el que propone el sistema (pedido de origen o cliente); null = sin vendedor (E24 §4)
   const [vendedor, setVendedor] = useState<string | null | undefined>(undefined);
   const vendedores = useVendedores();
@@ -113,11 +118,24 @@ export function ComprobanteVentaPage() {
       const f = (x: string | null) => (x ? x.slice(0, 10) : '');
       setActual(c); setTipo(c.tipo); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setFecha(f(c.fecha)); setFechaVencimiento(f(c.fechaVencimiento));
       setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
-      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setVendedor(c.vendedorId ?? null); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
+      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setFce(!!c.fce); setTransferenciaFce(c.transferenciaFce ?? null); setAnulacionFce(!!c.anulacionFce); setVendedor(c.vendedorId ?? null); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
       setRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
     }).catch(() => op.setError('No se pudo cargar el comprobante'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idEditar]);
+
+  /** E50: nota de crédito de anulación de una FCE rechazada (desde la lista de facturas de crédito). */
+  const anularFce = params.get('anularFce');
+  useEffect(() => {
+    if (!anularFce) return;
+    void api<ComprobanteVenta>(`/ventas/comprobantes/${anularFce}`).then((c) => {
+      setTipo('NOTA_CREDITO'); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setConcepto(c.concepto); setMoneda(c.monedaCodigo);
+      setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.id); setFce(true); setAnulacionFce(true);
+      setServDesde(c.fechaServicioDesde?.slice(0, 10) ?? ''); setServHasta(c.fechaServicioHasta?.slice(0, 10) ?? '');
+      setRenglones((c.renglones ?? []).map((r) => ({ ...renglonDesdeComprobante(r), origen: 'DIRECTO', remitoRenglonId: null, pedidoRenglonId: null, etiqueta: undefined })));
+    }).catch(() => op.setError('No se pudo cargar la factura de crédito'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anularFce]);
 
   const cliente = clientes.find((c) => c.id === terceroId);
   const asociables = useQuery({
@@ -135,7 +153,8 @@ export function ComprobanteVentaPage() {
   const cuerpo = () => ({
     terceroId, puntoVentaId, tipo, concepto, fecha, fechaVencimiento,
     fechaServicioDesde: concepto === 'PRODUCTOS' ? null : servDesde || null, fechaServicioHasta: concepto === 'PRODUCTOS' ? null : servHasta || null,
-    fechaVencimientoPago: concepto === 'PRODUCTOS' ? null : vencePago || null,
+    fechaVencimientoPago: concepto === 'PRODUCTOS' || fce ? null : vencePago || null,
+    fce, transferenciaFce: tipo === 'FACTURA' && fce ? transferenciaFce : null, anulacionFce: tipo !== 'FACTURA' && fce ? anulacionFce : null,
     monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null,
     comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado, vendedorId: tipo === 'FACTURA' ? vendedor : undefined,
     depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
@@ -177,6 +196,7 @@ export function ComprobanteVentaPage() {
     setActual(null);
     setRenglones([renglonVacio()]);
     setAsociadoId(null);
+    setFce(false); setTransferenciaFce(null); setAnulacionFce(false);
     op.setError('');
   }
 
@@ -206,12 +226,14 @@ export function ComprobanteVentaPage() {
           <Group mt="sm" align="flex-end">
             <TextInput label="Servicio desde" type="date" value={servDesde} onChange={(e) => setServDesde(e.currentTarget.value)} disabled={!editable} />
             <TextInput label="Servicio hasta" type="date" value={servHasta} onChange={(e) => setServHasta(e.currentTarget.value)} disabled={!editable} />
-            <TextInput label="Vencimiento del pago" type="date" value={vencePago} onChange={(e) => setVencePago(e.currentTarget.value)} disabled={!editable} />
+            {!fce && <TextInput label="Vencimiento del pago" type="date" value={vencePago} onChange={(e) => setVencePago(e.currentTarget.value)} disabled={!editable} />}
           </Group>
         )}
+        <CamposFce tipo={tipo} terceroId={terceroId} fecha={fecha} totalPesos={Number(totalesVenta(renglones, letra).total) * (moneda === 'USD' && cotizacion ? numero(cotizacion) : 1)}
+          fce={fce} onFce={setFce} transferencia={transferenciaFce} onTransferencia={setTransferenciaFce} anulacion={anulacionFce} onAnulacion={setAnulacionFce} disabled={!editable} fijo />
         {tipo !== 'FACTURA' && (
           <Group mt="sm" align="flex-end">
-            <Select label="Comprobante asociado" w={360} searchable value={asociadoId} onChange={setAsociadoId} disabled={!editable}
+            <Select label="Comprobante asociado" w={360} searchable value={asociadoId} onChange={(v) => { setAsociadoId(v); setFce(!!asociables.find((a) => a.id === v)?.fce); }} disabled={!editable}
               data={asociables.map((a) => ({ value: a.id, label: `${NOMBRE_TIPO[a.tipo]} ${a.letra} ${numeroVenta(a.puntoVenta, a.numero)} · saldo ${formatoMoneda(a.saldo, a.monedaCodigo)}` }))} />
             {tipo === 'NOTA_CREDITO' && <Checkbox label="Aplicar a la factura asociada" checked={aplicarAAsociado} onChange={(e) => setAplicarAAsociado(e.currentTarget.checked)} disabled={!editable} />}
             {tipo === 'NOTA_CREDITO' && <Checkbox label="Con devolución de mercadería" checked={devuelveMercaderia} onChange={(e) => setDevuelveMercaderia(e.currentTarget.checked)} disabled={!editable} />}

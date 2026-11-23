@@ -86,6 +86,13 @@ describe('factura de crédito MiPyME: obligación del cliente (E50)', () => {
     expect(ArcaSimuladoFce.consultasObligacion(y.empresaId)).toBe(0);
   });
 
+  it('SIMULADO: la marca manual del cliente hace de obligación (para la demo)', async () => {
+    const x = await escenario({ obligado: false });
+    await prisma.tercero.update({ where: { id: x.clienteRI.id }, data: { fceObligadoManual: true } });
+    expect((await x.consulta(100)).body).toMatchObject({ obligado: true, montoMinimo: null, corresponde: true, aviso: null });
+    expect((await x.emitir(100, { fce: true })).status).toBe(201);
+  });
+
   it('la ficha del cliente guarda la marca manual', async () => {
     const x = await escenario();
     const r = await x.http.patch(`/api/terceros/${x.clienteRI.id}`, { fceObligadoManual: true });

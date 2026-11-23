@@ -24,6 +24,8 @@ export interface ComprobanteVenta {
   estado: string; cae: string | null; caeVencimiento: string | null; ultimoError: string | null; version: number; saldo?: string | null; numeroReservado: number | null;
   puntoVentaId: string; fechaServicioDesde: string | null; fechaServicioHasta: string | null; fechaVencimientoPago: string | null;
   comprobanteAsociadoId: string | null; aplicarAAsociado: boolean;
+  /** E50: factura de crédito MiPyME */
+  fce?: boolean; transferenciaFce?: string | null; anulacionFce?: boolean | null;
   tercero?: { razonSocial: string }; renglones?: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; neto: string; iva: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null }[];
   ivas?: { alicuota: string; base: string; importe: string }[];
   /** Percepciones practicadas (E39) */

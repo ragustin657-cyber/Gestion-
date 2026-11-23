@@ -34,7 +34,9 @@ export class ObligacionFceService {
     const delAmbiente = t.fceConsultadoEn && t.fceConsultadoAmbiente === ambiente;
     if (delAmbiente && hoyEn(ZONA_ARGENTINA, t.fceConsultadoEn!) === hoyEn(ZONA_ARGENTINA)) return guardada(null);
     try {
-      const r = await (await this.arca.clienteFce()).consultarObligacion(t.cuit, fecha.replace(/-/g, ''));
+      let r = await (await this.arca.clienteFce()).consultarObligacion(t.cuit, fecha.replace(/-/g, ''));
+      // En el ambiente SIMULADO nadie está en el registro: la marca manual del cliente hace de obligación (para probar la FCE)
+      if (ambiente === 'SIMULADO' && !r.obligado && t.fceObligadoManual) r = { obligado: true, montoMinimo: null };
       const ahora = new Date();
       await db.tercero.update({
         where: { id: t.id },

@@ -1,3 +1,4 @@
+import { FceEmitidasPage, FceRecibidasPage } from '../ventas/fce';
 import { DespachoImportacionPage } from '../compras/DespachoImportacionPage';
 import { ConfigCorreoPage } from '../correo/ConfigCorreoPage';
 import { InteresesPage } from '../ventas/InteresesPages';
@@ -178,6 +179,8 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/contabilidad/libros', elemento: <LibrosPage /> },
   { ruta: '/contabilidad/asientos/:id', elemento: <AsientoPage /> },
   { ruta: '/ventas/comprobante', elemento: <ComprobanteVentaPage /> },
+  { ruta: '/ventas/fce', elemento: <FceEmitidasPage /> },
+  { ruta: '/compras/fce', elemento: <FceRecibidasPage /> },
   { ruta: '/ventas/recibo', elemento: <ReciboPage /> },
   { ruta: '/ventas/aplicacion', elemento: <AplicacionPage /> },
   { ruta: '/ventas/aplicaciones', elemento: <AplicacionPage /> },
