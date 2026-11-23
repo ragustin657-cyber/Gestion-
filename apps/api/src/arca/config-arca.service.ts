@@ -6,11 +6,13 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { fechaAR } from '../compras/comun';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
-import { ArcaReal } from './arca-real';
+import { ArcaReal, ArcaRealFce, OpcionesArcaReal } from './arca-real';
 import { ArcaSimulado } from './arca-simulado';
 import { leerCertificado, verificarPar } from './certificado';
 import { cifrar, descifrar } from './cifrado';
 import { ClienteArca } from './cliente-arca';
+import { ClienteFce } from './cliente-fce';
+import { ArcaSimuladoFce } from './arca-simulado-fce';
 
 const DIAS_AVISO = 30;
 const SIN_CERTIFICADO = 'La empresa no tiene certificado de ARCA cargado';
@@ -81,8 +83,26 @@ export class ConfigArcaService {
   /** Cliente de ARCA del ambiente de la empresa. 400 si falta el certificado o está vencido. */
   async cliente(): Promise<ClienteArca> {
     const c = await this.config();
+    if (c.ambiente === 'SIMULADO') return new ArcaSimulado(this.tenant.db, this.tenant.empresaId);
+    return new ArcaReal(await this.opcionesReal(c, 'wsfe'));
+  }
+
+  /** Registro de facturas de crédito MiPyME (E50): mismo certificado, ticket de `wsfecred`. */
+  async clienteFce(): Promise<ClienteFce> {
+    const c = await this.config();
+    if (c.ambiente === 'SIMULADO') {
+      const empresa = await this.prisma.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+      return new ArcaSimuladoFce(this.tenant.db, this.tenant.empresaId, normalizarCuit(empresa.cuit));
+    }
+    return new ArcaRealFce(await this.opcionesReal(c, 'wsfecred'));
+  }
+
+  async ambiente(): Promise<AmbienteArca> {
+    return (await this.config()).ambiente;
+  }
+
+  private async opcionesReal(c: ConfigArca, servicio: 'wsfe' | 'wsfecred'): Promise<OpcionesArcaReal> {
     const db = this.tenant.db;
-    if (c.ambiente === 'SIMULADO') return new ArcaSimulado(db, this.tenant.empresaId);
     if (!c.certificadoCifrado || !c.claveCifrada) throw new BadRequestException(SIN_CERTIFICADO);
     if (c.certificadoVence && c.certificadoVence.getTime() < Date.now()) throw new BadRequestException(`El certificado de ARCA venció el ${fechaAR(c.certificadoVence)}`);
     const empresa = await this.prisma.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
@@ -93,9 +113,9 @@ export class ConfigArcaService {
     } catch (e) {
       throw new BadRequestException((e as Error).message);
     }
-    const ambiente = c.ambiente;
-    const filtro = { ambiente, servicio: 'wsfe' };
-    return new ArcaReal({
+    const ambiente = c.ambiente as 'HOMOLOGACION' | 'PRODUCCION';
+    const filtro = { ambiente: c.ambiente, servicio };
+    return {
       ambiente, cuit: normalizarCuit(empresa.cuit), crt, key,
       tokens: {
         leer: () => db.tokenArca.findFirst({ where: filtro }),
@@ -108,7 +128,7 @@ export class ConfigArcaService {
         },
         borrar: async () => { await db.tokenArca.deleteMany({ where: filtro }); },
       },
-    });
+    };
   }
 
   async probar() {
