@@ -1,3 +1,4 @@
+import { FceRegistroService } from '../fce/registro.service';
 import { Obligacion, ObligacionFceService } from '../fce/obligacion.service';
 import { verificarMesesAbiertos } from '../../impuestos/posicion-iva/bloqueo';
 import { BajasService } from '../../bienes-uso/bajas.service';
@@ -45,6 +46,7 @@ export class EmisionService {
     private readonly bajas: BajasService,
     private readonly percepciones: PercepcionesVentaService,
     private readonly obligacionFce: ObligacionFceService,
+    private readonly registroFce: FceRegistroService,
   ) {}
 
   registrarAlAutorizar(f: AlAutorizar) {
@@ -198,6 +200,7 @@ export class EmisionService {
     if (!conf?.mipyme) throw new BadRequestException('La empresa no está marcada como MiPyME: no puede emitir factura de crédito');
     const cuenta = conf.cuentaBancariaFceId ? await tx.cuentaBancaria.findUnique({ where: { id: conf.cuentaBancariaFceId } }) : null;
     if (c.tipo === 'FACTURA' && !cuenta?.cbu) throw new BadRequestException('Configure la cuenta bancaria (CBU) para la factura de crédito');
+    if (c.tipo !== 'FACTURA' && c.anulacionFce && c.comprobanteAsociadoId) await this.registroFce.verificarAnulable(tx, c.comprobanteAsociadoId);
     if (c.tipo === 'FACTURA' && c.fechaVencimientoPago && c.fechaVencimientoPago < c.fecha) throw new BadRequestException('La fecha de vencimiento del pago no puede ser anterior a la fecha del comprobante');
   }
 

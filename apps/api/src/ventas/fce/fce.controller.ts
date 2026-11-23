@@ -1,11 +1,28 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Query } from '@nestjs/common';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { esUuid } from '../../comun/esquemas';
 import { ObligacionFceService } from './obligacion.service';
+import { FceRegistroService } from './registro.service';
+
+const ESTADOS = ['PENDIENTE', 'ACEPTADA', 'RECHAZADA', 'ACEPTADA_TACITA'];
 
 @Controller('ventas/fce')
 export class FceVentasController {
-  constructor(private readonly obligacion: ObligacionFceService) {}
+  constructor(private readonly obligacion: ObligacionFceService, private readonly registro: FceRegistroService) {}
+
+  /** FCE emitidas con su estado en el registro de ARCA (E50 §5). */
+  @Get()
+  @RequierePermiso('venta.ver')
+  listar(@Query('estado') estado?: string) {
+    if (estado && !ESTADOS.includes(estado)) throw new BadRequestException('Estado inválido');
+    return this.registro.listar('EMISOR', estado || undefined);
+  }
+
+  @Post('actualizar')
+  @RequierePermiso('venta.ver')
+  actualizar() {
+    return this.registro.actualizar('EMISOR');
+  }
 
   /** ¿Corresponde factura de crédito MiPyME? (E50) */
   @Get('obligacion')

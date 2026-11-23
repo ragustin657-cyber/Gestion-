@@ -1,0 +1,6 @@
+-- CreateEnum
+CREATE TYPE "RolFce" AS ENUM ('EMISOR', 'RECEPTOR');
+
+-- CreateEnum
+CREATE TYPE "EstadoFceRegistro" AS ENUM ('PENDIENTE', 'ACEPTADA', 'RECHAZADA', 'ACEPTADA_TACITA');
+

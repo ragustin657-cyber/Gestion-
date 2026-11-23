@@ -1,3 +1,4 @@
+import { FceRegistroService } from '../fce/registro.service';
 import { verificarDeEmpresa } from '../../comun/de-empresa';
 import { vendedorActivo } from '../comisiones/vendedor-activo';
 import { BajasService } from '../../bienes-uso/bajas.service';
@@ -46,6 +47,7 @@ export class ComprobantesVentaService {
     private readonly origenes: OrigenesVenta,
     private readonly bajas: BajasService,
     private readonly percepciones: PercepcionesVentaService,
+    private readonly registroFce: FceRegistroService,
   ) {}
 
   obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -99,6 +101,7 @@ export class ComprobantesVentaService {
       if (asoc.terceroId !== d.terceroId) throw new BadRequestException('El comprobante asociado es de otro cliente');
       if (asoc.monedaCodigo !== d.monedaCodigo) throw new BadRequestException('El comprobante asociado está en otra moneda');
       if (asoc.fce !== !!d.fce) throw new BadRequestException('La nota tiene que ser de la misma clase que la factura: factura de crédito MiPyME o común');
+      if (d.fce && d.anulacionFce) await this.registroFce.verificarAnulable(tx, asoc.id);
       letra = asoc.letra as LetraVenta;
     }
     // Venta de bienes de uso (spec E14 §5): el neto va al resultado por venta y la baja se registra al autorizar

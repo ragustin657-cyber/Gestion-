@@ -3208,3 +3208,43 @@ model RecaudacionBancaria {
 
   @@index([empresaId, periodo])
 }
+
+/// E50: rol de la empresa en una factura de crédito MiPyME del registro de ARCA.
+enum RolFce {
+  EMISOR
+  RECEPTOR
+}
+
+enum EstadoFceRegistro {
+  PENDIENTE
+  ACEPTADA
+  RECHAZADA
+  ACEPTADA_TACITA
+}
+
+/// E50: factura de crédito MiPyME en el registro de ARCA (emitida o recibida), por ambiente; las notas se muestran con su factura.
+model FceRegistro {
+  id                   String            @id @default(uuid()) @db.Uuid
+  empresaId            String            @db.Uuid
+  ambiente             AmbienteArca
+  rol                  RolFce
+  cuitContraparte      String
+  cbteTipo             Int
+  puntoVenta           Int
+  numero               Int
+  fecha                DateTime          @db.Date
+  importe              Decimal           @db.Decimal(18, 2)
+  moneda               String
+  fechaVencimientoPago DateTime?         @db.Date
+  estado               EstadoFceRegistro
+  fechaRecepcion       DateTime?         @db.Date
+  fechaLimite          DateTime?         @db.Date
+  motivosRechazo       String[]
+  textoRechazo         String?
+  consultadoEn         DateTime
+  comprobanteVentaId   String?           @db.Uuid
+  comprobanteCompraId  String?           @db.Uuid
+
+  @@unique([empresaId, ambiente, rol, cuitContraparte, cbteTipo, puntoVenta, numero])
+  @@index([empresaId, ambiente, rol, estado])
+}
