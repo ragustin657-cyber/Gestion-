@@ -123,8 +123,10 @@ export class EmisionService {
       if (leido.tipo === 'NOTA_CREDITO' && leido.comprobanteAsociadoId) await bloquear(tx, 'ComprobanteVenta', empresaId, [leido.comprobanteAsociadoId]);
       const c = leido.numeroReservado === null ? await this.recalcularPercepciones(tx, leido) : leido;
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
-      if (c.fce) await this.validarFce(tx, c);
-      if (obligacion && c.tipo === 'FACTURA') {
+      // Revisión E50: con un número ya reservado el reintento repite lo que se mandó (puede estar autorizado en ARCA): no se vuelven a aplicar las reglas de FCE
+      const reintento = c.numeroReservado !== null;
+      if (c.fce && !reintento) await this.validarFce(tx, c);
+      if (obligacion && c.tipo === 'FACTURA' && !reintento) {
         const error = ObligacionFceService.errorEmision(obligacion, c.fce, c.totalPesos);
         if (error) throw new BadRequestException(error);
       }

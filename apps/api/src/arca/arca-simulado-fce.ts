@@ -1,5 +1,5 @@
 import { TxEmpresa } from '../prisma/tenant-prisma.service';
-import { ErrorConexionArca } from './cliente-arca';
+import { ErrorConexionArca, ErrorServicioArca } from './cliente-arca';
 import { ClaveFce, ClienteFce, EstadoFce, FceArca, ObligacionFce } from './cliente-fce';
 
 /** Estado del registro simulado por empresa (en memoria; solo las pruebas lo cargan). */
@@ -8,12 +8,13 @@ interface Registro {
   recibidas: FceArca[];
   estados: Map<string, { estado: EstadoFce; motivos: string[] }>;
   sinConexion: boolean;
+  errorServicio: boolean;
   consultas: number;
 }
 const registros = new Map<string, Registro>();
 const reg = (empresaId: string): Registro => {
   let r = registros.get(empresaId);
-  if (!r) registros.set(empresaId, (r = { obligados: new Map(), recibidas: [], estados: new Map(), sinConexion: false, consultas: 0 }));
+  if (!r) registros.set(empresaId, (r = { obligados: new Map(), recibidas: [], estados: new Map(), sinConexion: false, errorServicio: false, consultas: 0 }));
   return r;
 };
 const soloPruebas = () => { if (process.env.NODE_ENV !== 'test') throw new Error('Solo disponible en pruebas'); };
@@ -33,11 +34,13 @@ export class ArcaSimuladoFce implements ClienteFce {
   static recibir(empresaId: string, f: FceArca) { soloPruebas(); reg(empresaId).recibidas.push({ ...f }); }
   static fijarEstado(empresaId: string, f: ClaveFce, estado: EstadoFce, motivos: string[] = []) { soloPruebas(); reg(empresaId).estados.set(claveFce(f), { estado, motivos }); }
   static forzarSinConexion(empresaId: string, si: boolean) { soloPruebas(); reg(empresaId).sinConexion = si; }
+  static forzarErrorServicio(empresaId: string, si: boolean) { soloPruebas(); reg(empresaId).errorServicio = si; }
   static consultasObligacion(empresaId: string) { soloPruebas(); return reg(empresaId).consultas; }
   static limpiar(empresaId?: string) { if (empresaId) registros.delete(empresaId); else registros.clear(); }
 
   private conectar() {
     if (reg(this.empresaId).sinConexion) throw new ErrorConexionArca('No se pudo conectar con ARCA: tiempo de espera agotado (simulado)');
+    if (reg(this.empresaId).errorServicio) throw new ErrorServicioArca('ARCA rechazó la operación: (1501) La CUIT no está en el registro de MiPyMEs (simulado)');
   }
 
   private aplicar(f: FceArca): FceArca {

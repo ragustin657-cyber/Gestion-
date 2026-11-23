@@ -80,7 +80,13 @@ export class FceRegistroService {
     if (marcada) return marcada.id;
     const comun = await db.comprobanteCompra.findFirst({ where: { ...where, fce: false } });
     if (!comun) return null;
-    await db.comprobanteCompra.update({ where: { id: comun.id }, data: { fce: true } });
+    // Revisión E50: si ya hay una compra FCE con ese número (p. ej. anulada) no se marca la común (chocaría con la unicidad)
+    const { estado: _estado, ...sinEstado } = where;
+    if (await db.comprobanteCompra.findFirst({ where: { ...sinEstado, fce: true } })) return comun.id;
+    await this.tenant.transaccion(async (tx) => {
+      await tx.comprobanteCompra.update({ where: { id: comun.id }, data: { fce: true } });
+      await this.auditoria.registrar(tx, { entidad: 'ComprobanteCompra', entidadId: comun.id, accion: 'MODIFICAR', datos: { fce: true, motivo: 'Emparejada con una factura de crédito MiPyME recibida' } });
+    });
     return comun.id;
   }
 

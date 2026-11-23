@@ -61,6 +61,19 @@ describe('factura de crédito MiPyME: recibidas (E50)', () => {
     expect((await prisma.comprobanteCompra.findUniqueOrThrow({ where: { id: c.id } })).fce).toBe(true);
   });
 
+  it('revisión: compra FCE anulada y recargada como común: el emparejamiento no rompe la lista', async () => {
+    const x = await escenario();
+    const anulada = await x.compra({ numero: 55, fce: true });
+    await prisma.comprobanteCompra.update({ where: { id: anulada.id }, data: { estado: 'ANULADO' } });
+    const comun = await x.compra({ numero: 55 });
+    x.recibir({ numero: 55 });
+    await x.http.post('/api/compras/fce/actualizar');
+    const r = await x.http.get('/api/compras/fce');
+    expect(r.status).toBe(200);
+    expect(r.body.filas[0].comprobanteCompraId).toBe(comun.id);
+    expect((await prisma.comprobanteCompra.findUniqueOrThrow({ where: { id: comun.id } })).fce).toBe(false);
+  });
+
   it('aceptar y rechazar: estados, avisos, plazos y auditoría', async () => {
     const x = await escenario();
     x.recibir({ numero: 1 });

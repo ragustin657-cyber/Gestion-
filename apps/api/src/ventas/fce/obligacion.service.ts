@@ -2,7 +2,7 @@ import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, Tercero } from '@prisma/client';
 import { ConfigArcaService } from '../../arca/config-arca.service';
-import { ErrorConexionArca } from '../../arca/cliente-arca';
+import { ErrorConexionArca, ErrorServicioArca } from '../../arca/cliente-arca';
 import { fechaAR } from '../../compras/comun';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
 import { importeAR } from '../pdf/pdf-venta';
@@ -44,7 +44,8 @@ export class ObligacionFceService {
       });
       return { obligado: r.obligado, montoMinimo: r.montoMinimo ? new Prisma.Decimal(r.montoMinimo).toFixed(2) : null, aviso: null, consultadoEn: ahora.toISOString() };
     } catch (e) {
-      if (!(e instanceof ErrorConexionArca)) throw e;
+      // Revisión E50: un error del servicio (p. ej. la empresa no figura en el registro) no bloquea la facturación
+      if (!(e instanceof ErrorConexionArca || e instanceof ErrorServicioArca)) throw e;
       if (delAmbiente) return guardada(`No se pudo consultar ARCA: se usa la consulta del ${fechaAR(new Date(`${hoyEn(ZONA_ARGENTINA, t.fceConsultadoEn!)}T00:00:00Z`))}`);
       return { obligado: t.fceObligadoManual, montoMinimo: null, aviso: 'No se pudo consultar ARCA: se usa la marca manual del cliente', consultadoEn: null };
     }
