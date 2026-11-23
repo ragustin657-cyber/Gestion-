@@ -31,15 +31,16 @@ Las empresas que usan el sistema pueden estar de los dos lados (decisión del us
 - Todo lo demás (cuenta corriente, asiento, stock, percepciones, comisiones, aplicaciones) funciona igual que con la factura común.
 
 ### 4.2 Datos obligatorios que se mandan a ARCA
-- **Fecha de vencimiento del pago** (`FchVtoPago`): en la factura FCE es obligatoria para cualquier concepto, y es la fecha de vencimiento del comprobante. *(Decisión mía: se usa el vencimiento que ya tiene el comprobante, así la cuenta corriente y la FCE dicen lo mismo.)* Debe ser igual o posterior a la fecha de emisión.
+- **Fecha de vencimiento del pago** (`FchVtoPago`): en la factura FCE es obligatoria para cualquier concepto, y es la fecha de vencimiento del comprobante (`fechaVencimiento`, la de la cuenta corriente). *(Decisión mía: en la FCE, `fechaVencimientoPago` se guarda igual a `fechaVencimiento` y la pantalla no pide las dos, así la cuenta corriente y ARCA dicen lo mismo; en servicios se siguen pidiendo las fechas del servicio.)* Debe ser igual o posterior a la fecha de emisión.
 - **CBU** del emisor (opcional 2101) — solo en la factura.
 - **Transferencia** (opcional 27: `SCA` o `ADC`) — solo en la factura.
 - **Notas de débito y crédito FCE:** siempre asociadas a una FCE del mismo cliente (`CbtesAsoc` con su CUIT), y con el opcional 22 **anulación**: `S` si anulan la FCE por un rechazo, `N` en los demás casos. Una nota común no puede asociarse a una FCE ni una nota FCE a una factura común (`La nota tiene que ser de la misma clase que la factura: factura de crédito MiPyME o común`).
+- **Notas sobre una FCE aceptada** *(decisión mía)*: se permiten notas FCE con anulación `N` (devoluciones, descuentos) según el último estado guardado, sin consultar ARCA en la emisión; si el registro la rechaza, el error de ARCA se muestra como hoy. Si el estado guardado es aceptada, la nota con anulación `S` da error `La factura de crédito está aceptada: no se puede anular`. Qué notas admite el registro después de la aceptación va a «Datos a verificar».
 - Los códigos exactos de los opcionales y los valores van a «Datos a verificar».
 
 ### 4.3 ¿Corresponde FCE?
-- Al elegir el cliente (y al emitir) el sistema consulta en `wsfecred` si el CUIT del cliente está **obligado a recibir FCE** y el **monto mínimo** a la fecha (operación de consulta de monto obligado). El resultado se guarda en el cliente (`fceObligado`, `fceMontoMinimo`, `fceConsultadoEn`) y vale para el día *(decisión mía: una consulta por cliente y día, para no consultar en cada renglón)*.
-- **Corresponde FCE** si: la empresa es MiPyME, el cliente es responsable inscripto o exento con CUIT *(a verificar)*, está obligado, y el total del comprobante en pesos llega al mínimo.
+- Al elegir el cliente (y al emitir) el sistema consulta en `wsfecred` si el CUIT del cliente está **obligado a recibir FCE** y el **monto mínimo** a la fecha (operación de consulta de monto obligado). El resultado se guarda en el cliente (`fceObligado`, `fceMontoMinimo`, `fceConsultadoEn`) y vale para el día y el ambiente de ARCA en que se consultó *(decisión mía: una consulta por cliente y día, para no consultar en cada renglón; una consulta de otro ambiente no se usa)*.
+- **Corresponde FCE** si: la empresa es MiPyME, el cliente es responsable inscripto o exento con CUIT *(a verificar)*, está obligado, y el total del comprobante en pesos (con percepciones, el mismo total que va a ARCA) llega al mínimo. *(Decisión mía: la pantalla propone la marca con el total que muestra, pero la regla se vuelve a controlar al emitir con el total definitivo.)*
 - Si corresponde y se intenta emitir una factura común: error `El cliente está obligado a recibir factura de crédito MiPyME desde $ <mínimo>: emita una factura de crédito`. Si no corresponde y se marca FCE: se permite *(decisión mía: la ley permite emitir FCE voluntariamente a un obligado por debajo del mínimo)*, salvo que el cliente no esté obligado (`El cliente no está obligado a recibir factura de crédito MiPyME`).
 - **Sin respuesta de ARCA:** se usa el último dato guardado del cliente, con el aviso `No se pudo consultar ARCA: se usa la consulta del <fecha>`; si nunca se consultó, la **marca manual** del cliente (`fceObligadoManual`, editable en la ficha). La emisión del comprobante sigue el circuito de hoy (queda pendiente de CAE si ARCA no responde).
 - En la pantalla de factura, la marca FCE se propone sola cuando corresponde, con el aviso del mínimo.
@@ -49,7 +50,7 @@ Las empresas que usan el sistema pueden estar de los dos lados (decisión del us
 - Libro IVA Digital de ventas: los códigos 201…213.
 
 ## 5. Estado de las FCE emitidas
-- `FceRegistro` (de empresa): una fila por FCE (emitida o recibida) con: rol (`EMISOR`/`RECEPTOR`), CUIT de la contraparte, tipo ARCA, punto de venta, número, fecha, importe, moneda, fecha de vencimiento del pago, **estado** (`PENDIENTE`, `ACEPTADA`, `RECHAZADA`, `ACEPTADA_TACITA`, a verificar contra los estados del registro), fecha de recepción, fecha límite para aceptar o rechazar, motivos del rechazo, fecha de la última consulta, y el comprobante del sistema (venta o compra) si se emparejó.
+- `FceRegistro` (de empresa, por ambiente de ARCA como los comprobantes): una fila por **factura** FCE (emitida o recibida) *(decisión mía: las notas FCE se muestran debajo de su factura y el importe a aceptar es el de la factura más y menos sus notas, como la cuenta corriente del registro; a verificar)*, con: rol (`EMISOR`/`RECEPTOR`), CUIT de la contraparte, tipo ARCA, punto de venta, número, fecha, importe, moneda, fecha de vencimiento del pago, **estado** (`PENDIENTE`, `ACEPTADA`, `RECHAZADA`, `ACEPTADA_TACITA`, a verificar contra los estados del registro), fecha de recepción, fecha límite para aceptar o rechazar, motivos del rechazo, fecha de la última consulta, y el comprobante del sistema (venta o compra) si se emparejó.
 - **Actualizar desde ARCA** (botón, y al abrir la pantalla si la última consulta tiene más de una hora): trae los comprobantes del registro como emisor de los últimos 90 días *(decisión mía)* y actualiza los estados.
 - Pantalla *Ventas › Facturas de crédito MiPyME*: lista con cliente, comprobante, importe, vencimiento del pago, estado y fecha límite; filtro por estado.
 - **Rechazada:** aviso en la lista y botón *Emitir nota de crédito de anulación*, que abre la nota de crédito FCE asociada, por el total, con anulación `S`. Mientras no esté anulada, la FCE rechazada queda marcada.
@@ -61,10 +62,12 @@ Las empresas que usan el sistema pueden estar de los dos lados (decisión del us
 - **Aceptar** y **Rechazar** (con uno o más motivos de la lista del registro y un texto) llaman a `wsfecred`. Solo en estado pendiente y dentro del plazo (`El plazo para aceptar o rechazar venció el <fecha>`). Con la compra no cargada se permite aceptar, con aviso `La compra no está cargada` *(decisión mía: la aceptación tiene plazo legal; la carga puede venir después)*.
 - Avisos: las pendientes con 5 días o menos de plazo se muestran resaltadas *(decisión mía)*.
 - Cada aceptación o rechazo queda en la auditoría.
+- **Rechazo con la compra cargada** *(decisión mía)*: no se bloquea ni se anula nada; aviso `La compra está cargada: anúlela o registre la nota de crédito del proveedor`. Del lado del vendedor, la FCE rechazada es una marca en la lista hasta que se emite la nota de anulación (la cuenta corriente no se toca).
 - Permiso: ver con `fc.ver`; aceptar o rechazar con `fc.crear` *(decisión mía: es quien carga las facturas de proveedores)*.
 
 ## 7. Compras
 - El comprobante de compra tiene la marca **FCE** (`ComprobanteCompra.fce`), que se carga a mano o se pone sola al emparejar con una FCE recibida.
+- *(Decisión mía)* Como la FCE tiene numeración propia, la marca entra en la unicidad del comprobante de compra (un proveedor puede tener la factura A 0001-00000123 y la FCE A 0001-00000123) y en el emparejamiento con las FCE recibidas y con «Mis Comprobantes» (la fila 201…213 empareja primero con la compra marcada FCE; si no hay, con la común del mismo número, con el aviso de abajo).
 - Libro IVA Digital de compras: con la marca, los códigos 201…213.
 - El control con «Mis Comprobantes» ya empareja los códigos 201…213 con la factura, nota de débito o crédito equivalente (entrega 8); además, si la fila es FCE y la compra no tiene la marca, avisa `La compra es una factura de crédito MiPyME`.
 
@@ -86,5 +89,7 @@ Las empresas que usan el sistema pueden estar de los dos lados (decisión del us
 ## 11. Datos a verificar (van a `docs/pendientes.md` §2)
 - Diseño del web service `wsfecred` (operaciones, campos, estados, motivos de rechazo) y su URL de homologación y producción.
 - Códigos de los opcionales de WSFEv1 para la FCE (CBU 2101, transferencia 27, anulación 22) y si la FCE C y la FCE a exentos llevan los mismos datos.
+- Qué notas de débito y crédito admite el registro después de la aceptación, y cómo suman al importe a aceptar.
+- Si se puede emitir FCE voluntariamente a un obligado por debajo del mínimo.
 - Plazo para aceptar o rechazar (30 días corridos desde la recepción) y quiénes pueden recibir FCE (responsables inscriptos; exentos).
 - Monto mínimo vigente (lo informa el web service; no se guarda un valor fijo).
