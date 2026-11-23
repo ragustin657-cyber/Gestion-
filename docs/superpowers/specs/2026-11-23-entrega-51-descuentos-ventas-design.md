@@ -17,7 +17,7 @@ Hoy el renglón de venta es cantidad × precio unitario. Para hacer un descuento
 
 ## 3. Cálculo (`calcularVenta`, compartido API/web)
 - Renglón: `bonificacionPct` (0 a 100, hasta 2 decimales; por defecto 0). Comprobante: `descuentoPct` (0 a menos de 100, hasta 2 decimales; por defecto 0).
-- `neto = redondeo2(cantidad × precio × (1 − b/100) × (1 − d/100))`. Un renglón con neto 0 (bonificación 100 %) se permite *(decisión mía: bonificación total de una muestra o un regalo)*; el comprobante no puede quedar con total 0 (`El total del comprobante debe ser mayor a cero`).
+- `neto = redondeo2(cantidad × precio × (1 − b/100) × (1 − d/100))`. Un renglón con neto 0 (bonificación 100 %) se permite *(decisión mía: bonificación total de una muestra o un regalo)*; el comprobante y el pedido no pueden quedar con total 0 (`El total del comprobante debe ser mayor a cero`; *decisión mía: también el pedido*).
 - Para mostrar: `subtotal antes del descuento general = Σ redondeo2(cantidad × precio × (1 − b/100))`; `descuento general = subtotal − Σ netos` (en neto, sin IVA). Con letra B, los importes con IVA se calculan igual que hoy a partir de esos netos.
 - Sin bonificación ni descuento, el resultado es idéntico al de hoy (mismo redondeo).
 
@@ -31,6 +31,9 @@ Hoy el renglón de venta es cantidad × precio unitario. Para hacer un descuento
 
 ## 5. PDF y consultas
 - PDF: columnas *Precio*, *Bonif. %* (solo si algún renglón tiene bonificación) e *Importe*; en el pie, antes de los totales, `Subtotal` y `Descuento general X %` (solo si hay descuento general). Letra B: precios e importes con IVA, como hoy.
+- *(Decisión mía)* El **importe del renglón que se muestra es el de antes del descuento general** (`redondeo2(cantidad × precio × (1 − b/100))`, calculado al mostrar; no se guarda). El `neto` guardado sigue siendo el final (después del descuento general), el que usan IVA, libros, comisiones y stock. Así la tabla suma el `Subtotal`, se resta el `Descuento general` y queda el neto final.
+- *(Decisión mía)* **Letra B:** los importes con IVA de los renglones se calculan con la misma regla de hoy (`importesConIva`) sobre los importes de antes del descuento general; `Subtotal` = su suma; `Descuento general` = Subtotal − (total del comprobante − percepciones). Suma exacta por construcción.
+- *(Decisión mía)* **Pedido:** la pantalla y el PDF del pedido muestran la columna *Bonif. %*; el precio unitario del PDF es el precio de lista (con IVA en letra B: precio × (1 + alícuota)), no importe ÷ cantidad.
 - El detalle del comprobante (pantalla y API) devuelve `bonificacionPct` por renglón y `descuentoPct`.
 
 ## 6. Datos
