@@ -175,6 +175,12 @@ model Tercero {
 
   @@unique([empresaId, cuit])
   @@unique([empresaId, codigo])
+  /// E50: obligación de recibir factura de crédito MiPyME (última consulta a ARCA y marca manual)
+  fceObligado            Boolean?
+  fceMontoMinimo         Decimal?      @db.Decimal(18, 2)
+  fceConsultadoEn        DateTime?
+  fceConsultadoAmbiente  AmbienteArca?
+  fceObligadoManual      Boolean       @default(false)
 }
 
 model TerceroIibb {

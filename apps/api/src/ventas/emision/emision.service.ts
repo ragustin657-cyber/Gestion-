@@ -1,3 +1,4 @@
+import { Obligacion, ObligacionFceService } from '../fce/obligacion.service';
 import { verificarMesesAbiertos } from '../../impuestos/posicion-iva/bloqueo';
 import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadGatewayException, BadRequestException, ConflictException, Injectable } from '@nestjs/common';
@@ -43,6 +44,7 @@ export class EmisionService {
     private readonly origenes: OrigenesVenta,
     private readonly bajas: BajasService,
     private readonly percepciones: PercepcionesVentaService,
+    private readonly obligacionFce: ObligacionFceService,
   ) {}
 
   registrarAlAutorizar(f: AlAutorizar) {
@@ -56,7 +58,10 @@ export class EmisionService {
   async emitir(id: string) {
     const cliente = await this.arca.cliente();
     const { ambiente } = await this.arca.obtener();
-    const r = await this.reservar(id, ambiente);
+    // E50: la obligación de FCE se consulta fuera de la transacción (llama a ARCA); la regla se aplica con el total definitivo
+    const previo = await this.tenant.db.comprobanteVenta.findUnique({ where: { id } });
+    const obligacion = previo && previo.tipo === 'FACTURA' && previo.estado !== 'AUTORIZADO' ? await this.obligacionFce.obligacion(previo.terceroId, previo.fecha.toISOString().slice(0, 10)) : null;
+    const r = await this.reservar(id, ambiente, obligacion);
     let resultado: ResultadoCae;
     let numero: number;
     try {
@@ -103,7 +108,7 @@ export class EmisionService {
   }
 
   /** Paso 1: bloquea el comprobante y el talonario ARCA, valida y marca la emisión en curso. */
-  private reservar(id: string, ambiente: AmbienteArca) {
+  private reservar(id: string, ambiente: AmbienteArca, obligacion: Obligacion | null = null) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
       await this.comprobantes.obtener(id, tx);
@@ -117,6 +122,10 @@ export class EmisionService {
       const c = leido.numeroReservado === null ? await this.recalcularPercepciones(tx, leido) : leido;
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
       if (c.fce) await this.validarFce(tx, c);
+      if (obligacion && c.tipo === 'FACTURA') {
+        const error = ObligacionFceService.errorEmision(obligacion, c.fce, c.totalPesos);
+        if (error) throw new BadRequestException(error);
+      }
       const clave = `ARCA-${ambiente}-${tipoArca}`;
       await tx.$executeRaw`INSERT INTO "Talonario" ("id", "empresaId", "tipoComprobante", "puntoVenta", "ultimoNumero")
         VALUES (gen_random_uuid(), ${empresaId}::uuid, ${clave}, ${c.puntoVenta}, 0) ON CONFLICT ("empresaId", "tipoComprobante", "puntoVenta") DO NOTHING`;

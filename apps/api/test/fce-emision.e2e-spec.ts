@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import JSZip from 'jszip';
 import { ArcaSimulado } from '../src/arca/arca-simulado';
+import { ArcaSimuladoFce } from '../src/arca/arca-simulado-fce';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararVentas } from './helpers-ventas';
@@ -23,6 +24,8 @@ describe('factura de crédito MiPyME: emisión (E50)', () => {
     const cuenta = (await v.http.post('/api/tesoreria/cuentas-bancarias', { bancoId: banco.id, numero: '1', monedaCodigo: 'ARS', cuentaContableId: await v.cuenta('1.1.01.002'), cbu: CBU })).body as { id: string };
     const conf = await v.http.put('/api/arca/config', { ambiente: 'SIMULADO', mipyme: o.mipyme ?? true, cuentaBancariaFceId: o.cuenta === false ? null : cuenta.id, transferenciaFce: 'SCA' });
     if (conf.status !== 200) throw new Error(JSON.stringify(conf.body));
+    // El cliente está obligado desde 1 peso (E50 §4.3)
+    ArcaSimuladoFce.obligar(v.empresaId, '20172543597', '1.00');
     const emitir = (d: Record<string, unknown>) => v.http.post('/api/ventas/comprobantes', { ...v.datos(d), emitir: true });
     return { ...v, cuenta, emitir };
   };
@@ -35,6 +38,7 @@ describe('factura de crédito MiPyME: emisión (E50)', () => {
 
   it('FCE A: código 201, numeración propia, vencimiento del pago y opcionales', async () => {
     const x = await escenario();
+    ArcaSimuladoFce.obligar(x.empresaId, '20172543597', '100000.00');
     const comun = await x.factura();
     expect(comun.numero).toBe(1);
     const r = await x.emitir({ fce: true, fechaVencimiento: '2026-12-15' });
@@ -72,6 +76,7 @@ describe('factura de crédito MiPyME: emisión (E50)', () => {
     let r = await x.emitir({ fce: true });
     expect([r.status, r.body.message]).toEqual([400, 'La empresa no está marcada como MiPyME: no puede emitir factura de crédito']);
     const y = await escenario({ cuenta: false });
+    ArcaSimuladoFce.obligar(y.empresaId, '20172543597', '100000.00');
     r = await y.emitir({ fce: true });
     expect([r.status, r.body.message]).toEqual([400, 'Configure la cuenta bancaria (CBU) para la factura de crédito']);
     const comun = await y.factura();
