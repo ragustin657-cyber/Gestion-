@@ -8,6 +8,8 @@ import { NOMBRE_TIPO, numero, type TipoVenta } from './comun';
 
 export interface RenglonVentaEditable {
   articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string;
+  /** E51: % de bonificación del renglón (vacío = 0). */
+  bonificacionPct?: string;
   /** Renglones que vienen de un remito o de un pedido (factura). */
   origen?: 'DIRECTO' | 'REMITO' | 'PEDIDO'; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; etiqueta?: string;
   /** Venta de un bien de uso (sin artículo, cantidad 1). */
@@ -30,10 +32,18 @@ export function aplicarPrecioSugerido(renglones: RenglonVentaEditable[], i: numb
 }
 
 /** Totales del comprobante con el mismo cálculo que el servidor (null si hay renglones incompletos). */
-export function totalesVenta(renglones: RenglonVentaEditable[], letra: LetraVenta) {
+export function totalesVenta(renglones: RenglonVentaEditable[], letra: LetraVenta, descuentoPct = '0') {
   const validos = renglones.filter((r) => numero(r.cantidad) > 0 && numero(r.precioUnitario) > 0);
-  return calcularVenta(validos.map((r) => ({ cantidad: String(numero(r.cantidad)), precioUnitario: String(numero(r.precioUnitario)), alicuota: alicuotaDe(r.alicuota) })), letra);
+  const pct = (s: string | undefined) => { const n = numero(s ?? ''); return String(Number.isFinite(n) && n > 0 ? Math.min(n, 100) : 0); };
+  return calcularVenta(validos.map((r) => ({ cantidad: String(numero(r.cantidad)), precioUnitario: String(numero(r.precioUnitario)), alicuota: alicuotaDe(r.alicuota), bonificacionPct: pct(r.bonificacionPct) })), letra, String(Math.min(Number(pct(descuentoPct)), 99.99)));
 }
+
+/** Renglón para la API (E51: con la bonificación; vacía = 0). */
+export const cuerpoRenglonVenta = (r: RenglonVentaEditable) => ({
+  origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, articuloId: r.articuloId, bienUsoId: r.bienUsoId ?? null,
+  descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota),
+  bonificacionPct: r.bonificacionPct?.trim() ? numero(r.bonificacionPct) : 0,
+});
 
 export function TituloComprobante({ tipo, empresa, cliente, letra }: { tipo: TipoVenta; empresa?: CondicionIva | `${CondicionIva}`; cliente?: CondicionIva | `${CondicionIva}`; letra?: string }) {
   let l = letra;
@@ -53,7 +63,7 @@ const ORIGEN: Record<string, string> = { PADRON: 'padrón', FICHA: 'ficha', DEFE
 export const etiquetaPercepcion = (p: PercepcionVenta) =>
   `Percepción ${p.tipo === 'IVA' ? 'IVA' : `IIBB ${nombreJurisdiccion(p.jurisdiccion ?? '')}`} ${Number(p.alicuota).toLocaleString('es-AR', { maximumFractionDigits: 4 })} % (${ORIGEN[p.origenAlicuota] ?? p.origenAlicuota})`;
 
-export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio, percepciones, percepcionesDesactualizadas }: {
+export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio, percepciones, percepcionesDesactualizadas, descuentoPct = '', onDescuento, disabled }: {
   renglones: RenglonVentaEditable[]; onChange: (r: RenglonVentaEditable[]) => void; letra: LetraVenta; moneda: string; articulos: ArticuloVenta[];
   /** Precio de la lista del cliente para el artículo elegido. */
   sugerirPrecio?: (articuloId: string) => Promise<string | null>;
@@ -61,20 +71,24 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
   percepciones?: PercepcionVenta[];
   /** Pulido E42: los renglones cambiaron desde lo guardado: no se suman las percepciones guardadas. */
   percepcionesDesactualizadas?: boolean;
+  /** E51: descuento general del comprobante (el pedido no lo tiene). */
+  descuentoPct?: string; onDescuento?: (v: string) => void; disabled?: boolean;
 }) {
   const cambiar = (i: number, c: Partial<RenglonVentaEditable>) => onChange(renglones.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const ultimos = useRef(renglones);
   ultimos.current = renglones;
-  const t = totalesVenta(renglones, letra);
+  const t = totalesVenta(renglones, letra, descuentoPct || '0');
+  const hayDescuento = Number(t.descuentoGeneral) > 0;
   const discrimina = letra !== 'C';
   return (
     <Stack gap="xs">
       <ScrollArea>
         <Table withTableBorder miw={900}>
-          <Table.Thead><Table.Tr><Table.Th>Artículo</Table.Th><Table.Th>Descripción</Table.Th><Table.Th w={90}>Cantidad</Table.Th><Table.Th w={130}>Precio unitario</Table.Th><Table.Th w={120}>IVA</Table.Th><Table.Th ta="right" w={130}>Neto</Table.Th><Table.Th w={40} /></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Artículo</Table.Th><Table.Th>Descripción</Table.Th><Table.Th w={90}>Cantidad</Table.Th><Table.Th w={130}>Precio unitario</Table.Th><Table.Th w={90}>% Bonif.</Table.Th><Table.Th w={120}>IVA</Table.Th><Table.Th ta="right" w={130}>Neto</Table.Th><Table.Th w={40} /></Table.Tr></Table.Thead>
           <Table.Tbody>
             {renglones.map((r, i) => {
-              const neto = numero(r.cantidad) * numero(r.precioUnitario);
+              const b = numero(r.bonificacionPct ?? '');
+              const neto = numero(r.cantidad) * numero(r.precioUnitario) * (1 - (Number.isFinite(b) ? b : 0) / 100);
               return (
                 <Table.Tr key={i}>
                   <Table.Td>{r.etiqueta ? <Text size="xs" fw={600}>{r.etiqueta}</Text> : <Select size="xs" w={180} aria-label="Artículo" searchable clearable placeholder="Texto libre" data={articulos} value={r.articuloId}
@@ -92,6 +106,7 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
                   <Table.Td><TextInput size="xs" aria-label="Descripción" value={r.descripcion} onChange={(e) => cambiar(i, { descripcion: e.currentTarget.value })} /></Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Cantidad" inputMode="decimal" value={r.cantidad} onChange={(e) => cambiar(i, { cantidad: e.currentTarget.value })} /></Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Precio unitario" inputMode="decimal" value={r.precioUnitario} onChange={(e) => cambiar(i, { precioUnitario: e.currentTarget.value })} /></Table.Td>
+                  <Table.Td><TextInput size="xs" aria-label="Bonificación %" inputMode="decimal" placeholder="0" value={r.bonificacionPct ?? ''} onChange={(e) => cambiar(i, { bonificacionPct: e.currentTarget.value })} /></Table.Td>
                   <Table.Td><Select size="xs" aria-label="Alícuota" allowDeselect={false} data={ALICUOTAS_VENTA} value={r.alicuota} onChange={(v) => cambiar(i, { alicuota: v ?? '21' })} /></Table.Td>
                   <Table.Td ta="right">{Number.isFinite(neto) ? formatoMoneda(neto, moneda) : ''}</Table.Td>
                   <Table.Td><ActionIcon variant="subtle" color="red" aria-label="Quitar renglón" onClick={() => onChange(renglones.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon></Table.Td>
@@ -104,6 +119,9 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
       <Group justify="space-between" align="flex-start">
         <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => onChange([...renglones, renglonVacio()])}>Agregar renglón</Button>
         <Stack gap={2} align="flex-end">
+          {onDescuento && <TextInput size="xs" w={160} label="Descuento general (%)" inputMode="decimal" placeholder="0" value={descuentoPct} disabled={disabled} onChange={(e) => onDescuento(e.currentTarget.value)} />}
+          {hayDescuento && <Text size="sm">Subtotal {formatoMoneda(t.subtotal, moneda)}</Text>}
+          {hayDescuento && <Group gap={6}><Text size="sm">{`Descuento general ${String(numero(descuentoPct)).replace('.', ',')} %`}</Text><Text size="sm">-{formatoMoneda(t.descuentoGeneral, moneda)}</Text></Group>}
           {discrimina && <Text size="sm">Neto gravado {formatoMoneda(t.netoGravado, moneda)}</Text>}
           {discrimina && t.ivas.map((x) => <Text size="sm" key={x.alicuota}>{`IVA ${String(x.alicuota).replace('.', ',')}%`}</Text>)}
           {discrimina && t.ivas.map((x) => <Text size="xs" c="dimmed" key={`i${x.alicuota}`}>{formatoMoneda(x.importe, moneda)}</Text>)}

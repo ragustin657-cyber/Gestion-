@@ -14,7 +14,7 @@ import { precioSugerido } from './precios';
 export interface PedidoVenta {
   id: string; numero: number; terceroId: string; fecha: string; validoHasta: string | null; monedaCodigo: string; cotizacion: string; depositoId: string | null; estado: string; vendedorId?: string | null;
   observaciones: string | null; total: string; version: number; motivoCierre: string | null;
-  renglones: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; cantidadEntregada: string; cantidadFacturada: string; pendienteEntregar: string; pendienteFacturar: string }[];
+  renglones: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; bonificacionPct?: string; cantidadEntregada: string; cantidadFacturada: string; pendienteEntregar: string; pendienteFacturar: string }[];
 }
 export const ESTADOS_PEDIDO: Record<string, { etiqueta: string; color: string }> = {
   PRESUPUESTO: { etiqueta: 'Presupuesto', color: 'gray' }, CONFIRMADO: { etiqueta: 'Confirmado', color: 'blue' }, PARCIALMENTE_ENTREGADO: { etiqueta: 'Parcialmente entregado', color: 'yellow' },
@@ -48,7 +48,7 @@ export function PedidoVentaPage() {
   const cargar = (p: PedidoVenta) => {
     setActual(p); setTerceroId(p.terceroId); setVendedor(p.vendedorId ?? null); setFecha(p.fecha.slice(0, 10)); setValidoHasta(p.validoHasta?.slice(0, 10) ?? ''); setMoneda(p.monedaCodigo);
     setCotizacion(p.monedaCodigo === 'USD' ? String(Number(p.cotizacion)) : ''); setDepositoId(p.depositoId); setObservaciones(p.observaciones ?? '');
-    setRenglones(p.renglones.map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota })));
+    setRenglones(p.renglones.map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota, ...(r.bonificacionPct && Number(r.bonificacionPct) ? { bonificacionPct: String(Number(r.bonificacionPct)) } : {}) })));
   };
   useEffect(() => { const id = params.get('id'); if (id) void api<PedidoVenta>(`/ventas/pedidos/${id}`).then(cargar); }, [params]);
 
@@ -58,7 +58,7 @@ export function PedidoVentaPage() {
   const editable = !actual || actual.estado === 'PRESUPUESTO';
   const cuerpo = (confirmar: boolean) => ({
     terceroId, fecha, validoHasta: validoHasta || null, monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null, depositoId, observaciones: observaciones || null, confirmar, vendedorId: vendedor,
-    renglones: renglones.filter((r) => r.descripcion).map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
+    renglones: renglones.filter((r) => r.descripcion).map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota), bonificacionPct: r.bonificacionPct?.trim() ? numero(r.bonificacionPct) : 0 })),
   });
   const guardar = async (confirmar: boolean) => {
     const r = await op.ejecutar(() => (actual

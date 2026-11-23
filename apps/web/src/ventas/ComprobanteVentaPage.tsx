@@ -12,7 +12,7 @@ import { EstadoEmision } from './EstadoEmision';
 import { TablaPendientes, type Pendiente } from './PedidosRemitosPages';
 import { convertirPrecio, precioSugerido } from './precios';
 import { CamposFce } from './fce';
-import { alicuotaDe, GrillaVenta, renglonVacio, totalesVenta, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
+import { cuerpoRenglonVenta, GrillaVenta, renglonVacio, totalesVenta, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
 
 const sumarDias = (f: string, d: number) => {
   const x = new Date(`${f}T00:00:00Z`);
@@ -26,10 +26,11 @@ export function depositoParaEditar(depositoId: string | null | undefined, deposi
 }
 
 /** Renglón editable a partir de un comprobante guardado, conservando su origen (remito o pedido). */
-export function renglonDesdeComprobante(r: { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; bienUsoId?: string | null }): RenglonVentaEditable {
+export function renglonDesdeComprobante(r: { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; bienUsoId?: string | null; bonificacionPct?: string }): RenglonVentaEditable {
   const origen = r.remitoRenglonId ? 'REMITO' : r.pedidoRenglonId ? 'PEDIDO' : 'DIRECTO';
   return {
     articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota,
+    ...(r.bonificacionPct && Number(r.bonificacionPct) ? { bonificacionPct: String(Number(r.bonificacionPct)) } : {}),
     origen, remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, bienUsoId: r.bienUsoId ?? null,
     ...(r.bienUsoId ? { etiqueta: 'Bien de uso' } : {}),
     ...(origen === 'DIRECTO' ? {} : { etiqueta: origen === 'REMITO' ? 'Desde remito' : 'Desde pedido' }),
@@ -40,6 +41,16 @@ export function renglonDesdeComprobante(r: { articuloId: string | null; descripc
 // Revisión E42: mismo lector de números que el guardado (separador de miles) y descripción sin espacios, como la guarda la API
 const claveRenglones = (rs: RenglonVentaEditable[]) => JSON.stringify(rs.map((r) => [r.descripcion.trim(), numero(String(r.cantidad)), numero(String(r.precioUnitario)), r.alicuota]));
 export const renglonesCambiaron = (rs: RenglonVentaEditable[], c: ComprobanteVenta) => claveRenglones(rs) !== claveRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
+
+/** Renglón de factura desde un renglón de pedido pendiente: precio (convertido a la moneda) y bonificación del pedido (E51). */
+export interface PendientePedido { pedidoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioUnitario: string; alicuota: string; bonificacionPct?: string; monedaPedido: string; cotizacionPedido: string }
+export function renglonDePedido(ped: PendientePedido, cant: string, moneda: string, cotizacion: string): RenglonVentaEditable {
+  return {
+    origen: 'PEDIDO', pedidoRenglonId: ped.pedidoRenglonId, etiqueta: ped.numero, articuloId: ped.articuloId, descripcion: ped.descripcion, cantidad: cant,
+    precioUnitario: convertirPrecio(ped.precioUnitario, ped.monedaPedido, moneda, cotizacion ? String(numero(cotizacion)) : '', ped.cotizacionPedido), alicuota: ped.alicuota,
+    ...(ped.bonificacionPct && Number(ped.bonificacionPct) ? { bonificacionPct: String(Number(ped.bonificacionPct)) } : {}),
+  };
+}
 
 export function ComprobanteVentaPage() {
   const empresa = useEmpresa();
@@ -61,6 +72,8 @@ export function ComprobanteVentaPage() {
   const [moneda, setMoneda] = useState('ARS');
   const [cotizacion, setCotizacion] = useState('');
   const [asociadoId, setAsociadoId] = useState<string | null>(null);
+  // E51: descuento general (%)
+  const [descuentoPct, setDescuentoPct] = useState('');
   // E50: factura de crédito MiPyME
   const [fce, setFce] = useState(false);
   const [transferenciaFce, setTransferenciaFce] = useState<string | null>(null);
@@ -76,7 +89,7 @@ export function ComprobanteVentaPage() {
   const [seleccionPend, setSeleccionPend] = useState<Record<string, string>>({});
   const pendientesQ = useQuery({
     queryKey: ['/ventas/pendientes-facturar', terceroId],
-    queryFn: () => api<{ remitos: { remitoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioPedido: string | null; alicuotaPedido: string | null; monedaPedido: string | null; cotizacionPedido: string | null }[]; pedidos: { pedidoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioUnitario: string; alicuota: string; monedaPedido: string; cotizacionPedido: string }[] }>('/ventas/pendientes-facturar', { query: { terceroId } }),
+    queryFn: () => api<{ remitos: { remitoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioPedido: string | null; alicuotaPedido: string | null; bonificacionPedido?: string | null; monedaPedido: string | null; cotizacionPedido: string | null }[]; pedidos: PendientePedido[] }>('/ventas/pendientes-facturar', { query: { terceroId } }),
     enabled: selectorPendientes && !!terceroId,
   }).data;
   const pendientesFacturar: Pendiente[] = [
@@ -93,11 +106,11 @@ export function ComprobanteVentaPage() {
         const precio = rem.precioPedido
           ? convertirPrecio(rem.precioPedido, rem.monedaPedido!, moneda, cotizacion ? String(numero(cotizacion)) : '', rem.cotizacionPedido!)
           : rem.articuloId ? await precioSugerido({ terceroId, articuloId: rem.articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' }) : null;
-        nuevos.push({ origen: 'REMITO', remitoRenglonId: id, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant, precioUnitario: precio ? String(Number(precio)) : '', alicuota: rem.alicuotaPedido ?? (art ? String(Number(art.alicuotaIva)) : '21') });
+        nuevos.push({ origen: 'REMITO', remitoRenglonId: id, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant, precioUnitario: precio ? String(Number(precio)) : '', alicuota: rem.alicuotaPedido ?? (art ? String(Number(art.alicuotaIva)) : '21'), ...(rem.bonificacionPedido && Number(rem.bonificacionPedido) ? { bonificacionPct: String(Number(rem.bonificacionPedido)) } : {}) });
         continue;
       }
       const ped = pendientesQ?.pedidos.find((x) => x.pedidoRenglonId === id);
-      if (ped) nuevos.push({ origen: 'PEDIDO', pedidoRenglonId: id, etiqueta: ped.numero, articuloId: ped.articuloId, descripcion: ped.descripcion, cantidad: cant, precioUnitario: convertirPrecio(ped.precioUnitario, ped.monedaPedido, moneda, cotizacion ? String(numero(cotizacion)) : '', ped.cotizacionPedido), alicuota: ped.alicuota });
+      if (ped) nuevos.push(renglonDePedido(ped, cant, moneda, cotizacion));
     }
     setRenglones([...renglones.filter((r) => r.descripcion), ...nuevos]);
     setSeleccionPend({});
@@ -118,7 +131,7 @@ export function ComprobanteVentaPage() {
       const f = (x: string | null) => (x ? x.slice(0, 10) : '');
       setActual(c); setTipo(c.tipo); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setFecha(f(c.fecha)); setFechaVencimiento(f(c.fechaVencimiento));
       setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
-      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setFce(!!c.fce); setTransferenciaFce(c.transferenciaFce ?? null); setAnulacionFce(!!c.anulacionFce); setVendedor(c.vendedorId ?? null); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
+      setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setDescuentoPct(c.descuentoPct && Number(c.descuentoPct) ? String(Number(c.descuentoPct)) : ''); setFce(!!c.fce); setTransferenciaFce(c.transferenciaFce ?? null); setAnulacionFce(!!c.anulacionFce); setVendedor(c.vendedorId ?? null); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
       setRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
     }).catch(() => op.setError('No se pudo cargar el comprobante'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,7 +143,7 @@ export function ComprobanteVentaPage() {
     if (!anularFce) return;
     void api<ComprobanteVenta>(`/ventas/comprobantes/${anularFce}`).then((c) => {
       setTipo('NOTA_CREDITO'); setTerceroId(c.terceroId); setPuntoVentaId(c.puntoVentaId); setConcepto(c.concepto); setMoneda(c.monedaCodigo);
-      setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.id); setFce(true); setAnulacionFce(true);
+      setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.id); setFce(true); setAnulacionFce(true); setDescuentoPct(c.descuentoPct && Number(c.descuentoPct) ? String(Number(c.descuentoPct)) : '');
       setServDesde(c.fechaServicioDesde?.slice(0, 10) ?? ''); setServHasta(c.fechaServicioHasta?.slice(0, 10) ?? '');
       setRenglones((c.renglones ?? []).map((r) => ({ ...renglonDesdeComprobante(r), origen: 'DIRECTO', remitoRenglonId: null, pedidoRenglonId: null, etiqueta: undefined })));
     }).catch(() => op.setError('No se pudo cargar la factura de crédito'));
@@ -158,7 +171,8 @@ export function ComprobanteVentaPage() {
     monedaCodigo: moneda, cotizacion: moneda === 'USD' && cotizacion ? numero(cotizacion) : null,
     comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado, vendedorId: tipo === 'FACTURA' ? vendedor : undefined,
     depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
-    renglones: renglones.map((r) => ({ origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, articuloId: r.articuloId, bienUsoId: r.bienUsoId ?? null, descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota) })),
+    descuentoPct: descuentoPct.trim() ? numero(descuentoPct) : 0,
+    renglones: renglones.map(cuerpoRenglonVenta),
   });
 
   async function recargar(id: string) {
@@ -196,7 +210,7 @@ export function ComprobanteVentaPage() {
     setActual(null);
     setRenglones([renglonVacio()]);
     setAsociadoId(null);
-    setFce(false); setTransferenciaFce(null); setAnulacionFce(false);
+    setFce(false); setTransferenciaFce(null); setAnulacionFce(false); setDescuentoPct('');
     op.setError('');
   }
 
@@ -229,7 +243,7 @@ export function ComprobanteVentaPage() {
             {!fce && <TextInput label="Vencimiento del pago" type="date" value={vencePago} onChange={(e) => setVencePago(e.currentTarget.value)} disabled={!editable} />}
           </Group>
         )}
-        <CamposFce tipo={tipo} terceroId={terceroId} fecha={fecha} totalPesos={Number(totalesVenta(renglones, letra).total) * (moneda === 'USD' && cotizacion ? numero(cotizacion) : 1)}
+        <CamposFce tipo={tipo} terceroId={terceroId} fecha={fecha} totalPesos={Number(totalesVenta(renglones, letra, descuentoPct || '0').total) * (moneda === 'USD' && cotizacion ? numero(cotizacion) : 1)}
           fce={fce} onFce={setFce} transferencia={transferenciaFce} onTransferencia={setTransferenciaFce} anulacion={anulacionFce} onAnulacion={setAnulacionFce} disabled={!editable} fijo />
         {tipo !== 'FACTURA' && (
           <Group mt="sm" align="flex-end">
@@ -246,7 +260,7 @@ export function ComprobanteVentaPage() {
           {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
             onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
         </Group>}
-        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual)}
+        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual)}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
         <Modal opened={selectorPendientes} onClose={() => setSelectorPendientes(false)} title="Remitos y pedidos pendientes de facturar" size="xl">
           <TablaPendientes pendientes={pendientesFacturar} seleccion={seleccionPend} onChange={setSeleccionPend} />
