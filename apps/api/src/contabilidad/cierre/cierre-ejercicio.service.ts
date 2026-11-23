@@ -154,6 +154,9 @@ export class CierreEjercicioService {
       const e = await this.ejercicio(tx, id);
       if (e.estado !== 'CERRADO') throw new BadRequestException('El ejercicio no está cerrado');
       if (await tx.ejercicio.count({ where: { numero: { gt: e.numero }, estado: 'CERRADO' } })) throw new BadRequestException('Solo se puede reabrir el último ejercicio cerrado');
+      // Pulido E49: la DJ de Ganancias presentada congela el ejercicio (su foto saldría del balance que se reabre)
+      if (await tx.djGananciasSociedades.count({ where: { ejercicioId: id, estado: 'PRESENTADA' } }))
+        throw new BadRequestException('La DJ de Ganancias del ejercicio está presentada: anule la presentación antes de reabrir');
       const previoSig = await tx.ejercicio.findFirst({ where: { numero: e.numero + 1 } });
       // El cierre de meses del siguiente bloquea su ejercicio: así no se numera la apertura mientras se borra
       if (previoSig) await bloquear(tx, 'Ejercicio', this.tenant.empresaId, [previoSig.id]);

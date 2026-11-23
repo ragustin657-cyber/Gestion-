@@ -60,6 +60,7 @@ export function EscalaSociedades() {
           <NumberInput label={`Desde (tramo ${i + 1})`} min={0} {...num} value={t.desde} onChange={(v) => cambiar(i, 'desde', v)} />
           <NumberInput label={`Monto fijo (tramo ${i + 1})`} min={0} {...num} value={t.fijo} onChange={(v) => cambiar(i, 'fijo', v)} />
           <NumberInput label={`Alícuota % (tramo ${i + 1})`} min={0} max={100} {...num} value={t.alicuota} onChange={(v) => cambiar(i, 'alicuota', v)} />
+          <Button variant="subtle" color="red" size="xs" maw={80} style={{ alignSelf: 'flex-end' }} aria-label={`Quitar tramo ${i + 1}`} onClick={() => setTramos(tramos.filter((_, j) => j !== i))}>Quitar</Button>
         </Group>
       ))}
       <Text size="xs" c="dimmed">Los montos se actualizan cada año por IPC: cargue los que publica ARCA para el año del inicio del ejercicio.</Text>

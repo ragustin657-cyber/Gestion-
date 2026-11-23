@@ -43,7 +43,7 @@ export async function sireGananciasExterior(tx: TxEmpresa, ctx: ContextoGeneraci
   const lineas = rets.map((r, i) => {
     const { campos } = comun(r);
     return a.tomar(linea(SIRE_F2003, {
-      ...campos, fechaRetencion: r.ordenPago.fechaPago, tipoComprobante: ORDEN_PAGO, fechaComprobante: r.ordenPago.fecha, numeroComprobante: String(r.ordenPago.numero ?? 0).padStart(8, '0'),
+      ...campos, fechaRetencion: r.ordenPago.fechaPago, tipoComprobante: ORDEN_PAGO, fechaComprobante: r.ordenPago.fechaPago && r.ordenPago.fechaPago < r.ordenPago.fecha ? r.ordenPago.fechaPago : r.ordenPago.fecha, numeroComprobante: String(r.ordenPago.numero ?? 0).padStart(8, '0'),
       certificadoOriginal: '', certificadoOriginalFecha: null, certificadoOriginalImporte: '', motivoNotaCredito: '',
     }, i + 1));
   });

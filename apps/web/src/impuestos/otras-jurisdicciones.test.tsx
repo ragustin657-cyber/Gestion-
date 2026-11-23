@@ -50,3 +50,13 @@ describe('otras jurisdicciones de IIBB (web, E48)', () => {
     expect([f.regimenSircarRetencion, f.regimenSircarPercepcion]).toEqual(['011', null]);
   });
 });
+
+describe('pulido E49 (revisión)', () => {
+  it('padrón: el período solo se manda para jurisdicciones con formato configurable', async () => {
+    const { camposCarga } = await import('../pagos/PadronesPage');
+    expect(camposCarga('902', '202613')).toEqual({ jurisdiccion: '902' });
+    expect(camposCarga('901', '202611')).toEqual({ jurisdiccion: '901' });
+    expect(camposCarga('904', '202611')).toEqual({ jurisdiccion: '904', periodo: '202611' });
+    expect(camposCarga('904', '')).toEqual({ jurisdiccion: '904' });
+  });
+});

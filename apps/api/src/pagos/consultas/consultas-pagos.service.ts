@@ -5,6 +5,7 @@ import ExcelJS from 'exceljs';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
 import { fechaQuery } from '../../compras/consultas/consultas.service';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
+import { AuditoriaService } from '../../auditoria/auditoria.service';
 import { describirMovimientos } from '../ordenes/describir';
 import { pdfCertificado, pdfOrdenPago } from './pdf';
 
@@ -33,7 +34,7 @@ const NOMBRE_IMPUESTO: Record<string, string> = { GANANCIAS: 'Impuesto a las Gan
 
 @Injectable()
 export class ConsultasPagosService {
-  constructor(private readonly tenant: TenantPrisma) {}
+  constructor(private readonly tenant: TenantPrisma, private readonly auditoria: AuditoriaService) {}
 
   async pagosARealizar(fecha?: string) {
     const corte = fechaQuery(fecha) ?? new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
@@ -56,7 +57,12 @@ export class ConsultasPagosService {
   async certificadoSire(id: string, certificadoSire: string | null) {
     const r = await this.tenant.db.ordenPagoRetencion.findUnique({ where: { id } });
     if (!r) throw new NotFoundException('Retención inexistente');
-    return this.tenant.db.ordenPagoRetencion.update({ where: { id }, data: { certificadoSire } });
+    if (!['IVA', 'SUSS', 'GANANCIAS_EXTERIOR'].includes(r.impuesto)) throw new BadRequestException('La retención no se informa en el SIRE');
+    return this.tenant.transaccion(async (tx) => {
+      const u = await tx.ordenPagoRetencion.update({ where: { id }, data: { certificadoSire } });
+      await this.auditoria.registrar(tx, { entidad: 'OrdenPagoRetencion', entidadId: id, accion: 'MODIFICAR', datos: { certificadoSire } });
+      return u;
+    });
   }
 
   async retenciones(f: { desde?: string; hasta?: string; impuesto?: string; jurisdiccion?: string; incluirAnuladas?: string }) {

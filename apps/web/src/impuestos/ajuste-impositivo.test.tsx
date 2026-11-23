@@ -55,4 +55,27 @@ describe('ajuste por inflación impositivo (web, E45)', () => {
     envolver(<ResumenAjuste datos={{ ...datos, avisoApertura: 'No se encontró la apertura inicial del primer ejercicio: configúrela en el ajuste por inflación contable o cargue los saldos al inicio como partidas manuales' }} />);
     expect(screen.getByText(/No se encontró la apertura inicial/)).toBeInTheDocument();
   });
+
+  it('pulido E49: el error de la partida se muestra una sola vez (en el modal)', async () => {
+    const { AjusteImpositivoPage } = await import('./AjusteImpositivoPage');
+    const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+    const { AuthProvider } = await import('../auth/AuthContext');
+    const { fireEvent } = await import('@testing-library/react');
+    const { sesion } = await import('../auth/sesion');
+    sesion.guardar({ token: 't', usuario: { id: 'u', nombre: 'U' }, empresa: { id: 'A', razonSocial: 'A' }, permisos: ['impuestos.presentar'] });
+    vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return new Response(JSON.stringify({ statusCode: 400, message: 'Error de partida' }), { status: 400 });
+      if (String(url).includes('/contabilidad/ejercicios')) return new Response(JSON.stringify([{ id: 'e1', numero: 1, hasta: '2026-12-31', estado: 'ABIERTO' }]), { status: 200 });
+      if (String(url).includes('/impuestos/ajuste-inflacion')) return new Response(JSON.stringify(datos), { status: 200 });
+      return new Response('{}', { status: 200 });
+    }));
+    render(<MantineProvider><QueryClientProvider client={new QueryClient()}><MemoryRouter><AuthProvider><AjusteImpositivoPage /></AuthProvider></MemoryRouter></QueryClientProvider></MantineProvider>);
+    fireEvent.click(await screen.findByText('Nueva partida'));
+    fireEvent.click(await screen.findByText('Guardar partida'));
+    await screen.findAllByText('Error de partida');
+    expect(screen.getAllByText('Error de partida')).toHaveLength(1);
+    vi.unstubAllGlobals();
+    sesion.cerrar();
+  });
 });
+

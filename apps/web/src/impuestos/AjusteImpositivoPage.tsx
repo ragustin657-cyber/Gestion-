@@ -118,7 +118,7 @@ export function AjusteImpositivoPage() {
       <Select label="Ejercicio" w={220} mb="md" allowDeselect={false} value={ejercicioId} onChange={setEjercicioId}
         data={(ejercicios.data ?? []).map((e) => ({ value: e.id, label: `Ejercicio ${e.numero} (${e.hasta.slice(0, 4)})` }))} />
       {errorConsulta(q.error)}
-      {op.alerta}
+      {!edicion && op.alerta}
       {q.data && <Stack>
         <ResumenAjuste datos={q.data} />
         <Title order={5}>Estático</Title>
@@ -144,7 +144,7 @@ export function AjusteImpositivoPage() {
       </Stack>}
       <Modal opened={!!edicion} onClose={() => setEdicion(null)} title={edicion?.id ? 'Modificar partida' : 'Nueva partida'}>
         {edicion && <FormPartida inicial={edicion.valores} onGuardar={guardar} />}
-        {op.alerta}
+        {edicion && op.alerta}
       </Modal>
     </Paper>
   );
