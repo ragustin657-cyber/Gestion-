@@ -49,7 +49,7 @@ export class ControlArcaService {
     } else {
       const { ambiente } = await ventasDelAmbiente(db, desde, hasta);
       for (const c of await db.comprobanteVenta.findMany({ where: { estado: 'AUTORIZADO', ambiente, fecha: { gte: desde, lte: hasta } }, include: { tercero: true } })) {
-        const tipo = cbteTipo(c.tipo, c.letra as LetraVenta);
+        const tipo = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
         sistema.push({
           clave: `${tipo}|${c.puntoVenta}|${c.numero}`, fecha: c.fecha.toISOString().slice(0, 10), tipo, puntoVenta: c.puntoVenta, numero: c.numero!, documento: c.tercero.cuit,
           importes: c.letra === 'C'

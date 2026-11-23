@@ -3,7 +3,9 @@ import { TxEmpresa } from '../prisma/tenant-prisma.service';
 import { ClienteArca, ComprobanteArca, DatosCae, ErrorConexionArca, ErrorServicioArca, ResultadoCae } from './cliente-arca';
 
 export type FallaSimulada = 'RECHAZO' | 'SIN_CONEXION' | 'AUTORIZA_SIN_RESPONDER' | 'ERROR_SERVICIO';
-const NC_ND = new Set([2, 3, 7, 8, 12, 13]);
+const NC_ND = new Set([2, 3, 7, 8, 12, 13, 202, 203, 207, 208, 212, 213]);
+const FCE = new Set([201, 206, 211]);
+const solicitudes = new Map<string, DatosCae>();
 const fallas = new Map<string, FallaSimulada>();
 const iso = (f: string) => `${f.slice(0, 4)}-${f.slice(4, 6)}-${f.slice(6, 8)}`;
 const fechaDb = (f: string) => new Date(`${iso(f)}T00:00:00Z`);
@@ -21,6 +23,12 @@ export class ArcaSimulado implements ClienteArca {
     if (process.env.NODE_ENV !== 'test') throw new Error('Solo disponible en pruebas');
     if (falla) fallas.set(empresaId, falla);
     else fallas.delete(empresaId);
+  }
+
+  /** Solo en pruebas: lo último que se pidió autorizar (E50). */
+  static ultimaSolicitud(empresaId: string): DatosCae | undefined {
+    if (process.env.NODE_ENV !== 'test') throw new Error('Solo disponible en pruebas');
+    return solicitudes.get(empresaId);
   }
 
   async ultimoAutorizado(ptoVta: number, cbteTipo: number): Promise<number> {
@@ -46,6 +54,7 @@ export class ArcaSimulado implements ClienteArca {
     fallas.delete(this.empresaId);
     if (falla === 'SIN_CONEXION') throw new ErrorConexionArca('No se pudo conectar con ARCA: tiempo de espera agotado (simulado)');
     if (falla === 'RECHAZO') return { resultado: 'R', errores: ['(10015) Rechazo simulado para pruebas'] };
+    if (process.env.NODE_ENV === 'test') solicitudes.set(this.empresaId, d);
     const errores: string[] = [];
     if (d.numero !== (await this.ultimoAutorizado(d.ptoVta, d.cbteTipo)) + 1) errores.push('(10016) El numero de comprobante no es el proximo a autorizar');
     const D = Prisma.Decimal;
@@ -53,6 +62,8 @@ export class ArcaSimulado implements ClienteArca {
     const suma = new D(d.impTotConc).plus(d.impNeto).plus(d.impOpEx).plus(d.impIva).plus(trib);
     if (!suma.eq(d.impTotal)) errores.push('(10048) El campo ImpTotal no coincide con la suma de los importes');
     if (NC_ND.has(d.cbteTipo) && !d.asociados.length) errores.push('(10197) Debe informar comprobantes asociados');
+    if (FCE.has(d.cbteTipo) && (!d.fchVtoPago || !d.opcionales?.some((o) => o.id === '2101') || !d.opcionales?.some((o) => o.id === '27')))
+      errores.push('(10168) La factura de crédito requiere vencimiento del pago, CBU y transferencia');
     if (!d.iva.reduce((s, x) => s.plus(x.importe), new D(0)).eq(d.impIva)) errores.push('(10018) La suma del IVA no coincide con ImpIVA');
     if (errores.length) return { resultado: 'R', errores };
     const cae = `7${String(d.ptoVta).padStart(4, '0')}${String(d.cbteTipo).padStart(2, '0')}${String(d.numero).padStart(7, '0')}`;

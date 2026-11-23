@@ -38,7 +38,7 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
     orderBy: [{ fecha: 'asc' }, { tipo: 'asc' }, { puntoVenta: 'asc' }, { numero: 'asc' }],
   });
   for (const c of ventas) {
-    const tipo = cbteTipo(c.tipo, c.letra as LetraVenta);
+    const tipo = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
     const doc = documentoArca(c.tercero.tipoDocumento);
     const esC = c.letra === 'C';
     const alicuotas = esC ? [] : c.ivas.length ? c.ivas.map((i) => ({ alicuota: alic(i.alicuota), neto: i.base, impuesto: i.importe })) : [{ alicuota: '0003', neto: new D(0), impuesto: new D(0) }];

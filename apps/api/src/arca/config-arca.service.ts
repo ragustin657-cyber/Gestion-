@@ -30,7 +30,7 @@ export class ConfigArcaService {
 
   private vista(c: ConfigArca) {
     return {
-      ambiente: c.ambiente, certificadoSujeto: c.certificadoSujeto, certificadoVence: c.certificadoVence, tieneCertificado: !!c.certificadoCifrado,
+      ambiente: c.ambiente, mipyme: c.mipyme, cuentaBancariaFceId: c.cuentaBancariaFceId, transferenciaFce: c.transferenciaFce, certificadoSujeto: c.certificadoSujeto, certificadoVence: c.certificadoVence, tieneCertificado: !!c.certificadoCifrado,
       venceProximo: !!c.certificadoVence && c.certificadoVence.getTime() - Date.now() <= DIAS_AVISO * 86400000,
     };
   }
@@ -39,10 +39,15 @@ export class ConfigArcaService {
     return this.vista(await this.config());
   }
 
-  async guardar(d: { ambiente: AmbienteArca }) {
+  async guardar(d: { ambiente?: AmbienteArca; mipyme?: boolean; cuentaBancariaFceId?: string | null; transferenciaFce?: string }) {
     const c = await this.config();
-    const r = await this.tenant.db.configArca.update({ where: { id: c.id }, data: { ambiente: d.ambiente } });
-    await this.auditoria.registrar(this.tenant.db, { entidad: 'ConfigArca', entidadId: c.id, accion: 'MODIFICAR', datos: { ambiente: d.ambiente } });
+    if (d.cuentaBancariaFceId) {
+      const cuenta = await this.tenant.db.cuentaBancaria.findUnique({ where: { id: d.cuentaBancariaFceId } });
+      if (!cuenta) throw new BadRequestException('Cuenta bancaria inexistente');
+      if (!cuenta.cbu) throw new BadRequestException('La cuenta bancaria no tiene CBU');
+    }
+    const r = await this.tenant.db.configArca.update({ where: { id: c.id }, data: d });
+    await this.auditoria.registrar(this.tenant.db, { entidad: 'ConfigArca', entidadId: c.id, accion: 'MODIFICAR', datos: d });
     return this.vista(r);
   }
 

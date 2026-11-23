@@ -30,6 +30,8 @@ export interface DatosCae {
   asociados: { tipo: number; ptoVta: number; nro: number; cuit: string; fecha: string }[];
   /** Percepciones (E39): Id 7 IIBB, 6 IVA. */
   tributos?: { id: number; desc: string; baseImp: string; alic: string; importe: string }[];
+  /** FCE MiPyME (E50): 2101 CBU, 27 transferencia (SCA/ADC), 22 anulación (S/N). */
+  opcionales?: { id: string; valor: string }[];
 }
 
 /** Cada texto de errores y observaciones tiene la forma "(código) mensaje". Las fechas son YYYY-MM-DD. */

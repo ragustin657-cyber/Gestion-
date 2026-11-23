@@ -6,6 +6,8 @@ describe('códigos ARCA', () => {
   it('tipo de comprobante', () => {
     expect([cbteTipo('FACTURA', 'A'), cbteTipo('NOTA_DEBITO', 'A'), cbteTipo('NOTA_CREDITO', 'A')]).toEqual([1, 2, 3]);
     expect([cbteTipo('FACTURA', 'B'), cbteTipo('NOTA_DEBITO', 'B'), cbteTipo('NOTA_CREDITO', 'B')]).toEqual([6, 7, 8]);
+    // E50: factura de crédito MiPyME
+    expect([cbteTipo('FACTURA', 'A', true), cbteTipo('NOTA_CREDITO', 'B', true), cbteTipo('NOTA_DEBITO', 'C', true), cbteTipo('FACTURA', 'C', false)]).toEqual([201, 208, 212, 11]);
     expect([cbteTipo('FACTURA', 'C'), cbteTipo('NOTA_DEBITO', 'C'), cbteTipo('NOTA_CREDITO', 'C')]).toEqual([11, 12, 13]);
   });
   it('condición IVA del receptor, alícuotas, documento y moneda', () => {

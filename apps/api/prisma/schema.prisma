@@ -1491,6 +1491,10 @@ model ConfigArca {
   claveCifrada       String?
   certificadoSujeto  String?
   certificadoVence   DateTime?
+  /// E50: factura de crédito electrónica MiPyME
+  mipyme              Boolean @default(false)
+  cuentaBancariaFceId String? @db.Uuid
+  transferenciaFce    String  @default("SCA")
 }
 
 model TokenArca {
@@ -1556,6 +1560,10 @@ model ComprobanteVenta {
   comprobanteAsociadoId String?                   @db.Uuid
   depositoId            String?                   @db.Uuid
   devuelveMercaderia    Boolean                   @default(false)
+  /// E50: factura de crédito electrónica MiPyME (códigos 201…213, numeración propia)
+  fce                   Boolean                   @default(false)
+  transferenciaFce      String?
+  anulacionFce          Boolean?
   aplicarAAsociado      Boolean                   @default(true)
   vendedorId            String?                   @db.Uuid
   /// Copia del porcentaje del vendedor al emitir.
@@ -1572,7 +1580,7 @@ model ComprobanteVenta {
   percepcionesDetalle   ComprobanteVentaPercepcion[]
 
   @@unique([empresaId, numeroInterno])
-  @@unique([empresaId, ambiente, puntoVenta, tipo, letra, numero])
+  @@unique([empresaId, ambiente, puntoVenta, tipo, letra, fce, numero])
   @@index([empresaId, terceroId])
   @@index([empresaId, fecha])
 }
