@@ -70,14 +70,16 @@ export class SircrebService {
   /** Importa la consulta de SIRCREB: `periodo;jurisdiccion;importe[;cbu]` (con o sin encabezado; decimales con punto o coma). */
   importar(texto: string) {
     const filas: DatosRecaudacion[] = [];
-    texto.split(/\r?\n/).forEach((linea, i) => {
+    // Pulido E49: sin BOM; el encabezado es la primera línea no vacía
+    const primera = texto.replace(/^\uFEFF/, '').split(/\r?\n/).findIndex((l) => l.trim());
+    texto.replace(/^\uFEFF/, '').split(/\r?\n/).forEach((linea, i) => {
       if (!linea.trim()) return;
       // El separador es «;» o tabulador; la coma solo si no hay otro (puede ser el decimal)
       const sep = linea.includes(';') ? ';' : linea.includes('\t') ? '\t' : ',';
       const c = linea.split(sep).map((x) => x.trim());
       // Con coma de separador, «1500,50» se partiría: el cuarto campo tiene que ser un CBU (22 dígitos)
       if (sep === ',' && (c.length > 4 || (c[3] !== undefined && !/^\d{22}$/.test(c[3])))) throw new BadRequestException(`Línea ${i + 1} inválida: use «;» como separador si el importe tiene coma decimal`);
-      if (i === 0 && !/^\d{6}$/.test(c[0])) return; // encabezado
+      if (i === primera && !/^\d{6}$/.test(c[0])) return; // encabezado
       const mal = (campo: string): never => { throw new BadRequestException(`Línea ${i + 1} inválida: ${campo}`); };
       if (!/^\d{6}$/.test(c[0]) || Number(c[0].slice(4)) < 1 || Number(c[0].slice(4)) > 12) mal('período');
       if (!(c[1] in JURISDICCIONES_CM)) mal('jurisdicción');
