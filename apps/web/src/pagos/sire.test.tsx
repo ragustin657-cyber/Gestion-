@@ -67,4 +67,18 @@ describe('revisión E43: aviso del proveedor del exterior sin régimen', () => {
     render(<MantineProvider><TablaRetenciones retenciones={[{ id: 'r', impuesto: 'GANANCIAS_EXTERIOR', jurisdiccion: null, regimen: null, base: '1000', alicuota: '0', importe: '0', detalle: { aviso: 'El proveedor del exterior ACME no tiene régimen de Ganancias exterior' }, certificadoNumero: null, anulada: false }]} /></MantineProvider>);
     expect(screen.getByText('El proveedor del exterior ACME no tiene régimen de Ganancias exterior')).toBeInTheDocument();
   });
+
+  it('pulido E49: retención al exterior asumida por la empresa; códigos sin formato de moneda', async () => {
+    const { TablaRetenciones, textoDetalle } = await import('./TablaRetenciones');
+    const detalle = { codigoSire: '160', codigoAlicuota: '100', aplicaCdi: 'false', acrecentamiento: 'true', basePago: '1000' };
+    render(<MantineProvider><TablaRetenciones retenciones={[{ id: 'r', impuesto: 'GANANCIAS_EXTERIOR', jurisdiccion: null, regimen: 'x', base: '1000', alicuota: '31.5', importe: '315', detalle, certificadoNumero: 1, anulada: false }]} /></MantineProvider>);
+    expect(screen.getByText('Ganancias exterior (régimen 160) (asumida por la empresa)')).toBeInTheDocument();
+    const t = textoDetalle(detalle);
+    expect(t).not.toContain('$ 160');
+    expect(t).not.toContain('$ 100');
+    expect(t).toContain('No');
+    expect(t).toContain('Sí');
+    expect(t).toContain('$ 1.000,00');
+  });
 });
+

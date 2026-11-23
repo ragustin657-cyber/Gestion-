@@ -10,6 +10,14 @@ const DETALLE: Record<string, string> = {
   pagado: 'Pagado de la factura', total: 'Total de la factura', fecha: 'Fecha de la factura', exclusion: 'Exclusión (%)',
 };
 const OCULTOS = new Set(['tipo', 'letra', 'puntoVenta', 'numero', 'exclusionPublicacion']);
+// Pulido E49: códigos como texto y marcas como Sí/No (no como importes)
+const TEXTO = new Set(['codigoSire', 'codigoAlicuota']);
+const MARCAS = new Set(['aplicaCdi', 'acrecentamiento']);
+Object.assign(DETALLE, { codigoSire: 'Código SIRE', codigoAlicuota: 'Código de alícuota', aplicaCdi: 'Convenio de doble imposición', acrecentamiento: 'Acrecentamiento' });
+const valorDetalle = (k: string, v: unknown) =>
+  MARCAS.has(k) ? (String(v) === 'true' ? 'Sí' : 'No') : TEXTO.has(k) || Number.isNaN(Number(v)) ? String(v) : formatoMoneda(v as string);
+export const textoDetalle = (detalle: Record<string, unknown>) =>
+  Object.entries(detalle).filter(([k]) => !OCULTOS.has(k)).map(([k, v]) => `${DETALLE[k] ?? k}: ${valorDetalle(k, v)}`).join(' · ');
 
 export function TablaRetenciones({ retenciones, opId, certificados }: { retenciones: RetencionOP[]; opId?: string; certificados?: boolean }) {
   const visibles = retenciones.filter((r) => Number(r.importe) > 0);
@@ -28,8 +36,8 @@ export function TablaRetenciones({ retenciones, opId, certificados }: { retencio
         {visibles.map((r) => (
           <Table.Tr key={r.id} style={r.anulada ? { textDecoration: 'line-through' } : undefined}>
             <Table.Td>
-              <Tooltip multiline w={300} label={Object.entries(r.detalle).filter(([k]) => !OCULTOS.has(k)).map(([k, v]) => `${DETALLE[k] ?? k}: ${Number.isNaN(Number(v)) ? v : formatoMoneda(v)}`).join(' · ')}>
-                <Text size="sm" style={{ cursor: 'help' }}>{descripcionRetencion(r)}</Text>
+              <Tooltip multiline w={300} label={textoDetalle(r.detalle)}>
+                <Text size="sm" style={{ cursor: 'help' }}>{descripcionRetencion(r)}{r.detalle?.acrecentamiento === 'true' ? ' (asumida por la empresa)' : ''}</Text>
               </Tooltip>
             </Table.Td>
             <Table.Td ta="right">{formatoMoneda(r.base)}</Table.Td>

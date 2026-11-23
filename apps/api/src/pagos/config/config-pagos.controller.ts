@@ -28,9 +28,10 @@ const esquemaJurisdicciones = z.array(z.object({
   regimenSircarRetencion: z.string().trim().regex(/^\d{3}$/, 'El régimen de SIRCAR tiene 3 dígitos').nullish().or(z.literal('').transform(() => null)),
   regimenSircarPercepcion: z.string().trim().regex(/^\d{3}$/, 'El régimen de SIRCAR tiene 3 dígitos').nullish().or(z.literal('').transform(() => null)),
 }));
+const alicExterior = noNeg.lt(100, 'La alícuota debe ser menor que 100');
 const esquemaRegimenExterior = z.object({
-  codigoSire: z.string().trim().regex(/^\d{3}$/, 'El código SIRE tiene 3 dígitos'), descripcion: zTexto, alicuotaSinCdi: noNeg.max(100), codigoAlicuotaSinCdi: z.number().int().min(0),
-  alicuotaConCdi: noNeg.max(100).nullish(), codigoAlicuotaConCdi: z.number().int().min(0).nullish(), activo: z.boolean().optional(),
+  codigoSire: z.string().trim().regex(/^\d{3}$/, 'El código SIRE tiene 3 dígitos'), descripcion: zTexto, alicuotaSinCdi: alicExterior, codigoAlicuotaSinCdi: z.number().int().min(0),
+  alicuotaConCdi: alicExterior.nullish(), codigoAlicuotaConCdi: z.number().int().min(0).nullish(), activo: z.boolean().optional(),
 });
 const esquemaRegimenPercepcionIva = z.object({
   codigo: z.string().trim().regex(/^\d{1,3}$/, 'Código de régimen inválido'), descripcion: zTexto, alicuotaGeneral: noNeg.max(100), alicuotaReducida: noNeg.max(100), minimoNeto: noNeg, activo: z.boolean().optional(),

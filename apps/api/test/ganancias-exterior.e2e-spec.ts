@@ -200,6 +200,14 @@ describe('Ganancias a beneficiarios del exterior (E43)', () => {
       expect(Number(g.body.total)).toBe(15000);
     });
 
+    it('pulido E49: OP fechada después del pago → la fecha del comprobante es la del pago', async () => {
+      const x = await escenario();
+      const { op } = await pagada(x);
+      await prisma.ordenPago.update({ where: { id: op.id }, data: { fecha: new Date('2026-11-10'), fechaPago: new Date('2026-11-05') } });
+      const { ls } = await lineas(x, '202611');
+      expect(pos(ls[0], 59, 68)).toBe('05/11/2026');
+    });
+
     it('faltan datos del exterior del proveedor: error', async () => {
       const x = await escenario();
       await pagada(x);
@@ -225,6 +233,31 @@ describe('Ganancias a beneficiarios del exterior (E43)', () => {
       expect([pos(n, 47, 56), pos(n, 57, 58), pos(n, 59, 68), pos(n, 69, 84).trimEnd(), pos(n, 85, 98), pos(n, 113, 137).trim(), pos(n, 138, 147), pos(n, 148, 161), pos(n, 162, 191).trimEnd(), pos(n, 192, 192)])
         .toEqual(['06/11/2026', '03', '06/11/2026', `00001-${String(op.numero).padStart(8, '0')}`, '00000100000.00', 'SIRE-EXT-1', '15/10/2026', '00000031500.00', 'Anulacion de la orden de pago', '0']);
       expect(Number(g.body.total)).toBe(-31500);
+    });
+  });
+
+  describe('pulido E49', () => {
+    it('alícuota del régimen exterior menor que 100', async () => {
+      const s = await prepararPagos(app, prisma);
+      const r = await s.http.post('/api/pagos/config/regimenes-exterior', { codigoSire: '160', descripcion: 'X', alicuotaSinCdi: 100, codigoAlicuotaSinCdi: 100 });
+      expect([r.status, r.body.message]).toEqual([400, 'La alícuota debe ser menor que 100']);
+      const c = await s.http.post('/api/pagos/config/regimenes-exterior', { codigoSire: '160', descripcion: 'X', alicuotaSinCdi: 30, codigoAlicuotaSinCdi: 100, alicuotaConCdi: 100, codigoAlicuotaConCdi: 1 });
+      expect([c.status, c.body.message]).toEqual([400, 'La alícuota debe ser menor que 100']);
+    });
+
+    it('certificado SIRE: solo IVA, SUSS y Ganancias exterior; con auditoría', async () => {
+      const x = await escenario();
+      const m = await x.factura(100000);
+      const op = await x.opAprobada([{ movimientoId: m.id, importe: 100000 }]);
+      const [r] = await prisma.ordenPagoRetencion.findMany({ where: { ordenPagoId: op.id } });
+      await prisma.ordenPagoRetencion.update({ where: { id: r.id }, data: { impuesto: 'GANANCIAS' } });
+      const g = await x.http.patch(`/api/pagos/retenciones/${r.id}/certificado-sire`, { certificadoSire: '123' });
+      expect([g.status, g.body.message]).toEqual([400, 'La retención no se informa en el SIRE']);
+      await prisma.ordenPagoRetencion.update({ where: { id: r.id }, data: { impuesto: 'IVA' } });
+      const i = await x.http.patch(`/api/pagos/retenciones/${r.id}/certificado-sire`, { certificadoSire: '123' });
+      expect(i.status).toBe(200);
+      const au = await prisma.auditoria.findMany({ where: { entidad: 'OrdenPagoRetencion', entidadId: r.id } });
+      expect(au.map((a) => a.accion)).toEqual(['MODIFICAR']);
     });
   });
 });
