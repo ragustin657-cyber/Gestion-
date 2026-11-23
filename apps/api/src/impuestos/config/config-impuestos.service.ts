@@ -12,6 +12,7 @@ export interface DatosConfigImpuestos {
   sireMotivoAnulacion?: number;
   topeAutomovilesCosto?: number;
   alicuotaBienesPersonalesAcciones?: number;
+  jurisdiccionesSircar?: string[];
 }
 
 @Injectable()

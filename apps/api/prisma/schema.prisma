@@ -722,6 +722,9 @@ model JurisdiccionIibb {
   alicuotaPercepcionDefecto Decimal   @default(0) @db.Decimal(18, 6)
   minimoPercepcion          Decimal   @default(0) @db.Decimal(18, 2)
   sinPadronPercepcion       SinPadron @default(NO_RETENER)
+  /// Códigos de régimen de SIRCAR (E48), 3 dígitos
+  regimenSircarRetencion    String?
+  regimenSircarPercepcion   String?
 
   @@unique([empresaId, jurisdiccion])
 }
@@ -1682,6 +1685,8 @@ enum TipoPresentacion {
   ARBA_PERCEPCIONES
   SIRE_IVA_ANULACIONES
   SIRE_GANANCIAS_EXTERIOR
+  SIRCAR_RETENCIONES
+  SIRCAR_PERCEPCIONES
 }
 
 enum PeriodicidadArba {
@@ -1694,6 +1699,8 @@ model ConfigImpuestos {
   empresaId              String           @unique @db.Uuid
   /// Alícuota de Bienes Personales, acciones y participaciones (responsable sustituto, E47; a verificar)
   alicuotaBienesPersonalesAcciones Decimal @default(0.5) @db.Decimal(9, 4)
+  /// Jurisdicciones adheridas a SIRCAR (E48)
+  jurisdiccionesSircar   String[]         @default([])
   /// Tope de costo de automóviles para la amortización impositiva (art. 88 inc. l; E44, a verificar)
   topeAutomovilesCosto   Decimal          @default(20000) @db.Decimal(18, 2)
   arbaActividad          String           @default("6")
@@ -3156,4 +3163,34 @@ model BienesPersonalesPresentacion {
   motivoAnulacion String?
 
   @@unique([empresaId, anio, numero])
+}
+
+/// Formato del padrón de IIBB de una jurisdicción distinta de 901 y 902 (E48): común a todas las empresas, como el padrón.
+/// Cada campo es el número de columna (1 = la primera) o «desde-hasta» (posiciones 1-based) en ancho fijo.
+model FormatoPadron {
+  id                 String  @id @default(uuid()) @db.Uuid
+  jurisdiccion       String  @unique
+  separador          String
+  encabezado         Boolean @default(false)
+  cuit               String
+  alicuotaPercepcion String?
+  alicuotaRetencion  String?
+  vigenciaDesde      String?
+  vigenciaHasta      String?
+  formatoFecha       String  @default("DD/MM/AAAA")
+  separadorDecimal   String  @default(".")
+}
+
+/// Recaudación bancaria de IIBB (SIRCREB) de un período y jurisdicción (E48): pago a cuenta en la liquidación de IIBB.
+model RecaudacionBancaria {
+  id               String  @id @default(uuid()) @db.Uuid
+  empresaId        String  @db.Uuid
+  periodo          String
+  jurisdiccion     String
+  cuentaBancariaId String? @db.Uuid
+  cbu              String?
+  importe          Decimal @db.Decimal(18, 2)
+  referencia       String?
+
+  @@index([empresaId, periodo])
 }

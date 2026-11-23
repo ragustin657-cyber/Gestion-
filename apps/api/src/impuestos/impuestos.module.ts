@@ -1,3 +1,5 @@
+import { SircrebController } from './sircreb/sircreb.controller';
+import { SircrebService } from './sircreb/sircreb.service';
 import { BienesPersonalesController } from './bienes-personales/bienes-personales.controller';
 import { BienesPersonalesService } from './bienes-personales/bienes-personales.service';
 import { ContabilidadModule } from '../contabilidad/contabilidad.module';
@@ -22,7 +24,7 @@ import { PosicionIibbService } from './posicion-iibb/posicion-iibb.service';
 
 @Module({
   imports: [ComprasModule, ContabilidadModule],
-  controllers: [BienesPersonalesController, DjGananciasController, AjusteImpositivoController, ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController, PosicionIibbController],
-  providers: [BienesPersonalesService, DjGananciasService, AjusteImpositivoService, ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService, PosicionIibbService],
+  controllers: [SircrebController, BienesPersonalesController, DjGananciasController, AjusteImpositivoController, ConfigImpuestosController, LibrosIvaController, PresentacionesController, ControlArcaController, PosicionIvaController, PosicionIibbController],
+  providers: [SircrebService, BienesPersonalesService, DjGananciasService, AjusteImpositivoService, ConfigImpuestosService, LibroVentasService, PresentacionesService, ControlArcaService, PosicionIvaService, PosicionIibbService],
 })
 export class ImpuestosModule {}

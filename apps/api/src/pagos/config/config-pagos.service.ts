@@ -17,6 +17,7 @@ export interface DatosRegimenSuss { codigoSire?: string | null; descripcion: str
 export interface DatosJurisdiccion {
   jurisdiccion: string; alicuotaDefecto: number; minimoRetencion: number; usaPadron: boolean; sinPadron: SinPadron;
   percibe?: boolean; alicuotaPercepcionDefecto?: number; minimoPercepcion?: number; sinPadronPercepcion?: SinPadron;
+  regimenSircarRetencion?: string | null; regimenSircarPercepcion?: string | null;
 }
 export interface DatosRegimenExterior { codigoSire: string; descripcion: string; alicuotaSinCdi: number; codigoAlicuotaSinCdi: number; alicuotaConCdi?: number | null; codigoAlicuotaConCdi?: number | null; activo?: boolean }
 export interface DatosRegimenPercepcionIva { codigo: string; descripcion: string; alicuotaGeneral: number; alicuotaReducida: number; minimoNeto: number; activo?: boolean }

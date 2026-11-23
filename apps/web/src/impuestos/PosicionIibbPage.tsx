@@ -12,13 +12,13 @@ import { mesAnterior } from './PosicionIvaPage';
 
 /** Liquidación mensual de IIBB por Convenio Multilateral (spec E38). */
 interface DetalleJurisdiccion {
-  jurisdiccion: string; coeficiente: string; alicuota: string; base: string; impuesto: string; retenciones: string; percepciones: string; saldoAnterior: string; aPagar: string; saldoAFavor: string;
+  jurisdiccion: string; coeficiente: string; alicuota: string; base: string; impuesto: string; retenciones: string; percepciones: string; recaudaciones?: string; saldoAnterior: string; aPagar: string; saldoAFavor: string;
 }
 type Totales = Omit<DetalleJurisdiccion, 'jurisdiccion' | 'coeficiente' | 'alicuota'>;
 export interface PosicionIibbWeb { anio: number; mes: number; estado: 'BORRADOR' | 'CERRADA'; ingresos: string; detalle: DetalleJurisdiccion[]; totales: Totales; avisos: string[]; asientoId: string | null }
 export interface MesIibb { mes: number; estado: 'CERRADA' | null; aPagar: string | null; saldoAFavor: string | null }
 
-const CAMPOS: [keyof Totales, string][] = [['base', 'Base'], ['impuesto', 'Impuesto'], ['retenciones', 'Retenciones'], ['percepciones', 'Percepciones'], ['saldoAnterior', 'Saldo anterior'], ['aPagar', 'A pagar'], ['saldoAFavor', 'Saldo a favor']];
+const CAMPOS: [keyof Totales, string][] = [['base', 'Base'], ['impuesto', 'Impuesto'], ['retenciones', 'Retenciones'], ['percepciones', 'Percepciones'], ['recaudaciones', 'Recaudaciones bancarias'], ['saldoAnterior', 'Saldo anterior'], ['aPagar', 'A pagar'], ['saldoAFavor', 'Saldo a favor']];
 
 /** Ingresos del mes y tabla por jurisdicción (los números de la CM03) con totales. */
 export function DetallePosicionIibb({ p }: { p: PosicionIibbWeb }) {

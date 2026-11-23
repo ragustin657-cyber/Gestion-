@@ -54,4 +54,12 @@ describe('liquidación de IIBB CM: cálculo (E38)', () => {
     const p = calcularPosicionIibb({ ingresos: '333.33', jurisdicciones: [j('901', '0.333333', '3.5')] });
     expect(p.detalle[0]).toMatchObject({ base: '111.11', impuesto: '3.89' });
   });
+
+  it('recaudaciones bancarias (SIRCREB, E48): pago a cuenta y su cuenta en el asiento', () => {
+    const p = calcularPosicionIibb({ ingresos: '100000', jurisdicciones: [{ ...j('902', '1', '10', { retenciones: '1000', percepciones: '500' }), recaudaciones: '2000' }] });
+    expect([p.detalle[0].recaudaciones, p.detalle[0].aPagar, p.totales.recaudaciones]).toEqual(['2000.00', '6500.00', '2000.00']);
+    const rs = renglonesAsientoIibb(p);
+    cuadra(rs);
+    expect(rs).toContainEqual({ concepto: 'RECAUDACION_BANCARIA_IIBB', debe: '0.00', haber: '2000.00' });
+  });
 });

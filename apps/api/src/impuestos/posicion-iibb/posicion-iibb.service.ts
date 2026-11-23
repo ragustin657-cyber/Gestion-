@@ -73,7 +73,7 @@ export class PosicionIibbService {
 
   /** Retenciones (recibos y tarjetas) y percepciones (compras y tarjetas) de IIBB del mes, por jurisdicción. */
   private async creditos(tx: TxEmpresa, desde: Date, hasta: Date) {
-    const ret = new Map<string, Prisma.Decimal>(), perc = new Map<string, Prisma.Decimal>();
+    const ret = new Map<string, Prisma.Decimal>(), perc = new Map<string, Prisma.Decimal>(), recaud = new Map<string, Prisma.Decimal>();
     const sumar = (m: Map<string, Prisma.Decimal>, j: string | null, v: Prisma.Decimal.Value) => j && m.set(j, (m.get(j) ?? new D(0)).plus(v));
     for (const r of await tx.reciboRetencion.groupBy({ by: ['jurisdiccion'], where: { tipo: 'IIBB', fecha: { gte: desde, lte: hasta }, recibo: { estado: 'CONFIRMADO' } }, _sum: { importe: true } }))
       sumar(ret, r.jurisdiccion, r._sum.importe ?? 0);
@@ -82,7 +82,10 @@ export class PosicionIibbService {
       sumar(perc, p.jurisdiccion, p.importe.mul(p.comprobante.cotizacion).toDecimalPlaces(2).mul(p.comprobante.tipo === 'NOTA_CREDITO' ? -1 : 1));
     for (const t of await tx.liquidacionTarjetaImpuesto.groupBy({ by: ['clase', 'jurisdiccion'], where: { tipo: 'IIBB', liquidacion: { estado: 'CONFIRMADO', fecha: { gte: desde, lte: hasta } } }, _sum: { importe: true } }))
       sumar(t.clase === 'RETENCION' ? ret : perc, t.jurisdiccion, t._sum.importe ?? 0);
-    return { ret, perc };
+    // E48: recaudaciones bancarias (SIRCREB) del período
+    for (const r of await tx.recaudacionBancaria.groupBy({ by: ['jurisdiccion'], where: { periodo: desde.toISOString().slice(0, 7).replace('-', '') }, _sum: { importe: true } }))
+      sumar(recaud, r.jurisdiccion, r._sum.importe ?? 0);
+    return { ret, perc, recaud };
   }
 
   /** Saldos a favor por jurisdicción al comienzo del mes: los iniciales en el mes de inicio, los del cerrado anterior o los del borrador anterior. */
@@ -107,9 +110,11 @@ export class PosicionIibbService {
     const avisos = [...ing.avisos];
     const js = await tx.jurisdiccionCm.findMany({ where: { anio }, orderBy: { jurisdiccion: 'asc' } });
     const enConvenio = new Set(js.map((j) => j.jurisdiccion));
-    const { ret, perc } = await this.creditos(tx, desde, hasta);
+    const { ret, perc, recaud } = await this.creditos(tx, desde, hasta);
     for (const j of [...new Set([...ret.keys(), ...perc.keys()])].sort())
       if (!enConvenio.has(j)) avisos.push(`Hay retenciones o percepciones de la jurisdicción ${nombreJurisdiccion(j)}, que no está en el Convenio de ${anio}`);
+    for (const j of [...recaud.keys()].sort())
+      if (!enConvenio.has(j)) avisos.push(`Hay recaudaciones bancarias de la jurisdicción ${nombreJurisdiccion(j)}, que no está en el Convenio de ${anio}`);
     const saldos = await this.saldosAnteriores(tx, anio, mes, avisos, profundidad);
     for (const [j, s] of [...saldos].sort())
       if (!enConvenio.has(j) && new D(s).gt(0))
@@ -118,7 +123,7 @@ export class PosicionIibbService {
       ingresos: ing.total.toFixed(2),
       jurisdicciones: js.map((j) => ({
         jurisdiccion: j.jurisdiccion, coeficiente: j.coeficiente.toString(), alicuota: j.alicuota.toString(),
-        retenciones: f2(ret.get(j.jurisdiccion) ?? 0), percepciones: f2(perc.get(j.jurisdiccion) ?? 0), saldoAnterior: saldos.get(j.jurisdiccion) ?? '0.00',
+        retenciones: f2(ret.get(j.jurisdiccion) ?? 0), percepciones: f2(perc.get(j.jurisdiccion) ?? 0), recaudaciones: f2(recaud.get(j.jurisdiccion) ?? 0), saldoAnterior: saldos.get(j.jurisdiccion) ?? '0.00',
       })),
     });
     return { anio, mes, estado: 'BORRADOR', ...r, avisos, asientoId: null };
@@ -221,6 +226,7 @@ export class PosicionIibbService {
 }
 
 function calcularTotales(detalle: DetalleJurisdiccion[]) {
-  const campos = ['base', 'impuesto', 'retenciones', 'percepciones', 'saldoAnterior', 'aPagar', 'saldoAFavor'] as const;
-  return Object.fromEntries(campos.map((c) => [c, detalle.reduce((t, d) => t.plus(d[c]), new D(0)).toFixed(2)])) as ResultadoPosicionIibb['totales'];
+  const campos = ['base', 'impuesto', 'retenciones', 'percepciones', 'recaudaciones', 'saldoAnterior', 'aPagar', 'saldoAFavor'] as const;
+  // Las liquidaciones cerradas antes de la E48 no tienen recaudaciones
+  return Object.fromEntries(campos.map((c) => [c, detalle.reduce((t, d) => t.plus(d[c] ?? 0), new D(0)).toFixed(2)])) as ResultadoPosicionIibb['totales'];
 }

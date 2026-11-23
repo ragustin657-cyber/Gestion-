@@ -19,7 +19,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
    - Coeficientes anuales (CM05).
    - Base imponible e impuesto por jurisdicción de cada mes, para cargar en SIFERE (CM03).
 3. **Percepciones practicadas en las facturas de venta**, de IVA y de IIBB (excluidas en las entregas 6 y 7).
-4. **Otras jurisdicciones de IIBB.** Hoy solo están ARBA (902) y AGIP (901). Faltan SIRCAR, SIRCREB y los padrones de otras provincias.
+4. ~~**Otras jurisdicciones de IIBB.**~~ Hecho en la entrega 48 (padrones con formato configurable, SIRCAR y SIRCREB). Quedan los aplicativos propios de cada provincia.
 5. **Prorrateo del crédito fiscal de IVA**, para empresas con operaciones exentas y gravadas.
 6. **Importaciones con despacho de aduana:** IVA, percepciones y su lugar en el Libro IVA.
 7. ~~**Notas de crédito de retenciones y anulaciones por lote en el SIRE.**~~ Hecho en la entrega 43.
@@ -161,6 +161,11 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - qué patrimonio neto se toma (hoy el total del estado de situación al cierre, con el ajuste por inflación contable si se hace) y los ajustes que pide la ley (ajuste manual);
     - sucesiones indivisas y socios del exterior con convenio de doble imposición;
     - contabilización del impuesto y del reintegro de los socios (hoy fuera de alcance).
+16. **Otras jurisdicciones de IIBB (entrega 48):**
+    - diseño del archivo SIRCAR (campos, separador, número de comprobante, signo de las notas de crédito) y lista de jurisdicciones adheridas;
+    - códigos de régimen de SIRCAR de cada jurisdicción (se cargan a mano);
+    - formato de la consulta de recaudaciones SIRCREB (hoy `periodo;jurisdiccion;importe[;cbu]`);
+    - formatos de los padrones de cada provincia que use la empresa (se configuran por jurisdicción).
 
 ---
 

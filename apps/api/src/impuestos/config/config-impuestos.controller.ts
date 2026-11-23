@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Put } from '@nestjs/common';
 import { PeriodicidadArba } from '@prisma/client';
+import { JURISDICCIONES_CM } from '@gestion/shared';
 import { z } from 'zod';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
@@ -33,6 +34,8 @@ const esquema = z.object({
   topeAutomovilesCosto: decimal().pipe(z.number().min(0, 'No puede ser negativo')).optional(),
   // Alícuota de Bienes Personales, acciones y participaciones (E47)
   alicuotaBienesPersonalesAcciones: decimal().pipe(z.number().min(0).max(100)).optional(),
+  // Jurisdicciones adheridas a SIRCAR (E48)
+  jurisdiccionesSircar: z.array(z.string().refine((j) => j in JURISDICCIONES_CM, 'Jurisdicción inválida')).optional(),
 });
 
 @Controller('impuestos/config')

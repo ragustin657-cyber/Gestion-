@@ -20,15 +20,15 @@ const esquemaJurisdicciones = z.object({
 
 const COLUMNAS: Columna[] = [
   { titulo: 'Jurisdicción', ancho: 24 }, { titulo: 'Coeficiente', ancho: 12 }, { titulo: 'Base', ancho: 16, importe: true }, { titulo: 'Alícuota %', ancho: 10 },
-  { titulo: 'Impuesto', ancho: 14, importe: true }, { titulo: 'Retenciones', ancho: 14, importe: true }, { titulo: 'Percepciones', ancho: 14, importe: true },
+  { titulo: 'Impuesto', ancho: 14, importe: true }, { titulo: 'Retenciones', ancho: 14, importe: true }, { titulo: 'Percepciones', ancho: 14, importe: true }, { titulo: 'Recaudaciones bancarias', ancho: 14, importe: true },
   { titulo: 'Saldo anterior', ancho: 14, importe: true }, { titulo: 'A pagar', ancho: 14, importe: true }, { titulo: 'Saldo a favor', ancho: 14, importe: true },
 ];
 
 export function filasPosicionIibb(p: VistaPosicionIibb): Fila[] {
   const t = p.totales;
   return [
-    ...p.detalle.map((d): Fila => [nombreJurisdiccion(d.jurisdiccion), d.coeficiente, d.base, d.alicuota, d.impuesto, d.retenciones, d.percepciones, d.saldoAnterior, d.aPagar, d.saldoAFavor]),
-    ['Total', '', t.base, '', t.impuesto, t.retenciones, t.percepciones, t.saldoAnterior, t.aPagar, t.saldoAFavor],
+    ...p.detalle.map((d): Fila => [nombreJurisdiccion(d.jurisdiccion), d.coeficiente, d.base, d.alicuota, d.impuesto, d.retenciones, d.percepciones, d.recaudaciones ?? '0.00', d.saldoAnterior, d.aPagar, d.saldoAFavor]),
+    ['Total', '', t.base, '', t.impuesto, t.retenciones, t.percepciones, t.recaudaciones ?? '0.00', t.saldoAnterior, t.aPagar, t.saldoAFavor],
   ];
 }
 
