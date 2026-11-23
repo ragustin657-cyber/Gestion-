@@ -67,4 +67,13 @@ describe('amortización impositiva (web, E44)', () => {
     await waitFor(() => expect(llamadas.some((l) => l.url.includes('/impositivo'))).toBe(true));
     expect(JSON.parse(llamadas.find((l) => l.url.includes('/impositivo'))!.body).valorTerreno).toBe(1500000);
   });
+
+  it('pulido E49: la vida útil impositiva es un campo numérico', () => {
+    envolver(<DatosImpositivosBien bien={{ id: 'b', valorOrigen: '1000', vidaUtilImpositivaAnios: 5, valorTerreno: '0', rubro: { id: 'r', nombre: 'Rodados', tipoImpositivo: 'MUEBLE', vidaUtilImpositivaAnios: null } }} puedeEditar alGuardar={() => {}} />);
+    const campo = screen.getByLabelText('Vida útil impositiva (años)') as HTMLInputElement;
+    expect(campo.value).toBe('5');
+    fireEvent.change(campo, { target: { value: 'abc' } });
+    expect(campo.value).toBe('');
+  });
 });
+

@@ -110,10 +110,25 @@ export class PlanCuentasService {
         const hijos = await tx.cuentaContable.count({ where: { padreId: id } });
         if (hijos) throw new BadRequestException('Una cuenta con subcuentas no puede ser imputable');
       }
+      if (d.ajusteImpositivo !== undefined && d.ajusteImpositivo !== actual.ajusteImpositivo) {
+        if (actual.tipo !== 'ACTIVO' && actual.tipo !== 'PASIVO') throw new BadRequestException('Solo las cuentas de activo y pasivo tienen ajuste impositivo');
+        // Pulido E49: el cambio en una cuenta con subcuentas se aplica a todas sus descendientes
+        const descendientes = await this.descendientes(tx, id);
+        if (descendientes.length) await tx.cuentaContable.updateMany({ where: { id: { in: descendientes } }, data: { ajusteImpositivo: d.ajusteImpositivo } });
+      }
       const cuenta = await tx.cuentaContable.update({ where: { id }, data: d });
       await this.auditoria.registrar(tx, { entidad: 'CuentaContable', entidadId: id, accion: 'MODIFICAR', datos: d });
       return cuenta;
     });
+  }
+
+  private async descendientes(tx: TxEmpresa, id: string): Promise<string[]> {
+    const todos: string[] = [];
+    for (let nivel = [id]; nivel.length; ) {
+      nivel = (await tx.cuentaContable.findMany({ where: { padreId: { in: nivel } }, select: { id: true } })).map((c) => c.id);
+      todos.push(...nivel);
+    }
+    return todos;
   }
 
   /** Reglas de la cuenta de ajuste por inflación (spec §3), en orden. */

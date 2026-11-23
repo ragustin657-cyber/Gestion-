@@ -12,3 +12,6 @@ export const zPassword = z.string().min(8, 'La contraseña debe tener al menos 8
 
 export const zTexto = z.string().trim().min(1);
 export const zTextoOpcional = z.string().trim().optional().nullable();
+
+/** Pulido E49: ids que llegan por query sin validar (un texto que no es UUID daría 500 en Postgres). */
+export const esUuid = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);

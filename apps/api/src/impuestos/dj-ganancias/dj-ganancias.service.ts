@@ -1,3 +1,4 @@
+import { esUuid } from '../../comun/esquemas';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Ejercicio, Prisma } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -68,7 +69,7 @@ export class DjGananciasService {
 
   private async ejercicio(tx: TxEmpresa, id?: string): Promise<Ejercicio> {
     if (!id) throw new BadRequestException('Indique el ejercicio');
-    const ej = await tx.ejercicio.findUnique({ where: { id } });
+    const ej = esUuid(id) ? await tx.ejercicio.findUnique({ where: { id } }) : null;
     if (!ej) throw new NotFoundException('Ejercicio no encontrado');
     return ej;
   }

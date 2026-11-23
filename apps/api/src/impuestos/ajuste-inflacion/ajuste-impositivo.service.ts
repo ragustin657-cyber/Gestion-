@@ -1,3 +1,4 @@
+import { esUuid } from '../../comun/esquemas';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TipoCuenta } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
@@ -33,7 +34,7 @@ export class AjusteImpositivoService {
   async planilla(q: { ejercicioId?: string }) {
     const tx = this.tenant.db;
     if (!q.ejercicioId) throw new BadRequestException('Indique el ejercicio');
-    const ej = await tx.ejercicio.findUnique({ where: { id: q.ejercicioId } });
+    const ej = esUuid(q.ejercicioId) ? await tx.ejercicio.findUnique({ where: { id: q.ejercicioId } }) : null;
     if (!ej) throw new NotFoundException('Ejercicio no encontrado');
     const empresaId = this.tenant.empresaId;
     const apertura = await this.aperturaInicial(tx);

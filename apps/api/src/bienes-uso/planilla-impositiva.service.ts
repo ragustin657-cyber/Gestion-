@@ -1,3 +1,4 @@
+import { esUuid } from '../comun/esquemas';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
@@ -23,7 +24,7 @@ export class PlanillaImpositivaService {
   async planilla(q: { ejercicioId?: string }) {
     const db = this.tenant.db;
     if (!q.ejercicioId) throw new BadRequestException('Indique el ejercicio');
-    const ej = await db.ejercicio.findUnique({ where: { id: q.ejercicioId } });
+    const ej = esUuid(q.ejercicioId) ? await db.ejercicio.findUnique({ where: { id: q.ejercicioId } }) : null;
     if (!ej) throw new NotFoundException('Ejercicio no encontrado');
     const bienes = await db.bienUso.findMany({
       where: { fechaAlta: { lte: ej.hasta }, OR: [{ fechaBaja: null }, { fechaBaja: { gte: ej.desde } }] },
@@ -88,6 +89,8 @@ export class PlanillaImpositivaService {
     const avisos = [
       ...(avisoVida.size ? [`Se usa la vida útil contable de: ${[...avisoVida].sort().join(', ')}`] : []),
       ...(sinTerreno.length ? [`Revise el valor del terreno de: ${sinTerreno.join(', ')}`] : []),
+      // Pulido E49: el tope por defecto (20.000) es un valor histórico; se avisa para que lo verifiquen
+      ...(datos.some(({ bi }) => bi.tipo === 'AUTOMOVIL') && new D(config?.topeAutomovilesCosto ?? 20000).eq(20000) ? ['El tope de automóviles es el valor por defecto: verifíquelo en Configuración de impuestos'] : []),
     ];
     return {
       ejercicio: { numero: ej.numero, desde: dia(ej.desde), hasta: dia(ej.hasta) },

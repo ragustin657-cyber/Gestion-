@@ -15,18 +15,18 @@ interface DatosImpositivos { id: string; valorOrigen: string; vidaUtilImpositiva
 /** Datos impositivos del bien (E44): vida útil impositiva (pisa al rubro) y terreno de los inmuebles; no afectan la contabilidad. */
 export function DatosImpositivosBien({ bien, puedeEditar, alGuardar }: { bien: DatosImpositivos; puedeEditar: boolean; alGuardar: () => void }) {
   const op = useOperacion();
-  const [vida, setVida] = useState(bien.vidaUtilImpositivaAnios ? String(bien.vidaUtilImpositivaAnios) : '');
+  const [vida, setVida] = useState<string | number>(bien.vidaUtilImpositivaAnios ?? '');
   const [terreno, setTerreno] = useState<number | string>(Number(bien.valorTerreno) || '');
   const inmueble = bien.rubro.tipoImpositivo === 'INMUEBLE';
   const guardar = async () => {
-    const body = { vidaUtilImpositivaAnios: vida.trim() ? Number(vida) : null, valorTerreno: inmueble ? Number(terreno) || 0 : Number(bien.valorTerreno) || 0 };
+    const body = { vidaUtilImpositivaAnios: vida === '' ? null : Number(vida), valorTerreno: inmueble ? Number(terreno) || 0 : Number(bien.valorTerreno) || 0 };
     if (await op.ejecutar(() => api(`/bienes-uso/${bien.id}/impositivo`, { metodo: 'PUT', body }), () => 'Datos impositivos guardados')) alGuardar();
   };
   return (
     <Stack gap="xs" mb="md">
       <Title order={5}>Amortización impositiva</Title>
       <Group align="flex-end">
-        <TextInput label="Vida útil impositiva (años)" w={200} inputMode="numeric" disabled={!puedeEditar} value={vida} onChange={(e) => setVida(e.currentTarget.value)}
+        <NumberInput label="Vida útil impositiva (años)" w={200} min={1} max={100} allowDecimal={false} allowNegative={false} disabled={!puedeEditar} value={vida} onChange={setVida}
           placeholder={bien.rubro.vidaUtilImpositivaAnios ? `${bien.rubro.vidaUtilImpositivaAnios} (del rubro)` : inmueble ? '50' : 'La del rubro'} />
         {inmueble && <NumberInput label="Valor del terreno" w={200} min={0} decimalScale={2} thousandSeparator="." decimalSeparator="," disabled={!puedeEditar} value={terreno} onChange={setTerreno} />}
         {puedeEditar && <Button size="xs" variant="light" loading={op.enviando} onClick={() => void guardar()}>Guardar datos impositivos</Button>}

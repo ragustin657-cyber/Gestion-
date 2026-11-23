@@ -164,6 +164,7 @@ export class BienesService {
           throw new BadRequestException('La fecha, el valor y el rubro salen de la factura o del asiento de alta');
         const origen = new D(valores.valorOrigen ?? b.valorOrigen), residual = new D(valores.valorResidual ?? b.valorResidual);
         this.validarValores(origen, residual);
+        if (b.valorTerreno.gt(origen)) throw new BadRequestException('El terreno no puede superar el valor de origen');
         if (b.amortizacionInicial.gt(origen.minus(residual))) throw new BadRequestException('La amortización acumulada no puede superar el valor amortizable');
         if (b.fechaAmortizacionInicial && mesDe(b.fechaAmortizacionInicial) < mesDe(valores.fechaAlta ?? b.fechaAlta))
           throw new BadRequestException('La fecha de la amortización acumulada no puede ser anterior al alta');
