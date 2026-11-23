@@ -65,7 +65,7 @@ export class BienesPersonalesController {
 
   @Put('bienes-personales/ajuste')
   @RequierePermiso('impuestos.presentar')
-  ajuste(@Body(new ZodValidationPipe(z.object({ anio, importe: z.number().refine((x) => Math.abs(x) < 1e16, 'Importe inválido').refine((x) => Math.abs(Math.round(x * 100) - x * 100) < 1e-6, 'Hasta 2 decimales'), concepto: z.string().trim().max(200).nullish() }))) d: { anio: number; importe: number; concepto?: string | null }) {
+  ajuste(@Body(new ZodValidationPipe(z.object({ anio, importe: z.number().refine((x) => Math.abs(x) < 1e16, 'Importe inválido').refine((x) => /^-?\d+(\.\d{1,2})?$/.test(String(x)), 'Hasta 2 decimales'), concepto: z.string().trim().max(200).nullish() }))) d: { anio: number; importe: number; concepto?: string | null }) {
     return this.bp.guardarAjuste(d);
   }
 

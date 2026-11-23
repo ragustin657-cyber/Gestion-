@@ -49,6 +49,10 @@ export function FormatoPadronForm({ jurisdiccion, onCerrar }: { jurisdiccion: st
   );
 }
 
+/** Revisión E49: 901 y 902 no usan período (el campo está oculto): no se manda aunque haya quedado escrito. */
+export const camposCarga = (jurisdiccion: string, periodo: string) =>
+  ({ jurisdiccion, ...(periodo && jurisdiccion !== '901' && jurisdiccion !== '902' ? { periodo } : {}) });
+
 export function PadronesPage() {
   const [jurisdiccion, setJurisdiccion] = useState<string | null>('902');
   const [archivo, setArchivo] = useState<File | null>(null);
@@ -67,7 +71,7 @@ export function PadronesPage() {
     setError('');
     setSubiendo(true);
     try {
-      await subirArchivo('/padrones', { jurisdiccion, ...(periodo ? { periodo } : {}) }, archivo);
+      await subirArchivo('/padrones', camposCarga(jurisdiccion, periodo), archivo);
       notifications.show({ color: 'blue', message: 'Padrón recibido: se está procesando' });
       setArchivo(null);
       void q.refetch();

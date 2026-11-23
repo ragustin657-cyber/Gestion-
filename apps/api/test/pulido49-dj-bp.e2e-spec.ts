@@ -72,6 +72,8 @@ describe('pulido E49: DJ de Ganancias y Bienes Personales', () => {
     expect((await x.http.put('/api/impuestos/bienes-personales/ajuste', { anio: 2026, importe: 1e20, concepto: 'x' })).status).toBe(400);
     expect((await x.http.put('/api/impuestos/bienes-personales/ajuste', { anio: 2026, importe: 10.001, concepto: 'x' })).status).toBe(400);
     expect((await x.http.put('/api/impuestos/bienes-personales/ajuste', { anio: 2026, importe: -1000.5, concepto: 'x' })).status).toBe(200);
+    // Revisión: importes grandes con centavos (602934655.08 * 100 no es entero en coma flotante)
+    for (const importe of [602934655.08, -9876543210.07, 123456789012.29]) expect([importe, (await x.http.put('/api/impuestos/bienes-personales/ajuste', { anio: 2026, importe, concepto: 'x' })).status]).toEqual([importe, 200]);
     expect((await x.http.get('/api/impuestos/bienes-personales?anio=2026')).status).toBe(200);
   });
 });

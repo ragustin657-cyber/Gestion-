@@ -23,7 +23,7 @@ Las entregas 43 a 48 dejaron menores diferidos. Se arreglan los que un usuario e
 
 **Ajuste por inflación impositivo (E45)**
 - Plan de cuentas: `ajusteImpositivo` solo en activo y pasivo (`Solo las cuentas de activo y pasivo tienen ajuste impositivo`); al cambiarlo en una cuenta padre se aplica a sus subcuentas.
-- `ejercicioId` mal formado en las planillas de E44, E45 y E46: 400 `Ejercicio no encontrado` (hoy 500).
+- `ejercicioId` mal formado en las planillas de E44, E45 y E46: 404 `Ejercicio no encontrado` (como un id inexistente) (hoy 500).
 - La alerta de error de las partidas no se repite.
 
 **DJ de Ganancias (E46)**
