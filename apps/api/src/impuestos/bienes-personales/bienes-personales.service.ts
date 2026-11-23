@@ -39,7 +39,8 @@ export class BienesPersonalesService {
 
   private anio(anio?: number | string) {
     const a = Number(anio);
-    if (!anio || !Number.isInteger(a)) throw new BadRequestException('Indique el año');
+    if (!anio) throw new BadRequestException('Indique el año');
+    if (!Number.isInteger(a) || a < 2000 || a > 2100) throw new BadRequestException('Año inválido');
     return a;
   }
 
@@ -67,6 +68,8 @@ export class BienesPersonalesService {
 
   /** Bloqueo como la DJ de Ganancias (E46): FOR UPDATE sobre la fila del año y error si está presentada. */
   private async editable(tx: TxEmpresa, anio: number) {
+    // Pulido E49: sin ejercicio del año no se crea la fila ni se copian participaciones
+    await this.ejercicio(tx, anio);
     await this.fila(tx, anio);
     const [f] = await tx.$queryRaw<{ estado: string }[]>`SELECT "estado" FROM "BienesPersonalesAcciones" WHERE "empresaId" = ${this.tenant.empresaId}::uuid AND "anio" = ${anio} FOR UPDATE`;
     if (f?.estado === 'PRESENTADA') throw new BadRequestException(BP_PRESENTADA);
@@ -128,6 +131,7 @@ export class BienesPersonalesService {
     return this.tenant.transaccion(async (tx) => {
       await this.editable(tx, d.anio);
       const ids = d.participaciones.map((p) => p.socioId);
+      if (new Set(ids).size !== ids.length) throw new BadRequestException('El socio está repetido');
       if ((await tx.socio.count({ where: { id: { in: ids } } })) !== new Set(ids).size) throw new NotFoundException('Socio no encontrado');
       await tx.bienesPersonalesParticipacion.deleteMany({ where: { anio: d.anio } });
       if (d.participaciones.length) await tx.bienesPersonalesParticipacion.createMany({ data: d.participaciones.map((p) => ({ ...p, empresaId: this.tenant.empresaId, anio: d.anio })) });

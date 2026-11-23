@@ -75,7 +75,11 @@ export class DjGananciasService {
   }
 
   private async dj(tx: TxEmpresa, ejercicioId: string) {
-    return (await tx.djGananciasSociedades.findUnique({ where: { ejercicioId } })) ?? tx.djGananciasSociedades.create({ data: { empresaId: this.tenant.empresaId, ejercicioId } });
+    // Pulido E49: alta con ON CONFLICT DO NOTHING (dos consultas simultáneas de un ejercicio nuevo no chocan en el alta)
+    const f = await tx.djGananciasSociedades.findUnique({ where: { ejercicioId } });
+    if (f) return f;
+    await tx.$executeRaw`INSERT INTO "DjGananciasSociedades" ("id", "empresaId", "ejercicioId") VALUES (gen_random_uuid(), ${this.tenant.empresaId}::uuid, ${ejercicioId}::uuid) ON CONFLICT ("ejercicioId") DO NOTHING`;
+    return tx.djGananciasSociedades.findUniqueOrThrow({ where: { ejercicioId } });
   }
 
   /**

@@ -67,4 +67,17 @@ describe('DJ de Ganancias de sociedades (web, E46)', () => {
     expect(await screen.findByText('Complete todos los campos de la escala')).toBeInTheDocument();
     expect(f.mock.calls.some((c) => (c as unknown[])[1] && ((c as unknown[])[1] as RequestInit).method === 'PUT')).toBe(false);
   });
+
+  it('pulido E49: quitar un tramo de la escala', async () => {
+    const f = vi.fn(async () => new Response('[]', { status: 200 }));
+    vi.stubGlobal('fetch', f);
+    envolver(<EscalaSociedades />);
+    await waitFor(() => expect(f).toHaveBeenCalled());
+    await new Promise((res) => setTimeout(res, 50));
+    fireEvent.click(await screen.findByRole('button', { name: 'Copiar escala de la ley 27.630' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Quitar tramo 2' }));
+    expect(screen.getAllByLabelText(/^Desde/)).toHaveLength(2);
+    expect((screen.getAllByLabelText(/^Monto fijo/)[1] as HTMLInputElement).value).toBe('14.750.000');
+  });
 });
+
