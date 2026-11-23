@@ -49,5 +49,10 @@ describe('calcularVenta', () => {
       expect([r.netoGravado, r.total, r.iva]).toEqual(['1710.00', '1710.00', '0.00']);
     });
   });
+
+  it('revisión E51: una alícuota con base 0 (renglón al 100 %) no genera IVA en cero', () => {
+    const r = calcularVenta([{ cantidad: '1', precioUnitario: '100', alicuota: 10.5, bonificacionPct: '100' }, { cantidad: '1', precioUnitario: '100', alicuota: 21 }], 'A');
+    expect(r.ivas).toEqual([{ alicuota: 21, base: '100.00', importe: '21.00' }]);
+  });
 });
 

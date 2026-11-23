@@ -22,4 +22,14 @@ describe('descuentos y bonificaciones (web, E51)', () => {
     const r = renglonDePedido({ pedidoRenglonId: 'p', numero: 'Pedido 1', articuloId: null, descripcion: 'X', pendiente: '2', precioUnitario: '100', alicuota: '21', bonificacionPct: '15', monedaPedido: 'ARS', cotizacionPedido: '1' }, '2', 'ARS', '');
     expect([r.bonificacionPct, r.precioUnitario, r.origen]).toEqual(['15', '100', 'PEDIDO']);
   });
+
+  it('revisión: cambiar solo la bonificación o el descuento marca las percepciones como desactualizadas', async () => {
+    const { renglonesCambiaron } = await import('./ComprobanteVentaPage');
+    const guardado = { renglones: [{ articuloId: null, descripcion: 'X', cantidad: '1', precioUnitario: '100', alicuota: '21', bonificacionPct: '0' }], descuentoPct: '0' } as never;
+    const r = { ...renglonVacio(), descripcion: 'X', cantidad: '1', precioUnitario: '100' };
+    expect(renglonesCambiaron([r], guardado)).toBe(false);
+    expect(renglonesCambiaron([{ ...r, bonificacionPct: '10' }], guardado)).toBe(true);
+    expect(renglonesCambiaron([r], guardado, '5')).toBe(true);
+  });
 });
+

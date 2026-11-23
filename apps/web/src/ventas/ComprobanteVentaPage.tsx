@@ -39,8 +39,11 @@ export function renglonDesdeComprobante(r: { articuloId: string | null; descripc
 
 /** Pulido E42: ¿los renglones en pantalla difieren de los guardados? (las percepciones guardadas quedan viejas hasta guardar) */
 // Revisión E42: mismo lector de números que el guardado (separador de miles) y descripción sin espacios, como la guarda la API
-const claveRenglones = (rs: RenglonVentaEditable[]) => JSON.stringify(rs.map((r) => [r.descripcion.trim(), numero(String(r.cantidad)), numero(String(r.precioUnitario)), r.alicuota]));
-export const renglonesCambiaron = (rs: RenglonVentaEditable[], c: ComprobanteVenta) => claveRenglones(rs) !== claveRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
+// Revisión E51: también la bonificación (vacía = 0) y el descuento general
+const pctClave = (s: string | undefined | null) => { const n = numero(String(s ?? '')); return Number.isFinite(n) ? n : 0; };
+const claveRenglones = (rs: RenglonVentaEditable[]) => JSON.stringify(rs.map((r) => [r.descripcion.trim(), numero(String(r.cantidad)), numero(String(r.precioUnitario)), r.alicuota, pctClave(r.bonificacionPct)]));
+export const renglonesCambiaron = (rs: RenglonVentaEditable[], c: ComprobanteVenta, descuentoPct = '') =>
+  claveRenglones(rs) !== claveRenglones((c.renglones ?? []).map(renglonDesdeComprobante)) || pctClave(descuentoPct) !== Number(c.descuentoPct ?? 0);
 
 /** Renglón de factura desde un renglón de pedido pendiente: precio (convertido a la moneda) y bonificación del pedido (E51). */
 export interface PendientePedido { pedidoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; precioUnitario: string; alicuota: string; bonificacionPct?: string; monedaPedido: string; cotizacionPedido: string }
@@ -260,7 +263,7 @@ export function ComprobanteVentaPage() {
           {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
             onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
         </Group>}
-        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual)}
+        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual, descuentoPct)}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
         <Modal opened={selectorPendientes} onClose={() => setSelectorPendientes(false)} title="Remitos y pedidos pendientes de facturar" size="xl">
           <TablaPendientes pendientes={pendientesFacturar} seleccion={seleccionPend} onChange={setSeleccionPend} />

@@ -35,7 +35,8 @@ export function calcularVenta(renglones: RenglonCalculo[], letra: LetraVenta, de
     }
   });
   const c = letra === 'C';
-  const ivas = c ? [] : [...bases].map(([alicuota, base]) => ({ alicuota, base: a2(base), importe: a2(base.mul(alicuota).div(100)) }));
+  // Revisión E51: una alícuota sin base (renglones bonificados al 100 %) no se informa
+  const ivas = c ? [] : [...bases].filter(([, base]) => !base.isZero()).map(([alicuota, base]) => ({ alicuota, base: a2(base), importe: a2(base.mul(alicuota).div(100)) }));
   const iva = ivas.reduce((s: Dec, x) => s.plus(x.importe), new D(0));
   const total = gravado.plus(noGravado).plus(exento).plus(iva);
   return {
