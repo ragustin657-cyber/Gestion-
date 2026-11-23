@@ -258,8 +258,19 @@ export class ComprobantesVentaService {
     const fce = c.fce
       ? { cbu: cuentaFce?.cbu ?? null, transferencia: c.tipo === 'FACTURA' ? (c.transferenciaFce ?? config?.transferenciaFce ?? 'SCA') : null, anulacion: c.tipo === 'FACTURA' ? null : !!c.anulacionFce }
       : null;
-    const importesB = importesConIva(c.renglones.map((r) => ({ neto: r.neto.toString(), iva: r.iva.toString(), alicuota: r.alicuota })), c.ivas.map((x) => ({ alicuota: x.alicuota.toString(), importe: x.importe.toString() })));
+    // E51: importes de antes del descuento general (calculados al mostrar); el neto guardado es el final
+    const hayDescuento = !c.descuentoPct.isZero();
+    const sinDesc = calcularVenta(c.renglones.map((r) => ({ cantidad: r.cantidad.toString(), precioUnitario: r.precioUnitario.toString(), alicuota: (r.alicuota === 'NO_GRAVADO' || r.alicuota === 'EXENTO' ? r.alicuota : Number(r.alicuota)) as AlicuotaVenta, bonificacionPct: r.bonificacionPct.toString() })), letra);
+    const importesB = hayDescuento
+      ? importesConIva(c.renglones.map((r, i) => ({ neto: sinDesc.renglones[i].neto, iva: sinDesc.renglones[i].iva, alicuota: r.alicuota })), sinDesc.ivas.map((x) => ({ alicuota: String(x.alicuota), importe: x.importe })))
+      : importesConIva(c.renglones.map((r) => ({ neto: r.neto.toString(), iva: r.iva.toString(), alicuota: r.alicuota })), c.ivas.map((x) => ({ alicuota: x.alicuota.toString(), importe: x.importe.toString() })));
     const totales: [string, string][] = [];
+    if (hayDescuento) {
+      const pct = `${Number(c.descuentoPct).toLocaleString('es-AR', { maximumFractionDigits: 2 })} %`;
+      const subtotal = !a && letra === 'B' ? importesB.reduce((s, x) => s.plus(x), new D(0)) : new D(sinDesc.subtotal);
+      const descuento = !a && letra === 'B' ? subtotal.minus(c.total.minus(c.percepciones)) : subtotal.minus(c.renglones.reduce((x, r) => x.plus(r.neto), new D(0)));
+      totales.push(['Subtotal', importeAR(subtotal.toString())], [`Descuento general ${pct}`, `-${importeAR(descuento.toString())}`]);
+    }
     if (a) {
       totales.push(['Neto gravado', importeAR(c.netoGravado.toString())]);
       for (const iva of c.ivas) totales.push([`IVA ${Number(iva.alicuota).toLocaleString('es-AR')}%`, importeAR(iva.importe.toString())]);
@@ -286,7 +297,8 @@ export class ComprobantesVentaService {
           descripcion: r.descripcion, cantidad: Number(r.cantidad).toLocaleString('es-AR', { maximumFractionDigits: 4 }),
           precio: Number(r.precioUnitario.mul(factor).toDecimalPlaces(2)).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
           alicuota: r.alicuota === 'NO_GRAVADO' ? 'No grav.' : r.alicuota === 'EXENTO' ? 'Exento' : `${Number(r.alicuota).toLocaleString('es-AR')}%`,
-          importe: importeAR(a ? r.neto.toString() : conIva ? importesB[i] : r.neto.plus(r.iva).toString()),
+          importe: importeAR(conIva ? importesB[i] : hayDescuento ? sinDesc.renglones[i].importe : a ? r.neto.toString() : r.neto.plus(r.iva).toString()),
+          ...(r.bonificacionPct.isZero() ? {} : { bonificacion: Number(r.bonificacionPct).toLocaleString('es-AR', { maximumFractionDigits: 2 }) }),
         };
       }),
       totales, total: importeAR(c.total.toString()), cae: c.cae, caeVencimiento: fechaAR(c.caeVencimiento!),

@@ -17,7 +17,8 @@ export interface DatosPdfVenta {
   cotizacion: string | null;
   asociado: string | null;
   discriminaIva: boolean;
-  renglones: { descripcion: string; cantidad: string; precio: string; alicuota: string; importe: string }[];
+  /** E51: `bonificacion` (con la columna solo si algún renglón la tiene). */
+  renglones: { descripcion: string; cantidad: string; precio: string; alicuota: string; importe: string; bonificacion?: string }[];
   totales: [string, string][];
   total: string;
   cae: string;
@@ -61,8 +62,11 @@ export async function pdfVenta(d: DatosPdfVenta): Promise<Buffer> {
     if (d.fce && d.fce.anulacion !== null) doc.text(`Anulación de la factura de crédito: ${d.fce.anulacion ? 'Sí' : 'No'}`);
     doc.moveDown();
 
-    const cols = d.discriminaIva ? [40, 300, 360, 440, 490] : [40, 330, 400, 490];
-    const enc = d.discriminaIva ? ['Descripción', 'Cantidad', 'Precio unit.', 'IVA', 'Importe'] : ['Descripción', 'Cantidad', 'Precio unit.', 'Importe'];
+    const conBonif = d.renglones.some((r) => r.bonificacion);
+    const cols = conBonif
+      ? (d.discriminaIva ? [40, 260, 310, 380, 430, 480] : [40, 300, 360, 430, 490])
+      : (d.discriminaIva ? [40, 300, 360, 440, 490] : [40, 330, 400, 490]);
+    const enc = ['Descripción', 'Cantidad', 'Precio unit.', ...(conBonif ? ['Bonif. %'] : []), ...(d.discriminaIva ? ['IVA'] : []), 'Importe'];
     let y = doc.y;
     doc.font('Helvetica-Bold').fontSize(8);
     enc.forEach((e, i) => doc.text(e, cols[i], y, { width: (cols[i + 1] ?? 555) - cols[i] - 4, align: i === 0 ? 'left' : 'right' }));
@@ -70,7 +74,7 @@ export async function pdfVenta(d: DatosPdfVenta): Promise<Buffer> {
     y += 14;
     for (const r of d.renglones) {
       if (y > 680) { doc.addPage(); y = 40; }
-      const fila = d.discriminaIva ? [r.descripcion, r.cantidad, r.precio, r.alicuota, r.importe] : [r.descripcion, r.cantidad, r.precio, r.importe];
+      const fila = [r.descripcion, r.cantidad, r.precio, ...(conBonif ? [r.bonificacion ?? ''] : []), ...(d.discriminaIva ? [r.alicuota] : []), r.importe];
       const alto = doc.heightOfString(r.descripcion, { width: cols[1] - cols[0] - 4 });
       fila.forEach((v, i) => doc.text(v, cols[i], y, { width: (cols[i + 1] ?? 555) - cols[i] - 4, align: i === 0 ? 'left' : 'right' }));
       y += Math.max(alto, 10) + 4;

@@ -186,7 +186,7 @@ export class PedidosService {
     const contenido = await pdfDocumento({
       titulo, numero: String(p.numero).padStart(8, '0'), empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), domicilio: empresa.domicilio },
       cliente: { razonSocial: cliente.razonSocial, cuit: cliente.cuit }, fecha: fAR(p.fecha)!, validoHasta: fAR(p.validoHasta), moneda: p.monedaCodigo,
-      renglones: renglonesPdf(p.letra, p.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), precioUnitario: new D(r.precioUnitario).toString(), neto: new D(r.neto).toString(), iva: new D(r.iva).toString() }))),
+      renglones: renglonesPdf(p.letra, p.renglones.map((r) => ({ descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), precioUnitario: new D(r.precioUnitario).toString(), alicuota: r.alicuota, bonificacionPct: new D(r.bonificacionPct).toString(), neto: new D(r.neto).toString(), iva: new D(r.iva).toString() }))),
       totales: { neto: new D(p.netoGravado).plus(p.noGravado).plus(p.exento).toString(), iva: p.iva.toString(), total: p.total.toString() }, observaciones: p.observaciones,
     });
     return { nombre: `${titulo.toLowerCase().replace(/ /g, '-')}-${p.numero}.pdf`, contenido };
