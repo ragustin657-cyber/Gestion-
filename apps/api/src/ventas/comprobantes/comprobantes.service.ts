@@ -107,7 +107,8 @@ export class ComprobantesVentaService {
     // Venta de bienes de uso (spec E14 §5): el neto va al resultado por venta y la baja se registra al autorizar
     await this.bajas.validarVenta(tx, { id, tipo: d.tipo, fecha: d.fecha }, d.renglones);
     if (letra === 'A' && tercero.tipoDocumento !== 'CUIT') throw new BadRequestException('El cliente no tiene CUIT válido para una factura A');
-    const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta })), letra);
+    const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta, bonificacionPct: String(r.bonificacionPct ?? 0) })), letra, String(d.descuentoPct ?? 0));
+    if (!new D(calc.total).gt(0)) throw new BadRequestException('El total del comprobante debe ser mayor a cero');
     const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
     // Percepciones practicadas (E39): el total las incluye
     const perc = await this.percepciones.calcular(tx, {
@@ -127,7 +128,7 @@ export class ComprobantesVentaService {
       if (r.articuloId && !articulos.some((a) => a.id === r.articuloId)) throw new BadRequestException('Artículo inexistente');
       const o = origenes[i];
       return {
-        empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota),
+        empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota), bonificacionPct: r.bonificacionPct ?? 0,
         neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, bienUsoId: r.bienUsoId ?? null,
         cuentaContableId: opciones.cuentaContableId ?? (r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas)),
       };
@@ -148,6 +149,7 @@ export class ComprobantesVentaService {
         // E50: en la FCE el vencimiento del pago es el del comprobante (factura); las notas no lo llevan
         fechaVencimientoPago: d.fce ? (d.tipo === 'FACTURA' ? d.fechaVencimiento : null) : d.concepto === 'PRODUCTOS' ? null : d.fechaVencimientoPago,
         fce: !!d.fce, transferenciaFce: d.fce && d.tipo === 'FACTURA' ? (d.transferenciaFce ?? (await tx.configArca.findFirst())?.transferenciaFce ?? 'SCA') : null, anulacionFce: d.fce && d.tipo !== 'FACTURA' ? !!d.anulacionFce : null,
+        descuentoPct: d.descuentoPct ?? 0,
         monedaCodigo: d.monedaCodigo, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total, percepciones: perc.total,
         totalPesos: new D(total).mul(cot).toDecimalPlaces(2), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId, aplicarAAsociado: d.aplicarAAsociado,
         vendedorId: vendedor.vendedorId, comisionPct: vendedor.comisionPct,

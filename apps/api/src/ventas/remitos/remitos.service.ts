@@ -154,8 +154,8 @@ export class RemitosService {
     return rs.filter((r) => new D(r.cantidad).gt(r.cantidadFacturada)).map((r) => ({
       ...(r.pedidoRenglonId && prs.get(r.pedidoRenglonId) ? (() => {
         const p = prs.get(r.pedidoRenglonId!)!;
-        return { precioPedido: new D(p.precioUnitario).toString(), alicuotaPedido: p.alicuota, monedaPedido: p.pedido.monedaCodigo, cotizacionPedido: new D(p.pedido.cotizacion).toString() };
-      })() : { precioPedido: null, alicuotaPedido: null, monedaPedido: null, cotizacionPedido: null }),
+        return { precioPedido: new D(p.precioUnitario).toString(), alicuotaPedido: p.alicuota, bonificacionPedido: new D(p.bonificacionPct).toString(), monedaPedido: p.pedido.monedaCodigo, cotizacionPedido: new D(p.pedido.cotizacion).toString() };
+      })() : { precioPedido: null, alicuotaPedido: null, bonificacionPedido: null, monedaPedido: null, cotizacionPedido: null }),
       remitoRenglonId: r.id, remitoId: r.remitoId, numero: numeroRemito(r.remito.puntoVenta, r.remito.numero), fecha: r.remito.fecha, pedidoRenglonId: r.pedidoRenglonId,
       articuloId: r.articuloId, descripcion: r.descripcion, cantidad: new D(r.cantidad).toString(), pendiente: new D(r.cantidad).minus(r.cantidadFacturada).toString(),
     }));

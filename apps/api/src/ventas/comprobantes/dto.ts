@@ -7,6 +7,11 @@ export const zAlicuota = z.union([
   z.enum(['NO_GRAVADO', 'EXENTO']),
 ]);
 
+/** E51: hasta 2 decimales. */
+const dosDecimales = (x: number) => Math.abs(Math.round(x * 100) - x * 100) < 1e-6;
+export const zBonificacion = z.number().min(0, 'Entre 0 y 100').max(100, 'Entre 0 y 100').refine(dosDecimales, 'Hasta 2 decimales').optional();
+export const zDescuento = z.number().min(0, 'Entre 0 y 100').lt(100, 'Debe ser menor que 100').refine(dosDecimales, 'Hasta 2 decimales').optional();
+
 export const esquemaComprobanteVenta = z
   .object({
     terceroId: z.string().uuid('Valor inválido'),
@@ -36,9 +41,11 @@ export const esquemaComprobanteVenta = z
         cantidad: z.number().gt(0, 'Debe ser mayor a cero'),
         precioUnitario: z.number().gt(0, 'Debe ser mayor a cero'),
         alicuota: zAlicuota,
+        bonificacionPct: zBonificacion,
       }))
       .min(1, 'El comprobante debe tener al menos un renglón'),
     emitir: z.boolean().default(false),
+    descuentoPct: zDescuento,
     // E50: factura de crédito electrónica MiPyME
     fce: z.boolean().optional(),
     transferenciaFce: z.enum(['SCA', 'ADC'], { message: 'Valor inválido' }).nullish(),

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { zFecha } from '../../compras/comun';
-import { zAlicuota } from '../comprobantes/dto';
+import { zAlicuota, zBonificacion } from '../comprobantes/dto';
 
 export const zRenglonPedido = z.object({
   articuloId: z.string().uuid('Valor inválido').nullish(),
@@ -8,6 +8,7 @@ export const zRenglonPedido = z.object({
   cantidad: z.number().gt(0, 'Debe ser mayor a cero'),
   precioUnitario: z.number().gt(0, 'Debe ser mayor a cero'),
   alicuota: zAlicuota,
+  bonificacionPct: zBonificacion,
 });
 export const esquemaPedido = z.object({
   terceroId: z.string().uuid('Valor inválido'),
