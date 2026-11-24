@@ -164,6 +164,60 @@ describe('remitos de devolución (E54)', () => {
     });
   });
 
+  describe('revisión final', () => {
+    it('no se anula una devolución si hay otra posterior del mismo renglón', async () => {
+      const x = await escenario();
+      const r = await x.entrega(10);
+      const a = await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 4 }]);
+      expect((await x.facturar(r.renglones[0].id, 6)).status).toBe(201);
+      expect((await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 6 }])).status).toBe(201);
+      const an = await x.http.post(`/api/ventas/remitos/${a.body.id}/anular`, { motivo: 'x' });
+      expect([an.status, an.body.message]).toEqual([400, 'El renglón tiene devoluciones posteriores: anúlelas primero']);
+    });
+
+    it('la NC con devolución de mercadería cuenta solo lo devuelto a acreditar, una sola vez entre facturas', async () => {
+      const x = await escenario();
+      const nc = (f: string, q: number) => x.http.post('/api/ventas/comprobantes', { ...x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: f, devuelveMercaderia: true, renglones: [{ articuloId: x.art.id, descripcion: 'x', cantidad: q, precioUnitario: 1, alicuota: 21 }] }) });
+      // Devolución de lo no facturado: la factura conserva sus 4
+      const r = await x.entrega(10);
+      const f1 = await x.facturar(r.renglones[0].id, 4);
+      expect((await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 6 }])).status).toBe(201);
+      expect((await nc(f1.body.id, 4)).status).toBe(201);
+      // Renglón facturado en dos facturas, devolución de 3: se imputa a una sola (la más reciente)
+      const r2 = await x.entrega(10);
+      const g1 = await x.facturar(r2.renglones[0].id, 4);
+      const g2 = await x.facturar(r2.renglones[0].id, 6);
+      expect((await x.devolver([{ remitoRenglonOrigenId: r2.renglones[0].id, cantidad: 3 }])).status).toBe(201);
+      expect((await nc(g1.body.id, 4)).status).toBe(201);
+      expect((await nc(g2.body.id, 4)).status).toBe(400);
+      expect((await nc(g2.body.id, 3)).status).toBe(201);
+    });
+
+    it('artículo sin stock facturado desde el pedido: la devolución queda a acreditar', async () => {
+      const x = await escenario();
+      const srv = await x.articulo(false);
+      const p = await x.pedido([x.renglon(srv.id, 10)], { confirmar: true });
+      const r = await x.remito([x.dePedido(p.renglones[0].id, 10)]);
+      const f = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ renglones: [{ origen: 'PEDIDO', pedidoRenglonId: p.renglones[0].id, descripcion: 'x', cantidad: 10, precioUnitario: 1000, alicuota: 21 }] }), emitir: true });
+      expect(f.status).toBe(201);
+      const d = await x.devolver([{ remitoRenglonOrigenId: r.body.renglones[0].id, cantidad: 4 }]);
+      expect([d.status, d.body.renglones[0].cantidadAAcreditar]).toEqual([201, '4']);
+      const ped = (await x.http.get(`/api/ventas/pedidos/${p.id}`)).body;
+      expect(ped.renglones[0].pendienteFacturar).toBe('0');
+    });
+
+    it('informe de márgenes: la NC desde una devolución resta el costo de salida', async () => {
+      const x = await escenario();
+      const r = await x.entrega(10);
+      const f = await x.facturar(r.renglones[0].id, 10);
+      const d = await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 3 }]);
+      const nc = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: f.body.id, renglones: [{ origen: 'DEVOLUCION', devolucionRenglonId: d.body.renglones[0].id, descripcion: 'x', cantidad: 3, precioUnitario: 1000, alicuota: 21 }] }), emitir: true });
+      expect(nc.status).toBe(201);
+      const inf = (await x.http.get('/api/informes/ventas?desde=2026-11-01&hasta=2026-11-30&agrupar=cliente')).body;
+      expect(inf.totales).toMatchObject({ ventas: '7000.00', costo: '700.00' });
+    });
+  });
+
   it('PDF del remito de devolución y listado por tipo', async () => {
     const x = await escenario();
     const r = await x.entrega(10);

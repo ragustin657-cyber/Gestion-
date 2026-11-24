@@ -185,14 +185,20 @@ export class RemitosService {
       }
       // Cantidades: no más de lo entregado menos lo ya devuelto; lo que excede lo pendiente de facturar queda a acreditar
       const acumulado = new Map<string, Dec>();
+      const pedidoRs = new Map((await tx.pedidoVentaRenglon.findMany({ where: { id: { in: origenes.map((o) => o.pedidoRenglonId).filter((x): x is string => !!x) } } })).map((p) => [p.id, p]));
+      const sinFactPedido = new Map<string, Dec>();
       const renglones = d.renglones.map((r, i) => {
         const o = origenes.find((x) => x.id === r.remitoRenglonOrigenId)!;
         const previo = acumulado.get(o.id) ?? new D(0);
         const quedan = new D(o.cantidad).minus(o.cantidadDevuelta).minus(previo);
         if (new D(r.cantidad).gt(quedan)) throw new BadRequestException(`No se puede devolver más de lo entregado en el remito ${numeroRemito(o.remito.puntoVenta, o.remito.numero)} (${o.descripcion}): quedan ${quedan.toString()}`);
-        const pendFacturar = D.max(new D(o.cantidad).minus(o.cantidadFacturada).minus(o.cantidadDevuelta).minus(previo), 0);
+        let pendFacturar = D.max(new D(o.cantidad).minus(o.cantidadFacturada).minus(o.cantidadDevuelta).minus(previo), 0);
+        // Renglón de pedido facturado desde el pedido (sin el remito): lo pendiente es también lo del pedido
+        const pr = o.pedidoRenglonId ? pedidoRs.get(o.pedidoRenglonId) : undefined;
+        if (pr) pendFacturar = D.min(pendFacturar, D.max(new D(pr.cantidad).minus(pr.cantidadFacturada).minus(pr.cantidadDevuelta).minus(sinFactPedido.get(pr.id) ?? 0), 0));
         const aAcreditar = D.max(new D(r.cantidad).minus(pendFacturar), 0);
         acumulado.set(o.id, previo.plus(r.cantidad));
+        if (pr) sinFactPedido.set(pr.id, (sinFactPedido.get(pr.id) ?? new D(0)).plus(new D(r.cantidad).minus(aAcreditar)));
         return { empresaId, orden: i, remitoRenglonOrigenId: o.id, pedidoRenglonId: null, articuloId: o.articuloId, descripcion: o.descripcion, cantidad: r.cantidad, cantidadAAcreditar: aAcreditar, _origen: o, _sinFacturar: new D(r.cantidad).minus(aAcreditar) };
       });
       const numero = await this.numeracion.siguiente(tx, 'REMITO_DEVOLUCION', pv.numero);
@@ -239,6 +245,9 @@ export class RemitosService {
     if (enNc) throw new BadRequestException('La devolución ya tiene notas de crédito: anúlelas primero');
     const origenIds = r.renglones.map((x) => x.remitoRenglonOrigenId).filter((x): x is string => !!x);
     await bloquear(tx, 'RemitoRenglon', this.tenant.empresaId, origenIds);
+    // Lo que quedó a acreditar en las devoluciones posteriores dependía de esta: se anulan primero
+    const posteriores = await tx.remitoRenglon.count({ where: { remitoRenglonOrigenId: { in: origenIds }, remito: { id: { not: r.id }, tipo: 'DEVOLUCION', estado: 'CONFIRMADO', creadoEn: { gt: r.creadoEn } } } });
+    if (posteriores) throw new BadRequestException('El renglón tiene devoluciones posteriores: anúlelas primero');
     const origenes = await tx.remitoRenglon.findMany({ where: { id: { in: origenIds } } });
     const hoy = new Date(`${hoyEn(ZONA_ARGENTINA)}T00:00:00Z`);
     const res = await revertirOrigen(tx, this.motor, ORIGEN_REMITO, r.id, hoy);

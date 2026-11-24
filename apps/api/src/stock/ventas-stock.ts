@@ -73,12 +73,40 @@ export class VentasStock {
     }
     const devuelto = new Map<string, Dec>();
     for (const nc of ncs) for (const ren of nc.renglones) if (ren.articuloId) devuelto.set(ren.articuloId, (devuelto.get(ren.articuloId) ?? cero).plus(ren.cantidad));
-    // E54: lo devuelto con remitos de devolución de los renglones de remito que facturó este comprobante (hasta lo facturado)
-    if (desdeRemitos.length) {
-      const devs = await tx.remitoRenglon.findMany({ where: { remitoRenglonOrigenId: { in: desdeRemitos.map((x) => x.remitoRenglonId!) }, remito: { estado: 'CONFIRMADO', tipo: 'DEVOLUCION' } } });
-      for (const ren of desdeRemitos) {
-        const q = devs.filter((x) => x.remitoRenglonOrigenId === ren.remitoRenglonId).reduce((s, x) => s.plus(x.cantidad), cero);
-        if (q.gt(0)) devuelto.set(ren.articuloId!, (devuelto.get(ren.articuloId!) ?? cero).plus(D.min(q, ren.cantidad)));
+    // E54: lo devuelto con remitos de devolución que corresponde a este comprobante: lo acreditado con NC asociadas a él
+    // y lo que queda a acreditar, imputado una sola vez entre las facturas del renglón (de la más reciente a la más antigua)
+    const rrIds = [...new Set(desdeRemitos.map((x) => x.remitoRenglonId!))];
+    if (rrIds.length) {
+      const devs = await tx.remitoRenglon.findMany({ where: { remitoRenglonOrigenId: { in: rrIds }, remito: { estado: 'CONFIRMADO', tipo: 'DEVOLUCION' } } });
+      const acreditados = await tx.comprobanteVentaRenglon.findMany({
+        where: { devolucionRenglonId: { in: devs.map((x) => x.id) }, comprobante: { tipo: 'NOTA_CREDITO', OR: [{ estado: 'AUTORIZADO' }, { numeroReservado: { not: null } }] } },
+        include: { comprobante: { select: { comprobanteAsociadoId: true } } },
+      });
+      const facturas = await tx.comprobanteVentaRenglon.findMany({
+        where: { remitoRenglonId: { in: rrIds }, OR: [{ comprobanteId: asociadoId }, { comprobante: { tipo: 'FACTURA', estado: 'AUTORIZADO' } }] },
+        include: { comprobante: { select: { fecha: true, numero: true } } },
+      });
+      for (const rr of rrIds) {
+        const devsR = devs.filter((x) => x.remitoRenglonOrigenId === rr);
+        if (!devsR.length) continue;
+        const acrR = acreditados.filter((a) => devsR.some((x) => x.id === a.devolucionRenglonId));
+        const acreditadoA = (f: string) => acrR.filter((a) => a.comprobante.comprobanteAsociadoId === f).reduce((s, a) => s.plus(a.cantidad), cero);
+        let sinAcreditar = D.max(devsR.reduce((s, x) => s.plus(x.cantidadAAcreditar), cero).minus(acrR.reduce((s, a) => s.plus(a.cantidad), cero)), 0);
+        const porFactura = new Map<string, { cantidad: Dec; fecha: Date; numero: number }>();
+        for (const f of facturas.filter((x) => x.remitoRenglonId === rr)) {
+          const y = porFactura.get(f.comprobanteId);
+          porFactura.set(f.comprobanteId, { cantidad: (y?.cantidad ?? cero).plus(f.cantidad), fecha: f.comprobante.fecha, numero: f.comprobante.numero ?? 0 });
+        }
+        const orden = [...porFactura.entries()].sort((a, b) => b[1].fecha.getTime() - a[1].fecha.getTime() || b[1].numero - a[1].numero);
+        let propio = cero;
+        for (const [f, x] of orden) {
+          const acr = acreditadoA(f);
+          const toma = D.min(sinAcreditar, D.max(x.cantidad.minus(acr), 0));
+          sinAcreditar = sinAcreditar.minus(toma);
+          if (f === asociadoId) propio = D.min(acr.plus(toma), x.cantidad);
+        }
+        const art = desdeRemitos.find((x) => x.remitoRenglonId === rr)!.articuloId!;
+        if (propio.gt(0)) devuelto.set(art, (devuelto.get(art) ?? cero).plus(propio));
       }
     }
     return { vendido: r, devuelto };

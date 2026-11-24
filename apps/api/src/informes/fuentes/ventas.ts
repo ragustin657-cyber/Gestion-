@@ -23,7 +23,7 @@ export async function porLotes<T>(ids: string[], f: (lote: string[]) => Promise<
 export async function renglonesVendidos(tx: TxEmpresa, desde: Date, hasta: Date): Promise<RenglonVendido[]> {
   const comps = await tx.comprobanteVenta.findMany({
     where: { estado: 'AUTORIZADO', fecha: { gte: desde, lte: hasta } },
-    select: { id: true, tipo: true, fecha: true, cotizacion: true, terceroId: true, tercero: { select: { razonSocial: true } }, renglones: { where: { bienUsoId: null }, select: { id: true, articuloId: true, descripcion: true, cantidad: true, neto: true, remitoRenglonId: true } } },
+    select: { id: true, tipo: true, fecha: true, cotizacion: true, terceroId: true, tercero: { select: { razonSocial: true } }, renglones: { where: { bienUsoId: null }, select: { id: true, articuloId: true, descripcion: true, cantidad: true, neto: true, remitoRenglonId: true, devolucionRenglonId: true } } },
   });
   const renglones = comps.flatMap((c) => c.renglones);
   // Costo de facturas directas y devoluciones: movimientos de stock del renglón
@@ -33,7 +33,11 @@ export async function renglonesVendidos(tx: TxEmpresa, desde: Date, hasta: Date)
   }));
   const costoDirecto = new Map(movs.map((m) => [m.origenRenglonId!, new D(m._sum.importe ?? 0).neg()]));
   // Costo de renglones de remito: cantidad facturada × costo unitario de la salida del remito
-  const rrIds = renglones.map((r) => r.remitoRenglonId).filter((x): x is string => !!x);
+  // E54: renglones de NC desde devoluciones: al costo de salida del renglón de remito de origen
+  const devIds = renglones.map((r) => r.devolucionRenglonId).filter((x): x is string => !!x);
+  const origenDev = new Map((await porLotes([...new Set(devIds)], (lote) => tx.remitoRenglon.findMany({ where: { id: { in: lote } }, select: { id: true, remitoRenglonOrigenId: true } }))).map((x) => [x.id, x.remitoRenglonOrigenId]));
+  const rrDe = (r: { remitoRenglonId: string | null; devolucionRenglonId: string | null }) => r.remitoRenglonId ?? (r.devolucionRenglonId ? (origenDev.get(r.devolucionRenglonId) ?? null) : null);
+  const rrIds = renglones.map(rrDe).filter((x): x is string => !!x);
   const salidasRemito = await porLotes([...new Set(rrIds)], (lote) => tx.movimientoStock.findMany({ where: { origenTipo: 'REMITO', tipo: 'VENTA', anulaAId: null, origenRenglonId: { in: lote } }, select: { origenRenglonId: true, costoUnitario: true } }));
   const costoUnitRemito = new Map(salidasRemito.map((m) => [m.origenRenglonId!, new D(m.costoUnitario)]));
   const arts = new Map((await tx.articulo.findMany({ where: { id: { in: [...new Set(renglones.map((r) => r.articuloId).filter((x): x is string => !!x))] } }, select: { id: true, codigo: true, descripcion: true, controlaStock: true } })).map((a) => [a.id, a]));
@@ -43,7 +47,8 @@ export async function renglonesVendidos(tx: TxEmpresa, desde: Date, hasta: Date)
     for (const ren of c.renglones) {
       const ventas = new D(ren.neto).times(c.cotizacion).toDecimalPlaces(2).times(signo);
       let costo: Dec | null = null;
-      if (ren.remitoRenglonId && costoUnitRemito.has(ren.remitoRenglonId)) costo = new D(ren.cantidad).times(costoUnitRemito.get(ren.remitoRenglonId)!).toDecimalPlaces(2).times(signo);
+      const rr = rrDe(ren);
+      if (rr && costoUnitRemito.has(rr)) costo = new D(ren.cantidad).times(costoUnitRemito.get(rr)!).toDecimalPlaces(2).times(signo);
       else if (costoDirecto.has(ren.id)) costo = costoDirecto.get(ren.id)!;
       // NC/ND sin movimiento de stock sobre un artículo con stock (descuento, ajuste de precio): ajusta las ventas con costo, sin costo propio
       else if (c.tipo !== 'FACTURA' && ren.articuloId && arts.get(ren.articuloId)?.controlaStock) costo = new D(0);
