@@ -81,4 +81,26 @@ describe('reservas de stock (E53)', () => {
     const c = await x.http.post(`/api/ventas/pedidos/${p.id}/confirmar`, {});
     expect([c.status, c.body.advertencias]).toEqual([201, []]);
   });
+
+  describe('consultas', () => {
+    it('existencias con reservado y disponible; filtro de depósito; consulta de reservas; Excel', async () => {
+      const x = await escenario();
+      const a = await x.confirmado(8);
+      const ex = (await x.http.get(`/api/stock/existencias?articuloId=${x.art.id}`)).body.filas[0];
+      expect([ex.reservado, ex.disponible, ex.depositos[0].reservado, ex.depositos[0].disponible]).toEqual(['8', '2', '8', '2']);
+      const otro = (await x.http.get(`/api/stock/existencias?articuloId=${x.art.id}&depositoId=${x.deposito2.id}`)).body.filas[0];
+      expect([otro.reservado, otro.disponible]).toEqual(['0', '0']);
+      const r = await x.http.get(`/api/stock/reservas?articuloId=${x.art.id}`);
+      expect(r.status).toBe(200);
+      expect(r.body.map((y: { pedido: number; cantidad: string; cliente: string; deposito: string }) => [y.pedido, y.cantidad, y.cliente, y.deposito])).toEqual([[a.numero, '8', 'Distribuidora Norte SA', 'Central']]);
+      const xl = await x.http.get(`/api/stock/existencias?articuloId=${x.art.id}&formato=xlsx`).buffer(true).parse((res, cb) => { const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p))); });
+      const ExcelJS = (await import('exceljs')).default;
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(xl.body);
+      const filas: unknown[][] = [];
+      wb.worksheets[0].eachRow((row) => filas.push((row.values as unknown[]).slice(1)));
+      expect(filas.some((f) => f.includes('Reservado') && f.includes('Disponible'))).toBe(true);
+    });
+  });
 });
+

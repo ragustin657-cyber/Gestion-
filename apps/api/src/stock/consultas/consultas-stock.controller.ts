@@ -1,3 +1,4 @@
+import { esUuid } from '../../comun/esquemas';
 import { BadRequestException, Controller, Get, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
@@ -35,9 +36,18 @@ export class ConsultasStockController {
     const r = await this.consultas.existencias(q);
     if (!q.formato) return r;
     return this.salida(q.formato, res, 'existencias', 'Existencias', 'Stock por depósito y valuación al costo promedio', [
-      { titulo: 'Código', ancho: 90 }, { titulo: 'Artículo', ancho: 230 }, { titulo: 'Depósitos', ancho: 200 }, { titulo: 'Cantidad', ancho: 80, importe: true },
-      { titulo: 'Costo promedio', ancho: 90, importe: true }, { titulo: 'Valor', ancho: 100, importe: true },
-    ], [...r.filas.map((f) => [f.codigo, f.descripcion, f.depositos.map((d) => `${d.nombre}: ${d.cantidad}`).join(' · '), f.cantidad, f.costoPromedio, f.valor]), ['', 'Total', '', null, null, r.total]]);
+      { titulo: 'Código', ancho: 80 }, { titulo: 'Artículo', ancho: 200 }, { titulo: 'Depósitos', ancho: 180 }, { titulo: 'Cantidad', ancho: 70, importe: true },
+      { titulo: 'Reservado', ancho: 70, importe: true }, { titulo: 'Disponible', ancho: 70, importe: true },
+      { titulo: 'Costo promedio', ancho: 80, importe: true }, { titulo: 'Valor', ancho: 90, importe: true },
+    ], [...r.filas.map((f) => [f.codigo, f.descripcion, f.depositos.map((d) => `${d.nombre}: ${d.cantidad}`).join(' · '), f.cantidad, f.reservado, f.disponible, f.costoPromedio, f.valor]), ['', 'Total', '', null, null, null, null, r.total]]);
+  }
+
+  /** E53: pedidos que reservan cada artículo. */
+  @Get('reservas')
+  reservas(@Query() q: { articuloId?: string; depositoId?: string }) {
+    if (q.articuloId && !esUuid(q.articuloId)) throw new BadRequestException('Artículo inválido');
+    if (q.depositoId && !esUuid(q.depositoId)) throw new BadRequestException('Depósito inválido');
+    return this.consultas.reservas(q);
   }
 
   @Get('kardex')

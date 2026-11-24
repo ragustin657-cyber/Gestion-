@@ -14,14 +14,14 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 
 ### 1.1 Impuestos (lo más cercano a lo que ya existe)
 
-1. **Posición mensual de IVA y datos para la DJ F.2002.** Débito fiscal − crédito fiscal − retenciones y percepciones sufridas − saldo a favor anterior → saldo a pagar o a favor. Hoy hay libros de IVA y Libro IVA Digital, pero no el saldo del mes. *(Recomendado como próximo.)*
-2. **Ingresos Brutos por Convenio Multilateral.**
+1. ~~**Posición mensual de IVA y datos para la DJ F.2002.**~~ Hecho en la entrega 37.
+2. ~~**Ingresos Brutos por Convenio Multilateral.**~~ Hecho en la entrega 38.
    - Coeficientes anuales (CM05).
    - Base imponible e impuesto por jurisdicción de cada mes, para cargar en SIFERE (CM03).
-3. **Percepciones practicadas en las facturas de venta**, de IVA y de IIBB (excluidas en las entregas 6 y 7).
+3. ~~**Percepciones practicadas en las facturas de venta**~~ Hecho en la entrega 39.
 4. ~~**Otras jurisdicciones de IIBB.**~~ Hecho en la entrega 48 (padrones con formato configurable, SIRCAR y SIRCREB). Quedan los aplicativos propios de cada provincia.
-5. **Prorrateo del crédito fiscal de IVA**, para empresas con operaciones exentas y gravadas.
-6. **Importaciones con despacho de aduana:** IVA, percepciones y su lugar en el Libro IVA.
+5. ~~**Prorrateo del crédito fiscal de IVA**~~ Hecho en la entrega 40.
+6. ~~**Importaciones con despacho de aduana:**~~ Hecho en la entrega 41.
 7. ~~**Notas de crédito de retenciones y anulaciones por lote en el SIRE.**~~ Hecho en la entrega 43.
 8. ~~**F.2003 del SIRE:** Ganancias a beneficiarios del exterior.~~ Hecho en la entrega 43.
 9. **Ganancias de sociedades y Bienes Personales (acciones y participaciones).** ~~DJ de Ganancias de sociedades y anticipos~~: hecho en la entrega 46 (papel de trabajo; la presentación sigue en ARCA). ~~Bienes Personales acciones y participaciones (responsable sustituto)~~: hecho en la entrega 47.
@@ -38,7 +38,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 17. ~~**Listas de precios derivadas y precio calculado desde el costo.**~~ Hecho en la entrega 52 (base otra lista ± % o costo + margen, redondeo, precios fijos, margen por artículo, recálculo con vista previa). Quedan los rubros de artículos (márgenes por familia), el recálculo automático y el costo de los despachos de importación.
 18. **COT de ARBA** (código de operación de traslado para los remitos).
 19. **Remitos de devolución** con circuito propio.
-20. **Reservas de stock.**
+20. ~~**Reservas de stock.**~~ Hecho en la entrega 53 (reservado calculado desde los pedidos pendientes, avisos de disponible, columnas en Existencias y consulta de reservas; solo avisa).
 
 ### 1.3 Stock y producción
 
