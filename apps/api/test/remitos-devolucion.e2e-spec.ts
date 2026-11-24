@@ -163,5 +163,17 @@ describe('remitos de devolución (E54)', () => {
       expect((await nc(7)).status).toBe(201);
     });
   });
+
+  it('PDF del remito de devolución y listado por tipo', async () => {
+    const x = await escenario();
+    const r = await x.entrega(10);
+    const d = await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 2 }]);
+    const pdf = await x.pdfTexto(`/api/ventas/remitos/${d.body.id}/pdf`);
+    const texto = pdf.texto + [...pdf.texto.matchAll(/<([0-9a-f]+)>/g)].map((m) => Buffer.from(m[1], 'hex').toString('latin1')).join('');
+    expect(texto).toContain('Remito de devoluci');
+    expect(texto).toContain('R 0001-00000001');
+    const lista = (await x.http.get('/api/ventas/remitos?tipo=DEVOLUCION')).body as { id: string; tipo: string }[];
+    expect(lista.map((y) => [y.id, y.tipo])).toEqual([[d.body.id, 'DEVOLUCION']]);
+  });
 });
 

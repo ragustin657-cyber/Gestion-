@@ -1,5 +1,5 @@
 import { SelectorVendedor, useVendedores } from './ComisionesPages';
-import { Button, Checkbox, Group, Modal, Paper, Select, Stack, TextInput, Title, Alert } from '@mantine/core';
+import { Button, Checkbox, Group, Modal, Paper, Select, Stack, Text, TextInput, Title, Alert } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -55,6 +55,16 @@ export function renglonDePedido(ped: PendientePedido, cant: string, moneda: stri
   };
 }
 
+/** E54: devolución pendiente de acreditar, con la factura que facturó el remito de origen. */
+export interface PendienteAcreditar { devolucionRenglonId: string; numero: string; articuloId: string | null; descripcion: string; pendiente: string; facturaId: string | null; factura: string | null; precioUnitario: string | null; bonificacionPct: string; alicuota: string | null; monedaCodigo: string | null }
+export function renglonDeDevolucion(p: PendienteAcreditar): RenglonVentaEditable {
+  return {
+    origen: 'DEVOLUCION', devolucionRenglonId: p.devolucionRenglonId, etiqueta: p.numero, articuloId: p.articuloId, descripcion: p.descripcion, cantidad: p.pendiente,
+    precioUnitario: p.precioUnitario ? String(Number(p.precioUnitario)) : '', alicuota: p.alicuota ?? '21',
+    ...(Number(p.bonificacionPct) ? { bonificacionPct: String(Number(p.bonificacionPct)) } : {}),
+  };
+}
+
 export function ComprobanteVentaPage() {
   const empresa = useEmpresa();
   const clientes = useClientes();
@@ -89,6 +99,9 @@ export function ComprobanteVentaPage() {
   const [devuelveMercaderia, setDevuelveMercaderia] = useState(false);
   const [avisosStock, setAvisosStock] = useState<string[]>([]);
   const [selectorPendientes, setSelectorPendientes] = useState(false);
+  // E54: devoluciones pendientes de acreditar
+  const [selectorDevoluciones, setSelectorDevoluciones] = useState(false);
+  const [elegidasDev, setElegidasDev] = useState<string[]>([]);
   const [seleccionPend, setSeleccionPend] = useState<Record<string, string>>({});
   const pendientesQ = useQuery({
     queryKey: ['/ventas/pendientes-facturar', terceroId],
@@ -118,6 +131,14 @@ export function ComprobanteVentaPage() {
     setRenglones([...renglones.filter((r) => r.descripcion), ...nuevos]);
     setSeleccionPend({});
     setSelectorPendientes(false);
+  }
+  const devoluciones = useQuery({ queryKey: ['/ventas/remitos/pendientes-acreditar', terceroId], queryFn: () => api<PendienteAcreditar[]>('/ventas/remitos/pendientes-acreditar', { query: { terceroId } }), enabled: selectorDevoluciones && !!terceroId }).data ?? [];
+  function agregarDevoluciones() {
+    const sel = devoluciones.filter((d) => elegidasDev.includes(d.devolucionRenglonId));
+    if (!asociadoId && sel[0]?.facturaId) setAsociadoId(sel[0].facturaId);
+    setRenglones([...renglones.filter((r) => r.descripcion), ...sel.map(renglonDeDevolucion)]);
+    setElegidasDev([]);
+    setSelectorDevoluciones(false);
   }
   const { puede } = useAuth();
   const bienesActivos = useQuery({ queryKey: ['/bienes-uso', 'activos'], queryFn: () => api<{ id: string; numero: number; descripcion: string }[]>('/bienes-uso', { query: { estado: 'ACTIVO' } }), enabled: puede('bienes.ver') || puede('venta.emitir') }).data ?? [];
@@ -258,6 +279,7 @@ export function ComprobanteVentaPage() {
         )}
 
         <Title order={5} mt="lg" mb="xs">Renglones</Title>
+        {editable && tipo === 'NOTA_CREDITO' && terceroId && <Group><Button size="xs" variant="default" onClick={() => setSelectorDevoluciones(true)}>Agregar desde devoluciones</Button></Group>}
         {editable && tipo !== 'NOTA_CREDITO' && terceroId && <Group>
           {tipo === 'FACTURA' && <Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button>}
           {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
@@ -265,6 +287,13 @@ export function ComprobanteVentaPage() {
         </Group>}
         <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual, descuentoPct)}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
+        <Modal opened={selectorDevoluciones} onClose={() => setSelectorDevoluciones(false)} title="Devoluciones pendientes de acreditar" size="xl">
+          {devoluciones.length ? devoluciones.map((d) => (
+            <Checkbox key={d.devolucionRenglonId} mb={6} label={`${d.numero} · ${d.descripcion} · ${Number(d.pendiente).toLocaleString('es-AR')} · factura ${d.factura ?? '—'}`}
+              checked={elegidasDev.includes(d.devolucionRenglonId)} onChange={(e) => setElegidasDev(e.currentTarget.checked ? [...elegidasDev, d.devolucionRenglonId] : elegidasDev.filter((x) => x !== d.devolucionRenglonId))} />
+          )) : <Text size="sm" c="dimmed">El cliente no tiene devoluciones pendientes de acreditar.</Text>}
+          <Group mt="md"><Button disabled={!elegidasDev.length} onClick={agregarDevoluciones}>Agregar</Button></Group>
+        </Modal>
         <Modal opened={selectorPendientes} onClose={() => setSelectorPendientes(false)} title="Remitos y pedidos pendientes de facturar" size="xl">
           <TablaPendientes pendientes={pendientesFacturar} seleccion={seleccionPend} onChange={setSeleccionPend} />
           <Group mt="md"><Button disabled={!Object.keys(seleccionPend).length} onClick={() => void agregarPendientes()}>Agregar</Button></Group>

@@ -71,16 +71,17 @@ export function PedidosPage() {
   );
 }
 
-interface RemitoFila { id: string; numeroTexto: string; fecha: string; cliente: string; estado: string; pendienteFacturar: string }
+interface RemitoFila { id: string; numeroTexto: string; fecha: string; cliente: string; estado: string; pendienteFacturar: string; tipo?: 'ENTREGA' | 'DEVOLUCION' }
 
 export function RemitosPage() {
   const { puede } = useAuth();
   const qc = useQueryClient();
   const op = useOperacion();
   const [pendientes, setPendientes] = useState(false);
+  const [tipo, setTipo] = useState<string>('');
   const [anulando, setAnulando] = useState<string | null>(null);
   const [motivo, setMotivo] = useState('');
-  const q = useQuery({ queryKey: ['/ventas/remitos', pendientes], queryFn: () => api<RemitoFila[]>('/ventas/remitos', { query: { pendientes: pendientes ? 'facturar' : undefined } }) });
+  const q = useQuery({ queryKey: ['/ventas/remitos', pendientes, tipo], queryFn: () => api<RemitoFila[]>('/ventas/remitos', { query: { pendientes: pendientes ? 'facturar' : undefined, tipo: tipo || undefined } }) });
   const anular = async () => {
     const r = await op.ejecutar(() => api(`/ventas/remitos/${anulando}/anular`, { metodo: 'POST', body: { motivo } }), () => 'Remito anulado');
     setAnulando(null); setMotivo('');
@@ -89,15 +90,19 @@ export function RemitosPage() {
   return (
     <Paper withBorder p="md" radius="md">
       <Title order={3} mb="md">Remitos</Title>
-      <Checkbox label="Solo pendientes de facturar" mb="md" checked={pendientes} onChange={(e) => setPendientes(e.currentTarget.checked)} />
+      <Group mb="md" align="flex-end">
+        <Select label="Tipo" w={180} allowDeselect={false} data={[{ value: '', label: 'Todos' }, { value: 'ENTREGA', label: 'Entrega' }, { value: 'DEVOLUCION', label: 'Devolución' }]} value={tipo} onChange={(v) => setTipo(v ?? '')} />
+        <Checkbox label="Solo pendientes de facturar" mb={8} checked={pendientes} onChange={(e) => setPendientes(e.currentTarget.checked)} />
+      </Group>
       {errorConsulta(q.error)}
       {op.alerta}
       <Table withTableBorder striped>
-        <Table.Thead><Table.Tr><Table.Th>Número</Table.Th><Table.Th>Fecha</Table.Th><Table.Th>Cliente</Table.Th><Table.Th ta="right">Pend. facturar</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>Número</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Fecha</Table.Th><Table.Th>Cliente</Table.Th><Table.Th ta="right">Pend. facturar</Table.Th><Table.Th /></Table.Tr></Table.Thead>
         <Table.Tbody>
           {(q.data ?? []).map((r) => (
             <Table.Tr key={r.id}>
               <Table.Td>{r.numeroTexto}</Table.Td>
+              <Table.Td>{r.tipo === 'DEVOLUCION' ? 'Devolución' : 'Entrega'}</Table.Td>
               <Table.Td>{formatoFecha(r.fecha)}</Table.Td>
               <Table.Td>{r.cliente}</Table.Td>
               <Table.Td ta="right">{r.estado === 'ANULADO' ? <Badge color="gray" variant="light">Anulado</Badge> : Number(r.pendienteFacturar).toLocaleString('es-AR')}</Table.Td>

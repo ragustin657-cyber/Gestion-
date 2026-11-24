@@ -303,10 +303,17 @@ export class RemitosService {
     const db = this.tenant.db;
     const r = await this.obtener(id);
     const [empresa, cliente] = await Promise.all([db.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } }), db.tercero.findUniqueOrThrow({ where: { id: r.terceroId } })]);
+    // E54: el remito de devolución dice qué remitos devuelve
+    let observaciones = r.observaciones;
+    if (r.tipo === 'DEVOLUCION') {
+      const origenes = await db.remitoRenglon.findMany({ where: { id: { in: r.renglones.map((x) => x.remitoRenglonOrigenId).filter((x): x is string => !!x) } }, include: { remito: true } });
+      const nums = [...new Set(origenes.map((o) => numeroRemito(o.remito.puntoVenta, o.remito.numero)))].join(', ');
+      observaciones = `Devuelve los remitos ${nums}${r.observaciones ? ` · ${r.observaciones}` : ''}`;
+    }
     const contenido = await pdfDocumento({
-      titulo: 'Remito', numero: r.numeroTexto.slice(2), empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), domicilio: empresa.domicilio },
+      titulo: r.tipo === 'DEVOLUCION' ? 'Remito de devolución' : 'Remito', numero: r.numeroTexto.slice(2), empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), domicilio: empresa.domicilio },
       cliente: { razonSocial: cliente.razonSocial, cuit: cliente.cuit }, fecha: fAR(r.fecha), moneda: '',
-      renglones: r.renglones.map((x) => ({ descripcion: x.descripcion, cantidad: new D(x.cantidad).toString() })), observaciones: r.observaciones, copias: ['Original', 'Duplicado'],
+      renglones: r.renglones.map((x) => ({ descripcion: x.descripcion, cantidad: new D(x.cantidad).toString() })), observaciones, copias: ['Original', 'Duplicado'],
     });
     return { nombre: `remito-${r.puntoVenta}-${r.numero}.pdf`, contenido };
   }
