@@ -1,3 +1,4 @@
+import type { ReglaLista } from './dto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { MotivoPrecio } from '@prisma/client';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
@@ -9,6 +10,8 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { cotizacion, D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import { aumentar, Redondeo } from './aumento';
 import { leerPrecios } from './importacion';
+import { costosDeArticulos } from './costos';
+import { precioDerivado } from './derivadas';
 
 const LISTA_DUPLICADA = 'Ya existe una lista con ese nombre';
 const INACTIVA_DEFECTO = 'Una lista inactiva no puede ser la lista por defecto';
@@ -41,26 +44,48 @@ export class PreciosService {
     return l;
   }
 
-  crearLista(d: { nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean }) {
+  /** E52: valida la regla con los valores finales (la base existe y no depende de esta lista; rangos del porcentaje). */
+  private async validarRegla(tx: TxEmpresa, id: string | null, r: { base: string; listaBaseId: string | null; porcentaje: number }) {
+    if (r.base === 'COSTO' && r.porcentaje < 0) throw new BadRequestException('El margen sobre el costo no puede ser negativo');
+    if (r.base !== 'LISTA') return;
+    if (!r.listaBaseId) throw new BadRequestException('Indique la lista base');
+    const DEPENDE = 'La lista base no puede depender de esta lista';
+    if (r.listaBaseId === id) throw new BadRequestException(DEPENDE);
+    const vistas = new Set<string>();
+    for (let actual: string | null = r.listaBaseId; actual; ) {
+      if (actual === id) throw new BadRequestException(DEPENDE);
+      if (vistas.has(actual)) break;
+      vistas.add(actual);
+      const base: { base: string; listaBaseId: string | null } | null = await tx.listaPrecios.findUnique({ where: { id: actual } });
+      if (!base) throw new BadRequestException('Lista base inexistente');
+      actual = base.base === 'LISTA' ? base.listaBaseId : null;
+    }
+  }
+
+  crearLista(d: { nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean } & ReglaLista) {
     return conUnicidad(LISTA_DUPLICADA, () => this.tenant.transaccion(async (tx) => {
       if (d.porDefecto && !d.activa) throw new BadRequestException(INACTIVA_DEFECTO);
       await this.bloquearListas(tx);
+      await this.validarRegla(tx, null, { base: d.base ?? 'MANUAL', listaBaseId: d.listaBaseId ?? null, porcentaje: d.porcentaje ?? 0 });
       if (d.porDefecto) await tx.listaPrecios.updateMany({ data: { porDefecto: false } });
-      const l = await tx.listaPrecios.create({ data: { ...d, empresaId: this.tenant.empresaId } });
+      const l = await tx.listaPrecios.create({ data: { ...d, listaBaseId: d.base === 'LISTA' ? d.listaBaseId : null, empresaId: this.tenant.empresaId } });
       await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: l.id, accion: 'CREAR', datos: d });
       return l;
     }));
   }
 
-  modificarLista(id: string, d: { nombre?: string; monedaCodigo?: string; activa?: boolean; porDefecto?: boolean }) {
+  modificarLista(id: string, d: { nombre?: string; monedaCodigo?: string; activa?: boolean; porDefecto?: boolean } & ReglaLista) {
     return conUnicidad(LISTA_DUPLICADA, () => this.tenant.transaccion(async (tx) => {
       await this.bloquearListas(tx);
       const l = await this.lista(tx, id);
       if ((d.porDefecto ?? l.porDefecto) && !(d.activa ?? l.activa)) throw new BadRequestException(INACTIVA_DEFECTO);
       if (d.monedaCodigo && d.monedaCodigo !== l.monedaCodigo && (await tx.precioLista.count({ where: { listaId: id } })))
         throw new BadRequestException('La lista tiene precios: no se puede cambiar la moneda');
+      const base = d.base ?? l.base;
+      const listaBaseId = d.listaBaseId === undefined ? l.listaBaseId : d.listaBaseId;
+      await this.validarRegla(tx, id, { base, listaBaseId, porcentaje: d.porcentaje ?? Number(l.porcentaje) });
       if (d.porDefecto) await tx.listaPrecios.updateMany({ where: { id: { not: id } }, data: { porDefecto: false } });
-      const r = await tx.listaPrecios.update({ where: { id }, data: d });
+      const r = await tx.listaPrecios.update({ where: { id }, data: { ...d, listaBaseId: base === 'LISTA' ? listaBaseId : null } });
       await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: id, accion: 'MODIFICAR', datos: d });
       return r;
     }));
@@ -73,7 +98,7 @@ export class PreciosService {
     const arts = new Map((await db.articulo.findMany({ where: { id: { in: filas.map((f) => f.articuloId) } } })).map((a) => [a.id, a]));
     const t = q?.trim().toLowerCase();
     return filas
-      .map((f) => ({ articuloId: f.articuloId, codigo: arts.get(f.articuloId)?.codigo ?? '', descripcion: arts.get(f.articuloId)?.descripcion ?? '', precio: new D(f.precio).toString(), actualizadoEn: f.actualizadoEn }))
+      .map((f) => ({ articuloId: f.articuloId, codigo: arts.get(f.articuloId)?.codigo ?? '', descripcion: arts.get(f.articuloId)?.descripcion ?? '', precio: new D(f.precio).toString(), actualizadoEn: f.actualizadoEn, fijo: f.fijo, margenPct: f.margenPct?.toString() ?? null }))
       .filter((f) => !t || f.codigo.toLowerCase().includes(t) || f.descripcion.toLowerCase().includes(t))
       .sort((a, b) => a.codigo.localeCompare(b.codigo));
   }
@@ -81,14 +106,19 @@ export class PreciosService {
   /** Fija un precio (o lo borra con null) y lo registra en el historial. */
   private async fijar(tx: TxEmpresa, listaId: string, articuloId: string, precio: Dec | null, motivo: MotivoPrecio) {
     const actual = await tx.precioLista.findUnique({ where: { listaId_articuloId: { listaId, articuloId } } });
+    // E52: en una lista calculada, un precio cargado a mano, importado o aumentado queda fijo
+    const fijo = (motivo === 'MANUAL' || motivo === 'IMPORTACION' || motivo === 'AUMENTO') && (await tx.listaPrecios.findUniqueOrThrow({ where: { id: listaId } })).base !== 'MANUAL';
     if (precio === null) {
       if (!actual) return false;
       await tx.precioLista.delete({ where: { id: actual.id } });
     } else if (actual) {
-      if (new D(actual.precio).eq(precio)) return false;
-      await tx.precioLista.update({ where: { id: actual.id }, data: { precio } });
+      if (new D(actual.precio).eq(precio)) {
+        if (fijo && !actual.fijo) await tx.precioLista.update({ where: { id: actual.id }, data: { fijo } });
+        return false;
+      }
+      await tx.precioLista.update({ where: { id: actual.id }, data: { precio, ...(fijo ? { fijo } : {}) } });
     } else {
-      await tx.precioLista.create({ data: { empresaId: this.tenant.empresaId, listaId, articuloId, precio } });
+      await tx.precioLista.create({ data: { empresaId: this.tenant.empresaId, listaId, articuloId, precio, fijo } });
     }
     await tx.historialPrecio.create({
       data: { empresaId: this.tenant.empresaId, listaId, articuloId, precioAnterior: actual?.precio ?? null, precioNuevo: precio, motivo, usuario: this.usuario() },
@@ -103,6 +133,89 @@ export class PreciosService {
       await this.fijar(tx, listaId, articuloId, precio === null ? null : new D(precio), precio === null ? 'BAJA' : 'MANUAL');
       return { ok: true };
     });
+  }
+
+  /** E52: quitar o poner la marca de fijo y el margen propio de un artículo. */
+  marcas(listaId: string, articuloId: string, d: { fijo?: boolean; margenPct?: number | null }) {
+    return this.tenant.transaccion(async (tx) => {
+      await this.lista(tx, listaId);
+      const p = await tx.precioLista.findUnique({ where: { listaId_articuloId: { listaId, articuloId } } });
+      if (!p) throw new NotFoundException('El artículo no tiene precio en la lista');
+      await tx.precioLista.update({ where: { id: p.id }, data: d });
+      await this.auditoria.registrar(tx, { entidad: 'PrecioLista', entidadId: p.id, accion: 'MODIFICAR', datos: d });
+      return { ok: true };
+    });
+  }
+
+  /**
+   * E52: precios nuevos de una lista calculada (desde otra lista o desde el costo). No guarda nada.
+   * Con `articuloIds`, solo esos (los que no se recalculan siguen con su motivo).
+   */
+  private async calcularLista(tx: TxEmpresa, listaId: string) {
+    const lista = await this.lista(tx, listaId);
+    if (lista.base === 'MANUAL') throw new BadRequestException('La lista se carga a mano');
+    const actuales = new Map((await tx.precioLista.findMany({ where: { listaId } })).map((p) => [p.articuloId, p]));
+    let origen: Map<string, Dec>;
+    let monedaOrigen: string;
+    let sinOrigen: string;
+    if (lista.base === 'LISTA') {
+      const base = await this.lista(tx, lista.listaBaseId!);
+      origen = new Map((await tx.precioLista.findMany({ where: { listaId: base.id } })).map((p) => [p.articuloId, new D(p.precio)]));
+      monedaOrigen = base.monedaCodigo;
+      sinOrigen = 'Sin precio en la lista base';
+    } else {
+      const ids = (await tx.articulo.findMany({ where: { activo: true, esServicio: false }, select: { id: true } })).map((a) => a.id);
+      origen = await costosDeArticulos(tx, [...new Set([...ids, ...actuales.keys()])], this.tenant.empresaId);
+      monedaOrigen = 'ARS';
+      sinOrigen = 'Sin costo';
+    }
+    // Conversión de moneda con la cotización vigente (la del día o la última anterior)
+    const factor = monedaOrigen === lista.monedaCodigo ? new D(1)
+      : lista.monedaCodigo === 'USD' ? new D(1).div(await cotizacion(tx, 'USD', hoy())) : await cotizacion(tx, 'USD', hoy());
+    // Revisión E52: los que tienen origen (precio en la base o costo) y los que ya tienen precio en la lista (con su motivo si no se recalculan)
+    const candidatos = [...new Set([...origen.keys(), ...actuales.keys()])];
+    const arts = new Map((await tx.articulo.findMany({ where: { id: { in: candidatos } }, select: { id: true, codigo: true, descripcion: true, activo: true } })).map((a) => [a.id, a]));
+    const filas = candidatos
+      .filter((id) => arts.get(id)?.activo !== false || actuales.has(id))
+      .map((id) => {
+        const a = arts.get(id);
+        const actual = actuales.get(id);
+        const base = origen.get(id);
+        let motivo: string | null = null;
+        let nuevo: Dec | null = null;
+        if (actual?.fijo) motivo = 'Precio fijo';
+        else if (!base) motivo = sinOrigen;
+        else nuevo = precioDerivado(base.times(factor), new D(lista.base === 'COSTO' && actual?.margenPct != null ? actual.margenPct : lista.porcentaje), lista.redondeo as Redondeo);
+        const act = actual ? new D(actual.precio) : null;
+        return {
+          articuloId: id, codigo: a?.codigo ?? '', descripcion: a?.descripcion ?? '', actual: act?.toString() ?? null, nuevo: nuevo?.toString() ?? null,
+          variacionPct: act && nuevo && act.gt(0) ? nuevo.div(act).minus(1).times(100).toDecimalPlaces(2).toString() : null, motivo,
+        };
+      })
+      .sort((x, y) => x.codigo.localeCompare(y.codigo));
+    return { lista, filas };
+  }
+
+  async vistaPrevia(listaId: string) {
+    return { filas: (await this.calcularLista(this.tenant.db, listaId)).filas };
+  }
+
+  /** E52: aplica el recálculo (recalcula en el momento); los fijos y sin origen no cambian aunque se elijan. */
+  aplicarRecalculo(listaId: string, articuloIds?: string[]) {
+    // Revisión E52: un catálogo grande no entra en el tiempo por defecto de la transacción
+    return this.tenant.transaccion(async (tx) => {
+      await this.bloquearListas(tx);
+      const { lista, filas } = await this.calcularLista(tx, listaId);
+      const elegidos = articuloIds ? new Set(articuloIds) : null;
+      let actualizados = 0, agregados = 0;
+      for (const f of filas) {
+        if (!f.nuevo || (elegidos && !elegidos.has(f.articuloId))) continue;
+        if (await this.fijar(tx, listaId, f.articuloId, new D(f.nuevo), 'RECALCULO')) f.actual === null ? agregados++ : actualizados++;
+      }
+      await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: listaId, accion: 'MODIFICAR', datos: { recalculo: true, actualizados, agregados } });
+      const dependientes = await tx.listaPrecios.findMany({ where: { base: 'LISTA', listaBaseId: lista.id }, orderBy: { nombre: 'asc' } });
+      return { actualizados, agregados, aviso: dependientes.length ? `Las listas ${dependientes.map((d) => d.nombre).join(', ')} dependen de esta: recalcúlelas` : null };
+    }, { timeout: 120000 });
   }
 
   aumento(listaId: string, d: { porcentaje: number; articuloIds?: string[]; redondeo: Redondeo }) {

@@ -35,7 +35,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 14. **Factura de exportación (E).**
 15. **Facturación por lotes.**
 16. ~~**Descuentos y bonificaciones** en la factura, por renglón y por cantidad.~~ Hecho en la entrega 51: % de bonificación por renglón (pedido y comprobante) y % de descuento general en el comprobante. Quedan los descuentos por cantidad automáticos (escalas por artículo o lista), el tope por usuario, el descuento en importe fijo y el de pronto pago.
-17. **Listas de precios derivadas y precio calculado desde el costo.**
+17. ~~**Listas de precios derivadas y precio calculado desde el costo.**~~ Hecho en la entrega 52 (base otra lista ± % o costo + margen, redondeo, precios fijos, margen por artículo, recálculo con vista previa). Quedan los rubros de artículos (márgenes por familia), el recálculo automático y el costo de los despachos de importación.
 18. **COT de ARBA** (código de operación de traslado para los remitos).
 19. **Remitos de devolución** con circuito propio.
 20. **Reservas de stock.**

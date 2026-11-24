@@ -7,11 +7,14 @@ import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda } from '../compras/formato';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { cuerpoAumento, REDONDEOS, vistaPreviaAumento, type Redondeo } from './precios';
+import { CamposRegla, cuerpoRegla, ModalRecalculo, reglaVacia, type BaseLista, type ReglaForm } from './listas-derivadas';
 
-interface Lista { id: string; nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean }
-interface Precio { articuloId: string; codigo: string; descripcion: string; precio: string; actualizadoEn: string }
+interface Lista { id: string; nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean; base?: BaseLista; listaBaseId?: string | null; porcentaje?: string; redondeo?: string }
+interface Precio { articuloId: string; codigo: string; descripcion: string; precio: string; actualizadoEn: string; fijo?: boolean; margenPct?: string | null }
 
-function FilaPrecio({ p, moneda, editable, guardar, borrar, historial }: { p: Precio; moneda: string; editable: boolean; guardar: (v: number) => void; borrar: () => void; historial: () => void }) {
+function FilaPrecio({ p, moneda, editable, guardar, borrar, historial, base, marcas }: { p: Precio; moneda: string; editable: boolean; guardar: (v: number) => void; borrar: () => void; historial: () => void; base: BaseLista; marcas: (d: { fijo?: boolean; margenPct?: number | null }) => void }) {
+  const [margen, setMargen] = useState<string | number>(p.margenPct ?? '');
+  useEffect(() => setMargen(p.margenPct ?? ''), [p.margenPct]);
   const [valor, setValor] = useState<string | number>(p.precio);
   useEffect(() => setValor(p.precio), [p.precio]);
   return (
@@ -21,6 +24,10 @@ function FilaPrecio({ p, moneda, editable, guardar, borrar, historial }: { p: Pr
       <Table.Td>{editable
         ? <NumberInput size="xs" w={150} decimalScale={4} decimalSeparator="," thousandSeparator="." aria-label={`Precio ${p.codigo}`} value={valor} onChange={setValor} onBlur={() => { if (Number(valor) > 0 && String(Number(valor)) !== String(Number(p.precio))) guardar(Number(valor)); }} />
         : formatoMoneda(p.precio, moneda)}</Table.Td>
+      {base !== 'MANUAL' && <Table.Td>{p.fijo ? <Group gap={4}><Text size="xs">Fijo</Text>{editable && <Button size="compact-xs" variant="subtle" onClick={() => marcas({ fijo: false })}>Quitar</Button>}</Group> : ''}</Table.Td>}
+      {base === 'COSTO' && <Table.Td>{editable
+        ? <NumberInput size="xs" w={90} min={0} decimalScale={2} decimalSeparator="," aria-label={`Margen ${p.codigo}`} placeholder="Lista" value={margen} onChange={setMargen} onBlur={() => { const v = margen === '' ? null : Number(margen); if (String(v ?? '') !== String(p.margenPct === null || p.margenPct === undefined ? '' : Number(p.margenPct))) marcas({ margenPct: v }); }} />
+        : p.margenPct ?? ''}</Table.Td>}
       <Table.Td><Text size="xs" c="dimmed">{formatoFecha(p.actualizadoEn)}</Text></Table.Td>
       <Table.Td><Group gap={2} wrap="nowrap">
         <ActionIcon variant="subtle" aria-label={`Historial ${p.codigo}`} onClick={historial}><IconHistory size={14} /></ActionIcon>
@@ -42,7 +49,10 @@ export function ListasPreciosPage() {
   const [q, setQ] = useState('');
   const precios = useQuery({ queryKey: ['/ventas/listas/precios', listaId, q], queryFn: () => api<Precio[]>(`/ventas/listas/${listaId}/precios`, { query: { q } }), enabled: !!listaId });
   const articulos = useQuery({ queryKey: ['/articulos', 'precios'], queryFn: () => api<{ items: { id: string; codigo: string; descripcion: string }[] }>('/articulos', { query: { porPagina: 500 } }), enabled: editable }).data?.items ?? [];
-  const [nueva, setNueva] = useState<{ nombre: string; monedaCodigo: string; porDefecto: boolean } | null>(null);
+  const [nueva, setNueva] = useState<{ nombre: string; monedaCodigo: string; porDefecto: boolean; regla: ReglaForm } | null>(null);
+  const [editarRegla, setEditarRegla] = useState<ReglaForm | null>(null);
+  const [recalcular, setRecalcular] = useState(false);
+  const base: BaseLista = lista?.base ?? 'MANUAL';
   const [agregar, setAgregar] = useState<{ articuloId: string | null; precio: string | number }>({ articuloId: null, precio: '' });
   const [aumento, setAumento] = useState<{ porcentaje: string | number; redondeo: Redondeo; alcance: 'todos' | 'filtrados' } | null>(null);
   const [historial, setHistorial] = useState<Precio | null>(null);
@@ -51,13 +61,14 @@ export function ListasPreciosPage() {
   const moneda = lista?.monedaCodigo ?? 'ARS';
 
   const guardarPrecio = async (articuloId: string, precio: number) => { if (await op.ejecutar(() => api(`/ventas/listas/${listaId}/precios/${articuloId}`, { metodo: 'PUT', body: { precio } }), () => 'Precio guardado')) refrescar(); };
+  const marcar = async (articuloId: string, d: { fijo?: boolean; margenPct?: number | null }) => { if (await op.ejecutar(() => api(`/ventas/listas/${listaId}/precios/${articuloId}/marcas`, { metodo: 'PATCH', body: d }), () => 'Precio actualizado')) refrescar(); };
   const borrarPrecio = async (articuloId: string) => { if (await op.ejecutar(() => api(`/ventas/listas/${listaId}/precios/${articuloId}`, { metodo: 'DELETE' }), () => 'Precio quitado')) refrescar(); };
 
   return (
     <Paper withBorder p="md" radius="md">
       <Group justify="space-between" mb="md">
         <Title order={3}>Listas de precios</Title>
-        {editable && <Button variant="light" onClick={() => setNueva({ nombre: '', monedaCodigo: 'ARS', porDefecto: false })}>Nueva lista</Button>}
+        {editable && <Button variant="light" onClick={() => setNueva({ nombre: '', monedaCodigo: 'ARS', porDefecto: false, regla: reglaVacia() })}>Nueva lista</Button>}
       </Group>
       {errorConsulta(listas.error)}
       <Group align="flex-end" mb="md">
@@ -68,6 +79,8 @@ export function ListasPreciosPage() {
           <FileButton accept=".csv,.xlsx,text/csv" onChange={async (f) => { if (f && (await op.ejecutar(() => subirArchivo<{ creados: number; actualizados: number }>(`/ventas/listas/${listaId}/importar`, {}, f), (x) => `Creados: ${x.creados} · Actualizados: ${x.actualizados}`))) refrescar(); }}>
             {(props) => <Button variant="default" {...props}>Importar</Button>}
           </FileButton>
+          <Button variant="default" onClick={() => setEditarRegla({ base, listaBaseId: lista.listaBaseId ?? null, porcentaje: lista.porcentaje !== undefined ? Number(lista.porcentaje) : '', redondeo: lista.redondeo ?? '0.01' })}>Regla</Button>
+          {base !== 'MANUAL' && <Button variant="light" onClick={() => setRecalcular(true)}>Recalcular</Button>}
           {!lista.porDefecto && <Button variant="subtle" onClick={async () => { if (await op.ejecutar(() => api(`/ventas/listas/${lista.id}`, { metodo: 'PATCH', body: { porDefecto: true } }), () => 'Lista por defecto actualizada')) void qc.invalidateQueries({ queryKey: ['/ventas/listas'] }); }}>Usar por defecto</Button>}
         </>}
       </Group>
@@ -81,9 +94,9 @@ export function ListasPreciosPage() {
       )}
       {lista && (
         <Table withTableBorder striped>
-          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Artículo</Table.Th><Table.Th>Precio ({moneda})</Table.Th><Table.Th>Actualizado</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+          <Table.Thead><Table.Tr><Table.Th>Código</Table.Th><Table.Th>Artículo</Table.Th><Table.Th>Precio ({moneda})</Table.Th>{base !== 'MANUAL' && <Table.Th>Fijo</Table.Th>}{base === 'COSTO' && <Table.Th>Margen %</Table.Th>}<Table.Th>Actualizado</Table.Th><Table.Th /></Table.Tr></Table.Thead>
           <Table.Tbody>
-            {(precios.data ?? []).map((p) => <FilaPrecio key={p.articuloId} p={p} moneda={moneda} editable={editable} guardar={(v) => void guardarPrecio(p.articuloId, v)} borrar={() => void borrarPrecio(p.articuloId)} historial={() => setHistorial(p)} />)}
+            {(precios.data ?? []).map((p) => <FilaPrecio key={p.articuloId} p={p} moneda={moneda} editable={editable} guardar={(v) => void guardarPrecio(p.articuloId, v)} borrar={() => void borrarPrecio(p.articuloId)} historial={() => setHistorial(p)} base={base} marcas={(d) => void marcar(p.articuloId, d)} />)}
           </Table.Tbody>
         </Table>
       )}
@@ -92,9 +105,18 @@ export function ListasPreciosPage() {
           <TextInput label="Nombre" value={nueva.nombre} onChange={(e) => setNueva({ ...nueva, nombre: e.currentTarget.value })} />
           <Select label="Moneda" data={['ARS', 'USD']} allowDeselect={false} value={nueva.monedaCodigo} onChange={(v) => setNueva({ ...nueva, monedaCodigo: v ?? 'ARS' })} />
           <Switch label="Lista por defecto" checked={nueva.porDefecto} onChange={(e) => setNueva({ ...nueva, porDefecto: e.currentTarget.checked })} />
-          <Button disabled={!nueva.nombre.trim()} onClick={async () => { const r = await op.ejecutar(() => api<Lista>('/ventas/listas', { metodo: 'POST', body: nueva }), () => 'Lista creada'); if (r) { setNueva(null); setListaId(r.id); void qc.invalidateQueries({ queryKey: ['/ventas/listas'] }); } }}>Crear</Button>
+          <CamposRegla regla={nueva.regla} onChange={(r) => setNueva({ ...nueva, regla: r })} listas={listas.data ?? []} />
+          <Button disabled={!nueva.nombre.trim()} onClick={async () => { const r = await op.ejecutar(() => api<Lista>('/ventas/listas', { metodo: 'POST', body: { nombre: nueva.nombre, monedaCodigo: nueva.monedaCodigo, porDefecto: nueva.porDefecto, ...cuerpoRegla(nueva.regla) } }), () => 'Lista creada'); if (r) { setNueva(null); setListaId(r.id); void qc.invalidateQueries({ queryKey: ['/ventas/listas'] }); } }}>Crear</Button>
         </Stack>}
       </Modal>
+      <Modal opened={!!editarRegla} onClose={() => setEditarRegla(null)} title={`Regla de ${lista?.nombre ?? ''}`}>
+        {editarRegla && <Stack>
+          <CamposRegla regla={editarRegla} onChange={setEditarRegla} listas={(listas.data ?? []).filter((l) => l.id !== listaId)} />
+          {op.alerta}
+          <Button onClick={async () => { if (await op.ejecutar(() => api(`/ventas/listas/${listaId}`, { metodo: 'PATCH', body: cuerpoRegla(editarRegla) }), () => 'Regla guardada')) { setEditarRegla(null); void qc.invalidateQueries({ queryKey: ['/ventas/listas'] }); } }}>Guardar</Button>
+        </Stack>}
+      </Modal>
+      {lista && <ModalRecalculo listaId={lista.id} nombre={lista.nombre} moneda={moneda} abierto={recalcular} onCerrar={() => setRecalcular(false)} onAplicado={() => { setRecalcular(false); refrescar(); }} />}
       <Modal opened={!!aumento} onClose={() => setAumento(null)} title={`Aumentar precios de ${lista?.nombre ?? ''}`}>
         {aumento && <Stack>
           <NumberInput label="Porcentaje" description="Negativo para bajar" decimalScale={2} decimalSeparator="," value={aumento.porcentaje} onChange={(v) => setAumento({ ...aumento, porcentaje: v })} />

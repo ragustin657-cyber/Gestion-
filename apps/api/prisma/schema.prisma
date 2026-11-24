@@ -1980,6 +1980,14 @@ enum MotivoPrecio {
   AUMENTO
   IMPORTACION
   BAJA
+  RECALCULO
+}
+
+/// E52: de dónde sale el precio de la lista
+enum BaseLista {
+  MANUAL
+  LISTA
+  COSTO
 }
 
 model ListaPrecios {
@@ -1989,6 +1997,11 @@ model ListaPrecios {
   monedaCodigo String
   activa       Boolean       @default(true)
   porDefecto   Boolean       @default(false)
+  /// E52: regla de la lista (MANUAL, desde otra lista ± %, o desde el costo + margen), con redondeo
+  base         BaseLista     @default(MANUAL)
+  listaBaseId  String?       @db.Uuid
+  porcentaje   Decimal       @default(0) @db.Decimal(9, 2)
+  redondeo     String        @default("0.01")
   precios      PrecioLista[]
 
   @@unique([empresaId, nombre])
@@ -2001,6 +2014,9 @@ model PrecioLista {
   articuloId    String       @db.Uuid
   precio        Decimal      @db.Decimal(18, 4)
   actualizadoEn DateTime     @default(now()) @updatedAt
+  /// E52: precio cargado a mano en una lista calculada (el recálculo no lo toca) y margen propio (listas desde el costo)
+  fijo          Boolean      @default(false)
+  margenPct     Decimal?     @db.Decimal(9, 2)
   lista         ListaPrecios @relation(fields: [listaId], references: [id], onDelete: Cascade)
 
   @@unique([listaId, articuloId])
