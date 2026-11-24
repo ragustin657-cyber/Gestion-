@@ -18,7 +18,7 @@ Hoy cada lista de precios tiene un precio cargado a mano por artículo, con aume
 ## 3. Regla de la lista (`ListaPrecios`)
 - `base`: `MANUAL` (como hoy, por defecto), `LISTA` o `COSTO`.
 - `LISTA`: `listaBaseId` y `porcentaje` (con signo: −10 = 10 % menos; −99,99 a 1000). Una lista no puede tener como base a sí misma ni a una lista que (directa o indirectamente) depende de ella: `La lista base no puede depender de esta lista`. Una lista base inactiva se permite *(decisión mía: los precios siguen guardados)*.
-- `COSTO`: `porcentaje` = **margen sobre el costo** (precio = costo × (1 + margen/100)) *(decisión mía: es la forma usual de "margen" en las pymes; a confirmar con el usuario si prefiere margen sobre el precio)*; de 0 a 1000.
+- `COSTO`: `porcentaje` = **margen sobre el costo** (precio = costo × (1 + margen/100)) *(decisión del usuario: margen sobre el costo, es decir, recargo)*; de 0 a 1000.
 - `redondeo`: `0.01`, `1`, `10` o `100` (los mismos del aumento masivo y la misma regla: al múltiplo más cercano, mitad hacia arriba, nunca menos que un múltiplo).
 - Los cambios de la regla no recalculan nada: solo el botón.
 - Permiso: `precios.editar`.
