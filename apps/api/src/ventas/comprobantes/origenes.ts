@@ -32,13 +32,13 @@ export class OrigenesVenta {
         if (rr.remito.terceroId !== c.terceroId) throw new BadRequestException('Todos los renglones deben ser del cliente indicado');
         if (rr.remito.estado !== 'CONFIRMADO') throw new BadRequestException('El remito está anulado');
         sumas.set(`R:${rr.id}`, (sumas.get(`R:${rr.id}`) ?? new D(0)).plus(r.cantidad));
-        const pendiente = new D(rr.cantidad).minus(rr.cantidadFacturada);
+        const pendiente = new D(rr.cantidad).minus(rr.cantidadFacturada).minus(rr.cantidadDevuelta);
         const cant = sumas.get(`R:${rr.id}`)!;
         if (cant.gt(pendiente)) throw new BadRequestException(`La cantidad a facturar (${cant.toString()}) supera lo pendiente del remito (${pendiente.toString()})`);
         if (rr.pedidoRenglonId) {
           const pr = pedidosDeRemitos.find((x) => x.id === rr.pedidoRenglonId)!;
           sumas.set(`P:${pr.id}`, (sumas.get(`P:${pr.id}`) ?? new D(0)).plus(r.cantidad));
-          const pendP = new D(pr.cantidad).minus(pr.cantidadFacturada);
+          const pendP = new D(pr.cantidad).minus(pr.cantidadFacturada).minus(pr.cantidadDevuelta);
           const cantP = sumas.get(`P:${pr.id}`)!;
           if (cantP.gt(pendP)) throw new BadRequestException(`La cantidad a facturar (${cantP.toString()}) supera lo pendiente del pedido (${pendP.toString()})`);
         }
@@ -51,7 +51,7 @@ export class OrigenesVenta {
         if (!['CONFIRMADO', 'PARCIALMENTE_ENTREGADO', 'ENTREGADO'].includes(pr.pedido.estado)) throw new BadRequestException('El pedido no está confirmado');
         if (pr.articuloId && conStock.has(pr.articuloId)) throw new BadRequestException('Los artículos que controlan stock se facturan desde un remito o como venta directa');
         sumas.set(`P:${pr.id}`, (sumas.get(`P:${pr.id}`) ?? new D(0)).plus(r.cantidad));
-        const pendiente = new D(pr.cantidad).minus(pr.cantidadFacturada);
+        const pendiente = new D(pr.cantidad).minus(pr.cantidadFacturada).minus(pr.cantidadDevuelta);
         const cant = sumas.get(`P:${pr.id}`)!;
         if (cant.gt(pendiente)) throw new BadRequestException(`La cantidad a facturar (${cant.toString()}) supera lo pendiente del pedido (${pendiente.toString()})`);
         return { articuloId: pr.articuloId, descripcion: pr.descripcion, remitoRenglonId: null, pedidoRenglonId: pr.id };

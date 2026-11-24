@@ -1612,6 +1612,8 @@ model ComprobanteVentaRenglon {
   cuentaContableId String           @db.Uuid
   remitoRenglonId  String?          @db.Uuid
   pedidoRenglonId  String?          @db.Uuid
+  /// E54: renglón de remito de devolución que acredita esta nota de crédito
+  devolucionRenglonId String?  @db.Uuid
   bienUsoId        String?          @db.Uuid
   comprobante      ComprobanteVenta @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
 }
@@ -2090,6 +2092,8 @@ model PedidoVentaRenglon {
   iva               Decimal     @db.Decimal(18, 2)
   cantidadEntregada Decimal     @default(0) @db.Decimal(18, 4)
   cantidadFacturada Decimal     @default(0) @db.Decimal(18, 4)
+  /// E54: devuelto sin facturar (no es pendiente de facturar)
+  cantidadDevuelta  Decimal     @default(0) @db.Decimal(18, 4)
   pedido            PedidoVenta @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 }
 
@@ -2107,6 +2111,8 @@ model Remito {
   fecha              DateTime        @db.Date
   depositoId         String          @db.Uuid
   estado             EstadoRemito    @default(CONFIRMADO)
+  /// E54: entrega o devolución (con numeración propia)
+  tipo               TipoRemito      @default(ENTREGA)
   motivoAnulacion    String?
   asientoId          String?         @db.Uuid
   asientoAnulacionId String?         @db.Uuid
@@ -2115,7 +2121,7 @@ model Remito {
   creadoEn           DateTime        @default(now())
   renglones          RemitoRenglon[]
 
-  @@unique([empresaId, puntoVenta, numero])
+  @@unique([empresaId, tipo, puntoVenta, numero])
 }
 
 model RemitoRenglon {
@@ -2128,6 +2134,11 @@ model RemitoRenglon {
   descripcion       String
   cantidad          Decimal @db.Decimal(18, 4)
   cantidadFacturada Decimal @default(0) @db.Decimal(18, 4)
+  /// E54: devolución: renglón de entrega devuelto; entrega: lo devuelto; devolución: lo que queda a acreditar y lo acreditado
+  remitoRenglonOrigenId String? @db.Uuid
+  cantidadDevuelta  Decimal @default(0) @db.Decimal(18, 4)
+  cantidadAAcreditar Decimal @default(0) @db.Decimal(18, 4)
+  cantidadAcreditada Decimal @default(0) @db.Decimal(18, 4)
   remito            Remito  @relation(fields: [remitoId], references: [id], onDelete: Cascade)
 }
 
@@ -3271,4 +3282,10 @@ model FceRegistro {
 
   @@unique([empresaId, ambiente, rol, cuitContraparte, cbteTipo, puntoVenta, numero])
   @@index([empresaId, ambiente, rol, estado])
+}
+
+/// E54: remito de entrega o de devolución del cliente
+enum TipoRemito {
+  ENTREGA
+  DEVOLUCION
 }
