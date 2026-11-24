@@ -32,7 +32,8 @@ export const esquemaComprobanteVenta = z
     devuelveMercaderia: z.boolean().default(false),
     renglones: z
       .array(z.object({
-        origen: z.enum(['DIRECTO', 'REMITO', 'PEDIDO']).default('DIRECTO'),
+        origen: z.enum(['DIRECTO', 'REMITO', 'PEDIDO', 'DEVOLUCION']).default('DIRECTO'),
+        devolucionRenglonId: z.string().uuid('Valor inválido').nullish(),
         remitoRenglonId: z.string().uuid('Valor inválido').nullish(),
         pedidoRenglonId: z.string().uuid('Valor inválido').nullish(),
         articuloId: z.string().uuid('Valor inválido').nullish(),

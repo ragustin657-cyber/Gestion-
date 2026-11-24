@@ -26,6 +26,12 @@ export class RemitosController {
     return this.remitos.devolvibles(terceroId);
   }
 
+  /** E54: devoluciones pendientes de acreditar (nota de crédito). */
+  @Get('pendientes-acreditar') @RequierePermiso('venta.ver')
+  pendientesAcreditar(@Query('terceroId', ParseUUIDPipe) terceroId: string) {
+    return this.remitos.pendientesAcreditar(terceroId);
+  }
+
   @Get(':id') @RequierePermiso('venta.ver')
   obtener(@Param('id', ParseUUIDPipe) id: string) {
     return this.remitos.obtener(id);

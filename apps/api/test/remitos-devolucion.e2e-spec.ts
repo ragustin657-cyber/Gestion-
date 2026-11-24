@@ -107,5 +107,61 @@ describe('remitos de devolución (E54)', () => {
     const d = await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 1 }]);
     expect([d.status, d.body.message]).toEqual([400, 'La mercadería de este remito ya se devolvió con una nota de crédito']);
   });
+
+  describe('nota de crédito desde devoluciones', () => {
+    const ncDesde = (x: Awaited<ReturnType<typeof escenario>>, facturaId: string, devolucionRenglonId: string, cantidad: number, o: Record<string, unknown> = {}) =>
+      x.http.post('/api/ventas/comprobantes', { ...x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: facturaId, renglones: [{ origen: 'DEVOLUCION', devolucionRenglonId, descripcion: 'x', cantidad, precioUnitario: 1000, alicuota: 21 }], ...o }), emitir: true });
+
+    it('acredita lo devuelto sin mover stock; pendientes; tope; otra factura; devolución de mercadería', async () => {
+      const x = await escenario();
+      const r = await x.entrega(10);
+      const f1 = await x.facturar(r.renglones[0].id, 10);
+      const d = await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 3 }]);
+      const dr = d.body.renglones[0].id as string;
+      const pend = (await x.http.get(`/api/ventas/remitos/pendientes-acreditar?terceroId=${x.clienteRI.id}`)).body;
+      expect(pend.map((p: { devolucionRenglonId: string; pendiente: string; facturaId: string; precioUnitario: string }) => [p.devolucionRenglonId, p.pendiente, p.facturaId, Number(p.precioUnitario)])).toEqual([[dr, '3', f1.body.id, 1000]]);
+      const stockAntes = await x.saldo(x.art.id);
+      const mal = await ncDesde(x, f1.body.id, dr, 3, { devuelveMercaderia: true });
+      expect([mal.status, mal.body.message]).toEqual([400, 'La mercadería ya entró con el remito de devolución']);
+      const nc = await ncDesde(x, f1.body.id, dr, 3);
+      expect([nc.status, nc.body.estado]).toEqual([201, 'AUTORIZADO']);
+      expect(await x.saldo(x.art.id)).toBe(stockAntes);
+      expect((await x.origen(dr)).cantidadAcreditada.toString()).toBe('3');
+      const otra = await ncDesde(x, f1.body.id, dr, 1);
+      expect(otra.status).toBe(400);
+      // Con NC no se anula la devolución
+      const an = await x.http.post(`/api/ventas/remitos/${d.body.id}/anular`, { motivo: 'x' });
+      expect([an.status, an.body.message]).toEqual([400, 'La devolución ya tiene notas de crédito: anúlelas primero']);
+    });
+
+    it('factura que no facturó el renglón; tope por factura con dos facturas', async () => {
+      const x = await escenario();
+      const r = await x.entrega(10);
+      const f1 = await x.facturar(r.renglones[0].id, 6);
+      const f2 = await x.facturar(r.renglones[0].id, 4);
+      const otraEntrega = await x.entrega(2);
+      const f3 = await x.facturar(otraEntrega.renglones[0].id, 2);
+      const d = await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 8 }]);
+      const dr = d.body.renglones[0].id as string;
+      let nc = await ncDesde(x, f3.body.id, dr, 1);
+      expect([nc.status, nc.body.message]).toEqual([400, 'La devolución no corresponde a la factura asociada']);
+      // A menor precio, para que no corte primero el tope de saldo de la factura
+      nc = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: f2.body.id, renglones: [{ origen: 'DEVOLUCION', devolucionRenglonId: dr, descripcion: 'x', cantidad: 5, precioUnitario: 100, alicuota: 21 }] }) });
+      expect(nc.status).toBe(400);
+      expect(nc.body.message).toMatch(/^La factura .* facturó 4 de Producto$/);
+      expect((await ncDesde(x, f2.body.id, dr, 4)).status).toBe(201);
+      expect((await ncDesde(x, f1.body.id, dr, 4)).status).toBe(201);
+    });
+
+    it('la nota de crédito con devolución de mercadería descuenta lo devuelto por remito', async () => {
+      const x = await escenario();
+      const r = await x.entrega(10);
+      const f1 = await x.facturar(r.renglones[0].id, 10);
+      await x.devolver([{ remitoRenglonOrigenId: r.renglones[0].id, cantidad: 3 }]);
+      const nc = (q: number) => x.http.post('/api/ventas/comprobantes', { ...x.datos({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: f1.body.id, devuelveMercaderia: true, renglones: [{ articuloId: x.art.id, descripcion: 'x', cantidad: q, precioUnitario: 1000, alicuota: 21 }] }) });
+      expect((await nc(8)).status).toBe(400);
+      expect((await nc(7)).status).toBe(201);
+    });
+  });
 });
 

@@ -265,6 +265,26 @@ export class RemitosService {
     }));
   }
 
+  /** E54: renglones de devoluciones con lo pendiente de acreditar, con la factura propuesta (la que facturó el renglón de origen) y su precio. */
+  async pendientesAcreditar(terceroId: string) {
+    const db = this.tenant.db;
+    const rs = await db.remitoRenglon.findMany({ where: { remito: { terceroId, tipo: 'DEVOLUCION', estado: 'CONFIRMADO' } }, include: { remito: true }, orderBy: [{ remito: { numero: 'asc' } }, { orden: 'asc' }] });
+    const pend = rs.filter((r) => new D(r.cantidadAAcreditar).gt(r.cantidadAcreditada));
+    const facturados = await db.comprobanteVentaRenglon.findMany({
+      where: { remitoRenglonId: { in: pend.map((r) => r.remitoRenglonOrigenId).filter((x): x is string => !!x) }, comprobante: { tipo: 'FACTURA', estado: 'AUTORIZADO' } },
+      include: { comprobante: true }, orderBy: { comprobante: { fecha: 'desc' } },
+    });
+    return pend.map((r) => {
+      const f = facturados.find((x) => x.remitoRenglonId === r.remitoRenglonOrigenId);
+      return {
+        devolucionRenglonId: r.id, remitoId: r.remitoId, numero: numeroRemito(r.remito.puntoVenta, r.remito.numero), fecha: r.remito.fecha, articuloId: r.articuloId, descripcion: r.descripcion,
+        pendiente: new D(r.cantidadAAcreditar).minus(r.cantidadAcreditada).toString(),
+        facturaId: f?.comprobanteId ?? null, factura: f ? `${f.comprobante.letra} ${String(f.comprobante.puntoVenta).padStart(4, '0')}-${String(f.comprobante.numero ?? 0).padStart(8, '0')}` : null,
+        precioUnitario: f ? new D(f.precioUnitario).toString() : null, bonificacionPct: f ? new D(f.bonificacionPct).toString() : '0', alicuota: f?.alicuota ?? null, monedaCodigo: f?.comprobante.monedaCodigo ?? null,
+      };
+    });
+  }
+
   /** Renglones de remitos confirmados con cantidad pendiente de facturar. */
   async pendientesFacturar(terceroId?: string) {
     const rs = await this.tenant.db.remitoRenglon.findMany({ where: { remito: { estado: 'CONFIRMADO', tipo: 'ENTREGA', terceroId: terceroId || undefined } }, include: { remito: true }, orderBy: [{ remito: { numero: 'asc' } }, { orden: 'asc' }] });

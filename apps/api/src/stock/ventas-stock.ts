@@ -73,6 +73,14 @@ export class VentasStock {
     }
     const devuelto = new Map<string, Dec>();
     for (const nc of ncs) for (const ren of nc.renglones) if (ren.articuloId) devuelto.set(ren.articuloId, (devuelto.get(ren.articuloId) ?? cero).plus(ren.cantidad));
+    // E54: lo devuelto con remitos de devolución de los renglones de remito que facturó este comprobante (hasta lo facturado)
+    if (desdeRemitos.length) {
+      const devs = await tx.remitoRenglon.findMany({ where: { remitoRenglonOrigenId: { in: desdeRemitos.map((x) => x.remitoRenglonId!) }, remito: { estado: 'CONFIRMADO', tipo: 'DEVOLUCION' } } });
+      for (const ren of desdeRemitos) {
+        const q = devs.filter((x) => x.remitoRenglonOrigenId === ren.remitoRenglonId).reduce((s, x) => s.plus(x.cantidad), cero);
+        if (q.gt(0)) devuelto.set(ren.articuloId!, (devuelto.get(ren.articuloId!) ?? cero).plus(D.min(q, ren.cantidad)));
+      }
+    }
     return { vendido: r, devuelto };
   }
 
