@@ -145,7 +145,7 @@ export class EmisionService {
       await periodoAbierto(tx, empresaId, c.fecha);
       // Stock: lo que impediría registrar la venta se controla antes de pedir el CAE
       const renglones = await tx.comprobanteVentaRenglon.findMany({ where: { comprobanteId: id } });
-      await this.origenes.resolver(tx, { tipo: c.tipo, terceroId: c.terceroId, renglones });
+      await this.origenes.resolver(tx, { tipo: c.tipo, terceroId: c.terceroId, renglones, comprobanteAsociadoId: c.comprobanteAsociadoId, excluirId: c.id });
       await this.bajas.validarVenta(tx, { id, tipo: c.tipo, fecha: c.fecha }, renglones);
       await this.stock.prevalidar(tx, { id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId, renglones: renglones.filter((x) => !x.remitoRenglonId) });
       const datos = await this.datosCae(tx, c, tipoArca);

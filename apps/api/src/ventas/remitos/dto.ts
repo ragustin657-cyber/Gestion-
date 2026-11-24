@@ -18,3 +18,13 @@ export const esquemaRemito = z.object({
 }));
 export type DatosRemito = z.infer<typeof esquemaRemito>;
 export const esquemaAnulacionRemito = z.object({ motivo: z.string().trim().min(1, 'Indique el motivo') });
+
+/** E54: remito de devolución desde renglones de remitos de entrega del cliente. */
+export const esquemaDevolucion = z.object({
+  terceroId: z.string().uuid('Valor inválido'),
+  puntoVentaId: z.string().uuid('Indique el punto de venta'),
+  fecha: zFecha,
+  observaciones: z.string().trim().max(1000).nullish(),
+  renglones: z.array(z.object({ remitoRenglonOrigenId: z.string().uuid('Valor inválido'), cantidad: z.number().gt(0, 'Debe ser mayor a cero') })).min(1, 'La devolución debe tener al menos un renglón'),
+});
+export type DatosDevolucion = z.infer<typeof esquemaDevolucion>;

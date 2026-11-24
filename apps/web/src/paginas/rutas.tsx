@@ -1,3 +1,4 @@
+import { RemitoDevolucionPage } from '../ventas/RemitoDevolucionPage';
 import { FceEmitidasPage, FceRecibidasPage } from '../ventas/fce';
 import { DespachoImportacionPage } from '../compras/DespachoImportacionPage';
 import { ConfigCorreoPage } from '../correo/ConfigCorreoPage';
@@ -209,6 +210,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/maestros/listas-precios', elemento: <ListasPreciosPage /> },
   { ruta: '/ventas/pedido', elemento: <PedidoVentaPage /> },
   { ruta: '/ventas/remito', elemento: <RemitoPage /> },
+  { ruta: '/ventas/remito-devolucion', elemento: <RemitoDevolucionPage /> },
   { ruta: '/ventas/pedidos', elemento: <PedidosPage /> },
   { ruta: '/ventas/remitos', elemento: <RemitosConsultaPage /> },
   { ruta: '/stock/transferencia', elemento: <DocumentoStockPage key="t" tipo="TRANSFERENCIA" /> },

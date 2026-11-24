@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res, Streamab
 import type { Response } from 'express';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
-import { DatosRemito, esquemaAnulacionRemito, esquemaRemito } from './dto';
+import { DatosRemito, esquemaAnulacionRemito, esquemaDevolucion, type DatosDevolucion, esquemaRemito } from './dto';
 import { RemitosService } from './remitos.service';
 import { PedidosService } from '../pedidos/pedidos.service';
 
@@ -11,13 +11,25 @@ export class RemitosController {
   constructor(private readonly remitos: RemitosService) {}
 
   @Get() @RequierePermiso('venta.ver')
-  listar(@Query() q: { terceroId?: string; pendientes?: string }) {
+  listar(@Query() q: { terceroId?: string; pendientes?: string; tipo?: string }) {
     return this.remitos.listar(q);
   }
 
   @Get('pendientes-facturar') @RequierePermiso('venta.ver')
   pendientes(@Query('terceroId') terceroId?: string) {
     return this.remitos.pendientesFacturar(terceroId);
+  }
+
+  /** E54: lo que queda por devolver de los remitos de entrega del cliente. */
+  @Get('devolvibles') @RequierePermiso('venta.ver')
+  devolvibles(@Query('terceroId', ParseUUIDPipe) terceroId: string) {
+    return this.remitos.devolvibles(terceroId);
+  }
+
+  /** E54: devoluciones pendientes de acreditar (nota de crédito). */
+  @Get('pendientes-acreditar') @RequierePermiso('venta.ver')
+  pendientesAcreditar(@Query('terceroId', ParseUUIDPipe) terceroId: string) {
+    return this.remitos.pendientesAcreditar(terceroId);
   }
 
   @Get(':id') @RequierePermiso('venta.ver')
@@ -35,6 +47,12 @@ export class RemitosController {
   @Post() @RequierePermiso('pedido.gestionar')
   crear(@Body(new ZodValidationPipe(esquemaRemito)) d: DatosRemito) {
     return this.remitos.crear(d);
+  }
+
+  /** E54: remito de devolución. */
+  @Post('devoluciones') @RequierePermiso('pedido.gestionar')
+  devolucion(@Body(new ZodValidationPipe(esquemaDevolucion)) d: DatosDevolucion) {
+    return this.remitos.crearDevolucion(d);
   }
 
   @Post(':id/anular') @RequierePermiso('pedido.gestionar')

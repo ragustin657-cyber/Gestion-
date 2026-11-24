@@ -11,7 +11,9 @@ export interface RenglonVentaEditable {
   /** E51: % de bonificación del renglón (vacío = 0). */
   bonificacionPct?: string;
   /** Renglones que vienen de un remito o de un pedido (factura). */
-  origen?: 'DIRECTO' | 'REMITO' | 'PEDIDO'; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; etiqueta?: string;
+  origen?: 'DIRECTO' | 'REMITO' | 'PEDIDO' | 'DEVOLUCION'; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; etiqueta?: string;
+  /** E54: renglón de remito de devolución que acredita una nota de crédito. */
+  devolucionRenglonId?: string | null;
   /** Venta de un bien de uso (sin artículo, cantidad 1). */
   bienUsoId?: string | null;
 }
@@ -40,7 +42,7 @@ export function totalesVenta(renglones: RenglonVentaEditable[], letra: LetraVent
 
 /** Renglón para la API (E51: con la bonificación; vacía = 0). */
 export const cuerpoRenglonVenta = (r: RenglonVentaEditable) => ({
-  origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, articuloId: r.articuloId, bienUsoId: r.bienUsoId ?? null,
+  origen: r.origen ?? 'DIRECTO', remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, devolucionRenglonId: r.devolucionRenglonId ?? null, articuloId: r.articuloId, bienUsoId: r.bienUsoId ?? null,
   descripcion: r.descripcion, cantidad: numero(r.cantidad), precioUnitario: numero(r.precioUnitario), alicuota: alicuotaDe(r.alicuota),
   bonificacionPct: r.bonificacionPct?.trim() ? numero(r.bonificacionPct) : 0,
 });

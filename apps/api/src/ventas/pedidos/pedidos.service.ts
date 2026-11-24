@@ -15,8 +15,8 @@ import { pdfDocumento, renglonesPdf } from './pdf-pedido';
 
 const MODIFICADO = 'El pedido fue modificado por otro usuario: actualice la pantalla';
 const fAR = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10).split('-').reverse().join('/') : null);
-const conPendientes = <T extends { cantidad: Prisma.Decimal; cantidadEntregada: Prisma.Decimal; cantidadFacturada: Prisma.Decimal }>(r: T) => ({
-  ...r, pendienteEntregar: new D(r.cantidad).minus(r.cantidadEntregada).toString(), pendienteFacturar: new D(r.cantidad).minus(r.cantidadFacturada).toString(),
+const conPendientes = <T extends { cantidad: Prisma.Decimal; cantidadEntregada: Prisma.Decimal; cantidadFacturada: Prisma.Decimal; cantidadDevuelta: Prisma.Decimal }>(r: T) => ({
+  ...r, pendienteEntregar: new D(r.cantidad).minus(r.cantidadEntregada).toString(), pendienteFacturar: D.max(new D(r.cantidad).minus(r.cantidadFacturada).minus(r.cantidadDevuelta), 0).toString(),
 });
 
 @Injectable()
