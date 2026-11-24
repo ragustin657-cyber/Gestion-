@@ -1,3 +1,4 @@
+import { avisosDisponible } from './reservas';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { bloquear } from '../compras/comun';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
@@ -21,6 +22,8 @@ interface DatosStockVenta {
   devuelveMercaderia: boolean;
   comprobanteAsociadoId: string | null;
   renglones: { id?: string; articuloId: string | null; cantidad: Dec | number }[];
+  /** E53: renglones de pedido que se facturan (sus pedidos no cuentan como reservas de otros). */
+  pedidoRenglonIds?: string[];
 }
 
 /** Stock de los comprobantes de venta (spec §5). */
@@ -97,6 +100,9 @@ export class VentasStock {
         avisos.push(msj);
       }
     }
+    // E53: lo reservado por otros pedidos (solo aviso; si el stock solo ya no alcanza, ya avisó el control de stock)
+    const excluir = c.pedidoRenglonIds?.length ? [...new Set((await tx.pedidoVentaRenglon.findMany({ where: { id: { in: c.pedidoRenglonIds } }, select: { pedidoId: true } })).map((x) => x.pedidoId))] : [];
+    avisos.push(...(await avisosDisponible(tx, { depositoId: c.depositoId, cantidades: cant as Map<string, Dec>, excluirPedidoIds: excluir, cola: (q) => `se entregan ${q.toString()}`, soloSiAlcanzaElStock: true })));
     return avisos;
   }
 

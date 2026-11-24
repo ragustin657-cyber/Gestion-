@@ -12,7 +12,7 @@ export default defineConfig({
   projects: [
     // Intereses factura en el mes anterior: corre antes de que la prueba de contabilidad (general) cierre ese mes
     { name: 'intereses', testMatch: /intereses\.spec\.ts/ },
-    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias|ganancias-anual|retenciones-iva-suss|posicion-iva|posicion-iibb|percepciones-ventas|prorrateo-iva|despachos-importacion|sire-completo|bienes-impositiva|ajuste-impositivo|dj-ganancias|bienes-personales|otras-jurisdicciones-iibb|fce|ventas-descuentos|listas-derivadas)\.spec\.ts/ },
+    { name: 'general', dependencies: ['intereses'], testIgnore: /(conciliacion|tesoreria|tarjetas|comisiones|intereses|sueldos-final|libro-sueldos|ganancias|ganancias-anual|retenciones-iva-suss|posicion-iva|posicion-iibb|percepciones-ventas|prorrateo-iva|despachos-importacion|sire-completo|bienes-impositiva|ajuste-impositivo|dj-ganancias|bienes-personales|otras-jurisdicciones-iibb|fce|ventas-descuentos|listas-derivadas|reservas-stock)\.spec\.ts/ },
     // La baja crea un empleado que no debe quedar en las mensuales que cierran las pruebas de sueldos: corre después de ellas
     // Comisiones reabre la mensual del mes (que cerró la prueba de sueldos), carga la comisión y la vuelve a cerrar
     { name: 'comisiones', testMatch: /comisiones\.spec\.ts/, dependencies: ['general'] },
@@ -40,6 +40,7 @@ export default defineConfig({
     { name: 'fce', testMatch: /fce\.spec\.ts/, dependencies: ['otras-jurisdicciones-iibb'] },
     { name: 'ventas-descuentos', testMatch: /ventas-descuentos\.spec\.ts/, dependencies: ['fce'] },
     { name: 'listas-derivadas', testMatch: /listas-derivadas\.spec\.ts/, dependencies: ['ventas-descuentos'] },
+    { name: 'reservas-stock', testMatch: /reservas-stock\.spec\.ts/, dependencies: ['listas-derivadas'] },
   ],
   webServer: [
     {

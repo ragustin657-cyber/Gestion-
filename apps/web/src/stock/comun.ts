@@ -3,7 +3,9 @@ import { api } from '../api/cliente';
 
 export interface FilaExistencia {
   articuloId: string; codigo: string; descripcion: string; unidad: string;
-  depositos: { depositoId: string; nombre: string; cantidad: string }[]; cantidad: string; costoPromedio: string; valor: string;
+  depositos: { depositoId: string; nombre: string; cantidad: string; reservado?: string; disponible?: string }[]; cantidad: string; costoPromedio: string; valor: string;
+  /** E53 */
+  reservado?: string; disponible?: string;
 }
 export interface Existencias { filas: FilaExistencia[]; total: string }
 

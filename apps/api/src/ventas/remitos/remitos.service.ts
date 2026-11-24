@@ -1,3 +1,4 @@
+import { avisosDisponible } from '../../stock/reservas';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { hoyEn, formatearCuit, ZONA_ARGENTINA } from '@gestion/shared';
 import { ClsService } from 'nestjs-cls';
@@ -96,6 +97,10 @@ export class RemitosService {
       });
       for (const [id, cant] of pedidas) await tx.pedidoVentaRenglon.update({ where: { id }, data: { cantidadEntregada: { increment: cant } } });
 
+      // E53: aviso de lo reservado por otros pedidos (con el stock de antes de la salida; los pedidos de este remito no cuentan)
+      const cantRem = new Map<string, Dec>();
+      for (const r of remito.renglones) if (r.articuloId) cantRem.set(r.articuloId, (cantRem.get(r.articuloId) ?? new D(0)).plus(r.cantidad));
+      const avisosReserva = await avisosDisponible(tx, { depositoId, cantidades: cantRem, excluirPedidoIds: [...new Set(prs.map((x) => x.pedidoId))], cola: (q) => `se entregan ${q.toString()}`, soloSiAlcanzaElStock: true });
       // 3. Stock y costo (después de los renglones de pedido; antes que el asiento)
       const conStock = new Set((await tx.articulo.findMany({ where: { id: { in: remito.renglones.map((r) => r.articuloId).filter((x): x is string => !!x) }, controlaStock: true } })).map((a) => a.id));
       const res = await this.motor.moverVarios(tx, remito.renglones.filter((r) => r.articuloId && conStock.has(r.articuloId)).map((r) => ({
@@ -115,7 +120,7 @@ export class RemitosService {
       if (asientoId) await tx.remito.update({ where: { id: remito.id }, data: { asientoId } });
       for (const pedidoId of new Set(prs.map((x) => x.pedidoId))) await this.pedidos.recalcularEstado(tx, pedidoId);
       await this.auditoria.registrar(tx, { entidad: 'Remito', entidadId: remito.id, accion: 'CREAR', datos: { numero: numeroRemito(pv.numero, numero) } });
-      return { ...(await this.obtener(remito.id, tx)), advertencias: res.map((x) => x.advertencia).filter((x): x is string => !!x) };
+      return { ...(await this.obtener(remito.id, tx)), advertencias: [...res.map((x) => x.advertencia).filter((x): x is string => !!x), ...avisosReserva] };
     });
   }
 

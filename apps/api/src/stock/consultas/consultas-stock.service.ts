@@ -1,3 +1,4 @@
+import { reservado, totalReservado } from '../reservas';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { MovimientoStock } from '@prisma/client';
 import { fechaQuery } from '../../compras/consultas/consultas.service';
@@ -23,14 +24,40 @@ export class ConsultasStockService {
     const articulos = await db.articulo.findMany({ where: { controlaStock: true, id: q.articuloId || undefined }, orderBy: { codigo: 'asc' } });
     const saldos = await db.saldoStock.findMany({ where: { articuloId: { in: articulos.map((a) => a.id) }, depositoId: q.depositoId || undefined } });
     const depositos = new Map((await db.deposito.findMany()).map((d) => [d.id, d]));
-    const filas = articulos.map((a) => ({
-      articuloId: a.id, codigo: a.codigo, descripcion: a.descripcion, unidad: a.unidad,
-      depositos: saldos.filter((s) => s.articuloId === a.id && !new D(s.cantidad).isZero())
-        .map((s) => ({ depositoId: s.depositoId, nombre: depositos.get(s.depositoId)?.nombre ?? '', cantidad: new D(s.cantidad).toString() }))
-        .sort((x, y) => x.nombre.localeCompare(y.nombre)),
-      cantidad: new D(a.stockCantidad).toString(), costoPromedio: new D(a.costoPromedio).toString(), valor: new D(a.stockValor).toFixed(2),
-    })).filter((f) => q.soloConStock !== 'true' || f.depositos.length > 0);
+    // E53: reservado por los pedidos pendientes y disponible (con el filtro de depósito, solo ese depósito)
+    const reservas = await reservado(db, { articuloIds: articulos.map((a) => a.id), depositoId: q.depositoId || undefined });
+    const filas = articulos.map((a) => {
+      const deps = new Set([...saldos.filter((s) => s.articuloId === a.id && !new D(s.cantidad).isZero()).map((s) => s.depositoId), ...reservas.filter((r) => r.articuloId === a.id).map((r) => r.depositoId)]);
+      const porDep = [...deps].map((depositoId) => {
+        const cantidad = new D(saldos.find((s) => s.articuloId === a.id && s.depositoId === depositoId)?.cantidad ?? 0);
+        const res = totalReservado(reservas, a.id, depositoId);
+        return { depositoId, nombre: depositos.get(depositoId)?.nombre ?? '', cantidad: cantidad.toString(), reservado: res.toString(), disponible: cantidad.minus(res).toString() };
+      }).sort((x, y) => x.nombre.localeCompare(y.nombre));
+      const stock = q.depositoId ? new D(saldos.find((s) => s.articuloId === a.id && s.depositoId === q.depositoId)?.cantidad ?? 0) : new D(a.stockCantidad);
+      const res = reservas.filter((r) => r.articuloId === a.id).reduce((s, r) => s.plus(r.cantidad), new D(0));
+      return {
+        articuloId: a.id, codigo: a.codigo, descripcion: a.descripcion, unidad: a.unidad, depositos: porDep,
+        // Revisión E53: con el filtro de depósito, la cantidad y el valor son de ese depósito (al costo promedio)
+        cantidad: stock.toString(), costoPromedio: new D(a.costoPromedio).toString(), valor: (q.depositoId ? stock.times(a.costoPromedio) : new D(a.stockValor)).toFixed(2),
+        reservado: res.toString(), disponible: stock.minus(res).toString(),
+      };
+    }).filter((f) => q.soloConStock !== 'true' || f.depositos.some((d) => !new D(d.cantidad).isZero()));
     return { filas, total: filas.reduce((s, f) => s.plus(f.valor), cero).toFixed(2) };
+  }
+
+  /** E53: qué pedidos reservan cada artículo. */
+  async reservas(q: { articuloId?: string; depositoId?: string }) {
+    const db = this.tenant.db;
+    const filas = await reservado(db, { articuloIds: q.articuloId ? [q.articuloId] : undefined, depositoId: q.depositoId || undefined });
+    const [arts, deps, terceros] = await Promise.all([
+      db.articulo.findMany({ where: { id: { in: [...new Set(filas.map((f) => f.articuloId))] } } }),
+      db.deposito.findMany({ where: { id: { in: [...new Set(filas.map((f) => f.depositoId))] } } }),
+      db.tercero.findMany({ where: { id: { in: [...new Set(filas.map((f) => f.terceroId))] } } }),
+    ]);
+    return filas.map((f) => ({
+      pedidoId: f.pedidoId, pedido: f.numero, fecha: f.fecha, cliente: terceros.find((t) => t.id === f.terceroId)?.razonSocial ?? '', depositoId: f.depositoId,
+      deposito: deps.find((d) => d.id === f.depositoId)?.nombre ?? '', articuloId: f.articuloId, codigo: arts.find((a) => a.id === f.articuloId)?.codigo ?? '', cantidad: f.cantidad.toString(),
+    })).sort((x, y) => x.codigo.localeCompare(y.codigo) || x.pedido - y.pedido);
   }
 
   /** Texto legible del documento que originó cada movimiento. */

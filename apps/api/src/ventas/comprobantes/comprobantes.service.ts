@@ -139,6 +139,7 @@ export class ComprobantesVentaService {
     const advertencias = await this.stock.controlar(tx, {
       id, tipo: d.tipo, depositoId, devuelveMercaderia: d.devuelveMercaderia, comprobanteAsociadoId: d.comprobanteAsociadoId ?? null,
       renglones: d.renglones.map((r, i) => ({ articuloId: origenes[i].remitoRenglonId ? null : origenes[i].articuloId, cantidad: r.cantidad })),
+      pedidoRenglonIds: origenes.map((o) => o.pedidoRenglonId).filter((x): x is string => !!x),
     });
     return {
       advertencias,

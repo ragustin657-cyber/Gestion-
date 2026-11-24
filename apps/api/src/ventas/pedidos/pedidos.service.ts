@@ -1,3 +1,4 @@
+import { avisosDisponible } from '../../stock/reservas';
 import { vendedorActivo } from '../comisiones/vendedor-activo';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type EstadoPedido } from '@prisma/client';
@@ -127,14 +128,10 @@ export class PedidosService {
     // Sin depósito en el pedido, el del primer punto de venta que tenga uno
     const depositoId = p.depositoId ?? (await tx.puntoVenta.findFirst({ where: { depositoId: { not: null } }, orderBy: { numero: 'asc' } }))?.depositoId ?? null;
     if (depositoId) {
-      const deposito = await tx.deposito.findUniqueOrThrow({ where: { id: depositoId } });
       const cant = new Map<string, Prisma.Decimal>();
       for (const r of p.renglones) if (r.articuloId) cant.set(r.articuloId, (cant.get(r.articuloId) ?? new D(0)).plus(r.cantidad));
-      const arts = await tx.articulo.findMany({ where: { id: { in: [...cant.keys()] }, controlaStock: true }, orderBy: { codigo: 'asc' } });
-      for (const a of arts) {
-        const saldo = new D((await tx.saldoStock.findFirst({ where: { articuloId: a.id, depositoId } }))?.cantidad ?? 0);
-        if (saldo.lt(cant.get(a.id)!)) advertencias.push(`Stock disponible de ${a.codigo} en ${deposito.nombre}: ${saldo.toString()}, el pedido pide ${cant.get(a.id)!.toString()}`);
-      }
+      // E53: stock menos lo reservado por los otros pedidos
+      advertencias.push(...(await avisosDisponible(tx, { depositoId, cantidades: cant, excluirPedidoIds: [id], cola: (q) => `el pedido pide ${q.toString()}` })));
     }
     await this.auditoria.registrar(tx, { entidad: 'PedidoVenta', entidadId: id, accion: 'MODIFICAR', datos: { estado: 'CONFIRMADO' } });
     return { ...(await this.obtener(id, tx)), advertencias };
