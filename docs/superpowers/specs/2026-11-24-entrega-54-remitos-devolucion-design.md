@@ -18,7 +18,10 @@ Hoy la única forma de que un cliente devuelva mercadería es la nota de crédit
 - **Control:** no se devuelve más de lo entregado en ese renglón menos lo ya devuelto (`No se puede devolver más de lo entregado en el remito <número> (<descripción>): quedan <q>`).
 - **Stock:** entrada (`DEVOLUCION_VENTA`) en el depósito, **al costo con que salió ese renglón** (el del movimiento de salida del remito de origen); asiento inverso al de costo de ventas (Mercaderías al debe, Costo de mercaderías vendidas al haber). Los artículos sin stock no mueven.
 - **Pendientes del origen** (`RemitoRenglon.cantidadDevuelta`): lo devuelto se suma al renglón de origen. Lo **pendiente de facturar** del remito pasa a ser `cantidad − facturada − devuelta` (mínimo 0). La parte de la devolución que supera lo que faltaba facturar queda **a acreditar** en el renglón de la devolución (`cantidadAAcreditar = máx(0, q − pendiente de facturar del origen antes de devolver)`).
-- **Pedido:** no se reabre (sigue entregado) *(decisión mía)*.
+- **Pedido:** no se reabre (sigue entregado) *(decisión mía)*; pero lo devuelto sin facturar deja de estar pendiente de facturar en el pedido (`PedidoVentaRenglon.cantidadDevuelta`; pendiente de facturar del pedido = `cantidad − facturada − devuelta`) *(decisión mía: si no, se podría facturar desde el pedido lo que el cliente devolvió)*.
+- **Facturas sin autorizar** *(decisión mía)*: si el renglón de origen está en una factura en borrador, pendiente de CAE o rechazada, no se puede devolver: `El remito tiene una factura sin autorizar: emítala o elimínela antes de la devolución`.
+- **Los dos caminos de devolución no se pisan** *(decisión mía)*: la nota de crédito con «devolución de mercadería» sobre una factura descuenta, por artículo, lo ya devuelto con remitos de devolución de los renglones de remito que esa factura facturó; y no se puede hacer un remito de devolución de un renglón facturado en una factura que ya tiene una nota de crédito con devolución de ese artículo (`La mercadería de este remito ya se devolvió con una nota de crédito`).
+- **Costo:** se revierte al costo unitario del movimiento de salida; la regularización por stock negativo del remito de origen (si la hubo) no se revierte *(decisión mía)*.
 - **Anular** el remito de devolución: revierte la entrada de stock y el asiento y resta `cantidadDevuelta`; no se puede si ya tiene notas de crédito (`La devolución ya tiene notas de crédito: anúlelas primero`). Un remito de entrega con devoluciones no se puede anular (`El remito tiene devoluciones: anúlelas primero`).
 - Permiso: `pedido.gestionar` (el de los remitos).
 
@@ -26,6 +29,7 @@ Hoy la única forma de que un cliente devuelva mercadería es la nota de crédit
 - Los **pendientes de acreditar** de un cliente: renglones de remitos de devolución confirmados con `cantidadAAcreditar − cantidadAcreditada > 0`.
 - En el comprobante de venta (nota de crédito) se agregan desde *Agregar desde devoluciones*: el renglón lleva `devolucionRenglonId`, no mueve stock (la mercadería ya entró), y suma a `cantidadAcreditada` al autorizarse (y resta al anular).
 - **Factura asociada** *(decisión mía)*: la nota de crédito sigue necesitando su factura asociada; la pantalla propone la factura que facturó el renglón de remito de origen. Todos los renglones de devolución de una nota deben ser de remitos facturados en esa factura (`La devolución no corresponde a la factura asociada`).
+- **Tope por factura** *(decisión mía)*: lo acreditado contra una factura por un renglón de remito no puede superar lo que esa factura facturó de ese renglón menos lo ya acreditado contra ella (`La factura <número> facturó <q> de <descripción>`).
 - Una nota con renglones desde devoluciones no puede marcar «devolución de mercadería» (`La mercadería ya entró con el remito de devolución`).
 - Precio: el de la factura de ese renglón (con su bonificación), propuesto por la pantalla y editable.
 
