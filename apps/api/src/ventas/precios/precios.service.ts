@@ -165,16 +165,17 @@ export class PreciosService {
       sinOrigen = 'Sin precio en la lista base';
     } else {
       const ids = (await tx.articulo.findMany({ where: { activo: true, esServicio: false }, select: { id: true } })).map((a) => a.id);
-      origen = await costosDeArticulos(tx, [...new Set([...ids, ...actuales.keys()])]);
+      origen = await costosDeArticulos(tx, [...new Set([...ids, ...actuales.keys()])], this.tenant.empresaId);
       monedaOrigen = 'ARS';
       sinOrigen = 'Sin costo';
     }
     // Conversión de moneda con la cotización vigente (la del día o la última anterior)
     const factor = monedaOrigen === lista.monedaCodigo ? new D(1)
       : lista.monedaCodigo === 'USD' ? new D(1).div(await cotizacion(tx, 'USD', hoy())) : await cotizacion(tx, 'USD', hoy());
-    const candidatos = lista.base === 'LISTA' ? [...origen.keys()] : [...new Set([...origen.keys(), ...actuales.keys()])];
-    const arts = new Map((await tx.articulo.findMany({ where: { id: { in: [...new Set([...candidatos, ...actuales.keys()])] } } })).map((a) => [a.id, a]));
-    const filas = [...new Set([...candidatos, ...(lista.base === 'COSTO' ? (await tx.articulo.findMany({ where: { activo: true, esServicio: false }, select: { id: true } })).map((a) => a.id) : [])])]
+    // Revisión E52: los que tienen origen (precio en la base o costo) y los que ya tienen precio en la lista (con su motivo si no se recalculan)
+    const candidatos = [...new Set([...origen.keys(), ...actuales.keys()])];
+    const arts = new Map((await tx.articulo.findMany({ where: { id: { in: candidatos } }, select: { id: true, codigo: true, descripcion: true, activo: true } })).map((a) => [a.id, a]));
+    const filas = candidatos
       .filter((id) => arts.get(id)?.activo !== false || actuales.has(id))
       .map((id) => {
         const a = arts.get(id);
@@ -201,6 +202,7 @@ export class PreciosService {
 
   /** E52: aplica el recálculo (recalcula en el momento); los fijos y sin origen no cambian aunque se elijan. */
   aplicarRecalculo(listaId: string, articuloIds?: string[]) {
+    // Revisión E52: un catálogo grande no entra en el tiempo por defecto de la transacción
     return this.tenant.transaccion(async (tx) => {
       await this.bloquearListas(tx);
       const { lista, filas } = await this.calcularLista(tx, listaId);
@@ -213,7 +215,7 @@ export class PreciosService {
       await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: listaId, accion: 'MODIFICAR', datos: { recalculo: true, actualizados, agregados } });
       const dependientes = await tx.listaPrecios.findMany({ where: { base: 'LISTA', listaBaseId: lista.id }, orderBy: { nombre: 'asc' } });
       return { actualizados, agregados, aviso: dependientes.length ? `Las listas ${dependientes.map((d) => d.nombre).join(', ')} dependen de esta: recalcúlelas` : null };
-    });
+    }, { timeout: 120000 });
   }
 
   aumento(listaId: string, d: { porcentaje: number; articuloIds?: string[]; redondeo: Redondeo }) {

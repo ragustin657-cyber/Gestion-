@@ -103,7 +103,8 @@ describe('listas de precios derivadas y desde el costo (E52)', () => {
       const de = (id: string) => p.filas.find((f) => f.articuloId === id);
       expect([de(a1)!.actual, de(a1)!.nuevo, de(a1)!.motivo]).toEqual([null, '1300', null]);
       expect(de(a2)!.nuevo).toBe('650');
-      expect([de(a3)!.nuevo, de(a3)!.motivo]).toEqual([null, 'Sin costo']);
+      // Revisión: sin costo y sin precio en la lista, no aparece
+      expect(de(a3)).toBeUndefined();
       expect(de(srv)).toBeUndefined();
       // Factura posterior con dos renglones del artículo (1000 y 1200): costo 1100; una NC posterior no cuenta
       await x.compra({ fecha: '2026-11-03', renglones: [{ articuloId: a1, cantidad: 1, precioUnitario: 1000 }, { articuloId: a1, cantidad: 1, precioUnitario: 1200 }] });
@@ -159,6 +160,36 @@ describe('listas de precios derivadas y desde el costo (E52)', () => {
       await x.cotizacionUsd('2026-11-06', 1000);
       expect((await x.previa(usd.id)).filas.find((f) => f.articuloId === a1)!.nuevo).toBe('1.3');
     });
+
+    it('revisión: sin filas en blanco; precio que ya no está en la base; costo cero; muchos artículos', async () => {
+      const x = await conCompras();
+      const a1 = await x.art('A1'), a2 = await x.art('A2'), a3 = await x.art('A3');
+      // Costo cero (compra bonificada al 100 %) = sin costo
+      const c0 = await x.compra({ renglones: [{ articuloId: a1, cantidad: 1, precioUnitario: 1000 }] });
+      await prisma.comprobanteCompraRenglon.updateMany({ where: { comprobanteId: c0.id }, data: { importe: 0 } });
+      const costo = await x.lista({ nombre: 'Costo', base: 'COSTO', porcentaje: 30, redondeo: '1' });
+      let p = await x.previa(costo.id);
+      expect(p.filas.every((f) => f.codigo)).toBe(true);
+      expect(p.filas.find((f) => f.articuloId === a3)).toBeUndefined();
+      // Costo cero = sin costo: sin precio en la lista no aparece (nunca un precio de un paso de redondeo)
+      expect(p.filas.find((f) => f.articuloId === a1)).toBeUndefined();
+      // Lista derivada con un precio que ya no está en la base
+      const min = await x.lista({ nombre: 'Minorista' });
+      await x.precio(min.id, a2, 1000);
+      const may = await x.lista({ nombre: 'Mayorista', base: 'LISTA', listaBaseId: min.id, porcentaje: -10, redondeo: '1' });
+      await x.http.post(`/api/ventas/listas/${may.id}/recalculo`, {});
+      await prisma.precioLista.deleteMany({ where: { listaId: min.id, articuloId: a2 } });
+      p = await x.previa(may.id);
+      expect(p.filas.map((f) => [f.articuloId, f.motivo])).toEqual([[a2, 'Sin precio en la lista base']]);
+    });
+
+    it('revisión: aplicar sobre un catálogo grande no corta la transacción', async () => {
+      const x = await conCompras();
+      await prisma.articulo.createMany({ data: Array.from({ length: 1500 }, (_, i) => ({ empresaId: x.empresaId, codigo: `M${String(i).padStart(5, '0')}`, descripcion: `Masivo ${i}`, alicuotaIva: 21, costoPromedio: 100 + i })) });
+      const costo = await x.lista({ nombre: 'Costo', base: 'COSTO', porcentaje: 30, redondeo: '1' });
+      const r = await x.http.post(`/api/ventas/listas/${costo.id}/recalculo`, {});
+      expect([r.status, r.body.agregados]).toEqual([201, 1500]);
+    }, 120000);
   });
 });
 
