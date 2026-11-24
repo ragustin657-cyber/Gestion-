@@ -1,3 +1,4 @@
+import type { ReglaLista } from './dto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { MotivoPrecio } from '@prisma/client';
 import { hoyEn, ZONA_ARGENTINA } from '@gestion/shared';
@@ -41,26 +42,48 @@ export class PreciosService {
     return l;
   }
 
-  crearLista(d: { nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean }) {
+  /** E52: valida la regla con los valores finales (la base existe y no depende de esta lista; rangos del porcentaje). */
+  private async validarRegla(tx: TxEmpresa, id: string | null, r: { base: string; listaBaseId: string | null; porcentaje: number }) {
+    if (r.base === 'COSTO' && r.porcentaje < 0) throw new BadRequestException('El margen sobre el costo no puede ser negativo');
+    if (r.base !== 'LISTA') return;
+    if (!r.listaBaseId) throw new BadRequestException('Indique la lista base');
+    const DEPENDE = 'La lista base no puede depender de esta lista';
+    if (r.listaBaseId === id) throw new BadRequestException(DEPENDE);
+    const vistas = new Set<string>();
+    for (let actual: string | null = r.listaBaseId; actual; ) {
+      if (actual === id) throw new BadRequestException(DEPENDE);
+      if (vistas.has(actual)) break;
+      vistas.add(actual);
+      const base: { base: string; listaBaseId: string | null } | null = await tx.listaPrecios.findUnique({ where: { id: actual } });
+      if (!base) throw new BadRequestException('Lista base inexistente');
+      actual = base.base === 'LISTA' ? base.listaBaseId : null;
+    }
+  }
+
+  crearLista(d: { nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean } & ReglaLista) {
     return conUnicidad(LISTA_DUPLICADA, () => this.tenant.transaccion(async (tx) => {
       if (d.porDefecto && !d.activa) throw new BadRequestException(INACTIVA_DEFECTO);
       await this.bloquearListas(tx);
+      await this.validarRegla(tx, null, { base: d.base ?? 'MANUAL', listaBaseId: d.listaBaseId ?? null, porcentaje: d.porcentaje ?? 0 });
       if (d.porDefecto) await tx.listaPrecios.updateMany({ data: { porDefecto: false } });
-      const l = await tx.listaPrecios.create({ data: { ...d, empresaId: this.tenant.empresaId } });
+      const l = await tx.listaPrecios.create({ data: { ...d, listaBaseId: d.base === 'LISTA' ? d.listaBaseId : null, empresaId: this.tenant.empresaId } });
       await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: l.id, accion: 'CREAR', datos: d });
       return l;
     }));
   }
 
-  modificarLista(id: string, d: { nombre?: string; monedaCodigo?: string; activa?: boolean; porDefecto?: boolean }) {
+  modificarLista(id: string, d: { nombre?: string; monedaCodigo?: string; activa?: boolean; porDefecto?: boolean } & ReglaLista) {
     return conUnicidad(LISTA_DUPLICADA, () => this.tenant.transaccion(async (tx) => {
       await this.bloquearListas(tx);
       const l = await this.lista(tx, id);
       if ((d.porDefecto ?? l.porDefecto) && !(d.activa ?? l.activa)) throw new BadRequestException(INACTIVA_DEFECTO);
       if (d.monedaCodigo && d.monedaCodigo !== l.monedaCodigo && (await tx.precioLista.count({ where: { listaId: id } })))
         throw new BadRequestException('La lista tiene precios: no se puede cambiar la moneda');
+      const base = d.base ?? l.base;
+      const listaBaseId = d.listaBaseId === undefined ? l.listaBaseId : d.listaBaseId;
+      await this.validarRegla(tx, id, { base, listaBaseId, porcentaje: d.porcentaje ?? Number(l.porcentaje) });
       if (d.porDefecto) await tx.listaPrecios.updateMany({ where: { id: { not: id } }, data: { porDefecto: false } });
-      const r = await tx.listaPrecios.update({ where: { id }, data: d });
+      const r = await tx.listaPrecios.update({ where: { id }, data: { ...d, listaBaseId: base === 'LISTA' ? listaBaseId : null } });
       await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: id, accion: 'MODIFICAR', datos: d });
       return r;
     }));
@@ -73,7 +96,7 @@ export class PreciosService {
     const arts = new Map((await db.articulo.findMany({ where: { id: { in: filas.map((f) => f.articuloId) } } })).map((a) => [a.id, a]));
     const t = q?.trim().toLowerCase();
     return filas
-      .map((f) => ({ articuloId: f.articuloId, codigo: arts.get(f.articuloId)?.codigo ?? '', descripcion: arts.get(f.articuloId)?.descripcion ?? '', precio: new D(f.precio).toString(), actualizadoEn: f.actualizadoEn }))
+      .map((f) => ({ articuloId: f.articuloId, codigo: arts.get(f.articuloId)?.codigo ?? '', descripcion: arts.get(f.articuloId)?.descripcion ?? '', precio: new D(f.precio).toString(), actualizadoEn: f.actualizadoEn, fijo: f.fijo, margenPct: f.margenPct?.toString() ?? null }))
       .filter((f) => !t || f.codigo.toLowerCase().includes(t) || f.descripcion.toLowerCase().includes(t))
       .sort((a, b) => a.codigo.localeCompare(b.codigo));
   }
@@ -81,14 +104,19 @@ export class PreciosService {
   /** Fija un precio (o lo borra con null) y lo registra en el historial. */
   private async fijar(tx: TxEmpresa, listaId: string, articuloId: string, precio: Dec | null, motivo: MotivoPrecio) {
     const actual = await tx.precioLista.findUnique({ where: { listaId_articuloId: { listaId, articuloId } } });
+    // E52: en una lista calculada, un precio cargado a mano, importado o aumentado queda fijo
+    const fijo = (motivo === 'MANUAL' || motivo === 'IMPORTACION' || motivo === 'AUMENTO') && (await tx.listaPrecios.findUniqueOrThrow({ where: { id: listaId } })).base !== 'MANUAL';
     if (precio === null) {
       if (!actual) return false;
       await tx.precioLista.delete({ where: { id: actual.id } });
     } else if (actual) {
-      if (new D(actual.precio).eq(precio)) return false;
-      await tx.precioLista.update({ where: { id: actual.id }, data: { precio } });
+      if (new D(actual.precio).eq(precio)) {
+        if (fijo && !actual.fijo) await tx.precioLista.update({ where: { id: actual.id }, data: { fijo } });
+        return false;
+      }
+      await tx.precioLista.update({ where: { id: actual.id }, data: { precio, ...(fijo ? { fijo } : {}) } });
     } else {
-      await tx.precioLista.create({ data: { empresaId: this.tenant.empresaId, listaId, articuloId, precio } });
+      await tx.precioLista.create({ data: { empresaId: this.tenant.empresaId, listaId, articuloId, precio, fijo } });
     }
     await tx.historialPrecio.create({
       data: { empresaId: this.tenant.empresaId, listaId, articuloId, precioAnterior: actual?.precio ?? null, precioNuevo: precio, motivo, usuario: this.usuario() },
@@ -101,6 +129,18 @@ export class PreciosService {
       await this.lista(tx, listaId);
       if (!(await tx.articulo.findUnique({ where: { id: articuloId } }))) throw new BadRequestException('Artículo inexistente');
       await this.fijar(tx, listaId, articuloId, precio === null ? null : new D(precio), precio === null ? 'BAJA' : 'MANUAL');
+      return { ok: true };
+    });
+  }
+
+  /** E52: quitar o poner la marca de fijo y el margen propio de un artículo. */
+  marcas(listaId: string, articuloId: string, d: { fijo?: boolean; margenPct?: number | null }) {
+    return this.tenant.transaccion(async (tx) => {
+      await this.lista(tx, listaId);
+      const p = await tx.precioLista.findUnique({ where: { listaId_articuloId: { listaId, articuloId } } });
+      if (!p) throw new NotFoundException('El artículo no tiene precio en la lista');
+      await tx.precioLista.update({ where: { id: p.id }, data: d });
+      await this.auditoria.registrar(tx, { entidad: 'PrecioLista', entidadId: p.id, accion: 'MODIFICAR', datos: d });
       return { ok: true };
     });
   }
