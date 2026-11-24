@@ -62,7 +62,7 @@ describe('entrega 12: pulido de las entregas 9 a 11', () => {
     await e.inicial(a.id, 2, 10);
     const p = await e.pedido([e.renglon(a.id, 5)], { depositoId: null });
     const c = await e.http.post(`/api/ventas/pedidos/${p.id}/confirmar`, {});
-    expect(c.body.advertencias).toEqual([`Stock disponible de ${a.codigo} en Central: 2, el pedido pide 5`]);
+    expect(c.body.advertencias).toEqual([`Disponible de ${a.codigo} en Central: stock 2, reservado por otros pedidos 0, disponible 2; el pedido pide 5`]);
   });
 
   it('5. una lista inactiva no es la por defecto', async () => {

@@ -89,7 +89,8 @@ describe('reservas de stock (E53)', () => {
       const ex = (await x.http.get(`/api/stock/existencias?articuloId=${x.art.id}`)).body.filas[0];
       expect([ex.reservado, ex.disponible, ex.depositos[0].reservado, ex.depositos[0].disponible]).toEqual(['8', '2', '8', '2']);
       const otro = (await x.http.get(`/api/stock/existencias?articuloId=${x.art.id}&depositoId=${x.deposito2.id}`)).body.filas[0];
-      expect([otro.reservado, otro.disponible]).toEqual(['0', '0']);
+      // Revisión: con el filtro de depósito, la cantidad y el valor también son de ese depósito
+      expect([otro.cantidad, otro.valor, otro.reservado, otro.disponible]).toEqual(['0', '0.00', '0', '0']);
       const r = await x.http.get(`/api/stock/reservas?articuloId=${x.art.id}`);
       expect(r.status).toBe(200);
       expect(r.body.map((y: { pedido: number; cantidad: string; cliente: string; deposito: string }) => [y.pedido, y.cantidad, y.cliente, y.deposito])).toEqual([[a.numero, '8', 'Distribuidora Norte SA', 'Central']]);

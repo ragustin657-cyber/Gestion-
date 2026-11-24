@@ -37,7 +37,8 @@ export class ConsultasStockService {
       const res = reservas.filter((r) => r.articuloId === a.id).reduce((s, r) => s.plus(r.cantidad), new D(0));
       return {
         articuloId: a.id, codigo: a.codigo, descripcion: a.descripcion, unidad: a.unidad, depositos: porDep,
-        cantidad: new D(a.stockCantidad).toString(), costoPromedio: new D(a.costoPromedio).toString(), valor: new D(a.stockValor).toFixed(2),
+        // Revisión E53: con el filtro de depósito, la cantidad y el valor son de ese depósito (al costo promedio)
+        cantidad: stock.toString(), costoPromedio: new D(a.costoPromedio).toString(), valor: (q.depositoId ? stock.times(a.costoPromedio) : new D(a.stockValor)).toFixed(2),
         reservado: res.toString(), disponible: stock.minus(res).toString(),
       };
     }).filter((f) => q.soloConStock !== 'true' || f.depositos.some((d) => !new D(d.cantidad).isZero()));
