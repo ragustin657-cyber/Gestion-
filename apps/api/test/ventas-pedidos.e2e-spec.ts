@@ -39,7 +39,7 @@ describe('ventas: pedidos', () => {
     await e.inicial(a.id, 5, 10);
     const p = await e.pedido([e.renglon(a.id, 8)]);
     const c = await e.http.post(`/api/ventas/pedidos/${p.id}/confirmar`, {});
-    expect(c.body.advertencias).toEqual(['Stock disponible de ART-1 en Central: 5, el pedido pide 8']);
+    expect(c.body.advertencias).toEqual(['Disponible de ART-1 en Central: stock 5, reservado por otros pedidos 0, disponible 5; el pedido pide 8']);
   });
 
   it('cierra y anula', async () => {
