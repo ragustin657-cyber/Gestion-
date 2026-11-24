@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { RequiereAlguno, RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
 import { TenantPrisma } from '../../prisma/tenant-prisma.service';
-import { esquemaAumento, esquemaMarcas, esquemaLista, esquemaModLista, esquemaPrecio } from './dto';
+import { esquemaAumento, esquemaMarcas, esquemaRecalculo, esquemaLista, esquemaModLista, esquemaPrecio } from './dto';
 import { PreciosService } from './precios.service';
 
 @Controller('ventas')
@@ -47,6 +47,17 @@ export class PreciosController {
   @Patch('listas/:id/precios/:articuloId/marcas') @RequierePermiso('precios.editar')
   marcas(@Param('id', ParseUUIDPipe) id: string, @Param('articuloId', ParseUUIDPipe) articuloId: string, @Body(new ZodValidationPipe(esquemaMarcas)) d: { fijo?: boolean; margenPct?: number | null }) {
     return this.precios.marcas(id, articuloId, d);
+  }
+
+  /** E52: vista previa y aplicación del recálculo de una lista derivada o desde el costo. */
+  @Get('listas/:id/recalculo') @RequierePermiso('precios.editar')
+  vistaPrevia(@Param('id', ParseUUIDPipe) id: string) {
+    return this.precios.vistaPrevia(id);
+  }
+
+  @Post('listas/:id/recalculo') @RequierePermiso('precios.editar')
+  recalcular(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaRecalculo)) d: { articuloIds?: string[] }) {
+    return this.precios.aplicarRecalculo(id, d.articuloIds);
   }
 
   @Post('listas/:id/aumento') @RequierePermiso('precios.editar')

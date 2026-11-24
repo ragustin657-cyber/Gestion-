@@ -10,6 +10,8 @@ import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { cotizacion, D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import { aumentar, Redondeo } from './aumento';
 import { leerPrecios } from './importacion';
+import { costosDeArticulos } from './costos';
+import { precioDerivado } from './derivadas';
 
 const LISTA_DUPLICADA = 'Ya existe una lista con ese nombre';
 const INACTIVA_DEFECTO = 'Una lista inactiva no puede ser la lista por defecto';
@@ -142,6 +144,75 @@ export class PreciosService {
       await tx.precioLista.update({ where: { id: p.id }, data: d });
       await this.auditoria.registrar(tx, { entidad: 'PrecioLista', entidadId: p.id, accion: 'MODIFICAR', datos: d });
       return { ok: true };
+    });
+  }
+
+  /**
+   * E52: precios nuevos de una lista calculada (desde otra lista o desde el costo). No guarda nada.
+   * Con `articuloIds`, solo esos (los que no se recalculan siguen con su motivo).
+   */
+  private async calcularLista(tx: TxEmpresa, listaId: string) {
+    const lista = await this.lista(tx, listaId);
+    if (lista.base === 'MANUAL') throw new BadRequestException('La lista se carga a mano');
+    const actuales = new Map((await tx.precioLista.findMany({ where: { listaId } })).map((p) => [p.articuloId, p]));
+    let origen: Map<string, Dec>;
+    let monedaOrigen: string;
+    let sinOrigen: string;
+    if (lista.base === 'LISTA') {
+      const base = await this.lista(tx, lista.listaBaseId!);
+      origen = new Map((await tx.precioLista.findMany({ where: { listaId: base.id } })).map((p) => [p.articuloId, new D(p.precio)]));
+      monedaOrigen = base.monedaCodigo;
+      sinOrigen = 'Sin precio en la lista base';
+    } else {
+      const ids = (await tx.articulo.findMany({ where: { activo: true, esServicio: false }, select: { id: true } })).map((a) => a.id);
+      origen = await costosDeArticulos(tx, [...new Set([...ids, ...actuales.keys()])]);
+      monedaOrigen = 'ARS';
+      sinOrigen = 'Sin costo';
+    }
+    // Conversión de moneda con la cotización vigente (la del día o la última anterior)
+    const factor = monedaOrigen === lista.monedaCodigo ? new D(1)
+      : lista.monedaCodigo === 'USD' ? new D(1).div(await cotizacion(tx, 'USD', hoy())) : await cotizacion(tx, 'USD', hoy());
+    const candidatos = lista.base === 'LISTA' ? [...origen.keys()] : [...new Set([...origen.keys(), ...actuales.keys()])];
+    const arts = new Map((await tx.articulo.findMany({ where: { id: { in: [...new Set([...candidatos, ...actuales.keys()])] } } })).map((a) => [a.id, a]));
+    const filas = [...new Set([...candidatos, ...(lista.base === 'COSTO' ? (await tx.articulo.findMany({ where: { activo: true, esServicio: false }, select: { id: true } })).map((a) => a.id) : [])])]
+      .filter((id) => arts.get(id)?.activo !== false || actuales.has(id))
+      .map((id) => {
+        const a = arts.get(id);
+        const actual = actuales.get(id);
+        const base = origen.get(id);
+        let motivo: string | null = null;
+        let nuevo: Dec | null = null;
+        if (actual?.fijo) motivo = 'Precio fijo';
+        else if (!base) motivo = sinOrigen;
+        else nuevo = precioDerivado(base.times(factor), new D(lista.base === 'COSTO' && actual?.margenPct != null ? actual.margenPct : lista.porcentaje), lista.redondeo as Redondeo);
+        const act = actual ? new D(actual.precio) : null;
+        return {
+          articuloId: id, codigo: a?.codigo ?? '', descripcion: a?.descripcion ?? '', actual: act?.toString() ?? null, nuevo: nuevo?.toString() ?? null,
+          variacionPct: act && nuevo && act.gt(0) ? nuevo.div(act).minus(1).times(100).toDecimalPlaces(2).toString() : null, motivo,
+        };
+      })
+      .sort((x, y) => x.codigo.localeCompare(y.codigo));
+    return { lista, filas };
+  }
+
+  async vistaPrevia(listaId: string) {
+    return { filas: (await this.calcularLista(this.tenant.db, listaId)).filas };
+  }
+
+  /** E52: aplica el recálculo (recalcula en el momento); los fijos y sin origen no cambian aunque se elijan. */
+  aplicarRecalculo(listaId: string, articuloIds?: string[]) {
+    return this.tenant.transaccion(async (tx) => {
+      await this.bloquearListas(tx);
+      const { lista, filas } = await this.calcularLista(tx, listaId);
+      const elegidos = articuloIds ? new Set(articuloIds) : null;
+      let actualizados = 0, agregados = 0;
+      for (const f of filas) {
+        if (!f.nuevo || (elegidos && !elegidos.has(f.articuloId))) continue;
+        if (await this.fijar(tx, listaId, f.articuloId, new D(f.nuevo), 'RECALCULO')) f.actual === null ? agregados++ : actualizados++;
+      }
+      await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: listaId, accion: 'MODIFICAR', datos: { recalculo: true, actualizados, agregados } });
+      const dependientes = await tx.listaPrecios.findMany({ where: { base: 'LISTA', listaBaseId: lista.id }, orderBy: { nombre: 'asc' } });
+      return { actualizados, agregados, aviso: dependientes.length ? `Las listas ${dependientes.map((d) => d.nombre).join(', ')} dependen de esta: recalcúlelas` : null };
     });
   }
 

@@ -20,3 +20,6 @@ export const esquemaAumento = z.object({
   articuloIds: z.array(z.string().uuid()).optional(),
   redondeo: z.enum(REDONDEOS),
 });
+
+/** E52: aplicar el recálculo a todos o a los elegidos. */
+export const esquemaRecalculo = z.object({ articuloIds: z.array(z.string().uuid('Valor inválido')).min(1, 'Elija al menos un artículo').optional() });
