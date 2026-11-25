@@ -41,6 +41,7 @@ export const MENU: NodoMenu[] = [
           { titulo: 'Remito', ruta: '/ventas/remito', permiso: 'pedido.gestionar' },
           { titulo: 'Remito de devolución', ruta: '/ventas/remito-devolucion', permiso: 'pedido.gestionar' },
           { titulo: 'Comprobante de venta', ruta: '/ventas/comprobante', permiso: 'venta.emitir' },
+          { titulo: 'Facturación por lotes', ruta: '/ventas/facturacion-lotes', permiso: 'venta.emitir' },
           { titulo: 'Recibo', ruta: '/ventas/recibo', permiso: 'cobro.registrar' },
           { titulo: 'Aplicación de cobros', ruta: '/ventas/aplicacion', permiso: 'cobro.registrar' },
           { titulo: 'Cobranzas', ruta: '/ventas/cobranzas', permisoAlguno: ['venta.ver', 'cobranzas.gestionar'] },

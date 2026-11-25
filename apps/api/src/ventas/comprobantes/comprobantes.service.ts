@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client';
 import type { ComprobanteVenta } from '@prisma/client';
 import { calcularVenta, cbteTipo, JURISDICCIONES_CM, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
 import { fechaAR } from '../../compras/comun';
-import { importeAR, pdfVenta } from '../pdf/pdf-venta';
+import { importeAR, pdfVenta, type DatosPdfVenta } from '../pdf/pdf-venta';
 import { importesConIva } from '../pdf/importes-b';
 import { ClsService } from 'nestjs-cls';
 import { VentasStock } from '../../stock/ventas-stock';
@@ -242,6 +242,12 @@ export class ComprobantesVentaService {
 
   /** PDF de un comprobante autorizado, con QR de ARCA. En Simulado y Homologación lleva "SIN VALIDEZ FISCAL". */
   async pdf(id: string): Promise<{ nombre: string; contenido: Buffer }> {
+    const { nombre, datos } = await this.datosPdf(id);
+    return { nombre, contenido: await pdfVenta(datos) };
+  }
+
+  /** Datos del PDF de un comprobante autorizado (E55: el lote los junta en un solo PDF). */
+  async datosPdf(id: string): Promise<{ nombre: string; datos: DatosPdfVenta }> {
     const db = this.tenant.db;
     const c = await this.obtener(id);
     if (c.estado !== 'AUTORIZADO' || !c.cae || c.numero === null) throw new BadRequestException('El comprobante no tiene CAE');
@@ -284,7 +290,7 @@ export class ComprobantesVentaService {
       const alic = `${Number(p.alicuota).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} %`;
       totales.push([p.tipo === 'IVA' ? `Percepción IVA ${alic}` : `Percepción IIBB ${JURISDICCIONES_CM[p.jurisdiccion!] ?? p.jurisdiccion} ${alic}`, importeAR(p.importe.toString())]);
     }
-    const contenido = await pdfVenta({
+    const datos: DatosPdfVenta = {
       empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), condicionIva: ETIQUETAS_CONDICION_IVA[empresa.condicionIva], domicilio: empresa.domicilio },
       cliente: { razonSocial: t.razonSocial, documento, condicionIva: ETIQUETAS_CONDICION_IVA[t.condicionIva], domicilio: t.domicilio },
       titulo: c.fce ? TITULOS_FCE[c.tipo] : titulos[c.tipo], fce, letra, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
@@ -309,8 +315,8 @@ export class ComprobantesVentaService {
         moneda: monedaArca(c.monedaCodigo as 'ARS' | 'USD'), ctz: c.cotizacion.toString(), tipoDocRec: docTipoArca(t.tipoDocumento), nroDocRec: t.tipoDocumento === 'OTRO' ? '0' : t.cuit, cae: c.cae,
       }),
       sinValidez: (config?.ambiente ?? 'SIMULADO') !== 'PRODUCCION',
-    });
-    return { nombre: `${titulos[c.tipo].toLowerCase().replace(/ /g, '-')}-${letra}-${numeroVenta(c.puntoVenta, c.numero)}.pdf`, contenido };
+    };
+    return { nombre: `${titulos[c.tipo].toLowerCase().replace(/ /g, '-')}-${letra}-${numeroVenta(c.puntoVenta, c.numero)}.pdf`, datos };
   }
 
   eliminar(id: string) {
