@@ -1,3 +1,4 @@
+import { FacturacionLotesPage } from '../ventas/FacturacionLotesPage';
 import { RemitoDevolucionPage } from '../ventas/RemitoDevolucionPage';
 import { FceEmitidasPage, FceRecibidasPage } from '../ventas/fce';
 import { DespachoImportacionPage } from '../compras/DespachoImportacionPage';
@@ -211,6 +212,7 @@ export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/ventas/pedido', elemento: <PedidoVentaPage /> },
   { ruta: '/ventas/remito', elemento: <RemitoPage /> },
   { ruta: '/ventas/remito-devolucion', elemento: <RemitoDevolucionPage /> },
+  { ruta: '/ventas/facturacion-lotes', elemento: <FacturacionLotesPage /> },
   { ruta: '/ventas/pedidos', elemento: <PedidosPage /> },
   { ruta: '/ventas/remitos', elemento: <RemitosConsultaPage /> },
   { ruta: '/stock/transferencia', elemento: <DocumentoStockPage key="t" tipo="TRANSFERENCIA" /> },
