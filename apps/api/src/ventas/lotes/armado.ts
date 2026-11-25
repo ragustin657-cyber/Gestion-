@@ -40,7 +40,7 @@ const etiquetaComprobante = (c: { letra: string; puntoVenta: number; numero: num
  * Remitos de entrega confirmados hasta `hasta` con pendiente de facturar (cantidad − facturada − devuelta), agrupados por
  * cliente y moneda (la del pedido; sin pedido, ARS), con el precio del pedido o el sugerido de la lista del cliente (spec §1-§3).
  */
-export async function armarLote(tx: TxEmpresa, precios: PreciosService, f: { hasta: Date; fecha: Date; terceroIds?: string[] }): Promise<GrupoLote[]> {
+export async function armarLote(tx: TxEmpresa, precios: PreciosService, f: { empresaId: string; hasta: Date; fecha: Date; terceroIds?: string[] }): Promise<GrupoLote[]> {
   const rs = await tx.remitoRenglon.findMany({
     where: { remito: { tipo: 'ENTREGA', estado: 'CONFIRMADO', fecha: { lte: f.hasta }, ...(f.terceroIds?.length ? { terceroId: { in: f.terceroIds } } : {}) } },
     include: { remito: true },
@@ -56,7 +56,7 @@ export async function armarLote(tx: TxEmpresa, precios: PreciosService, f: { has
   const pedidoRs = new Map((await tx.pedidoVentaRenglon.findMany({ where: { id: { in: pendientes.map((r) => r.pedidoRenglonId).filter((x): x is string => !!x) } }, include: { pedido: true } })).map((p) => [p.id, p]));
   const arts = new Map((await tx.articulo.findMany({ where: { id: { in: pendientes.map((r) => r.articuloId).filter((x): x is string => !!x) } } })).map((a) => [a.id, a]));
   const terceros = new Map((await tx.tercero.findMany({ where: { id: { in: [...new Set(pendientes.map((r) => r.remito.terceroId))] } } })).map((t) => [t.id, t]));
-  const empresa = await tx.empresa.findFirstOrThrow();
+  const empresa = await tx.empresa.findUniqueOrThrow({ where: { id: f.empresaId } });
   let cotUsd: Dec | null | undefined;
   const usd = async () => {
     if (cotUsd === undefined) cotUsd = await cotizacion(tx, 'USD', f.fecha).catch(() => null);

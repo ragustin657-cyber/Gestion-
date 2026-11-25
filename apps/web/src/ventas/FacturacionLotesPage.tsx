@@ -128,6 +128,8 @@ export function FacturacionLotesPage() {
   const [grupos, setGrupos] = useState<GrupoLote[] | null>(null);
   const [elegidos, setElegidos] = useState<string[]>([]);
   const [lote, setLote] = useState<Lote | null>(null);
+  // Cambiar un filtro invalida la vista previa: hay que volver a ver antes de generar
+  const filtro = <T,>(set: (v: T) => void) => (v: T) => { set(v); setGrupos(null); setElegidos([]); };
   useEffect(() => { if (!puntoVentaId && puntos.length) setPuntoVentaId(puntos.find((p) => p.electronico)?.id ?? puntos[0].id); }, [puntos, puntoVentaId]);
 
   /** Consulta sin notificación de éxito: el error va a la alerta de la pantalla. */
@@ -146,8 +148,9 @@ export function FacturacionLotesPage() {
     if (g) { setGrupos(g); setElegidos(g.filter((x) => !x.problemas.length && x.renglones.length).map(clave)); }
   };
   const generar = async () => {
-    const ids = [...new Set(elegidos.map((k) => k.split('|')[0]))];
-    const r = await op.ejecutar(() => api<Lote>('/ventas/facturacion-lotes', { metodo: 'POST', body: { hasta, fecha, puntoVentaId, terceroIds: ids } }), (l) => `Lote N° ${l.numero}: ${l.emitidas} facturas emitidas`);
+    // Cada grupo elegido es un cliente en una moneda: se manda el par, no solo el cliente
+    const grupos = elegidos.map((k) => { const [terceroId, monedaCodigo] = k.split('|'); return { terceroId, monedaCodigo }; });
+    const r = await op.ejecutar(() => api<Lote>('/ventas/facturacion-lotes', { metodo: 'POST', body: { hasta, fecha, puntoVentaId, grupos } }), (l) => `Lote N° ${l.numero}: ${l.emitidas} facturas emitidas`);
     if (r) {
       setLote(r); setGrupos(null);
       void qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('/ventas') });
@@ -163,10 +166,10 @@ export function FacturacionLotesPage() {
       <Paper withBorder p="md" radius="md">
         <Title order={3} mb="md">Facturación por lotes</Title>
         <Group align="flex-end" mb="md">
-          <TextInput label="Remitos hasta" type="date" value={hasta} onChange={(e) => setHasta(e.currentTarget.value)} />
-          <Select label="Punto de venta" w={170} data={puntos.map((p) => ({ value: p.id, label: String(p.numero).padStart(4, '0') }))} value={puntoVentaId} onChange={setPuntoVentaId} />
-          <TextInput label="Fecha de emisión" type="date" value={fecha} onChange={(e) => setFecha(e.currentTarget.value)} />
-          <MultiSelect label="Clientes" placeholder={terceroIds.length ? undefined : 'Todos'} w={340} searchable clearable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroIds} onChange={setTerceroIds} />
+          <TextInput label="Remitos hasta" type="date" value={hasta} onChange={(e) => filtro(setHasta)(e.currentTarget.value)} />
+          <Select label="Punto de venta" w={170} data={puntos.map((p) => ({ value: p.id, label: String(p.numero).padStart(4, '0') }))} value={puntoVentaId} onChange={filtro(setPuntoVentaId)} />
+          <TextInput label="Fecha de emisión" type="date" value={fecha} onChange={(e) => filtro(setFecha)(e.currentTarget.value)} />
+          <MultiSelect label="Clientes" placeholder={terceroIds.length ? undefined : 'Todos'} w={340} searchable clearable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroIds} onChange={filtro(setTerceroIds)} />
           <Button variant="default" onClick={() => void ver()}>Ver</Button>
         </Group>
         {grupos && <TablaVistaPrevia grupos={grupos} elegidos={elegidos} onChange={setElegidos} />}

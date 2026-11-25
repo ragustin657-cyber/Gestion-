@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, HttpException, Injectable, NotF
 import type { ResultadoLoteFacturacion } from '@prisma/client';
 import { ClsService } from 'nestjs-cls';
 import { AuditoriaService } from '../../auditoria/auditoria.service';
+import { bloquear } from '../../compras/comun';
 import { CLAVE_CONTEXTO, ContextoRequest } from '../../contexto/contexto';
 import { TenantPrisma, TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { D } from '../../tesoreria/operaciones/tesoreria-comun';
@@ -45,12 +46,12 @@ export class LotesFacturacionService {
   ) {}
 
   vistaPrevia(q: FiltroVistaPrevia) {
-    return armarLote(this.tenant.db, this.precios, q);
+    return armarLote(this.tenant.db, this.precios, { ...q, empresaId: this.tenant.empresaId });
   }
 
-  /** Los lotes que quedaron en curso más de 15 minutos se cortaron (caída o tiempo de espera). */
+  /** Los lotes en curso sin avanzar hace más de 15 minutos se cortaron (caída o tiempo de espera). */
   private interrumpir(tx: TxEmpresa) {
-    return tx.loteFacturacion.updateMany({ where: { estado: 'EN_CURSO', creadoEn: { lt: new Date(Date.now() - QUINCE_MINUTOS) } }, data: { estado: 'INTERRUMPIDO' } });
+    return tx.loteFacturacion.updateMany({ where: { estado: 'EN_CURSO', actualizadoEn: { lt: new Date(Date.now() - QUINCE_MINUTOS) } }, data: { estado: 'INTERRUMPIDO' } });
   }
 
   async generar(d: DatosGenerar) {
@@ -58,11 +59,16 @@ export class LotesFacturacionService {
     // 1. Registro del lote, con un solo lote en curso por empresa
     // Los cortados se marcan aparte: queda registrado aunque el lote nuevo no se pueda crear
     await this.interrumpir(this.tenant.db);
+    if (await this.tenant.db.loteFacturacion.count({ where: { estado: 'EN_CURSO' } })) throw new ConflictException('Ya hay un lote de facturación en curso');
+    if (!(await this.tenant.db.puntoVenta.findUnique({ where: { id: d.puntoVentaId } }))) throw new BadRequestException('Punto de venta inexistente');
+    // Los grupos se arman antes del bloqueo (puede llevar tiempo con muchos renglones); cada factura se vuelve a armar en su transacción
+    const elegidos = new Set(d.grupos.map((g) => `${g.terceroId}|${g.monedaCodigo}`));
+    const terceroIds = [...new Set(d.grupos.map((g) => g.terceroId))];
+    const armados = (await armarLote(this.tenant.db, this.precios, { empresaId, hasta: d.hasta, fecha: d.fecha, terceroIds })).filter((g) => g.renglones.length && elegidos.has(`${g.terceroId}|${g.monedaCodigo}`));
     const { loteId, grupos } = await this.tenant.transaccion(async (tx) => {
       await tx.$queryRawUnsafe('SELECT id FROM "Empresa" WHERE id = $1::uuid FOR UPDATE', empresaId);
       if (await tx.loteFacturacion.count({ where: { estado: 'EN_CURSO' } })) throw new ConflictException('Ya hay un lote de facturación en curso');
-      if (!(await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } }))) throw new BadRequestException('Punto de venta inexistente');
-      const grupos = (await armarLote(tx, this.precios, d)).filter((g) => g.renglones.length);
+      const grupos = armados;
       if (!grupos.length) throw new BadRequestException('No hay remitos pendientes de facturar');
       const tope = LotesFacturacionService.tope;
       if (grupos.filter((g) => !g.problemas.length).length > tope) throw new BadRequestException(`El lote supera las ${tope} facturas: acote los clientes o la fecha`);
@@ -75,17 +81,24 @@ export class LotesFacturacionService {
         },
         include: { items: { orderBy: { orden: 'asc' } } },
       });
-      await this.auditoria.registrar(tx, { entidad: 'LoteFacturacion', entidadId: lote.id, accion: 'CREAR', datos: { numero, clientes: d.terceroIds.length } });
+      await this.auditoria.registrar(tx, { entidad: 'LoteFacturacion', entidadId: lote.id, accion: 'CREAR', datos: { numero, facturas: grupos.length } });
       return { loteId: lote.id, grupos: lote.items.map((i) => ({ item: i, grupo: grupos[i.orden] })) };
     });
 
     // 2. Una factura por ítem pendiente: cada una en su transacción y luego su emisión
-    for (const { item, grupo } of grupos) {
-      if (item.resultado !== 'PENDIENTE') continue;
-      const r = await this.facturar(d, grupo);
-      const contador = { EMITIDA: 'emitidas', SIN_CAE: 'sinCae', ERROR: 'errores', OMITIDO: 'omitidas' } as const;
-      await this.tenant.db.loteFacturacionItem.update({ where: { id: item.id }, data: { resultado: r.resultado, mensaje: r.mensaje, comprobanteId: r.comprobanteId, fce: r.fce, ...(r.total ? { total: r.total } : {}) } });
-      await this.tenant.db.loteFacturacion.update({ where: { id: loteId }, data: { [contador[r.resultado as keyof typeof contador]]: { increment: 1 } } });
+    try {
+      for (const { item, grupo } of grupos) {
+        if (item.resultado !== 'PENDIENTE') continue;
+        const r = await this.facturar(d, grupo);
+        const contador = { EMITIDA: 'emitidas', SIN_CAE: 'sinCae', ERROR: 'errores', OMITIDO: 'omitidas' } as const;
+        await this.tenant.db.loteFacturacionItem.update({ where: { id: item.id }, data: { resultado: r.resultado, mensaje: r.mensaje, comprobanteId: r.comprobanteId, fce: r.fce, ...(r.total ? { total: r.total } : {}) } });
+        // También toca actualizadoEn: el lote sigue vivo
+        await this.tenant.db.loteFacturacion.update({ where: { id: loteId }, data: { [contador[r.resultado as keyof typeof contador]]: { increment: 1 } } });
+      }
+    } catch (e) {
+      // Un error fuera de la factura (p. ej. de la base) corta el lote: queda interrumpido, no en curso
+      await this.tenant.db.loteFacturacion.update({ where: { id: loteId }, data: { estado: 'INTERRUMPIDO', terminadoEn: new Date() } }).catch(() => undefined);
+      throw e;
     }
 
     // 3. Cierre
@@ -93,7 +106,8 @@ export class LotesFacturacionService {
     return this.obtener(loteId);
   }
 
-  private async facturar(d: DatosGenerar, g: GrupoLote): Promise<{ resultado: ResultadoLoteFacturacion; mensaje: string | null; comprobanteId: string | null; fce: boolean; total: string | null }> {
+  /** Una factura del lote (público para poder simular fallas en las pruebas). */
+  async facturar(d: DatosGenerar, g: GrupoLote): Promise<{ resultado: ResultadoLoteFacturacion; mensaje: string | null; comprobanteId: string | null; fce: boolean; total: string | null }> {
     const fecha = d.fecha.toISOString().slice(0, 10);
     let obligacion;
     try {
@@ -103,7 +117,11 @@ export class LotesFacturacionService {
     }
     const crear = (fce: boolean) => this.tenant.transaccion(async (tx) => {
       // Se vuelve a armar dentro de la transacción: lo pendiente puede haber cambiado desde la vista previa
-      const actual = (await armarLote(tx, this.precios, { hasta: d.hasta, fecha: d.fecha, terceroIds: [g.terceroId] })).find((x) => x.monedaCodigo === g.monedaCodigo);
+      const filtro = { empresaId: this.tenant.empresaId, hasta: d.hasta, fecha: d.fecha, terceroIds: [g.terceroId] };
+      // Bloqueo de los renglones del cliente antes de releer lo pendiente: una factura de a una simultánea no factura dos veces
+      const previo = (await armarLote(tx, this.precios, filtro)).find((x) => x.monedaCodigo === g.monedaCodigo);
+      await bloquear(tx, 'RemitoRenglon', this.tenant.empresaId, previo?.renglones.map((r) => r.remitoRenglonId) ?? []);
+      const actual = (await armarLote(tx, this.precios, filtro)).find((x) => x.monedaCodigo === g.monedaCodigo);
       if (!actual?.renglones.length) return null;
       if (actual.problemas.length) throw new BadRequestException(actual.problemas[0]);
       const t = await tx.tercero.findUniqueOrThrow({ where: { id: g.terceroId } });

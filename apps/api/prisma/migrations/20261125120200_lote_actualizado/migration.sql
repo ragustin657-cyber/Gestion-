@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "LoteFacturacion" ADD COLUMN     "actualizadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+

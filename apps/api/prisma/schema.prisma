@@ -3319,6 +3319,8 @@ model LoteFacturacion {
   errores      Int                      @default(0)
   omitidas     Int                      @default(0)
   creadoEn     DateTime                 @default(now())
+  /// Se toca con cada factura del lote: el corte se detecta por inactividad
+  actualizadoEn DateTime                @default(now()) @updatedAt
   terminadoEn  DateTime?
   items        LoteFacturacionItem[]
 

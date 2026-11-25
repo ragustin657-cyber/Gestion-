@@ -41,7 +41,7 @@ describe('facturación por lotes (E55)', () => {
       return r.body as Grupo[];
     };
     const generar = (terceroIds: string[], o: Record<string, unknown> = {}) =>
-      e.http.post('/api/ventas/facturacion-lotes', { hasta: '2026-11-30', fecha: '2026-11-06', puntoVentaId: e.puntoVenta.id, terceroIds, ...o });
+      e.http.post('/api/ventas/facturacion-lotes', { hasta: '2026-11-30', fecha: '2026-11-06', puntoVentaId: e.puntoVenta.id, grupos: terceroIds.map((terceroId) => ({ terceroId, monedaCodigo: 'ARS' })), ...o });
     return { ...e, art, otro, alta, pedidoYRemito, vista, generar };
   };
 
@@ -182,7 +182,7 @@ describe('facturación por lotes (E55)', () => {
       const enCurso = await prisma.loteFacturacion.create({ data: { empresaId: x.empresaId, numero: 1, fecha: new Date('2026-11-06'), hasta: new Date('2026-11-30'), puntoVentaId: x.puntoVenta.id, usuarioId: 'x' } });
       const b = await x.generar([x.clienteRI.id]);
       expect([b.status, b.body.message]).toEqual([409, 'Ya hay un lote de facturación en curso']);
-      await prisma.loteFacturacion.update({ where: { id: enCurso.id }, data: { creadoEn: new Date(Date.now() - 20 * 60 * 1000) } });
+      await prisma.loteFacturacion.update({ where: { id: enCurso.id }, data: { actualizadoEn: new Date(Date.now() - 20 * 60 * 1000) } });
       LotesFacturacionService.tope = 1;
       const t = await x.generar([x.clienteRI.id, x.otro.id]);
       expect([t.status, t.body.message]).toEqual([400, 'El lote supera las 1 facturas: acote los clientes o la fecha']);
@@ -190,6 +190,53 @@ describe('facturación por lotes (E55)', () => {
       LotesFacturacionService.tope = 200;
       const ok = await x.generar([x.clienteRI.id]);
       expect([ok.status, ok.body.numero, ok.body.estado]).toEqual([201, 2, 'TERMINADO']);
+    });
+  });
+
+  describe('revisión final', () => {
+    it('solo se factura el grupo elegido (cliente y moneda); la factura en USD se emite con su cotización', async () => {
+      const x = await escenario();
+      await x.cotizacionUsd('2026-11-06', 1100);
+      await x.pedidoYRemito(x.clienteRI.id, 2, { precio: 10, pedido: { monedaCodigo: 'USD', cotizacion: 1000 } });
+      await x.pedidoYRemito(x.clienteRI.id, 1, { precio: 500 });
+      const ars = (await x.generar([x.clienteRI.id])).body as Lote;
+      expect(ars.items.map((i) => [i.resultado, i.total])).toEqual([['EMITIDA', '605']]);
+      expect(await prisma.comprobanteVenta.count()).toBe(1);
+      const usd = (await x.generar([], { grupos: [{ terceroId: x.clienteRI.id, monedaCodigo: 'USD' }] })).body as Lote;
+      expect(usd.items.map((i) => [i.resultado, i.total])).toEqual([['EMITIDA', '24.2']]);
+      expect(await prisma.comprobanteVenta.findUniqueOrThrow({ where: { id: usd.items[0].comprobanteId! } })).toMatchObject({ monedaCodigo: 'USD', estado: 'AUTORIZADO' });
+      expect((await prisma.comprobanteVenta.findUniqueOrThrow({ where: { id: usd.items[0].comprobanteId! } })).cotizacion.toString()).toBe('1100');
+    });
+
+    it('la letra de la vista previa es la de la empresa propia', async () => {
+      const x = await escenario();
+      await prisma.empresa.create({ data: { razonSocial: 'Otra SA', cuit: '30-99999999-7', condicionIva: 'RESPONSABLE_INSCRIPTO' } });
+      await prisma.empresa.update({ where: { id: x.empresaId }, data: { condicionIva: 'MONOTRIBUTO' } });
+      await x.pedidoYRemito(x.clienteRI.id, 1);
+      expect((await x.vista(''))[0].letra).toBe('C');
+    });
+
+    it('un lote que sigue avanzando no se interrumpe aunque haya empezado hace más de 15 minutos', async () => {
+      const x = await escenario();
+      await x.pedidoYRemito(x.clienteRI.id, 1);
+      const viejo = new Date(Date.now() - 20 * 60 * 1000);
+      const l = await prisma.loteFacturacion.create({ data: { empresaId: x.empresaId, numero: 1, fecha: new Date('2026-11-06'), hasta: new Date('2026-11-30'), puntoVentaId: x.puntoVenta.id, usuarioId: 'x', creadoEn: viejo } });
+      const b = await x.generar([x.clienteRI.id]);
+      expect([b.status, b.body.message]).toEqual([409, 'Ya hay un lote de facturación en curso']);
+      expect((await prisma.loteFacturacion.findUniqueOrThrow({ where: { id: l.id } })).estado).toBe('EN_CURSO');
+    });
+
+    it('un error inesperado a mitad del lote no lo deja en curso', async () => {
+      const x = await escenario();
+      await x.pedidoYRemito(x.clienteRI.id, 1);
+      const svc = app.get(LotesFacturacionService) as unknown as { facturar: () => Promise<unknown> };
+      const spy = jest.spyOn(svc, 'facturar').mockRejectedValueOnce(new Error('falla de base'));
+      const r = await x.generar([x.clienteRI.id]);
+      spy.mockRestore();
+      expect(r.status).toBe(500);
+      const lote = await prisma.loteFacturacion.findFirstOrThrow();
+      expect(lote.estado).toBe('INTERRUMPIDO');
+      expect((await x.generar([x.clienteRI.id])).status).toBe(201);
     });
   });
 });
