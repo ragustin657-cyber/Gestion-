@@ -3289,3 +3289,56 @@ enum TipoRemito {
   ENTREGA
   DEVOLUCION
 }
+
+/// E55: facturación por lotes de remitos pendientes
+enum EstadoLoteFacturacion {
+  EN_CURSO
+  TERMINADO
+  INTERRUMPIDO
+}
+
+enum ResultadoLoteFacturacion {
+  PENDIENTE
+  EMITIDA
+  SIN_CAE
+  ERROR
+  OMITIDO
+}
+
+model LoteFacturacion {
+  id           String                   @id @default(uuid()) @db.Uuid
+  empresaId    String                   @db.Uuid
+  numero       Int
+  fecha        DateTime                 @db.Date
+  hasta        DateTime                 @db.Date
+  puntoVentaId String                   @db.Uuid
+  usuarioId    String
+  estado       EstadoLoteFacturacion    @default(EN_CURSO)
+  emitidas     Int                      @default(0)
+  sinCae       Int                      @default(0)
+  errores      Int                      @default(0)
+  omitidas     Int                      @default(0)
+  creadoEn     DateTime                 @default(now())
+  terminadoEn  DateTime?
+  items        LoteFacturacionItem[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, estado])
+}
+
+model LoteFacturacionItem {
+  id            String                   @id @default(uuid()) @db.Uuid
+  empresaId     String                   @db.Uuid
+  loteId        String                   @db.Uuid
+  lote          LoteFacturacion          @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  orden         Int
+  terceroId     String                   @db.Uuid
+  monedaCodigo  String
+  comprobanteId String?                  @db.Uuid
+  resultado     ResultadoLoteFacturacion @default(PENDIENTE)
+  fce           Boolean                  @default(false)
+  mensaje       String?
+  total         Decimal                  @default(0) @db.Decimal(18, 2)
+
+  @@index([empresaId, loteId])
+}
