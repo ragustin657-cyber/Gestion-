@@ -1,3 +1,4 @@
+import { bonificacionPorCantidad } from './escalas';
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
@@ -74,6 +75,12 @@ export class PreciosController {
   @Get('listas/:id/historial') @RequiereAlguno('venta.ver', 'pedido.gestionar')
   historial(@Param('id', ParseUUIDPipe) id: string, @Query('articuloId') articuloId?: string) {
     return this.precios.historial(id, articuloId);
+  }
+
+  /** E56: bonificación sugerida por la escala de descuento por cantidad. */
+  @Get('bonificacion') @RequiereAlguno('venta.emitir', 'pedido.gestionar')
+  bonificacion(@Query(new ZodValidationPipe(z.object({ articuloId: z.string().uuid('Artículo inválido'), cantidad: z.coerce.number().gt(0) }))) q: { articuloId: string; cantidad: number }) {
+    return bonificacionPorCantidad(this.tenant.db, q.articuloId, q.cantidad);
   }
 
   @Get('precio') @RequierePermiso()
