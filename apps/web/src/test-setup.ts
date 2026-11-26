@@ -10,3 +10,6 @@ Object.defineProperty(window, 'matchMedia', {
 });
 class RO { observe() {} unobserve() {} disconnect() {} }
 (window as unknown as { ResizeObserver: typeof RO }).ResizeObserver = RO;
+
+// E57: jsdom no implementa scrollIntoView (lo usan los Select con búsqueda de Mantine al navegar las opciones)
+if (!Element.prototype.scrollIntoView) Element.prototype.scrollIntoView = () => {};
