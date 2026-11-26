@@ -1,5 +1,5 @@
 import { CondicionIva, SituacionIibb, TipoDocumento } from '@prisma/client';
-import { validarCuit, normalizarCuit } from '@gestion/shared';
+import { esProvinciaArba, validarCuit, normalizarCuit } from '@gestion/shared';
 import { z } from 'zod';
 import { zTexto, zTextoOpcional } from '../comun/esquemas';
 
@@ -37,6 +37,9 @@ const base = z.object({
   nif: zTextoOpcional,
   paisSire: z.number().int().min(0).max(999).nullish(),
   domicilioExterior: zTextoOpcional,
+  // E57: domicilio de entrega (destino del COT)
+  entregaCalle: zTextoOpcional, entregaNumero: zTextoOpcional, entregaCodigoPostal: zTextoOpcional, entregaLocalidad: zTextoOpcional,
+  entregaProvincia: z.string().trim().toUpperCase().refine(esProvinciaArba, 'Provincia inválida (letra de la tabla de ARBA)').nullish(),
   tipoPersona: z.enum(['F', 'J']).nullish(),
   nacimientoPais: z.number().int().min(0).max(999).nullish(),
   nacimientoFecha: z.coerce.date().nullish(),
