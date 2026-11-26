@@ -94,4 +94,16 @@ describe('rubros de artículos y descuentos por cantidad (E56)', () => {
     const inact = await x.http.put(`/api/ventas/listas/${may.id}/margenes-rubro`, { margenes: [{ rubroId: b.id, margenPct: 20 }] });
     expect([inact.status, inact.body.message]).toEqual([400, 'Rubro inexistente o inactivo']);
   });
+
+  it('revisión final: guardar los márgenes no borra los de un rubro desactivado', async () => {
+    const x = await escenario();
+    const a = await x.rubro('Bebidas');
+    const b = await x.rubro('Limpieza');
+    const lista = (await x.http.post('/api/ventas/listas', { nombre: 'Mayorista', monedaCodigo: 'ARS', base: 'COSTO', porcentaje: 30, redondeo: '1' })).body as { id: string };
+    expect((await x.http.put(`/api/ventas/listas/${lista.id}/margenes-rubro`, { margenes: [{ rubroId: a.id, margenPct: 40 }, { rubroId: b.id, margenPct: 20 }] })).status).toBe(200);
+    await x.http.patch(`/api/rubros-articulos/${a.id}`, { activo: false });
+    expect((await x.http.put(`/api/ventas/listas/${lista.id}/margenes-rubro`, { margenes: [{ rubroId: b.id, margenPct: 25 }] })).status).toBe(200);
+    await x.http.patch(`/api/rubros-articulos/${a.id}`, { activo: true });
+    expect((await x.http.get(`/api/ventas/listas/${lista.id}/margenes-rubro`)).body).toEqual([{ rubroId: a.id, nombre: 'Bebidas', margenPct: '40' }, { rubroId: b.id, nombre: 'Limpieza', margenPct: '25' }]);
+  });
 });

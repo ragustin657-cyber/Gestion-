@@ -101,7 +101,8 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
     if (!sugerirBonificacion || !articuloId || !r || r.bonificacionManual || (r.origen ?? 'DIRECTO') !== 'DIRECTO' || !(numero(cantidad) > 0)) return;
     const pct = await sugerirBonificacion(articuloId, String(numero(cantidad)));
     const nuevos = aplicarBonificacionSugerida(ultimos.current, i, articuloId, cantidad, pct);
-    if (nuevos !== ultimos.current) onChange(nuevos);
+    // Se actualiza ya: otra respuesta que llegue antes del próximo render parte de estos renglones (revisión E56)
+    if (nuevos !== ultimos.current) { ultimos.current = nuevos; onChange(nuevos); }
   };
   const t = totalesVenta(renglones, letra, descuentoPct || '0');
   const hayDescuento = Number(t.descuentoGeneral) > 0;
@@ -128,7 +129,7 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
                       const precio = sugerirPrecio && v ? await sugerirPrecio(v) : null;
                       if (precio) {
                         const nuevos = aplicarPrecioSugerido(ultimos.current, i, v!, precio);
-                        if (nuevos !== ultimos.current) onChange(nuevos);
+                        if (nuevos !== ultimos.current) { ultimos.current = nuevos; onChange(nuevos); }
                       }
                     }} />}</Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Descripción" value={r.descripcion} onChange={(e) => cambiar(i, { descripcion: e.currentTarget.value })} /></Table.Td>

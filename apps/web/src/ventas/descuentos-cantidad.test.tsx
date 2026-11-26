@@ -7,6 +7,7 @@ import { EditorEscalas } from '../articulos/EditorEscalas';
 import { AuthProvider } from '../auth/AuthContext';
 import { filtrarMenu, MENU, NodoMenu } from '../layout/menu';
 import { aplicarBonificacionSugerida, GrillaVenta, type RenglonVentaEditable } from './GrillaVenta';
+import { renglonDeRemito } from './ComprobanteVentaPage';
 
 const envolver = (n: React.ReactNode) => render(<MantineProvider><QueryClientProvider client={new QueryClient()}><MemoryRouter><AuthProvider>{n}</AuthProvider></MemoryRouter></QueryClientProvider></MantineProvider>);
 const renglon = (o: Partial<RenglonVentaEditable> = {}): RenglonVentaEditable => ({ articuloId: 'a', descripcion: 'Agua', cantidad: '12', precioUnitario: '100', alicuota: '21', ...o });
@@ -59,5 +60,27 @@ describe('descuentos por cantidad (web, E56)', () => {
     expect(JSON.parse(String(llamadas.find((l) => l.init?.method === 'PUT')!.init!.body))).toEqual({ escalas: [{ desde: 12, porcentaje: 5 }] });
     const rutas = (n: NodoMenu[]): string[] => n.flatMap((x) => [...(x.ruta ? [x.ruta] : []), ...rutas(x.hijos ?? [])]);
     expect(rutas(filtrarMenu(MENU, ['articulo.ver']))).toContain('/maestros/rubros-articulos');
+  });
+
+  describe('revisión final', () => {
+    it('precio y bonificación que llegan juntos: no se pisan', async () => {
+      function Prueba() {
+        const [r, setR] = useState<RenglonVentaEditable[]>([{ articuloId: null, descripcion: '', cantidad: '12', precioUnitario: '', alicuota: '21' }]);
+        return <GrillaVenta renglones={r} onChange={setR} letra="A" moneda="ARS" articulos={[{ value: 'a', label: 'AGUA - Agua', descripcion: 'Agua', alicuotaIva: '21' }]}
+          sugerirPrecio={async () => '100'} sugerirBonificacion={async () => '5'} />;
+      }
+      envolver(<Prueba />);
+      fireEvent.click(screen.getByRole('textbox', { name: 'Artículo' }));
+      fireEvent.click(await screen.findByRole('option', { name: 'AGUA - Agua' }));
+      await waitFor(() => expect(screen.getByLabelText('Precio unitario')).toHaveValue('100'));
+      expect(screen.getByLabelText('Bonificación %')).toHaveValue('5');
+    });
+
+    it('renglón de remito sin pedido: lleva la bonificación de la escala; con pedido, la del pedido', () => {
+      const rem = { remitoRenglonId: 'r1', numero: 'R 0001-00000001', articuloId: 'a', descripcion: 'Agua', pendiente: '12', precioPedido: null, alicuotaPedido: null, bonificacionPedido: null, monedaPedido: null, cotizacionPedido: null };
+      expect(renglonDeRemito(rem, '12', '100', '5', '21')).toMatchObject({ origen: 'REMITO', precioUnitario: '100', bonificacionPct: '5' });
+      expect(renglonDeRemito({ ...rem, precioPedido: '90', bonificacionPedido: '10', alicuotaPedido: '21' }, '12', '90', '5', '21').bonificacionPct).toBe('10');
+      expect(renglonDeRemito(rem, '3', '100', null, '21').bonificacionPct).toBeUndefined();
+    });
   });
 });

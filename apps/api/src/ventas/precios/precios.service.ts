@@ -299,7 +299,8 @@ export class PreciosService {
       if (new Set(ids).size !== ids.length) throw new BadRequestException('Hay un rubro repetido');
       const activos = await tx.rubroArticulo.count({ where: { id: { in: ids }, activo: true } });
       if (activos !== ids.length) throw new BadRequestException('Rubro inexistente o inactivo');
-      await tx.margenRubroLista.deleteMany({ where: { listaId } });
+      // Solo se reemplazan los de rubros activos: los de un rubro desactivado se conservan por si se reactiva
+      await tx.margenRubroLista.deleteMany({ where: { listaId, rubroId: { in: (await tx.rubroArticulo.findMany({ where: { activo: true }, select: { id: true } })).map((r) => r.id) } } });
       if (d.margenes.length) await tx.margenRubroLista.createMany({ data: d.margenes.map((x) => ({ empresaId: this.tenant.empresaId, listaId, rubroId: x.rubroId, margenPct: x.margenPct })) });
       await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: listaId, accion: 'MODIFICAR', datos: { margenesRubro: d.margenes } });
     }).then(() => this.margenesRubro(listaId));

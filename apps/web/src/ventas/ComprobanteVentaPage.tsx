@@ -26,6 +26,16 @@ export function depositoParaEditar(depositoId: string | null | undefined, deposi
 }
 
 /** Renglón editable a partir de un comprobante guardado, conservando su origen (remito o pedido). */
+/** Renglón de factura desde un remito pendiente: precio, alícuota y bonificación del pedido; sin pedido, la de la escala (E56). */
+export function renglonDeRemito(rem: { remitoRenglonId: string; numero: string; articuloId: string | null; descripcion: string; precioPedido: string | null; alicuotaPedido: string | null; bonificacionPedido?: string | null }, cant: string, precio: string | null, bonificacionEscala: string | null, alicuotaArticulo?: string): RenglonVentaEditable {
+  const bonif = rem.precioPedido ? rem.bonificacionPedido : bonificacionEscala;
+  return {
+    origen: 'REMITO', remitoRenglonId: rem.remitoRenglonId, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant,
+    precioUnitario: precio ? String(Number(precio)) : '', alicuota: rem.alicuotaPedido ?? alicuotaArticulo ?? '21',
+    ...(bonif && Number(bonif) ? { bonificacionPct: String(Number(bonif)) } : {}),
+  };
+}
+
 export function renglonDesdeComprobante(r: { articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null; bienUsoId?: string | null; bonificacionPct?: string }): RenglonVentaEditable {
   const origen = r.remitoRenglonId ? 'REMITO' : r.pedidoRenglonId ? 'PEDIDO' : 'DIRECTO';
   return {
@@ -123,7 +133,9 @@ export function ComprobanteVentaPage() {
         const precio = rem.precioPedido
           ? convertirPrecio(rem.precioPedido, rem.monedaPedido!, moneda, cotizacion ? String(numero(cotizacion)) : '', rem.cotizacionPedido!)
           : rem.articuloId ? await precioSugerido({ terceroId, articuloId: rem.articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' }) : null;
-        nuevos.push({ origen: 'REMITO', remitoRenglonId: id, etiqueta: rem.numero, articuloId: rem.articuloId, descripcion: rem.descripcion, cantidad: cant, precioUnitario: precio ? String(Number(precio)) : '', alicuota: rem.alicuotaPedido ?? (art ? String(Number(art.alicuotaIva)) : '21'), ...(rem.bonificacionPedido && Number(rem.bonificacionPedido) ? { bonificacionPct: String(Number(rem.bonificacionPedido)) } : {}) });
+        // E56 (revisión): sin pedido, la bonificación de la escala, igual que la facturación por lotes
+        const escala = !rem.precioPedido && rem.articuloId && tipo === 'FACTURA' ? await bonificacionSugerida(rem.articuloId, String(numero(cant))) : null;
+        nuevos.push(renglonDeRemito(rem, cant, precio, escala, art ? String(Number(art.alicuotaIva)) : undefined));
         continue;
       }
       const ped = pendientesQ?.pedidos.find((x) => x.pedidoRenglonId === id);
