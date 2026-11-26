@@ -66,3 +66,18 @@ export function SeccionExportacion({ valor, onChange, disabled }: { valor: Datos
     </Stack>
   );
 }
+
+/** Revisión E58: la nota de crédito o débito sigue a su factura asociada (E con sus datos, o letra común). */
+export function exportacionDeAsociado(a: { letra: string; tipoExportacion?: DatosExportacion['tipoExportacion'] | null; paisDestino?: number | null; incoterm?: string | null; incotermDescripcion?: string | null; formaPago?: string | null; idioma?: number; permisoExistente?: 'S' | 'N' | null; permisos?: { numero: string; paisDestino: number }[] }): { exportacion: boolean; datos: DatosExportacion } {
+  if (a.letra !== 'E') return { exportacion: false, datos: exportacionVacia() };
+  return {
+    exportacion: true,
+    datos: {
+      tipoExportacion: a.tipoExportacion ?? 'SERVICIOS', paisDestino: a.paisDestino ?? null, incoterm: a.incoterm ?? null, incotermDescripcion: a.incotermDescripcion ?? '',
+      formaPago: a.formaPago ?? '', idioma: (a.idioma ?? 1) as 1 | 2 | 3, permisoExistente: a.permisoExistente ?? null, permisos: a.permisos ?? [],
+    },
+  };
+}
+
+/** Campos de exportación del cuerpo: solo en la factura E (las notas los toman de la factura asociada en el servidor). */
+export const camposExportacion = (tipo: string, exportacion: boolean, datos: DatosExportacion) => (exportacion && tipo === 'FACTURA' ? cuerpoExportacion(datos) : {});

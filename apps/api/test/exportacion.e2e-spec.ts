@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { ArcaSimuladoFex } from '../src/arca/arca-simulado-fex';
+import { LIVA_VENTAS_CBTE } from '../src/impuestos/formato/formatos';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararVentas } from './helpers-ventas';
@@ -62,7 +63,8 @@ describe('factura de exportación (E58)', () => {
     const fb = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ terceroId: x.exterior.id, exportacion: false, monedaCodigo: 'USD', cotizacion: 1000 }), emitir: true });
     expect(fb.body.estado).toBe('AUTORIZADO');
     const nc = await x.crear({ tipo: 'NOTA_CREDITO', comprobanteAsociadoId: fb.body.id, renglones: [{ ...x.renglonE, precioUnitario: 10 }] });
-    expect([nc.status, nc.body.message]).toEqual([400, 'La nota debe asociarse a una factura E']);
+    // Revisión E58: la nota sigue a su factura (B), y el punto de venta de exportación solo emite E
+    expect([nc.status, nc.body.message]).toEqual([400, 'El punto de venta es de exportación: solo emite comprobantes E']);
   });
 
   it('pedido del cliente del exterior con letra E; la facturación por lotes no lo factura', async () => {
@@ -130,6 +132,43 @@ describe('factura de exportación (E58)', () => {
       const texto = raw + [...raw.matchAll(/<([0-9a-f]+)>/g)].map((m) => Buffer.from(m[1], 'hex').toString('latin1')).join('');
       expect(texto).toContain('FACTURA E');
       expect(texto).toContain('Exportaci');
+    });
+  });
+
+  describe('revisión final', () => {
+    const emitir = (x: Awaited<ReturnType<typeof escenario>>, o: Record<string, unknown> = {}) => x.http.post('/api/ventas/comprobantes', { ...x.datosE(o), emitir: true });
+
+    it('las notas siguen a la factura asociada: B de un cliente del exterior y E con sus datos de exportación', async () => {
+      const x = await escenario();
+      const fb = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ terceroId: x.exterior.id, exportacion: false }), emitir: true });
+      expect(fb.body.letra).toBe('B');
+      // Sin indicar exportación (como la nota de intereses): B, no E
+      const ndB = await x.http.post('/api/ventas/comprobantes', x.datos({ terceroId: x.exterior.id, tipo: 'NOTA_DEBITO', comprobanteAsociadoId: fb.body.id }));
+      expect([ndB.status, ndB.body.letra]).toEqual([201, 'B']);
+      const fe = await emitir(x, { tipoExportacion: 'BIENES', concepto: 'PRODUCTOS', incoterm: 'FOB', permisoExistente: 'S', permisos: [{ numero: '26001EC01000001A', paisDestino: 212 }] });
+      expect(fe.body.estado).toBe('AUTORIZADO');
+      // Nota de débito sin datos de exportación: los copia de la factura E
+      const ndE = await x.http.post('/api/ventas/comprobantes', x.datos({ terceroId: x.exterior.id, puntoVentaId: x.pvExpo.id, tipo: 'NOTA_DEBITO', comprobanteAsociadoId: fe.body.id, monedaCodigo: 'USD', cotizacion: 1000, renglones: [{ descripcion: 'Intereses', cantidad: 1, precioUnitario: 5, alicuota: 'EXENTO' }] }));
+      expect([ndE.status, ndE.body.letra, ndE.body.tipoExportacion, ndE.body.paisDestino, ndE.body.incoterm, ndE.body.permisos?.length]).toEqual([201, 'E', 'BIENES', 212, 'FOB', 1]);
+    });
+
+    it('Libro IVA digital: la E va con código de operación de exportación y el CUIT país', async () => {
+      const x = await escenario();
+      expect((await emitir(x)).body.estado).toBe('AUTORIZADO');
+      const g = await x.http.post('/api/impuestos/presentaciones', { tipo: 'LIBRO_IVA_DIGITAL', periodo: '202611' });
+      expect(g.status).toBe(201);
+      const p = await prisma.presentacion.findUniqueOrThrow({ where: { id: g.body.id } });
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(Buffer.from(p.contenido));
+      const lineas = Buffer.from(await zip.file('VENTAS_CBTE.txt')!.async('uint8array')).toString('latin1').split(/\r?\n/).filter(Boolean);
+      const campo = (l: string, nombre: string) => {
+        let pos = 0;
+        for (const c of LIVA_VENTAS_CBTE) { if (c.nombre === nombre) return l.slice(pos, pos + c.largo); pos += c.largo; }
+        throw new Error(nombre);
+      };
+      const e = lineas.find((l) => campo(l, 'tipoComprobante') === '019')!;
+      expect(e).toBeTruthy();
+      expect([campo(e, 'codigoDocumento'), campo(e, 'numeroDocumento').replace(/^0+/, ''), campo(e, 'codigoOperacion')]).toEqual(['80', '55000002126', 'X']);
     });
   });
 });

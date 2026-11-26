@@ -1,7 +1,7 @@
 import { MantineProvider } from '@mantine/core';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { cuerpoExportacion, exentoParaExportacion, SeccionExportacion, type DatosExportacion } from './exportacion';
+import { camposExportacion, cuerpoExportacion, exentoParaExportacion, exportacionDeAsociado, SeccionExportacion, type DatosExportacion } from './exportacion';
 
 const envolver = (n: React.ReactNode) => render(<MantineProvider>{n}</MantineProvider>);
 function Prueba({ inicial }: { inicial: DatosExportacion }) {
@@ -32,5 +32,14 @@ describe('factura de exportación (web, E58)', () => {
 
   it('con exportación los renglones quedan exentos', () => {
     expect(exentoParaExportacion([{ articuloId: null, descripcion: 'x', cantidad: '1', precioUnitario: '1', alicuota: '21' }]).map((r) => r.alicuota)).toEqual(['EXENTO']);
+  });
+
+  it('revisión final: la nota sigue a la factura asociada y no manda datos propios', () => {
+    expect(exportacionDeAsociado({ letra: 'E', tipoExportacion: 'BIENES', paisDestino: 212, incoterm: 'FOB', incotermDescripcion: null, formaPago: 'Transferencia', idioma: 1, permisoExistente: 'S', permisos: [{ numero: '26001EC01000001A', paisDestino: 212 }] }))
+      .toEqual({ exportacion: true, datos: { tipoExportacion: 'BIENES', paisDestino: 212, incoterm: 'FOB', incotermDescripcion: '', formaPago: 'Transferencia', idioma: 1, permisoExistente: 'S', permisos: [{ numero: '26001EC01000001A', paisDestino: 212 }] } });
+    expect(exportacionDeAsociado({ letra: 'B' }).exportacion).toBe(false);
+    expect(camposExportacion('NOTA_DEBITO', true, base)).toEqual({});
+    expect(camposExportacion('FACTURA', true, base)).toMatchObject({ tipoExportacion: 'SERVICIOS', paisDestino: 212 });
+    expect(camposExportacion('FACTURA', false, base)).toEqual({});
   });
 });

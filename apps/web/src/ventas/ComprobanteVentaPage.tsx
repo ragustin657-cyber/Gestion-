@@ -1,4 +1,4 @@
-import { cuerpoExportacion, exentoParaExportacion, exportacionVacia, SeccionExportacion, type DatosExportacion } from './exportacion';
+import { camposExportacion, exentoParaExportacion, exportacionDeAsociado, exportacionVacia, SeccionExportacion, type DatosExportacion } from './exportacion';
 import { SelectorVendedor, useVendedores } from './ComisionesPages';
 import { Button, Checkbox, Group, Modal, Paper, Select, Stack, Text, TextInput, Title, Alert } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
@@ -215,7 +215,7 @@ export function ComprobanteVentaPage() {
     comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado, vendedorId: tipo === 'FACTURA' ? vendedor : undefined,
     depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
     descuentoPct: descuentoPct.trim() ? numero(descuentoPct) : 0,
-    exportacion, ...(exportacion ? cuerpoExportacion(datosExpo) : {}),
+    exportacion, ...camposExportacion(tipo, exportacion, datosExpo),
     renglones: renglones.map(cuerpoRenglonVenta),
   });
 
@@ -291,7 +291,7 @@ export function ComprobanteVentaPage() {
           fce={fce} onFce={setFce} transferencia={transferenciaFce} onTransferencia={setTransferenciaFce} anulacion={anulacionFce} onAnulacion={setAnulacionFce} disabled={!editable} fijo />
         {tipo !== 'FACTURA' && (
           <Group mt="sm" align="flex-end">
-            <Select label="Comprobante asociado" w={360} searchable value={asociadoId} onChange={(v) => { setAsociadoId(v); setFce(!!asociables.find((a) => a.id === v)?.fce); }} disabled={!editable}
+            <Select label="Comprobante asociado" w={360} searchable value={asociadoId} onChange={(v) => { setAsociadoId(v); const a = asociables.find((x) => x.id === v); setFce(!!a?.fce); if (a) { const e = exportacionDeAsociado(a); setExportacion(e.exportacion); setDatosExpo(e.datos); if (e.exportacion) setRenglones(exentoParaExportacion(renglones)); } }} disabled={!editable}
               data={asociables.map((a) => ({ value: a.id, label: `${NOMBRE_TIPO[a.tipo]} ${a.letra} ${numeroVenta(a.puntoVenta, a.numero)} · saldo ${formatoMoneda(a.saldo, a.monedaCodigo)}` }))} />
             {tipo === 'NOTA_CREDITO' && <Checkbox label="Aplicar a la factura asociada" checked={aplicarAAsociado} onChange={(e) => setAplicarAAsociado(e.currentTarget.checked)} disabled={!editable} />}
             {tipo === 'NOTA_CREDITO' && <Checkbox label="Con devolución de mercadería" checked={devuelveMercaderia} onChange={(e) => setDevuelveMercaderia(e.currentTarget.checked)} disabled={!editable} />}
@@ -305,8 +305,8 @@ export function ComprobanteVentaPage() {
           {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
             onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
         </Group>}
-        {cliente?.residenteExterior && <Checkbox label="Exportación (factura E)" checked={exportacion} disabled={!editable} onChange={(e) => { const si = e.currentTarget.checked; setExportacion(si); if (si) setRenglones(exentoParaExportacion(renglones)); }} />}
-        {exportacion && <Paper withBorder p="sm"><SeccionExportacion valor={datosExpo} onChange={setDatosExpo} disabled={!editable} /></Paper>}
+        {cliente?.residenteExterior && tipo === 'FACTURA' && <Checkbox label="Exportación (factura E)" checked={exportacion} disabled={!editable} onChange={(e) => { const si = e.currentTarget.checked; setExportacion(si); if (si) setRenglones(exentoParaExportacion(renglones)); }} />}
+        {exportacion && <Paper withBorder p="sm"><SeccionExportacion valor={datosExpo} onChange={setDatosExpo} disabled={!editable || tipo !== 'FACTURA'} /></Paper>}
         <GrillaVenta renglones={renglones} onChange={(r) => setRenglones(exportacion ? exentoParaExportacion(r) : r)} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual, descuentoPct)}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })}
           sugerirBonificacion={tipo === 'FACTURA' ? bonificacionSugerida : undefined} />

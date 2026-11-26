@@ -111,7 +111,21 @@ export class ComprobantesVentaService {
   }
 
   /** Valida y calcula: letra, cuenta de cada renglón, importes y cotización. Lanza 400 con los mensajes de la spec. */
-  async preparar(tx: TxEmpresa, d: DatosComprobanteVenta, id?: string, opciones: OpcionesComprobante = {}) {
+  async preparar(tx: TxEmpresa, entrada: DatosComprobanteVenta, id?: string, opciones: OpcionesComprobante = {}) {
+    // Revisión E58: una nota sigue a su factura asociada: es E solo si la factura es E, y sin datos de exportación toma los de la factura
+    let d = entrada;
+    if (d.tipo !== 'FACTURA' && d.comprobanteAsociadoId) {
+      const asoc = await tx.comprobanteVenta.findUnique({ where: { id: d.comprobanteAsociadoId }, include: { permisos: true } });
+      if (asoc) {
+        const esE = asoc.letra === 'E';
+        d = { ...d, exportacion: esE };
+        if (esE && !d.tipoExportacion)
+          d = {
+            ...d, tipoExportacion: asoc.tipoExportacion ?? undefined, paisDestino: asoc.paisDestino, incoterm: asoc.incoterm as DatosComprobanteVenta['incoterm'], incotermDescripcion: asoc.incotermDescripcion,
+            formaPago: asoc.formaPago, idioma: asoc.idioma as 1 | 2 | 3, permisoExistente: asoc.permisoExistente as 'S' | 'N' | null, permisos: asoc.permisos.map((x) => ({ numero: x.numero, paisDestino: x.paisDestino })),
+          };
+      }
+    }
     const tercero = await tx.tercero.findUnique({ where: { id: d.terceroId } });
     if (!tercero || !tercero.esCliente || !tercero.activo) throw new BadRequestException('Cliente inexistente o inactivo');
     const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
