@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { ArcaSimuladoFex } from '../src/arca/arca-simulado-fex';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararVentas } from './helpers-ventas';
@@ -74,5 +75,61 @@ describe('factura de exportación (E58)', () => {
     expect(rem.status).toBe(201);
     const g = (await x.http.get(`/api/ventas/facturacion-lotes/vista-previa?hasta=2026-11-30&fecha=2026-11-06&terceroIds=${x.exterior.id}`)).body as { problemas: string[] }[];
     expect(g[0].problemas).toContain('El cliente es del exterior: facture la exportación de a una');
+  });
+
+  describe('emisión por WSFEX', () => {
+    afterEach(() => ArcaSimuladoFex.forzarFalla('', null));
+    const emitir = (x: Awaited<ReturnType<typeof escenario>>, o: Record<string, unknown> = {}) => x.http.post('/api/ventas/comprobantes', { ...x.datosE(o), emitir: true });
+    const cuentasAsiento = async (origenId: string) => {
+      const a = await prisma.asiento.findFirstOrThrow({ where: { origenId }, include: { renglones: true } });
+      const cuentas = await prisma.cuentaContable.findMany({ where: { id: { in: a.renglones.map((r) => r.cuentaContableId) } } });
+      return a.renglones.map((r) => cuentas.find((c) => c.id === r.cuentaContableId)!.codigo);
+    };
+
+    it('factura E autorizada por WSFEX, con numeración propia y sin IVA', async () => {
+      const x = await escenario();
+      const f = await emitir(x);
+      expect([f.status, f.body.estado, f.body.numero, f.body.letra]).toEqual([201, 'AUTORIZADO', 1, 'E']);
+      expect(f.body.cae).toBeTruthy();
+      const sol = ArcaSimuladoFex.ultimaSolicitud(x.empresaId)!;
+      expect(sol).toMatchObject({ cbteTipo: 19, ptoVta: 5, numero: 1, tipoExpo: 2, monedaId: 'DOL', monedaCtz: '1000', cuitPaisCliente: '55000002126', dstCmp: 212, impTotal: '1000.00' });
+      expect(sol.items).toHaveLength(1);
+      expect(await cuentasAsiento(f.body.id)).not.toContain('2.1.02.001');
+      expect((await emitir(x)).body.numero).toBe(2);
+      // Las A/B siguen por WSFEv1 con su numeración
+      const b = await x.http.post('/api/ventas/comprobantes', { ...x.datos(), emitir: true });
+      expect([b.body.estado, b.body.numero, b.body.letra]).toEqual(['AUTORIZADO', 1, 'A']);
+    });
+
+    it('nota de crédito E asociada; rechazo; sin conexión y reintento', async () => {
+      const x = await escenario();
+      const f = await emitir(x);
+      const nc = await emitir(x, { tipo: 'NOTA_CREDITO', comprobanteAsociadoId: f.body.id, renglones: [{ ...x.renglonE, precioUnitario: 200 }] });
+      expect([nc.status, nc.body.estado, nc.body.letra]).toEqual([201, 'AUTORIZADO', 'E']);
+      expect(ArcaSimuladoFex.ultimaSolicitud(x.empresaId)).toMatchObject({ cbteTipo: 21, asociados: [{ tipo: 19, ptoVta: 5, nro: 1 }] });
+      ArcaSimuladoFex.forzarFalla(x.empresaId, 'RECHAZO');
+      const r = await emitir(x);
+      expect([r.status, r.body.message]).toEqual([400, 'ARCA rechazó el comprobante: (1000) Rechazo simulado de WSFEX']);
+      const borrador = (await x.crear()).body;
+      ArcaSimuladoFex.forzarFalla(x.empresaId, 'SIN_CONEXION');
+      expect((await x.http.post(`/api/ventas/comprobantes/${borrador.id}/emitir`, {})).status).toBe(502);
+      expect(await prisma.comprobanteVenta.findUniqueOrThrow({ where: { id: borrador.id } })).toMatchObject({ estado: 'PENDIENTE_CAE', numeroReservado: 2 });
+      const ok = await x.http.post(`/api/ventas/comprobantes/${borrador.id}/emitir`, {});
+      expect([ok.status, ok.body.estado, ok.body.numero]).toEqual([201, 'AUTORIZADO', 2]);
+    });
+
+    it('PDF de la factura E; cuenta de ventas de exportación', async () => {
+      const x = await escenario();
+      const otra = await prisma.cuentaContable.findFirstOrThrow({ where: { codigo: '4.1.02' } }).catch(() => null)
+        ?? await prisma.cuentaContable.create({ data: { empresaId: x.empresaId, codigo: '4.1.99', nombre: 'Ventas al exterior', tipo: 'RESULTADO_POSITIVO', imputable: true } as never });
+      await prisma.configCuenta.upsert({ where: { empresaId_concepto: { empresaId: x.empresaId, concepto: 'VENTAS_EXPORTACION' } }, create: { empresaId: x.empresaId, concepto: 'VENTAS_EXPORTACION', cuentaContableId: otra.id }, update: { cuentaContableId: otra.id } });
+      const f = await emitir(x);
+      expect(await cuentasAsiento(f.body.id)).toContain(otra.codigo);
+      const pdf = await x.http.get(`/api/ventas/comprobantes/${f.body.id}/pdf`).buffer(true).parse((res, cb) => { const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p))); });
+      const raw = (pdf.body as Buffer).toString('latin1');
+      const texto = raw + [...raw.matchAll(/<([0-9a-f]+)>/g)].map((m) => Buffer.from(m[1], 'hex').toString('latin1')).join('');
+      expect(texto).toContain('FACTURA E');
+      expect(texto).toContain('Exportaci');
+    });
   });
 });

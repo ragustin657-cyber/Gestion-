@@ -5,7 +5,7 @@ import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ComprobanteVenta } from '@prisma/client';
-import { calcularVenta, cbteTipo, JURISDICCIONES_CM, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
+import { calcularVenta, cbteTipo, JURISDICCIONES_CM, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta, PAISES_FEX, TIPOS_EXPORTACION } from '@gestion/shared';
 import { fechaAR } from '../../compras/comun';
 import { importeAR, pdfVenta, type DatosPdfVenta } from '../pdf/pdf-venta';
 import { importesConIva } from '../pdf/importes-b';
@@ -27,6 +27,17 @@ export const EMISION_SIN_CONFIRMAR = 'El comprobante tiene una emisión sin conf
 /** Una emisión se considera abandonada pasado este tiempo (más que el peor caso de llamadas a ARCA con sus timeouts). */
 export const EN_CURSO_MS = 5 * 60000;
 export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true, permisos: true, percepcionesDetalle: { orderBy: [{ tipo: 'asc' }, { jurisdiccion: 'asc' }, { tramo: 'asc' }] } } satisfies Prisma.ComprobanteVentaInclude;
+
+/** E58: datos de exportación para el PDF. */
+function lineasExportacion(c: { tipoExportacion: string | null; paisDestino: number | null; incoterm: string | null; incotermDescripcion: string | null; formaPago: string | null; permisos?: { numero: string; paisDestino: number }[] }): string[] {
+  const pais = (n: number | null) => (n ? `${PAISES_FEX[n] ?? n} (${n})` : '—');
+  return [
+    `Exportación · ${TIPOS_EXPORTACION[(c.tipoExportacion ?? 'SERVICIOS') as keyof typeof TIPOS_EXPORTACION]} · País de destino: ${pais(c.paisDestino)}`,
+    ...(c.incoterm ? [`Incoterm: ${c.incoterm}${c.incotermDescripcion ? ` ${c.incotermDescripcion}` : ''}`] : []),
+    ...(c.permisos?.length ? [`Permisos de embarque: ${c.permisos.map((p) => `${p.numero} (${pais(p.paisDestino)})`).join(', ')}`] : []),
+    ...(c.formaPago ? [`Forma de pago: ${c.formaPago}`] : []),
+  ];
+}
 
 /** E58: reglas de la factura de exportación (spec §1-§2) y de los puntos de venta de exportación. */
 function validarExportacion(d: DatosComprobanteVenta, letra: LetraVenta, pv: { exportacion: boolean }, tercero: { cuitPais: string | null }) {
@@ -148,6 +159,8 @@ export class ComprobantesVentaService {
     if (d.devuelveMercaderia && origenes.some((o) => o.devolucionRenglonId)) throw new BadRequestException('La mercadería ya entró con el remito de devolución');
     const articulos = await tx.articulo.findMany({ where: { id: { in: [...d.renglones.map((r) => r.articuloId), ...origenes.map((o) => o.articuloId)].filter((x): x is string => !!x) } } });
     const ventas = await this.cuentas.cuenta(tx, 'VENTAS');
+    // E58: la exportación va a la cuenta de ventas al exterior si está configurada
+    const ventasExpo = letra === 'E' ? (await tx.configCuenta.findFirst({ where: { concepto: 'VENTAS_EXPORTACION' } }))?.cuentaContableId ?? null : null;
     const resultadoBienes = d.renglones.some((r) => r.bienUsoId) ? await this.cuentas.cuenta(tx, 'RESULTADO_VENTA_BIENES_USO') : null;
     const renglones = d.renglones.map((r, i) => {
       if (r.articuloId && !articulos.some((a) => a.id === r.articuloId)) throw new BadRequestException('Artículo inexistente');
@@ -155,7 +168,7 @@ export class ComprobantesVentaService {
       return {
         empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, devolucionRenglonId: o.devolucionRenglonId ?? null, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota), bonificacionPct: r.bonificacionPct ?? 0,
         neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, bienUsoId: r.bienUsoId ?? null,
-        cuentaContableId: opciones.cuentaContableId ?? (r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas)),
+        cuentaContableId: opciones.cuentaContableId ?? (r.bienUsoId ? resultadoBienes! : (ventasExpo ?? articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas)),
       };
     });
     const vendedor = opciones.sinVendedor ? { vendedorId: null, comisionPct: null } : await this.vendedor(tx, d, tercero.vendedorId, origenes, id);
@@ -322,7 +335,8 @@ export class ComprobantesVentaService {
     const datos: DatosPdfVenta = {
       empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), condicionIva: ETIQUETAS_CONDICION_IVA[empresa.condicionIva], domicilio: empresa.domicilio },
       cliente: { razonSocial: t.razonSocial, documento, condicionIva: ETIQUETAS_CONDICION_IVA[t.condicionIva], domicilio: t.domicilio },
-      titulo: c.fce ? TITULOS_FCE[c.tipo] : titulos[c.tipo], fce, letra, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
+      titulo: c.fce ? TITULOS_FCE[c.tipo] : letra === 'E' ? `${titulos[c.tipo]} E` : titulos[c.tipo], fce, letra,
+      exportacion: letra === 'E' ? lineasExportacion(c) : null, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
       servicio: c.concepto === 'PRODUCTOS' ? null : { desde: fechaAR(c.fechaServicioDesde!), hasta: fechaAR(c.fechaServicioHasta!), vencePago: fechaAR(c.fechaVencimientoPago ?? c.fechaVencimiento) },
       moneda: c.monedaCodigo === 'ARS' ? 'Pesos' : 'Dólares', cotizacion: c.monedaCodigo === 'ARS' ? null : importeAR(c.cotizacion.toString()),
       asociado: asoc ? `${asoc.letra} ${numeroVenta(asoc.puntoVenta, asoc.numero)}` : null,

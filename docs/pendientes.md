@@ -179,6 +179,13 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - formato del código único del remito (hoy `R` + punto de venta de 4 + número de 8) y de la respuesta XML del web service (`validacionesRemitos`, `TBError`);
     - URL de prueba y producción de `presentarRemitos.do` y si la clave CIT del usuario sirve para el web service;
     - si los remitos de devolución piden COT con la empresa como destinataria.
+24. **Factura de exportación E (entrega 58):**
+    - estructura SOAP de `FEXAuthorize`, `FEXGetLast_CMP`, `FEXGetLast_ID` y `FEXGetCMP`, URLs de homologación y producción de `wsfexv1` y códigos de error de token;
+    - tablas de países (`Dst_cmp`), CUIT país, incoterms, idiomas y unidades de medida (hoy fijas en `@gestion/shared`; consultar `FEXGetPARAM_*`);
+    - si `Permiso_existente` va vacío en servicios y formato del número de permiso (16 caracteres);
+    - bonificación de los ítems (hoy importe) y si `Obs_comerciales`/`Obs` pueden ir vacíos;
+    - QR de la factura E y tipo de documento del receptor del exterior;
+    - en el ambiente SIMULADO el `Id` se lleva en memoria (se reinicia con la API).
 
 ---
 

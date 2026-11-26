@@ -40,6 +40,8 @@ export const CONCEPTOS_CUENTA = {
   DIFERENCIAS_DE_CAJA: '5.2.04',
   RESULTADO_DEL_EJERCICIO: '3.2.02',
   VENTAS: '4.1.01',
+  // E58: ventas al exterior (factura E); por defecto la misma cuenta de ventas
+  VENTAS_EXPORTACION: '4.1.01',
   IVA_DEBITO_FISCAL: '2.1.02.001',
   RETENCION_SUFRIDA_IVA: '1.1.03.005',
   RETENCION_SUFRIDA_GANANCIAS: '1.1.03.006',
