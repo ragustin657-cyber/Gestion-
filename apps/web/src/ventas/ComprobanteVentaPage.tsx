@@ -1,3 +1,4 @@
+import { cuerpoExportacion, exentoParaExportacion, exportacionVacia, SeccionExportacion, type DatosExportacion } from './exportacion';
 import { SelectorVendedor, useVendedores } from './ComisionesPages';
 import { Button, Checkbox, Group, Modal, Paper, Select, Stack, Text, TextInput, Title, Alert } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
@@ -98,6 +99,9 @@ export function ComprobanteVentaPage() {
   const [asociadoId, setAsociadoId] = useState<string | null>(null);
   // E51: descuento general (%)
   const [descuentoPct, setDescuentoPct] = useState('');
+  // E58: factura de exportación (letra E)
+  const [exportacion, setExportacion] = useState(false);
+  const [datosExpo, setDatosExpo] = useState<DatosExportacion>(exportacionVacia());
   // E50: factura de crédito MiPyME
   const [fce, setFce] = useState(false);
   const [transferenciaFce, setTransferenciaFce] = useState<string | null>(null);
@@ -170,6 +174,8 @@ export function ComprobanteVentaPage() {
       setConcepto(c.concepto); setServDesde(f(c.fechaServicioDesde)); setServHasta(f(c.fechaServicioHasta)); setVencePago(f(c.fechaVencimientoPago));
       setMoneda(c.monedaCodigo); setCotizacion(c.monedaCodigo === 'USD' ? String(Number(c.cotizacion)) : ''); setAsociadoId(c.comprobanteAsociadoId); setDescuentoPct(c.descuentoPct && Number(c.descuentoPct) ? String(Number(c.descuentoPct)) : ''); setFce(!!c.fce); setTransferenciaFce(c.transferenciaFce ?? null); setAnulacionFce(!!c.anulacionFce); setVendedor(c.vendedorId ?? null); setAplicarAAsociado(c.aplicarAAsociado); setDepositoId(depositoParaEditar(c.depositoId, puntos.find((x) => x.id === c.puntoVentaId)?.depositoId)); setDevuelveMercaderia(!!c.devuelveMercaderia);
       setRenglones((c.renglones ?? []).map(renglonDesdeComprobante));
+      setExportacion(!!c.exportacion);
+      setDatosExpo(c.exportacion ? { tipoExportacion: c.tipoExportacion ?? 'SERVICIOS', paisDestino: c.paisDestino ?? null, incoterm: c.incoterm ?? null, incotermDescripcion: c.incotermDescripcion ?? '', formaPago: c.formaPago ?? '', idioma: (c.idioma ?? 1) as 1 | 2 | 3, permisoExistente: c.permisoExistente ?? null, permisos: c.permisos ?? [] } : exportacionVacia());
     }).catch(() => op.setError('No se pudo cargar el comprobante'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idEditar]);
@@ -197,7 +203,7 @@ export function ComprobanteVentaPage() {
   let letra: LetraVenta = 'B';
   try {
     if (asociado) letra = asociado.letra as LetraVenta;
-    else if (empresa && cliente) letra = letraVenta(empresa.condicionIva, cliente.condicionIva);
+    else if (empresa && cliente) letra = letraVenta(empresa.condicionIva, cliente.condicionIva, exportacion);
   } catch { /* la empresa no emite: lo informa el servidor */ }
 
   const cuerpo = () => ({
@@ -209,6 +215,7 @@ export function ComprobanteVentaPage() {
     comprobanteAsociadoId: tipo === 'FACTURA' ? null : asociadoId, aplicarAAsociado, vendedorId: tipo === 'FACTURA' ? vendedor : undefined,
     depositoId, devuelveMercaderia: tipo === 'NOTA_CREDITO' && devuelveMercaderia,
     descuentoPct: descuentoPct.trim() ? numero(descuentoPct) : 0,
+    exportacion, ...(exportacion ? cuerpoExportacion(datosExpo) : {}),
     renglones: renglones.map(cuerpoRenglonVenta),
   });
 
@@ -262,7 +269,7 @@ export function ComprobanteVentaPage() {
         <Group align="flex-end" wrap="wrap">
           <Select label="Tipo" w={170} allowDeselect={false} data={TIPOS_VENTA} value={tipo} onChange={(v) => { setTipo((v ?? 'FACTURA') as TipoVenta); setAsociadoId(null); }} disabled={!editable} />
           <Select label="Cliente" w={300} searchable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroId}
-            onChange={(v) => { setTerceroId(v); setAsociadoId(null); setVendedor(undefined); const c = clientes.find((x) => x.id === v); if (c?.diasPago) setFechaVencimiento(sumarDias(fecha, c.diasPago)); }} disabled={!editable} />
+            onChange={(v) => { setTerceroId(v); setAsociadoId(null); setVendedor(undefined); const c = clientes.find((x) => x.id === v); if (c?.diasPago) setFechaVencimiento(sumarDias(fecha, c.diasPago)); const ext = !!c?.residenteExterior; setExportacion(ext); if (ext) { setMoneda('USD'); setRenglones(exentoParaExportacion(renglones)); } }} disabled={!editable} />
           <Select label="Punto de venta" w={170} data={puntos.map((p) => ({ value: p.id, label: `${String(p.numero).padStart(4, '0')}${p.descripcion ? ` ${p.descripcion}` : ''}` }))} value={puntoVentaId} onChange={setPuntoVentaId} disabled={!editable} />
           <TextInput label="Fecha" type="date" value={fecha} onChange={(e) => setFecha(e.currentTarget.value)} disabled={!editable} />
           <TextInput label="Vencimiento" type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.currentTarget.value)} disabled={!editable} />
@@ -298,7 +305,9 @@ export function ComprobanteVentaPage() {
           {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
             onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
         </Group>}
-        <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual, descuentoPct)}
+        {cliente?.residenteExterior && <Checkbox label="Exportación (factura E)" checked={exportacion} disabled={!editable} onChange={(e) => { const si = e.currentTarget.checked; setExportacion(si); if (si) setRenglones(exentoParaExportacion(renglones)); }} />}
+        {exportacion && <Paper withBorder p="sm"><SeccionExportacion valor={datosExpo} onChange={setDatosExpo} disabled={!editable} /></Paper>}
+        <GrillaVenta renglones={renglones} onChange={(r) => setRenglones(exportacion ? exentoParaExportacion(r) : r)} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual, descuentoPct)}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })}
           sugerirBonificacion={tipo === 'FACTURA' ? bonificacionSugerida : undefined} />
         <Modal opened={selectorDevoluciones} onClose={() => setSelectorDevoluciones(false)} title="Devoluciones pendientes de acreditar" size="xl">

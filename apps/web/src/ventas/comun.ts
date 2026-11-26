@@ -15,7 +15,7 @@ export const ESTADOS_VENTA: Record<string, { etiqueta: string; color: string }> 
   RECHAZADO: { etiqueta: 'Rechazado', color: 'red' },
 };
 
-export interface Cliente { id: string; razonSocial: string; condicionIva: CondicionIva; tipoDocumento: string; cuit: string; diasPago: number; vendedorId?: string | null }
+export interface Cliente { id: string; razonSocial: string; condicionIva: CondicionIva; tipoDocumento: string; cuit: string; diasPago: number; vendedorId?: string | null; residenteExterior?: boolean }
 export interface PuntoVenta { id: string; numero: number; descripcion: string | null; electronico: boolean; depositoId?: string | null }
 export interface ComprobanteVenta {
   depositoId?: string | null; devuelveMercaderia?: boolean; vendedorId?: string | null;
@@ -28,6 +28,8 @@ export interface ComprobanteVenta {
   fce?: boolean; transferenciaFce?: string | null; anulacionFce?: boolean | null;
   /** E51 */
   descuentoPct?: string;
+  /** E58: exportación */
+  exportacion?: boolean; tipoExportacion?: 'BIENES' | 'SERVICIOS' | 'OTROS' | null; paisDestino?: number | null; incoterm?: string | null; incotermDescripcion?: string | null; formaPago?: string | null; idioma?: number; permisoExistente?: 'S' | 'N' | null; permisos?: { numero: string; paisDestino: number }[];
   tercero?: { razonSocial: string }; renglones?: { id: string; articuloId: string | null; descripcion: string; cantidad: string; precioUnitario: string; alicuota: string; neto: string; iva: string; remitoRenglonId?: string | null; pedidoRenglonId?: string | null }[];
   ivas?: { alicuota: string; base: string; importe: string }[];
   /** Percepciones practicadas (E39) */
