@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { ArbaCotSimulado } from '../src/ventas/remitos/cot/cliente-cot';
 import { crearApp, limpiarBase } from './helpers';
 import { prepararPedidos } from './helpers-pedidos';
 
@@ -110,6 +111,83 @@ describe('COT de ARBA (E57)', () => {
       expect(d.status).toBe(201);
       // Origen en B (cliente) y destino en C (depósito): corresponde
       expect(d.body).toMatchObject({ cotEstado: 'SIN_PEDIR', trasladoProvincia: 'B', importeDeclarado: '1800' });
+    });
+  });
+
+  describe('pedido del COT', () => {
+    afterEach(() => ArbaCotSimulado.limpiar());
+    const listo = async (x: Awaited<ReturnType<typeof escenario>>, o: Record<string, unknown> = {}) => {
+      await x.activar(o);
+      await x.depositoEn('B');
+      await x.entregaEn('B');
+      return (await x.remitoDePedido({ traslado: { patente: 'AB123CD' } })).remito;
+    };
+
+    it('validaciones antes de enviar', async () => {
+      const x = await escenario();
+      await x.http.put('/api/ventas/cot/config', { activo: true, ambiente: 'SIMULADO' });
+      await x.depositoEn('B');
+      await x.entregaEn('B');
+      const { remito } = await x.remitoDePedido();
+      let r = await x.http.post(`/api/ventas/remitos/${remito.id}/cot`, {});
+      expect([r.status, r.body.message]).toEqual([400, 'Configure el usuario y la clave CIT de ARBA']);
+      await x.activar();
+      r = await x.http.post(`/api/ventas/remitos/${remito.id}/cot`, {});
+      expect([r.status, r.body.message]).toEqual([400, 'Falta la patente del vehículo']);
+      const sinNom = await x.articulo(false);
+      const p = await x.pedido([x.renglon(sinNom.id, 1)], { confirmar: true });
+      const r2 = (await x.remito([x.dePedido(p.renglones[0].id, 1)], { traslado: { patente: 'AB123CD' } })).body;
+      r = await x.http.post(`/api/ventas/remitos/${r2.id}/cot`, {});
+      expect([r.status, r.body.message]).toEqual([400, `El artículo ${sinNom.codigo} no tiene código del nomenclador de ARBA`]);
+      await x.http.patch(`/api/depositos/${x.deposito.id}`, { plantaArba: null });
+      r = await x.http.post(`/api/ventas/remitos/${remito.id}/cot`, {});
+      expect([r.status, r.body.message]).toEqual([400, 'El depósito no tiene el domicilio de ARBA completo (planta, puerta y domicilio)']);
+    });
+
+    it('otorgado, rechazado, sin conexión y reintento', async () => {
+      const x = await escenario();
+      const remito = await listo(x);
+      const ok = await x.http.post(`/api/ventas/remitos/${remito.id}/cot`, {});
+      expect([ok.status, ok.body.cotEstado]).toEqual([201, 'OTORGADO']);
+      expect(ok.body.cot).toMatch(/^\d{16}$/);
+      expect(ArbaCotSimulado.ultimoArchivo(x.empresaId)?.contenido).toContain('|R000100000001|');
+      const otra = (await x.remitoDePedido({ traslado: { patente: 'AB123CD' } })).remito;
+      ArbaCotSimulado.forzarFalla(x.empresaId, 'RECHAZO');
+      const rech = await x.http.post(`/api/ventas/remitos/${otra.id}/cot`, {});
+      expect([rech.status, rech.body.cotEstado]).toEqual([201, 'RECHAZADO']);
+      expect(rech.body.cotMensaje).toContain('Rechazo simulado');
+      ArbaCotSimulado.forzarFalla(x.empresaId, 'SIN_CONEXION');
+      const sc = await x.http.post(`/api/ventas/remitos/${otra.id}/cot`, {});
+      expect([sc.status, sc.body.message]).toEqual([502, 'No se pudo conectar con ARBA: el COT quedó pendiente']);
+      expect((await prisma.remito.findUniqueOrThrow({ where: { id: otra.id } })).cotEstado).toBe('PENDIENTE');
+      ArbaCotSimulado.forzarFalla(x.empresaId, null);
+      expect((await x.http.post(`/api/ventas/remitos/${otra.id}/cot`, {})).body.cotEstado).toBe('OTORGADO');
+    });
+
+    it('pedir al confirmar; archivo; carga manual; anulación con aviso; PDF', async () => {
+      const x = await escenario();
+      await x.activar({ pedirAlConfirmar: true });
+      await x.depositoEn('B');
+      await x.entregaEn('B');
+      ArbaCotSimulado.forzarFalla(x.empresaId, 'SIN_CONEXION');
+      const { remito } = await x.remitoDePedido({ traslado: { patente: 'AB123CD' } });
+      expect(remito.cotEstado).toBe('PENDIENTE');
+      ArbaCotSimulado.forzarFalla(x.empresaId, null);
+      const { remito: auto } = await x.remitoDePedido({ traslado: { patente: 'AB123CD' } });
+      expect(auto.cotEstado).toBe('OTORGADO');
+      const arch = await x.http.get(`/api/ventas/remitos/${remito.id}/cot/archivo`);
+      expect(arch.status).toBe(200);
+      expect(arch.headers['content-type']).toContain('text/plain');
+      expect(arch.text.startsWith('01|')).toBe(true);
+      expect((await x.http.put(`/api/ventas/remitos/${remito.id}/cot`, { cot: '12' })).status).toBe(400);
+      const man = await x.http.put(`/api/ventas/remitos/${remito.id}/cot`, { cot: '1234567890123456' });
+      expect([man.status, man.body.cotEstado, man.body.cot]).toEqual([200, 'OTORGADO', '1234567890123456']);
+      const pdf = await x.pdfTexto(`/api/ventas/remitos/${remito.id}/pdf`);
+      const texto = pdf.texto + [...pdf.texto.matchAll(/<([0-9a-f]+)>/g)].map((m) => Buffer.from(m[1], 'hex').toString('latin1')).join('');
+      expect(texto).toContain('1234567890123456');
+      const an = await x.http.post(`/api/ventas/remitos/${remito.id}/anular`, { motivo: 'error' });
+      expect(an.status).toBe(201);
+      expect(an.body.advertencias).toEqual(['Anule también el COT 1234567890123456 en la web de ARBA']);
     });
   });
 });

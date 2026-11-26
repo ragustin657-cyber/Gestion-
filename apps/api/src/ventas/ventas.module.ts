@@ -3,6 +3,7 @@ import { FceComprasController, FceVentasController } from './fce/fce.controller'
 import { LotesFacturacionController } from './lotes/lotes.controller';
 import { CotController } from './remitos/cot/cot.controller';
 import { ConfigCotService } from './remitos/cot/config-cot.service';
+import { CotService } from './remitos/cot/cot.service';
 import { LotesFacturacionService } from './lotes/lotes.service';
 import { ObligacionFceService } from './fce/obligacion.service';
 import { MailCobranzasService } from './cobranzas/mail.service';
@@ -43,7 +44,7 @@ import { DatosVentasController } from './consultas/datos-ventas.controller';
 @Module({
   imports: [ArcaModule, SueldosModule, CorreoModule],
   controllers: [PreciosController, PedidosController, RemitosController, PendientesFacturarController, DatosVentasController, ConsultasVentasController, ComprobantesVentaController, AplicacionesController, RecibosController, ComisionesController, CobranzasController, InteresesController, FceVentasController, FceComprasController, LotesFacturacionController, CotController],
-  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, PercepcionesVentaService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService, ConfigInteresesService, InteresesCalculoService, LiquidacionesInteresesService, MailCobranzasService, ObligacionFceService, FceRegistroService, LotesFacturacionService, ConfigCotService],
+  providers: [PreciosService, PedidosService, RemitosService, OrigenesVenta, PercepcionesVentaService, ComprobantesVentaService, EmisionService, AplicacionesService, RecibosService, ConsultasVentasService, VendedoresService, ComisionesCalculoService, LiquidacionesComisionesService, GestionesService, AgendaCobranzasService, ConfigInteresesService, InteresesCalculoService, LiquidacionesInteresesService, MailCobranzasService, ObligacionFceService, FceRegistroService, LotesFacturacionService, ConfigCotService, CotService],
   exports: [ComprobantesVentaService, EmisionService, AplicacionesService],
 })
 export class VentasModule {}

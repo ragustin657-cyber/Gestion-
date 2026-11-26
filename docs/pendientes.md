@@ -173,6 +173,12 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - qué notas de débito y crédito admite el registro después de la aceptación y cómo suman al importe a aceptar;
     - si se puede emitir FCE voluntariamente a un obligado por debajo del mínimo (hoy se permite);
     - en el ambiente SIMULADO la marca manual del cliente hace de registro (solo para probar).
+23. **COT de ARBA (entrega 57):**
+    - diseño de registro del archivo `TB_…txt` (orden y formato de cada campo de los registros 01 a 04, importe y cantidades con 2 decimales y punto, códigos de tipo de documento 80/96/99, sujeto generador `E`, campos de recorrido vacíos) contra el instructivo vigente;
+    - tabla de unidades de medida (hoy 1 kg, 2 l, 3 m, 4 m², 5 m³, 6 t, 7 unidades, 8 pares, 9 docenas) y del nomenclador de productos;
+    - formato del código único del remito (hoy `R` + punto de venta de 4 + número de 8) y de la respuesta XML del web service (`validacionesRemitos`, `TBError`);
+    - URL de prueba y producción de `presentarRemitos.do` y si la clave CIT del usuario sirve para el web service;
+    - si los remitos de devolución piden COT con la empresa como destinataria.
 
 ---
 

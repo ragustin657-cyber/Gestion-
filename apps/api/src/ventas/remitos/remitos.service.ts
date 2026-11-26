@@ -16,6 +16,7 @@ import { pdfDocumento } from '../pedidos/pdf-pedido';
 import { PedidosService } from '../pedidos/pedidos.service';
 import { PreciosService } from '../precios/precios.service';
 import { guardarTraslado, type DatosTraslado } from './cot/traslado';
+import { CotService } from './cot/cot.service';
 import type { DatosDevolucion, DatosRemito } from './dto';
 
 export const ORIGEN_REMITO = 'REMITO';
@@ -35,6 +36,7 @@ export class RemitosService {
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
     private readonly precios: PreciosService,
+    private readonly cot: CotService,
   ) {}
 
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -52,7 +54,22 @@ export class RemitosService {
     })).filter((r) => q.pendientes !== 'facturar' || new D(r.pendienteFacturar).gt(0));
   }
 
-  crear(d: DatosRemito) {
+  /** E57: alta y, si está configurado, pedido del COT fuera de la transacción (un error deja el estado del COT). */
+  async crear(d: DatosRemito) {
+    return this.pedirCotAlCrear(await this.crearEnTx(d));
+  }
+
+  private async pedirCotAlCrear<T extends { id: string; cotEstado: string | null }>(r: T): Promise<T> {
+    if (r.cotEstado !== 'SIN_PEDIR' || !(await this.tenant.db.configCot.findFirst())?.pedirAlConfirmar) return r;
+    try {
+      await this.cot.pedir(r.id);
+    } catch {
+      // El estado (PENDIENTE) o el motivo quedaron registrados; una validación que falla deja SIN_PEDIR
+    }
+    return { ...r, ...(await this.obtener(r.id)) };
+  }
+
+  private crearEnTx(d: DatosRemito) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
       const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
@@ -129,7 +146,13 @@ export class RemitosService {
     });
   }
 
-  anular(id: string, motivo: string) {
+  async anular(id: string, motivo: string) {
+    const r = await this.anularEnTx(id, motivo);
+    // E57: el COT se anula en la web de ARBA
+    return r.cot && r.cotEstado === 'OTORGADO' ? { ...r, advertencias: [`Anule también el COT ${r.cot} en la web de ARBA`] } : r;
+  }
+
+  private anularEnTx(id: string, motivo: string) {
     return this.tenant.transaccion(async (tx) => {
       await this.obtener(id, tx);
       await bloquear(tx, 'Remito', this.tenant.empresaId, [id]);
@@ -160,7 +183,11 @@ export class RemitosService {
   }
 
   /** E54: remito de devolución (spec §3): entra el stock al costo de salida del renglón de origen y baja lo pendiente de facturar. */
-  crearDevolucion(d: DatosDevolucion) {
+  async crearDevolucion(d: DatosDevolucion) {
+    return this.pedirCotAlCrear(await this.crearDevolucionEnTx(d));
+  }
+
+  private crearDevolucionEnTx(d: DatosDevolucion) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
       const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
@@ -326,6 +353,8 @@ export class RemitosService {
       const nums = [...new Set(origenes.map((o) => numeroRemito(o.remito.puntoVenta, o.remito.numero)))].join(', ');
       observaciones = `Devuelve los remitos ${nums}${r.observaciones ? ` · ${r.observaciones}` : ''}`;
     }
+    // E57: COT de ARBA otorgado
+    if (r.cot && r.cotEstado === 'OTORGADO') observaciones = `COT N° ${r.cot}${observaciones ? ` · ${observaciones}` : ''}`;
     const contenido = await pdfDocumento({
       titulo: r.tipo === 'DEVOLUCION' ? 'Remito de devolución' : 'Remito', numero: r.numeroTexto.slice(2), empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), domicilio: empresa.domicilio },
       cliente: { razonSocial: cliente.razonSocial, cuit: cliente.cuit }, fecha: fAR(r.fecha), moneda: '',
