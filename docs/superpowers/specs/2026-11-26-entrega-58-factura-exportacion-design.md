@@ -29,11 +29,14 @@ Exportar bienes y servicios exige comprobantes clase **E** autorizados por el we
 ## Diseño
 
 ### 1. Letra E y códigos
-- `LetraVenta` agrega `'E'`. `letraVenta(empresa, cliente, exterior)` devuelve `E` si el cliente es residente del exterior, para cualquier condición de la empresa que emita. *(Decisión mía: el monotributista también exporta con E.)*
+- `LetraVenta` agrega `'E'`. El comprobante tiene `exportacion Boolean`: por defecto `true` si el cliente es residente del exterior (`Tercero.residenteExterior`), y el usuario lo puede destildar (venta a un extranjero que no es exportación, p. ej. un servicio usado en el país → letra común). Con `exportacion` la letra es `E` para cualquier condición de la empresa que emita. *(Decisión mía: la marca del exterior se creó para pagos (E43); por eso la E se decide por comprobante.)*
+- **Puntos de venta**: `PuntoVenta.exportacion Boolean @default(false)` (ARCA los habilita por web service). La E solo en puntos de venta de exportación (`El punto de venta no es de exportación`) y A/B/C nunca en ellos (`El punto de venta es de exportación: solo emite comprobantes E`). *(Decisión mía.)*
+- **Notas de crédito y débito E**: solo asociadas a una factura E (la letra sale del asociado, como hoy); `Cmps_asoc` con ese comprobante.
+- **Pedidos y facturación por lotes**: el pedido de un cliente del exterior se guarda con letra `E` (solo informativa); la facturación por lotes (E55) **no** factura exportaciones: el cliente del exterior queda con el problema `El cliente es del exterior: facture la exportación de a una`. *(Decisión mía.)*
 - `cbteTipo(tipo, 'E')`: FACTURA 19, NOTA_DEBITO 20, NOTA_CREDITO 21. La FCE (`fce: true`) no admite E (400 `La factura de crédito MiPyME no admite la letra E`).
 
 ### 2. Datos de exportación
-- `Tercero` agrega `cuitPais String?` (CUIT genérico del país del cliente de la tabla de ARCA, 11 dígitos) y `idImpositivo` (usa el `nif` existente). El país del cliente es `paisSire` (código de la tabla de países de ARCA; *a verificar que coincide con la de WSFEX*).
+- `Tercero` agrega `cuitPais String?` (CUIT genérico del país del cliente de la tabla de ARCA, 11 dígitos, que se carga a mano; distinto para personas físicas y jurídicas) y usa el `nif` existente como identificación impositiva. `Tercero.cuit` queda como hoy (lo que el usuario cargó para el cliente del exterior); a WSFEX va siempre `cuitPais` como `Cuit_pais_cliente` y `nif` como `Id_impositivo`. *(Decisión mía.)* El país del cliente es `paisSire` (código de la tabla de países de ARCA; *a verificar que coincide con la de WSFEX*).
 - `ComprobanteVenta` agrega `tipoExportacion (BIENES | SERVICIOS | OTROS)?`, `paisDestino Int?`, `incoterm String?` (FOB, CIF, EXW, FCA, CPT, CIP, DAP, DPU, DDP, FAS, CFR), `incotermDescripcion String?`, `formaPago String?`, `idioma (1 español, 2 inglés, 3 portugués) @default(1)`, `permisoExistente (S | N)?` y `ComprobanteVentaPermiso { comprobanteId, numero (16 caracteres), paisDestino }`.
 - Reglas (mensajes exactos):
   - letra E sin `tipoExportacion` → `Indique el tipo de exportación`;
@@ -41,19 +44,21 @@ Exportar bienes y servicios exige comprobantes clase **E** autorizados por el we
   - BIENES: `incoterm` obligatorio (`Indique el incoterm`) y `permisoExistente` obligatorio; con `S`, al menos un permiso (`Cargue los permisos de embarque`); con `N`, sin permisos;
   - SERVICIOS/OTROS: sin permisos (`Los permisos de embarque son solo para bienes`) y sin incoterm;
   - renglones E: alícuota `EXENTO` obligatoria (`La exportación no lleva IVA: use alícuota exento`) *(decisión mía: el cálculo existente ya trata exento sin IVA)*;
-  - cliente E sin `cuitPais` ni CUIT → `El cliente del exterior no tiene CUIT país`.
+  - cliente E sin `cuitPais` → `El cliente del exterior no tiene CUIT país`.
 - Las percepciones no se calculan en la E.
 
 ### 3. Emisión por WSFEX
 - `ClienteFex` (`arca/wsfex.ts`, con la misma autenticación WSAA, servicio `wsfex`): `ultimoAutorizado(ptoVta, cbteTipo)`, `ultimoId()`, `consultar(ptoVta, cbteTipo, numero)`, `autorizar(d: DatosFex)` → `{ resultado: 'A', cae, caeVencimiento, observaciones } | { resultado: 'R', errores }`, `probar()`. `ArcaRealFex` (SOAP a `https://wswhomo.afip.gov.ar/wsfexv1/service.asmx` en homologación y `https://servicios1.afip.gov.ar/wsfexv1/service.asmx` en producción) y `ArcaSimuladoFex` (en memoria; numeración y `Id` propios; fallas forzables como `ArcaSimulado.forzarFalla`).
 - `FEXAuthorize` lleva: `Id` (último + 1), `Fecha_cbte`, `Cbte_Tipo`, `Punto_vta`, `Cbte_nro`, `Tipo_expo` (1 bienes, 2 servicios, 4 otros), `Permiso_existente`, `Permisos`, `Dst_cmp`, `Cliente`, `Cuit_pais_cliente`, `Domicilio_cliente`, `Id_impositivo`, `Moneda_Id` (`DOL`/`PES`), `Moneda_ctz`, `Imp_total`, `Forma_pago`, `Incoterms`, `Incoterms_Ds`, `Idioma_cbte`, `Cmps_asoc` (NC/ND) e `Items` (código, descripción, cantidad, unidad de medida, precio, bonificación, total).
 - `EmisionService.emitir` deriva a WSFEX cuando la letra es E, con las mismas garantías de hoy (número reservado, reintento, `PENDIENTE_CAE` sin conexión, `RECHAZADO` con los errores, consulta del último antes de reservar). La reserva del número usa `FEXGetLast_CMP` del punto de venta y tipo 19/20/21.
-- Contabilidad: el asiento usa la cuenta de ventas del exterior si está configurada (`ConfigCuenta` concepto `VENTAS_EXPORTACION`, por defecto la de ventas) *(decisión mía)*; sin IVA débito.
+- Contabilidad: el asiento usa la cuenta de ventas del exterior si está configurada (`ConfigCuenta` concepto `VENTAS_EXPORTACION`, por defecto la de ventas) *(decisión mía)*; sin IVA débito. Cobranza y diferencia de cambio en USD como hoy, sin reglas propias de exportación (plazos de ingreso de divisas, cuentas en USD). *(Decisión mía.)*
 
 ### 4. PDF y pantallas
 - PDF: título `FACTURA E` / `NOTA DE DÉBITO E` / `NOTA DE CRÉDITO E`, código 19/20/21, leyenda `Exportación`, bloque con tipo de exportación, país de destino, incoterm, permisos y forma de pago; sin discriminación de IVA; CAE y QR (tipo de documento del receptor según WSFEX).
 - Comprobante de venta: con cliente del exterior el título pasa a *Factura E* y aparece la sección *Exportación* (tipo, país, incoterm y descripción, permiso existente y grilla de permisos con número y país, forma de pago, idioma); las alícuotas se fijan en *Exento*; moneda USD por defecto.
 - Clientes: campo *CUIT país* junto a los datos del exterior.
+- Puntos de venta: casilla *Exportación (WSFEX)*.
+- Comprobante: casilla *Exportación* (marcada para clientes del exterior) que pasa la letra a E.
 
 ## Restricciones
 - WSFEX en ambiente SIMULADO por defecto (el de `ConfigArca`); las pruebas nunca llaman a ARCA.
