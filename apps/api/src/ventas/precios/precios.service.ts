@@ -174,7 +174,12 @@ export class PreciosService {
       : lista.monedaCodigo === 'USD' ? new D(1).div(await cotizacion(tx, 'USD', hoy())) : await cotizacion(tx, 'USD', hoy());
     // Revisión E52: los que tienen origen (precio en la base o costo) y los que ya tienen precio en la lista (con su motivo si no se recalculan)
     const candidatos = [...new Set([...origen.keys(), ...actuales.keys()])];
-    const arts = new Map((await tx.articulo.findMany({ where: { id: { in: candidatos } }, select: { id: true, codigo: true, descripcion: true, activo: true } })).map((a) => [a.id, a]));
+    const arts = new Map((await tx.articulo.findMany({ where: { id: { in: candidatos } }, select: { id: true, codigo: true, descripcion: true, activo: true, rubroId: true } })).map((a) => [a.id, a]));
+    // E56: margen del rubro (activo) en esta lista
+    const margenesRubro = lista.base === 'COSTO'
+      ? new Map((await tx.margenRubroLista.findMany({ where: { listaId: lista.id } })).map((m) => [m.rubroId, new D(m.margenPct)]))
+      : new Map<string, Dec>();
+    const rubrosActivos = margenesRubro.size ? new Set((await tx.rubroArticulo.findMany({ where: { id: { in: [...margenesRubro.keys()] }, activo: true }, select: { id: true } })).map((r) => r.id)) : new Set<string>();
     const filas = candidatos
       .filter((id) => arts.get(id)?.activo !== false || actuales.has(id))
       .map((id) => {
@@ -183,13 +188,19 @@ export class PreciosService {
         const base = origen.get(id);
         let motivo: string | null = null;
         let nuevo: Dec | null = null;
+        // Margen: el del artículo en la lista > el del rubro en la lista > el de la lista (E56)
+        let margen = new D(lista.porcentaje);
+        let origenMargen: 'ARTICULO' | 'RUBRO' | 'LISTA' = 'LISTA';
+        if (lista.base === 'COSTO' && actual?.margenPct != null) { margen = new D(actual.margenPct); origenMargen = 'ARTICULO'; }
+        else if (lista.base === 'COSTO' && a?.rubroId && rubrosActivos.has(a.rubroId)) { margen = margenesRubro.get(a.rubroId)!; origenMargen = 'RUBRO'; }
         if (actual?.fijo) motivo = 'Precio fijo';
         else if (!base) motivo = sinOrigen;
-        else nuevo = precioDerivado(base.times(factor), new D(lista.base === 'COSTO' && actual?.margenPct != null ? actual.margenPct : lista.porcentaje), lista.redondeo as Redondeo);
+        else nuevo = precioDerivado(base.times(factor), margen, lista.redondeo as Redondeo);
         const act = actual ? new D(actual.precio) : null;
         return {
           articuloId: id, codigo: a?.codigo ?? '', descripcion: a?.descripcion ?? '', actual: act?.toString() ?? null, nuevo: nuevo?.toString() ?? null,
           variacionPct: act && nuevo && act.gt(0) ? nuevo.div(act).minus(1).times(100).toDecimalPlaces(2).toString() : null, motivo,
+          margen: margen.toString(), origenMargen,
         };
       })
       .sort((x, y) => x.codigo.localeCompare(y.codigo));
@@ -269,5 +280,28 @@ export class PreciosService {
       precio = lista.monedaCodigo === 'USD' ? precio.times(cot) : precio.div(cot);
     }
     return { precio: precio.toFixed(2), lista: resumen };
+  }
+
+  /** E56: márgenes por rubro de una lista desde el costo (todos los rubros activos, con su margen o null). */
+  async margenesRubro(listaId: string) {
+    const db = this.tenant.db;
+    const lista = await this.lista(db, listaId);
+    if (lista.base !== 'COSTO') throw new BadRequestException('La lista no se calcula desde el costo');
+    const m = new Map((await db.margenRubroLista.findMany({ where: { listaId } })).map((x) => [x.rubroId, x.margenPct]));
+    return (await db.rubroArticulo.findMany({ where: { activo: true }, orderBy: { nombre: 'asc' } })).map((r) => ({ rubroId: r.id, nombre: r.nombre, margenPct: m.has(r.id) ? new D(m.get(r.id)!).toString() : null }));
+  }
+
+  guardarMargenesRubro(listaId: string, d: { margenes: { rubroId: string; margenPct: number }[] }) {
+    return this.tenant.transaccion(async (tx) => {
+      const lista = await this.lista(tx, listaId);
+      if (lista.base !== 'COSTO') throw new BadRequestException('La lista no se calcula desde el costo');
+      const ids = d.margenes.map((x) => x.rubroId);
+      if (new Set(ids).size !== ids.length) throw new BadRequestException('Hay un rubro repetido');
+      const activos = await tx.rubroArticulo.count({ where: { id: { in: ids }, activo: true } });
+      if (activos !== ids.length) throw new BadRequestException('Rubro inexistente o inactivo');
+      await tx.margenRubroLista.deleteMany({ where: { listaId } });
+      if (d.margenes.length) await tx.margenRubroLista.createMany({ data: d.margenes.map((x) => ({ empresaId: this.tenant.empresaId, listaId, rubroId: x.rubroId, margenPct: x.margenPct })) });
+      await this.auditoria.registrar(tx, { entidad: 'ListaPrecios', entidadId: listaId, accion: 'MODIFICAR', datos: { margenesRubro: d.margenes } });
+    }).then(() => this.margenesRubro(listaId));
   }
 }

@@ -3370,3 +3370,14 @@ model EscalaDescuento {
   @@unique([empresaId, rubroId, desde])
   @@unique([empresaId, articuloId, desde])
 }
+
+/// E56: margen sobre el costo de un rubro en una lista calculada desde el costo
+model MargenRubroLista {
+  id        String  @id @default(uuid()) @db.Uuid
+  empresaId String  @db.Uuid
+  listaId   String  @db.Uuid
+  rubroId   String  @db.Uuid
+  margenPct Decimal @db.Decimal(9, 2)
+
+  @@unique([empresaId, listaId, rubroId])
+}

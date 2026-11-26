@@ -239,4 +239,16 @@ describe('facturación por lotes (E55)', () => {
       expect((await x.generar([x.clienteRI.id])).status).toBe(201);
     });
   });
+
+  it('E56: remito sin pedido toma la bonificación de la escala del rubro', async () => {
+    const x = await escenario();
+    const rubro = (await x.http.post('/api/rubros-articulos', { nombre: 'Bebidas' })).body as { id: string };
+    await x.http.put(`/api/rubros-articulos/${rubro.id}/escalas`, { escalas: [{ desde: 12, porcentaje: 5 }] });
+    await x.http.patch(`/api/articulos/${x.art.id}`, { rubroId: rubro.id });
+    const lista = (await x.http.post('/api/ventas/listas', { nombre: 'General', monedaCodigo: 'ARS', porDefecto: true })).body as { id: string };
+    await x.http.put(`/api/ventas/listas/${lista.id}/precios/${x.art.id}`, { precio: 100 });
+    expect((await x.remito([{ articuloId: x.art.id, descripcion: 'Producto', cantidad: 12 }])).status).toBe(201);
+    const g = await x.vista('');
+    expect(g[0].renglones[0]).toMatchObject({ bonificacionPct: '5', importe: '1140.00' });
+  });
 });

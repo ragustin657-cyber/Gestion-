@@ -68,4 +68,30 @@ describe('rubros de artículos y descuentos por cantidad (E56)', () => {
     await x.http.patch(`/api/rubros-articulos/${b.id}`, { activo: false });
     expect((await x.sugerida(a.id, 50)).bonificacionPct).toBeNull();
   });
+
+  it('margen por rubro y lista en las listas desde el costo', async () => {
+    const x = await escenario();
+    const b = await x.rubro('Bebidas');
+    const a = await x.articulo('AGUA', { rubroId: b.id });
+    await prisma.articulo.update({ where: { id: a.id }, data: { costoPromedio: 1000 } });
+    const lista = async (nombre: string, base: string, porcentaje: number) => (await x.http.post('/api/ventas/listas', { nombre, monedaCodigo: 'ARS', base, porcentaje, redondeo: '1' })).body as { id: string };
+    const may = await lista('Mayorista', 'COSTO', 30);
+    const min = await lista('Minorista', 'COSTO', 60);
+    const man = await lista('Manual', 'MANUAL', 0);
+    const fila = async (id: string) => ((await x.http.get(`/api/ventas/listas/${id}/recalculo`)).body.filas as { articuloId: string; nuevo: string; margen: string; origenMargen: string }[]).find((f) => f.articuloId === a.id)!;
+    expect((await x.http.put(`/api/ventas/listas/${may.id}/margenes-rubro`, { margenes: [{ rubroId: b.id, margenPct: 20 }] })).status).toBe(200);
+    expect((await x.http.get(`/api/ventas/listas/${may.id}/margenes-rubro`)).body).toEqual([{ rubroId: b.id, nombre: 'Bebidas', margenPct: '20' }]);
+    expect(await fila(may.id)).toMatchObject({ nuevo: '1200', margen: '20', origenMargen: 'RUBRO' });
+    expect(await fila(min.id)).toMatchObject({ nuevo: '1600', margen: '60', origenMargen: 'LISTA' });
+    await x.http.put(`/api/ventas/listas/${may.id}/precios/${a.id}`, { precio: 1 });
+    await x.http.patch(`/api/ventas/listas/${may.id}/precios/${a.id}/marcas`, { fijo: false, margenPct: 50 });
+    expect(await fila(may.id)).toMatchObject({ nuevo: '1500', margen: '50', origenMargen: 'ARTICULO' });
+    await x.http.patch(`/api/ventas/listas/${may.id}/precios/${a.id}/marcas`, { margenPct: null });
+    await x.http.patch(`/api/rubros-articulos/${b.id}`, { activo: false });
+    expect(await fila(may.id)).toMatchObject({ nuevo: '1300', origenMargen: 'LISTA' });
+    const mal = await x.http.put(`/api/ventas/listas/${man.id}/margenes-rubro`, { margenes: [] });
+    expect([mal.status, mal.body.message]).toEqual([400, 'La lista no se calcula desde el costo']);
+    const inact = await x.http.put(`/api/ventas/listas/${may.id}/margenes-rubro`, { margenes: [{ rubroId: b.id, margenPct: 20 }] });
+    expect([inact.status, inact.body.message]).toEqual([400, 'Rubro inexistente o inactivo']);
+  });
 });
