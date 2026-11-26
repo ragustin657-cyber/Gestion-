@@ -1,3 +1,4 @@
+import { RubrosArticulosPage } from '../articulos/RubrosArticulosPage';
 import { FacturacionLotesPage } from '../ventas/FacturacionLotesPage';
 import { RemitoDevolucionPage } from '../ventas/RemitoDevolucionPage';
 import { FceEmitidasPage, FceRecibidasPage } from '../ventas/fce';
@@ -108,6 +109,7 @@ import { UsuariosPage } from './UsuariosPage';
 export const RUTAS_PAGINAS: { ruta: string; elemento: ReactNode }[] = [
   { ruta: '/maestros/terceros', elemento: <TercerosPage /> },
   { ruta: '/maestros/articulos', elemento: <ArticulosPage /> },
+  { ruta: '/maestros/rubros-articulos', elemento: <RubrosArticulosPage /> },
   { ruta: '/maestros/plan-cuentas', elemento: <PlanCuentasPage /> },
   { ruta: '/maestros/monedas', elemento: <MonedasPage /> },
   { ruta: '/maestros/tesoreria', elemento: <TesoreriaPage /> },

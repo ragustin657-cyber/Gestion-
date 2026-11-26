@@ -9,7 +9,7 @@ import { hoy } from '../compras/formato';
 import { useOperacion } from '../tesoreria/comun';
 import { numero, useClientes, useEmpresa } from './comun';
 import { alicuotaDe, GrillaVenta, renglonVacio, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
-import { precioSugerido } from './precios';
+import { bonificacionSugerida, precioSugerido } from './precios';
 
 export interface PedidoVenta {
   id: string; numero: number; terceroId: string; fecha: string; validoHasta: string | null; monedaCodigo: string; cotizacion: string; depositoId: string | null; estado: string; vendedorId?: string | null;
@@ -48,7 +48,7 @@ export function PedidoVentaPage() {
   const cargar = (p: PedidoVenta) => {
     setActual(p); setTerceroId(p.terceroId); setVendedor(p.vendedorId ?? null); setFecha(p.fecha.slice(0, 10)); setValidoHasta(p.validoHasta?.slice(0, 10) ?? ''); setMoneda(p.monedaCodigo);
     setCotizacion(p.monedaCodigo === 'USD' ? String(Number(p.cotizacion)) : ''); setDepositoId(p.depositoId); setObservaciones(p.observaciones ?? '');
-    setRenglones(p.renglones.map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota, ...(r.bonificacionPct && Number(r.bonificacionPct) ? { bonificacionPct: String(Number(r.bonificacionPct)) } : {}) })));
+    setRenglones(p.renglones.map((r) => ({ articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota, ...(r.bonificacionPct && Number(r.bonificacionPct) ? { bonificacionPct: String(Number(r.bonificacionPct)), bonificacionManual: true } : {}) })));
   };
   useEffect(() => { const id = params.get('id'); if (id) void api<PedidoVenta>(`/ventas/pedidos/${id}`).then(cargar); }, [params]);
 
@@ -88,7 +88,8 @@ export function PedidoVentaPage() {
         <Select label="Depósito" w={180} clearable data={depositos} value={depositoId} onChange={setDepositoId} disabled={!editable} />
       </Group>
       <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos}
-        sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
+        sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })}
+        sugerirBonificacion={bonificacionSugerida} />
       <TextInput label="Observaciones" mt="md" value={observaciones} onChange={(e) => setObservaciones(e.currentTarget.value)} disabled={!editable} />
       {op.alerta}
       {avisos.map((a) => <Alert key={a} color="yellow" mt="sm">{a}</Alert>)}

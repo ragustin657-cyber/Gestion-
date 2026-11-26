@@ -27,8 +27,10 @@ export function Maestro<T extends { id?: string }>({ config, sinMarco }: { confi
 
   const contenido = (
     <>
+      {config.encabezado}
       <TablaAbm<T>
         ruta={config.ruta}
+        filtros={config.filtros}
         columnas={config.columnas}
         paginado={config.paginado}
         onSeleccionar={editable && !config.soloAlta ? (f) => setEditando(f) : undefined}

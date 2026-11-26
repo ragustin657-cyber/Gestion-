@@ -16,6 +16,8 @@ export interface RenglonVentaEditable {
   devolucionRenglonId?: string | null;
   /** Venta de un bien de uso (sin artículo, cantidad 1). */
   bienUsoId?: string | null;
+  /** E56: la bonificación la escribió el usuario: no se reemplaza por la de la escala (no se manda a la API). */
+  bonificacionManual?: boolean;
 }
 export interface ArticuloVenta { value: string; label: string; descripcion: string; alicuotaIva: string }
 
@@ -31,6 +33,18 @@ export function aplicarPrecioSugerido(renglones: RenglonVentaEditable[], i: numb
   const r = renglones[i];
   if (!r || r.articuloId !== articuloId || r.precioUnitario !== '') return renglones;
   return renglones.map((x, j) => (j === i ? { ...x, precioUnitario: String(Number(precio)) } : x));
+}
+
+/**
+ * E56: aplica la bonificación sugerida por la escala solo si el renglón sigue con ese artículo y cantidad, es directo y no
+ * tiene bonificación escrita a mano (la respuesta puede llegar tarde); `null` la vacía.
+ */
+export function aplicarBonificacionSugerida(renglones: RenglonVentaEditable[], i: number, articuloId: string, cantidad: string, pct: string | null): RenglonVentaEditable[] {
+  const r = renglones[i];
+  if (!r || r.articuloId !== articuloId || r.cantidad !== cantidad || r.bonificacionManual || (r.origen ?? 'DIRECTO') !== 'DIRECTO') return renglones;
+  const nuevo = pct ? String(Number(pct)) : '';
+  if ((r.bonificacionPct ?? '') === nuevo) return renglones;
+  return renglones.map((x, j) => (j === i ? { ...x, bonificacionPct: nuevo } : x));
 }
 
 /** Totales del comprobante con el mismo cálculo que el servidor (null si hay renglones incompletos). */
@@ -65,10 +79,12 @@ const ORIGEN: Record<string, string> = { PADRON: 'padrón', FICHA: 'ficha', DEFE
 export const etiquetaPercepcion = (p: PercepcionVenta) =>
   `Percepción ${p.tipo === 'IVA' ? 'IVA' : `IIBB ${nombreJurisdiccion(p.jurisdiccion ?? '')}`} ${Number(p.alicuota).toLocaleString('es-AR', { maximumFractionDigits: 4 })} % (${ORIGEN[p.origenAlicuota] ?? p.origenAlicuota})`;
 
-export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio, percepciones, percepcionesDesactualizadas, descuentoPct = '', onDescuento, disabled }: {
+export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sugerirPrecio, sugerirBonificacion, percepciones, percepcionesDesactualizadas, descuentoPct = '', onDescuento, disabled }: {
   renglones: RenglonVentaEditable[]; onChange: (r: RenglonVentaEditable[]) => void; letra: LetraVenta; moneda: string; articulos: ArticuloVenta[];
   /** Precio de la lista del cliente para el artículo elegido. */
   sugerirPrecio?: (articuloId: string) => Promise<string | null>;
+  /** E56: % de la escala de descuento por cantidad (solo pedido y factura). */
+  sugerirBonificacion?: (articuloId: string, cantidad: string) => Promise<string | null>;
   /** Percepciones calculadas al guardar (E39); se recalculan al emitir. */
   percepciones?: PercepcionVenta[];
   /** Pulido E42: los renglones cambiaron desde lo guardado: no se suman las percepciones guardadas. */
@@ -79,6 +95,14 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
   const cambiar = (i: number, c: Partial<RenglonVentaEditable>) => onChange(renglones.map((x, j) => (j === i ? { ...x, ...c } : x)));
   const ultimos = useRef(renglones);
   ultimos.current = renglones;
+  /** E56: consulta la escala para el renglón i con ese artículo y cantidad y la aplica si nada cambió. */
+  const bonificar = async (i: number, articuloId: string | null, cantidad: string) => {
+    const r = ultimos.current[i];
+    if (!sugerirBonificacion || !articuloId || !r || r.bonificacionManual || (r.origen ?? 'DIRECTO') !== 'DIRECTO' || !(numero(cantidad) > 0)) return;
+    const pct = await sugerirBonificacion(articuloId, String(numero(cantidad)));
+    const nuevos = aplicarBonificacionSugerida(ultimos.current, i, articuloId, cantidad, pct);
+    if (nuevos !== ultimos.current) onChange(nuevos);
+  };
   const t = totalesVenta(renglones, letra, descuentoPct || '0');
   const hayDescuento = Number(t.descuentoGeneral) > 0;
   const discrimina = letra !== 'C';
@@ -99,6 +123,8 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
                       if (!a) return cambiar(i, { articuloId: null });
                       const base = { articuloId: v, descripcion: a.descripcion, alicuota: String(Number(a.alicuotaIva)), ...(sugerirPrecio ? { precioUnitario: '' } : {}) };
                       cambiar(i, base);
+                      ultimos.current = ultimos.current.map((x, j) => (j === i ? { ...x, ...base } : x));
+                      void bonificar(i, v, r.cantidad);
                       const precio = sugerirPrecio && v ? await sugerirPrecio(v) : null;
                       if (precio) {
                         const nuevos = aplicarPrecioSugerido(ultimos.current, i, v!, precio);
@@ -106,9 +132,9 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
                       }
                     }} />}</Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Descripción" value={r.descripcion} onChange={(e) => cambiar(i, { descripcion: e.currentTarget.value })} /></Table.Td>
-                  <Table.Td><TextInput size="xs" aria-label="Cantidad" inputMode="decimal" value={r.cantidad} onChange={(e) => cambiar(i, { cantidad: e.currentTarget.value })} /></Table.Td>
+                  <Table.Td><TextInput size="xs" aria-label="Cantidad" inputMode="decimal" value={r.cantidad} onChange={(e) => { const c = e.currentTarget.value; cambiar(i, { cantidad: c }); ultimos.current = ultimos.current.map((x, j) => (j === i ? { ...x, cantidad: c } : x)); void bonificar(i, r.articuloId, c); }} /></Table.Td>
                   <Table.Td><TextInput size="xs" aria-label="Precio unitario" inputMode="decimal" value={r.precioUnitario} onChange={(e) => cambiar(i, { precioUnitario: e.currentTarget.value })} /></Table.Td>
-                  <Table.Td><TextInput size="xs" aria-label="Bonificación %" inputMode="decimal" placeholder="0" value={r.bonificacionPct ?? ''} onChange={(e) => cambiar(i, { bonificacionPct: e.currentTarget.value })} /></Table.Td>
+                  <Table.Td><TextInput size="xs" aria-label="Bonificación %" inputMode="decimal" placeholder="0" value={r.bonificacionPct ?? ''} onChange={(e) => cambiar(i, { bonificacionPct: e.currentTarget.value, bonificacionManual: true })} /></Table.Td>
                   <Table.Td><Select size="xs" aria-label="Alícuota" allowDeselect={false} data={ALICUOTAS_VENTA} value={r.alicuota} onChange={(v) => cambiar(i, { alicuota: v ?? '21' })} /></Table.Td>
                   <Table.Td ta="right">{Number.isFinite(neto) ? formatoMoneda(neto, moneda) : ''}</Table.Td>
                   <Table.Td><ActionIcon variant="subtle" color="red" aria-label="Quitar renglón" onClick={() => onChange(renglones.filter((_, j) => j !== i))}><IconTrash size={16} /></ActionIcon></Table.Td>

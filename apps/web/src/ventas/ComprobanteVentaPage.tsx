@@ -10,7 +10,7 @@ import { formatoMoneda, hoy } from '../compras/formato';
 import { accionesComprobante, NOMBRE_TIPO, numero, numeroVenta, TIPOS_VENTA, useClientes, useEmpresa, useOperacionVentas, usePuntosVenta, type ComprobanteVenta, type TipoVenta } from './comun';
 import { EstadoEmision } from './EstadoEmision';
 import { TablaPendientes, type Pendiente } from './PedidosRemitosPages';
-import { convertirPrecio, precioSugerido } from './precios';
+import { convertirPrecio, precioSugerido, bonificacionSugerida } from './precios';
 import { CamposFce } from './fce';
 import { cuerpoRenglonVenta, GrillaVenta, renglonVacio, totalesVenta, TituloComprobante, type ArticuloVenta, type RenglonVentaEditable } from './GrillaVenta';
 
@@ -30,7 +30,8 @@ export function renglonDesdeComprobante(r: { articuloId: string | null; descripc
   const origen = r.remitoRenglonId ? 'REMITO' : r.pedidoRenglonId ? 'PEDIDO' : 'DIRECTO';
   return {
     articuloId: r.articuloId, descripcion: r.descripcion, cantidad: String(Number(r.cantidad)), precioUnitario: String(Number(r.precioUnitario)), alicuota: r.alicuota,
-    ...(r.bonificacionPct && Number(r.bonificacionPct) ? { bonificacionPct: String(Number(r.bonificacionPct)) } : {}),
+    // E56: la bonificación guardada se respeta (no la reemplaza la escala)
+    ...(r.bonificacionPct && Number(r.bonificacionPct) ? { bonificacionPct: String(Number(r.bonificacionPct)), bonificacionManual: true } : {}),
     origen, remitoRenglonId: r.remitoRenglonId ?? null, pedidoRenglonId: r.pedidoRenglonId ?? null, bienUsoId: r.bienUsoId ?? null,
     ...(r.bienUsoId ? { etiqueta: 'Bien de uso' } : {}),
     ...(origen === 'DIRECTO' ? {} : { etiqueta: origen === 'REMITO' ? 'Desde remito' : 'Desde pedido' }),
@@ -286,7 +287,8 @@ export function ComprobanteVentaPage() {
             onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
         </Group>}
         <GrillaVenta renglones={renglones} onChange={setRenglones} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual, descuentoPct)}
-          sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })} />
+          sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })}
+          sugerirBonificacion={tipo === 'FACTURA' ? bonificacionSugerida : undefined} />
         <Modal opened={selectorDevoluciones} onClose={() => setSelectorDevoluciones(false)} title="Devoluciones pendientes de acreditar" size="xl">
           {devoluciones.length ? devoluciones.map((d) => (
             <Checkbox key={d.devolucionRenglonId} mb={6} label={`${d.numero} · ${d.descripcion} · ${Number(d.pendiente).toLocaleString('es-AR')} · factura ${d.factura ?? '—'}`}

@@ -28,6 +28,15 @@ export async function precioSugerido(q: { terceroId: string | null; articuloId: 
   }
 }
 
+/** E56: % de la escala de descuento por cantidad del artículo (null si no hay). */
+export async function bonificacionSugerida(articuloId: string, cantidad: string): Promise<string | null> {
+  try {
+    return (await api<{ bonificacionPct: string | null }>('/ventas/bonificacion', { query: { articuloId, cantidad } })).bonificacionPct;
+  } catch {
+    return null;
+  }
+}
+
 /** Precio de un pedido en la moneda de la factura: con la cotización de la factura, o la del pedido si no hay. */
 export function convertirPrecio(precio: string, de: string, a: string, cotizacionFactura: string, cotizacionPedido: string): string {
   const p = Number(precio);
