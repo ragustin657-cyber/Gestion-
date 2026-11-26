@@ -9,7 +9,7 @@ ARBA exige un **Código de Operación de Traslado (COT)** para trasladar mercade
 - Datos del traslado en el remito de entrega (y de devolución): domicilio de destino, transportista, patente, fecha y hora de salida, importe.
 - Domicilio de origen en los depósitos; domicilio de entrega en los clientes (propuesto en el remito); maestro de transportistas; código del nomenclador y unidad de medida ARBA en los artículos.
 - Pedido del COT a ARBA por web service, con un botón *Pedir COT* en el remito y, si se activa, automático al confirmarlo.
-- COT y su vencimiento en el remito, impreso en el PDF; descarga del archivo TXT para subirlo a mano y carga manual del COT.
+- COT en el remito, impreso en el PDF; descarga del archivo TXT para subirlo a mano y carga manual del COT.
 - Ambiente SIMULADO (por defecto) y pruebas sin ARBA real, como ARCA.
 
 ## No objetivos
@@ -33,14 +33,17 @@ ARBA exige un **Código de Operación de Traslado (COT)** para trasladar mercade
 
 ### 2. Datos maestros
 - **Depósito**: `calle`, `numero`, `codigoPostal`, `localidad`, `provincia` (código de provincia ARBA, 1 letra de la tabla de ARBA; *Buenos Aires = B*), `plantaArba` (número de planta) y `puertaArba` (número de puerta) del domicilio inscripto en ARBA.
-- **Cliente** (`Tercero`): domicilio de entrega `entregaCalle`, `entregaNumero`, `entregaCodigoPostal`, `entregaLocalidad`, `entregaProvincia`; vacíos → se usa el domicilio fiscal si está completo.
+- **Cliente** (`Tercero`): domicilio de entrega `entregaCalle`, `entregaNumero`, `entregaCodigoPostal`, `entregaLocalidad`, `entregaProvincia` (letra de ARBA). El remito los propone; si están vacíos, se cargan en el remito. *(Decisión mía: el domicilio fiscal es texto libre y no sirve para el archivo; no se usa.)*
 - **Transportista** (nuevo maestro `Transportista { cuit, razonSocial, patentePorDefecto?, activo }`), ABM en Maestros con `tercero.ver`/`tercero.editar` *(decisión mía: mismos permisos que terceros)*.
 - **Artículo**: `codigoNomencladorArba` (código del nomenclador COT de ARBA, 6 dígitos) y `unidadMedidaArba` (código de la tabla de unidades de ARBA, p. ej. `1` kilogramos, `7` unidades). Artículos de servicio no viajan.
 
 ### 3. Datos del traslado en el remito
-`Remito`: `trasladoCalle`, `trasladoNumero`, `trasladoCodigoPostal`, `trasladoLocalidad`, `trasladoProvincia` (propuestos del cliente), `transportistaId?` (vacío = transporte propio con el CUIT de la empresa), `patente`, `patenteAcoplado?`, `fechaSalida` (por defecto la del remito), `horaSalida` (`HHMM`, por defecto la hora de confirmación), `importeDeclarado` (por defecto Σ cantidad × precio del pedido o de lista, editable), y el resultado: `cot String?`, `cotEstado (SIN_PEDIR | PENDIENTE | OTORGADO | RECHAZADO | NO_CORRESPONDE)`, `cotMensaje String?`, `cotPedidoEn DateTime?`.
-- No corresponde COT (`NO_CORRESPONDE`) si ni el origen ni el destino están en la provincia B. *(Decisión mía: se calcula al confirmar; el usuario no lo pide.)*
-- Los datos del traslado se pueden editar mientras el COT no esté OTORGADO.
+Los datos del traslado se cargan **en el alta del remito** (los remitos nacen confirmados) y se editan después con `PUT /api/ventas/remitos/:id/traslado` (`pedido.gestionar`) mientras el COT no esté OTORGADO. *(Decisión mía.)*
+
+`Remito`: `trasladoCalle`, `trasladoNumero`, `trasladoCodigoPostal`, `trasladoLocalidad`, `trasladoProvincia` (propuestos del cliente), `transportistaId?` (vacío = transporte propio con el CUIT de la empresa), `patente`, `patenteAcoplado?`, `fechaSalida` (por defecto la del remito), `horaSalida` (`HHMM`, por defecto la hora de confirmación), `importeDeclarado` (valor de la mercadería **sin IVA** en pesos: por defecto Σ cantidad × precio × (1 − bonificación) del renglón de pedido; sin pedido, el precio sugerido de la lista del cliente en pesos; en la devolución, el del renglón de remito de origen con el mismo criterio; editable) *(decisión mía)*, y el resultado: `cot String?`, `cotEstado (SIN_PEDIR | PENDIENTE | OTORGADO | RECHAZADO | NO_CORRESPONDE)?` (null en los remitos anteriores y cuando la empresa no tiene el COT activo: la columna muestra «—»), `cotMensaje String?`, `cotPedidoEn DateTime?`.
+- No corresponde COT (`NO_CORRESPONDE`) si ni el origen ni el destino están en la provincia B. Se calcula al crear el remito (con el COT activo) y **cada vez que se editan los datos del traslado**; editar un remito RECHAZADO o NO_CORRESPONDE lo vuelve a SIN_PEDIR si ahora corresponde. *(Decisión mía.)*
+- Faltar datos (patente, nomenclador, domicilio) **no bloquea** el alta del remito: queda SIN_PEDIR y las validaciones del §4 se aplican al pedir el COT. *(Decisión mía.)*
+- **Remito de devolución**: el traslado va del cliente al depósito: el domicilio del traslado es el **origen** (propuesto del domicilio de entrega del cliente), el depósito es el **destino** y el destinatario es la propia empresa; el emisor del archivo sigue siendo la empresa. *(Decisión mía.)*
 
 ### 4. Pedido del COT
 - Cliente `ClienteCot` con dos implementaciones: `ArbaCotReal` (HTTPS POST multipart a `https://cot.arba.gov.ar/TransporteBienes/SeguridadCliente/presentarRemitos.do` en PRODUCCION y `https://cot.test.arba.gov.ar/...` en PRUEBA, campos `user`, `password`, `file`) y `ArbaCotSimulado` (en memoria, otorga un COT de 16 dígitos; fallas forzables en pruebas: `RECHAZO`, `SIN_CONEXION`, como `ArcaSimulado.forzarFalla`).
@@ -53,7 +56,7 @@ ARBA exige un **Código de Operación de Traslado (COT)** para trasladar mercade
   - `Configure el usuario y la clave CIT de ARBA`
 - **Respuesta**: COT otorgado → `cot`, `OTORGADO`; errores de validación de ARBA → `RECHAZADO` con los mensajes; sin conexión → `PENDIENTE` con `No se pudo conectar con ARBA: el COT quedó pendiente` (reintento con el mismo botón).
 - `POST /api/ventas/remitos/:id/cot` (pedir o reintentar, `pedido.gestionar`), `GET /api/ventas/remitos/:id/cot/archivo` (TXT), `PUT /api/ventas/remitos/:id/cot` `{ cot }` (carga manual tras subirlo a mano: 16 dígitos → `OTORGADO`).
-- Al confirmar con `cotPedirAlConfirmar`: se pide fuera de la transacción del remito; un error deja el remito confirmado con el estado del COT. *(Decisión mía.)*
+- Al crear el remito con `cotPedirAlConfirmar` y el COT correspondiendo: se pide fuera de la transacción del remito; un error (de validación o de ARBA) deja el remito creado con el estado y el mensaje del COT. *(Decisión mía.)*
 - Anular un remito con COT otorgado: se anula igual y se avisa `Anule también el COT <número> en la web de ARBA`.
 
 ### 5. Pantallas
