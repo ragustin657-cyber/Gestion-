@@ -2,14 +2,14 @@
 
 ## Intención
 Dos pendientes de ventas que se apoyan uno en el otro:
-- **Rubros de artículos** (familias): agrupar artículos y darle a cada rubro un **margen sobre el costo** para las listas calculadas desde el costo (pendiente de E52).
+- **Rubros de artículos** (familias): agrupar artículos y, en cada lista calculada desde el costo, darle a cada rubro su **margen sobre el costo** (pendiente de E52).
 - **Descuentos por cantidad automáticos** (pendiente de E51): escalas por rubro, con excepción por artículo, que **sugieren** el % de bonificación del renglón según la cantidad.
 
 Ítems 16 y 17 de `docs/pendientes.md` (sección 1.2), en lo que tienen de rubros y escalas.
 
 ## Objetivos
 - ABM de rubros de artículos; cada artículo puede tener un rubro.
-- Margen sobre el costo por rubro, usado por el recálculo de listas COSTO.
+- Margen sobre el costo **por rubro y por lista** (el usuario lo eligió así: con varias listas desde el costo cada una tiene su margen por rubro), usado por el recálculo de esa lista.
 - Escalas de descuento por cantidad por rubro y por artículo (la del artículo reemplaza a la del rubro).
 - La bonificación del renglón se sugiere sola en el pedido y el comprobante al elegir artículo o cambiar la cantidad, como hoy el precio; lo cargado a mano se respeta.
 - La facturación por lotes (E55) usa la escala en los remitos sin pedido.
@@ -31,17 +31,20 @@ Dos pendientes de ventas que se apoyan uno en el otro:
 ## Diseño
 
 ### 1. Rubros
-- `RubroArticulo { id, empresaId, nombre (único por empresa), margenPct Decimal(9,2)? (0 a 1000), activo }`.
+- `RubroArticulo { id, empresaId, nombre (único por empresa), activo }`.
 - `Articulo.rubroId String? @db.Uuid`.
 - API `GET/POST /api/rubros-articulos`, `PATCH /api/rubros-articulos/:id` (ver: `articulo.ver`; editar: `articulo.editar`). No se borran: se desactivan; un rubro inactivo no se puede asignar a artículos nuevos o modificados, pero los que ya lo tienen lo conservan. *(Decisión mía.)*
 - Mensajes: `Ya existe un rubro con ese nombre`, `Rubro inexistente o inactivo`.
 - El alta y la edición de artículos aceptan `rubroId`; el listado de artículos lo devuelve con el nombre y filtra por `?rubroId=`.
 
 ### 2. Margen por rubro en las listas desde el costo
-En el recálculo de una lista COSTO (E52, `PreciosService`), el margen de cada artículo es:
-1. `PrecioLista.margenPct` del artículo en esa lista, si tiene;
-2. si no, `RubroArticulo.margenPct` del rubro del artículo, si tiene;
-3. si no, `ListaPrecios.porcentaje`.
+- `MargenRubroLista { id, empresaId, listaId, rubroId, margenPct Decimal(9,2) (0 a 1000) }`, único por (lista, rubro).
+- `GET/PUT /api/ventas/listas/:id/margenes-rubro` con `{ margenes: { rubroId, margenPct }[] }` (reemplaza todos; ver: `RequiereAlguno('venta.ver', 'pedido.gestionar')`; guardar: `precios.editar`). Solo listas COSTO: otra → 400 `La lista no se calcula desde el costo`. Rubro inexistente → 400 `Rubro inexistente o inactivo`.
+- En el recálculo de una lista COSTO (E52, `PreciosService`), el margen de cada artículo es:
+  1. `PrecioLista.margenPct` del artículo en esa lista, si tiene;
+  2. si no, el `MargenRubroLista` de esa lista para el rubro (activo) del artículo, si tiene;
+  3. si no, `ListaPrecios.porcentaje`.
+- Un rubro inactivo no aporta margen ni escalas. *(Decisión mía: desactivarlo puede cambiar precios, pero el cambio aparece en la vista previa del recálculo antes de aplicarse.)*
 
 La vista previa del recálculo agrega `margen` (el % usado) y `origenMargen` (`ARTICULO | RUBRO | LISTA`). Listas MANUAL y LISTA no cambian.
 
@@ -59,17 +62,17 @@ La vista previa del recálculo agrega `margen` (el % usado) y `origenMargen` (`A
 - Función de dominio reutilizable `bonificacionPorCantidad(tx, articuloId, cantidad)` (la usa también el lote).
 
 ### 5. Pantallas
-- **Rubros de artículos** (Maestros, `articulo.ver` / editar con `articulo.editar`): tabla nombre, margen sobre el costo, activo; alta y edición; botón *Escalas* que abre un editor de filas (Desde cantidad, % de descuento, agregar/quitar, *Guardar*).
+- **Rubros de artículos** (Maestros, `articulo.ver` / editar con `articulo.editar`): tabla nombre, activo; alta y edición; botón *Escalas* que abre un editor de filas (Desde cantidad, % de descuento, agregar/quitar, *Guardar*).
 - **Artículos**: campo *Rubro* en el formulario, columna *Rubro* y filtro en el listado; botón *Escalas* con el mismo editor (propias del artículo; aviso `Sin escalas propias: usa las del rubro <nombre>` cuando corresponde).
-- **Grilla de venta** (pedido y comprobante, `GrillaVenta`): al elegir artículo y al cambiar la cantidad, si la bonificación del renglón no fue escrita a mano, se consulta la sugerida y se completa (o se vacía si ya no corresponde escala). Escribir en *Bonificación %* marca el renglón como manual. Los renglones que vienen de remito, pedido o devolución no se tocan. Una respuesta que llega tarde se descarta si el renglón cambió de artículo o cantidad (como `aplicarPrecioSugerido`).
-- **Listas de precios** (recálculo): columna *Margen* con su origen (Artículo / Rubro / Lista) en la vista previa de listas COSTO.
+- **Grilla de venta** (pedido y **factura**; no en notas de crédito ni de débito *(decisión mía: una devolución parcial no debe caer en otra escala que la factura)*, `GrillaVenta`): al elegir artículo y al cambiar la cantidad, si la bonificación del renglón no fue escrita a mano, se consulta la sugerida y se completa (o se vacía si ya no corresponde escala). Escribir en *Bonificación %* marca el renglón como manual. Los renglones que vienen de remito, pedido o devolución no se tocan. Al abrir un pedido o comprobante guardado, los renglones con bonificación distinta de 0 se tratan como manuales; los que tienen 0 se recalculan si cambia la cantidad. *(Decisión mía.)* Una respuesta que llega tarde se descarta si el renglón cambió de artículo o cantidad (como `aplicarPrecioSugerido`).
+- **Listas de precios**: en una lista COSTO, botón *Márgenes por rubro* (modal con una fila por rubro activo y su margen, vacío = usa el de la lista, *Guardar*); en la vista previa del recálculo, columna *Margen* con su origen (Artículo / Rubro / Lista).
 
 ### 6. Facturación por lotes
 En `armarLote` (E55), renglón de remito sin pedido: `bonificacionPct` = la sugerida por la escala para la cantidad pendiente (0 si no hay). Con pedido, la del pedido (sin cambios).
 
 ## Restricciones
 - Modelos nuevos en `MODELOS_DE_EMPRESA`; migraciones aparte.
-- Mensajes exactos: `Ya existe un rubro con ese nombre`, `Rubro inexistente o inactivo`, `Hay dos escalas con la misma cantidad`.
+- Mensajes exactos: `Ya existe un rubro con ese nombre`, `Rubro inexistente o inactivo`, `Hay dos escalas con la misma cantidad`, `La lista no se calcula desde el costo`.
 - Mismos rangos que E51/E52: bonificación 0–100 con 2 decimales; margen 0–1000.
 
 ## Lo que queda al constructor
