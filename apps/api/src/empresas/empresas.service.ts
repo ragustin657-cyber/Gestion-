@@ -78,14 +78,14 @@ export class EmpresasService {
     return this.tenant.db.puntoVenta.findMany({ orderBy: { numero: 'asc' } });
   }
 
-  async modificarPuntoVenta(id: string, d: { depositoId: string | null }) {
+  async modificarPuntoVenta(id: string, d: { depositoId?: string | null; exportacion?: boolean }) {
     const db = this.tenant.db;
     if (!(await db.puntoVenta.findUnique({ where: { id } }))) throw new NotFoundException('Punto de venta no encontrado');
     if (d.depositoId && !(await db.deposito.findUnique({ where: { id: d.depositoId } }))) throw new BadRequestException('Depósito inexistente');
-    return db.puntoVenta.update({ where: { id }, data: { depositoId: d.depositoId } });
+    return db.puntoVenta.update({ where: { id }, data: { depositoId: d.depositoId, exportacion: d.exportacion } });
   }
 
-  crearPuntoVenta(d: { numero: number; descripcion?: string | null; electronico?: boolean; sucursalId?: string | null }) {
+  crearPuntoVenta(d: { numero: number; descripcion?: string | null; electronico?: boolean; exportacion?: boolean; sucursalId?: string | null }) {
     return this.tenant.db.puntoVenta.create({ data: { empresaId: this.tenant.empresaId, ...d } });
   }
 }

@@ -16,3 +16,13 @@ describe('letraVenta', () => {
     expect(() => letraVenta(C.CONSUMIDOR_FINAL, C.RESPONSABLE_INSCRIPTO)).toThrow('La condición de IVA de la empresa no permite emitir comprobantes');
   });
 });
+
+describe('letra E (E58)', () => {
+  it('exportación', async () => {
+    const { cbteTipo } = await import('./codigos-arca');
+    expect(letraVenta(C.RESPONSABLE_INSCRIPTO, C.CONSUMIDOR_FINAL, true)).toBe('E');
+    expect(letraVenta(C.MONOTRIBUTO, C.CONSUMIDOR_FINAL, true)).toBe('E');
+    expect(letraVenta(C.RESPONSABLE_INSCRIPTO, C.CONSUMIDOR_FINAL, false)).toBe('B');
+    expect([cbteTipo('FACTURA', 'E'), cbteTipo('NOTA_DEBITO', 'E'), cbteTipo('NOTA_CREDITO', 'E')]).toEqual([19, 20, 21]);
+  });
+});

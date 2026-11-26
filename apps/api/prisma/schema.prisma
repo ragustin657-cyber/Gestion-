@@ -55,6 +55,8 @@ model PuntoVenta {
   electronico Boolean @default(true)
   sucursalId  String? @db.Uuid
   depositoId  String? @db.Uuid
+  /// E58: punto de venta habilitado para el web service de exportación (WSFEX)
+  exportacion Boolean @default(false)
   empresa     Empresa @relation(fields: [empresaId], references: [id])
 
   @@unique([empresaId, numero])
@@ -161,6 +163,8 @@ model Tercero {
   entregaCodigoPostal     String?
   entregaLocalidad        String?
   entregaProvincia        String?
+  /// E58: CUIT genérico del país del cliente del exterior (tabla de ARCA)
+  cuitPais                String?
   tipoPersona             String?
   nacimientoPais          Int?
   nacimientoFecha         DateTime?           @db.Date
@@ -1593,6 +1597,16 @@ model ComprobanteVenta {
   fce                   Boolean                   @default(false)
   transferenciaFce      String?
   anulacionFce          Boolean?
+  /// E58: factura de exportación (letra E, WSFEX)
+  exportacion           Boolean                   @default(false)
+  tipoExportacion       TipoExportacion?
+  paisDestino           Int?
+  incoterm              String?
+  incotermDescripcion   String?
+  formaPago             String?
+  idioma                Int                       @default(1)
+  permisoExistente      String?
+  permisos              ComprobanteVentaPermiso[]
   aplicarAAsociado      Boolean                   @default(true)
   vendedorId            String?                   @db.Uuid
   /// Copia del porcentaje del vendedor al emitir.
@@ -3454,4 +3468,21 @@ model Transportista {
   activo            Boolean @default(true)
 
   @@unique([empresaId, cuit])
+}
+
+/// E58: tipo de exportación (WSFEX)
+enum TipoExportacion {
+  BIENES
+  SERVICIOS
+  OTROS
+}
+
+/// E58: permiso de embarque de una factura de exportación de bienes
+model ComprobanteVentaPermiso {
+  id            String           @id @default(uuid()) @db.Uuid
+  empresaId     String           @db.Uuid
+  comprobanteId String           @db.Uuid
+  comprobante   ComprobanteVenta @relation(fields: [comprobanteId], references: [id], onDelete: Cascade)
+  numero        String
+  paisDestino   Int
 }

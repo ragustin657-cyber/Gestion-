@@ -51,6 +51,16 @@ export const esquemaComprobanteVenta = z
     fce: z.boolean().optional(),
     transferenciaFce: z.enum(['SCA', 'ADC'], { message: 'Valor inválido' }).nullish(),
     anulacionFce: z.boolean().nullish(),
+    // E58: factura de exportación (letra E); sin indicar, se marca si el cliente es del exterior
+    exportacion: z.boolean().optional(),
+    tipoExportacion: z.enum(['BIENES', 'SERVICIOS', 'OTROS']).nullish(),
+    paisDestino: z.number().int().min(1).max(999).nullish(),
+    incoterm: z.enum(['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP', 'DAP', 'DPU', 'DDP']).nullish(),
+    incotermDescripcion: z.string().trim().max(100).nullish(),
+    formaPago: z.string().trim().max(100).nullish(),
+    idioma: z.union([z.literal(1), z.literal(2), z.literal(3)]).optional(),
+    permisoExistente: z.enum(['S', 'N']).nullish(),
+    permisos: z.array(z.object({ numero: z.string().trim().length(16, 'El permiso de embarque tiene 16 caracteres'), paisDestino: z.number().int().min(1).max(999) })).optional(),
   })
   .superRefine((c, ctx) => {
     if (c.concepto !== 'PRODUCTOS') {
