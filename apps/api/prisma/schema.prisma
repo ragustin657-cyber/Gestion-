@@ -2132,6 +2132,22 @@ model Remito {
   estado             EstadoRemito    @default(CONFIRMADO)
   /// E54: entrega o devolución (con numeración propia)
   tipo               TipoRemito      @default(ENTREGA)
+  /// E57: traslado (COT de ARBA); en la devolución el domicilio del traslado es el origen
+  trasladoCalle        String?
+  trasladoNumero       String?
+  trasladoCodigoPostal String?
+  trasladoLocalidad    String?
+  trasladoProvincia    String?
+  transportistaId      String?    @db.Uuid
+  patente              String?
+  patenteAcoplado      String?
+  fechaSalida          DateTime?  @db.Date
+  horaSalida           String?
+  importeDeclarado     Decimal?   @db.Decimal(18, 2)
+  cot                  String?
+  cotEstado            EstadoCot?
+  cotMensaje           String?
+  cotPedidoEn          DateTime?
   motivoAnulacion    String?
   asientoId          String?         @db.Uuid
   asientoAnulacionId String?         @db.Uuid

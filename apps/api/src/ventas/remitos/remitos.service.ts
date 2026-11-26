@@ -14,6 +14,8 @@ import { MotorStock } from '../../stock/motor';
 import { D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import { pdfDocumento } from '../pedidos/pdf-pedido';
 import { PedidosService } from '../pedidos/pedidos.service';
+import { PreciosService } from '../precios/precios.service';
+import { guardarTraslado, type DatosTraslado } from './cot/traslado';
 import type { DatosDevolucion, DatosRemito } from './dto';
 
 export const ORIGEN_REMITO = 'REMITO';
@@ -32,6 +34,7 @@ export class RemitosService {
     private readonly pedidos: PedidosService,
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
+    private readonly precios: PreciosService,
   ) {}
 
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -96,6 +99,8 @@ export class RemitosService {
         include: { renglones: true },
       });
       for (const [id, cant] of pedidas) await tx.pedidoVentaRenglon.update({ where: { id }, data: { cantidadEntregada: { increment: cant } } });
+      // E57: datos del traslado y estado del COT
+      await guardarTraslado(tx, this.precios, remito.id, d.traslado, true);
 
       // E53: aviso de lo reservado por otros pedidos (con el stock de antes de la salida; los pedidos de este remito no cuentan)
       const cantRem = new Map<string, Dec>();
@@ -210,6 +215,8 @@ export class RemitosService {
         },
         include: { renglones: { orderBy: { orden: 'asc' } } },
       });
+      // E57: datos del traslado (origen = el cliente) y estado del COT
+      await guardarTraslado(tx, this.precios, remito.id, d.traslado, true);
       for (const r of renglones) {
         await tx.remitoRenglon.update({ where: { id: r._origen.id }, data: { cantidadDevuelta: { increment: r.cantidad } } });
         if (r._origen.pedidoRenglonId && r._sinFacturar.gt(0)) await tx.pedidoVentaRenglon.update({ where: { id: r._origen.pedidoRenglonId }, data: { cantidadDevuelta: { increment: r._sinFacturar } } });
@@ -325,5 +332,18 @@ export class RemitosService {
       renglones: r.renglones.map((x) => ({ descripcion: x.descripcion, cantidad: new D(x.cantidad).toString() })), observaciones, copias: ['Original', 'Duplicado'],
     });
     return { nombre: `remito-${r.puntoVenta}-${r.numero}.pdf`, contenido };
+  }
+
+  /** E57: edita los datos del traslado mientras el COT no esté otorgado; recalcula el estado. */
+  actualizarTraslado(id: string, d: DatosTraslado) {
+    return this.tenant.transaccion(async (tx) => {
+      await bloquear(tx, 'Remito', this.tenant.empresaId, [id]);
+      const r = await this.obtener(id, tx);
+      if (r.estado === 'ANULADO') throw new BadRequestException('El remito está anulado');
+      if (r.cotEstado === 'OTORGADO') throw new BadRequestException('El remito ya tiene COT otorgado');
+      await guardarTraslado(tx, this.precios, id, d, false);
+      await this.auditoria.registrar(tx, { entidad: 'Remito', entidadId: id, accion: 'MODIFICAR', datos: { traslado: d } });
+      return this.obtener(id, tx);
+    });
   }
 }

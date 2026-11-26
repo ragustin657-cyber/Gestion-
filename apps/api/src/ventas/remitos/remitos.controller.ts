@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res, StreamableFile } from '@nestjs/common';
+import { esquemaTraslado, type DatosTraslado } from './cot/traslado';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Res, StreamableFile } from '@nestjs/common';
 import type { Response } from 'express';
 import { RequierePermiso } from '../../auth/requiere-permiso.decorator';
 import { ZodValidationPipe } from '../../comun/zod.pipe';
@@ -30,6 +31,12 @@ export class RemitosController {
   @Get('pendientes-acreditar') @RequierePermiso('venta.ver')
   pendientesAcreditar(@Query('terceroId', ParseUUIDPipe) terceroId: string) {
     return this.remitos.pendientesAcreditar(terceroId);
+  }
+
+  /** E57: datos del traslado (COT de ARBA). */
+  @Put(':id/traslado') @RequierePermiso('pedido.gestionar')
+  actualizarTraslado(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaTraslado)) d: DatosTraslado) {
+    return this.remitos.actualizarTraslado(id, d);
   }
 
   @Get(':id') @RequierePermiso('venta.ver')

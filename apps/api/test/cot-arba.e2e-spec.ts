@@ -15,7 +15,23 @@ describe('COT de ARBA (E57)', () => {
 
   const escenario = async () => {
     const e = await prepararPedidos(app, prisma);
-    return e;
+    const activar = (o: Record<string, unknown> = {}) => e.http.put('/api/ventas/cot/config', { activo: true, ambiente: 'SIMULADO', usuario: '30712345671', clave: 'secreta', ...o });
+    const depositoEn = (provincia: string) => e.http.patch(`/api/depositos/${e.deposito.id}`, { calle: 'Av. Mitre', numero: '100', codigoPostal: '1870', localidad: 'Avellaneda', provincia, plantaArba: 1, puertaArba: 2 });
+    const entregaEn = (provincia: string) => e.http.patch(`/api/terceros/${e.clienteRI.id}`, { entregaCalle: 'San Martín', entregaNumero: '50', entregaCodigoPostal: '1900', entregaLocalidad: 'La Plata', entregaProvincia: provincia });
+    const articuloArba = async () => {
+      const a = await e.articulo(false);
+      await e.http.patch(`/api/articulos/${a.id}`, { codigoNomencladorArba: '123456', unidadMedidaArba: '7' });
+      return a;
+    };
+    /** Pedido confirmado de 10 a 1000 con 10 % de bonificación y su remito. */
+    const remitoDePedido = async (o: Record<string, unknown> = {}) => {
+      const art = await articuloArba();
+      const p = await e.pedido([{ ...e.renglon(art.id, 10, 1000), bonificacionPct: 10 } as ReturnType<typeof e.renglon>], { confirmar: true });
+      const r = await e.remito([e.dePedido(p.renglones[0].id, 10)], o);
+      if (r.status !== 201) throw new Error(JSON.stringify(r.body));
+      return { art, remito: r.body as Record<string, any> };
+    };
+    return { ...e, activar, depositoEn, entregaEn, articuloArba, remitoDePedido };
   };
 
   describe('configuración y maestros', () => {
@@ -49,6 +65,51 @@ describe('COT de ARBA (E57)', () => {
       expect((await x.http.patch(`/api/articulos/${art.id}`, { codigoNomencladorArba: '12AB' })).status).toBe(400);
       const c = await x.http.patch(`/api/terceros/${x.clienteRI.id}`, { entregaCalle: 'San Martín', entregaNumero: '50', entregaCodigoPostal: '1900', entregaLocalidad: 'La Plata', entregaProvincia: 'B' });
       expect([c.status, c.body.entregaProvincia]).toEqual([200, 'B']);
+    });
+  });
+
+  describe('traslado en el remito', () => {
+    it('sin COT activo no hay estado; activo: propone el destino, la salida y el importe sin IVA', async () => {
+      const x = await escenario();
+      const { remito: r0 } = await x.remitoDePedido();
+      expect(r0.cotEstado).toBeNull();
+      await x.activar();
+      await x.depositoEn('B');
+      await x.entregaEn('B');
+      const { remito } = await x.remitoDePedido();
+      expect(remito).toMatchObject({ cotEstado: 'SIN_PEDIR', trasladoCalle: 'San Martín', trasladoProvincia: 'B', importeDeclarado: '9000' });
+      expect(remito.fechaSalida.slice(0, 10)).toBe('2026-11-03');
+      expect(remito.horaSalida).toMatch(/^\d{4}$/);
+    });
+
+    it('no corresponde fuera de la provincia; editar el destino lo recalcula; sin domicilio se crea igual', async () => {
+      const x = await escenario();
+      await x.activar();
+      await x.depositoEn('C');
+      await x.entregaEn('C');
+      const { remito } = await x.remitoDePedido();
+      expect(remito.cotEstado).toBe('NO_CORRESPONDE');
+      const ed = await x.http.put(`/api/ventas/remitos/${remito.id}/traslado`, { calle: 'Calle 7', numero: '1', codigoPostal: '1900', localidad: 'La Plata', provincia: 'B', patente: 'AB123CD' });
+      expect([ed.status, ed.body.cotEstado, ed.body.patente]).toEqual([200, 'SIN_PEDIR', 'AB123CD']);
+      await x.http.patch(`/api/terceros/${x.clienteRI.id}`, { entregaCalle: null, entregaNumero: null, entregaCodigoPostal: null, entregaLocalidad: null, entregaProvincia: null });
+      await x.depositoEn('B');
+      const { remito: sin } = await x.remitoDePedido();
+      expect([sin.cotEstado, sin.trasladoCalle]).toEqual(['SIN_PEDIR', null]);
+      await prisma.remito.update({ where: { id: remito.id }, data: { cotEstado: 'OTORGADO', cot: '1234567890123456' } });
+      const otor = await x.http.put(`/api/ventas/remitos/${remito.id}/traslado`, { patente: 'AA111AA' });
+      expect([otor.status, otor.body.message]).toEqual([400, 'El remito ya tiene COT otorgado']);
+    });
+
+    it('devolución: el origen es el cliente y el destino el depósito', async () => {
+      const x = await escenario();
+      await x.activar();
+      await x.depositoEn('C');
+      await x.entregaEn('B');
+      const { remito } = await x.remitoDePedido();
+      const d = await x.http.post('/api/ventas/remitos/devoluciones', { terceroId: x.clienteRI.id, puntoVentaId: x.puntoVenta.id, fecha: '2026-11-04', renglones: [{ remitoRenglonOrigenId: remito.renglones[0].id, cantidad: 2 }] });
+      expect(d.status).toBe(201);
+      // Origen en B (cliente) y destino en C (depósito): corresponde
+      expect(d.body).toMatchObject({ cotEstado: 'SIN_PEDIR', trasladoProvincia: 'B', importeDeclarado: '1800' });
     });
   });
 });
