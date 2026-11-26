@@ -8,7 +8,7 @@ import { api, descargar, ErrorApi } from '../api/cliente';
 /** E57: COT de ARBA en los remitos. */
 
 export type EstadoCot = 'SIN_PEDIR' | 'PENDIENTE' | 'OTORGADO' | 'RECHAZADO' | 'NO_CORRESPONDE' | null;
-export interface Traslado { calle?: string; numero?: string; codigoPostal?: string; localidad?: string; provincia?: string | null; transportistaId?: string | null; patente?: string; patenteAcoplado?: string; importeDeclarado?: string | number }
+export interface Traslado { calle?: string; numero?: string; codigoPostal?: string; localidad?: string; provincia?: string | null; transportistaId?: string | null; patente?: string; patenteAcoplado?: string; importeDeclarado?: string | number; fechaSalida?: string; horaSalida?: string }
 export interface Transportista { id: string; razonSocial: string; cuit: string; patentePorDefecto: string | null }
 
 const ESTADOS: Record<string, string> = { SIN_PEDIR: 'Sin pedir', PENDIENTE: 'Pendiente', RECHAZADO: 'Rechazado', NO_CORRESPONDE: 'No corresponde', OTORGADO: 'Otorgado' };
@@ -20,8 +20,12 @@ export interface FormConfigCot { activo: boolean; ambiente: string; usuario: str
 /** La clave solo se manda si se escribió una nueva. */
 export const cuerpoConfigCot = ({ clave, ...resto }: FormConfigCot): Partial<FormConfigCot> => (clave ? { ...resto, clave } : resto);
 
-/** Cuerpo del traslado para la API: vacíos fuera (se proponen en el servidor). */
-export const cuerpoTraslado = (t: Traslado) => Object.fromEntries(Object.entries({ ...t, importeDeclarado: t.importeDeclarado === '' || t.importeDeclarado == null ? undefined : Number(t.importeDeclarado) }).filter(([, v]) => v !== '' && v !== undefined));
+/**
+ * Cuerpo del traslado para la API. En el alta los vacíos se omiten (el servidor los propone); en la edición un campo vaciado va
+ * como null para borrarlo (revisión E57).
+ */
+export const cuerpoTraslado = (t: Traslado, edicion = false) => Object.fromEntries(Object.entries({ ...t, importeDeclarado: t.importeDeclarado === '' || t.importeDeclarado == null ? (edicion && t.importeDeclarado === '' ? null : undefined) : Number(t.importeDeclarado) })
+  .map(([k, v]) => [k, edicion && v === '' ? null : v]).filter(([, v]) => v !== '' && v !== undefined));
 
 export const useTransportistas = () => useQuery({ queryKey: ['/transportistas'], queryFn: () => api<(Transportista & { activo: boolean })[]>('/transportistas') }).data?.filter((t) => t.activo) ?? [];
 
@@ -42,6 +46,8 @@ export function SeccionTraslado({ valor, onChange, transportistas, etiquetaDomic
           onChange={(v) => { const t = transportistas.find((x) => x.id === v); c({ transportistaId: v || null, patente: t?.patentePorDefecto ?? '' }); }} />
         <TextInput label="Patente" w={120} value={valor.patente ?? ''} onChange={(e) => c({ patente: e.currentTarget.value.toUpperCase() })} />
         <TextInput label="Acoplado" w={120} value={valor.patenteAcoplado ?? ''} onChange={(e) => c({ patenteAcoplado: e.currentTarget.value.toUpperCase() })} />
+        <TextInput label="Fecha de salida" type="date" w={160} value={valor.fechaSalida ?? ''} onChange={(e) => c({ fechaSalida: e.currentTarget.value })} />
+        <TextInput label="Hora de salida (HHMM)" w={150} placeholder="La de confirmación" value={valor.horaSalida ?? ''} onChange={(e) => c({ horaSalida: e.currentTarget.value.replace(/\D/g, '').slice(0, 4) })} />
         <NumberInput label="Importe declarado (sin IVA)" w={200} min={0} decimalScale={2} decimalSeparator="," thousandSeparator="." placeholder="Del pedido o la lista" value={valor.importeDeclarado ?? ''} onChange={(v) => c({ importeDeclarado: v })} />
       </Group>
     </Stack>
@@ -49,7 +55,7 @@ export function SeccionTraslado({ valor, onChange, transportistas, etiquetaDomic
 }
 
 /** Acciones del COT en la consulta de remitos. */
-export interface RemitoCot { id: string; cot: string | null; cotEstado: EstadoCot; cotMensaje?: string | null; estado: string; trasladoCalle?: string | null; trasladoNumero?: string | null; trasladoCodigoPostal?: string | null; trasladoLocalidad?: string | null; trasladoProvincia?: string | null; transportistaId?: string | null; patente?: string | null; patenteAcoplado?: string | null; importeDeclarado?: string | null }
+export interface RemitoCot { id: string; cot: string | null; cotEstado: EstadoCot; cotMensaje?: string | null; estado: string; trasladoCalle?: string | null; trasladoNumero?: string | null; trasladoCodigoPostal?: string | null; trasladoLocalidad?: string | null; trasladoProvincia?: string | null; transportistaId?: string | null; patente?: string | null; patenteAcoplado?: string | null; importeDeclarado?: string | null; fechaSalida?: string | null; horaSalida?: string | null }
 
 export function AccionesCot({ remito, onCambio }: { remito: RemitoCot; onCambio: () => void }) {
   const transportistas = useTransportistas();
@@ -57,6 +63,7 @@ export function AccionesCot({ remito, onCambio }: { remito: RemitoCot; onCambio:
   const [cargar, setCargar] = useState(false);
   const [cot, setCot] = useState('');
   const [editar, setEditar] = useState<Traslado | null>(null);
+  const [pidiendo, setPidiendo] = useState(false);
   if (remito.estado === 'ANULADO' || !remito.cotEstado) return null;
   const hacer = async (fn: () => Promise<unknown>, ok: string) => {
     setError('');
@@ -64,10 +71,10 @@ export function AccionesCot({ remito, onCambio }: { remito: RemitoCot; onCambio:
   };
   return (
     <>
-      {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="light" onClick={() => void hacer(() => api(`/ventas/remitos/${remito.id}/cot`, { metodo: 'POST' }), 'Pedido del COT enviado')}>Pedir COT</Button>}
-      {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="subtle" onClick={() => void descargar(`/ventas/remitos/${remito.id}/cot/archivo`, {}, 'cot.txt').catch((e) => setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado'))}>Archivo COT</Button>}
+      {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="light" loading={pidiendo} disabled={pidiendo} onClick={() => { setPidiendo(true); void hacer(() => api(`/ventas/remitos/${remito.id}/cot`, { metodo: 'POST' }), 'Pedido del COT enviado').finally(() => setPidiendo(false)); }}>Pedir COT</Button>}
+      {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="subtle" onClick={() => void descargar(`/ventas/remitos/${remito.id}/cot/archivo`, {}).catch((e) => setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado'))}>Archivo COT</Button>}
       {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="subtle" onClick={() => setCargar(true)}>Cargar COT</Button>}
-      {remito.cotEstado !== 'OTORGADO' && <Button size="compact-xs" variant="subtle" onClick={() => setEditar({ calle: remito.trasladoCalle ?? '', numero: remito.trasladoNumero ?? '', codigoPostal: remito.trasladoCodigoPostal ?? '', localidad: remito.trasladoLocalidad ?? '', provincia: remito.trasladoProvincia ?? null, transportistaId: remito.transportistaId ?? null, patente: remito.patente ?? '', patenteAcoplado: remito.patenteAcoplado ?? '', importeDeclarado: remito.importeDeclarado ? Number(remito.importeDeclarado) : '' })}>Editar traslado</Button>}
+      {remito.cotEstado !== 'OTORGADO' && <Button size="compact-xs" variant="subtle" onClick={() => setEditar({ calle: remito.trasladoCalle ?? '', numero: remito.trasladoNumero ?? '', codigoPostal: remito.trasladoCodigoPostal ?? '', localidad: remito.trasladoLocalidad ?? '', provincia: remito.trasladoProvincia ?? null, transportistaId: remito.transportistaId ?? null, patente: remito.patente ?? '', patenteAcoplado: remito.patenteAcoplado ?? '', importeDeclarado: remito.importeDeclarado ? Number(remito.importeDeclarado) : '', fechaSalida: remito.fechaSalida?.slice(0, 10) ?? '', horaSalida: remito.horaSalida ?? '' })}>Editar traslado</Button>}
       {remito.cotMensaje && <Text size="xs" c="dimmed">{remito.cotMensaje}</Text>}
       {error && <Text size="xs" c="red">{error}</Text>}
       <Modal opened={cargar} onClose={() => setCargar(false)} title="Cargar COT">
@@ -76,7 +83,7 @@ export function AccionesCot({ remito, onCambio }: { remito: RemitoCot; onCambio:
       </Modal>
       <Modal opened={!!editar} onClose={() => setEditar(null)} title="Datos del traslado" size="xl">
         {editar && <SeccionTraslado valor={editar} onChange={setEditar} transportistas={transportistas} />}
-        <Group mt="md"><Button onClick={() => void hacer(() => api(`/ventas/remitos/${remito.id}/traslado`, { metodo: 'PUT', body: cuerpoTraslado(editar ?? {}) }), 'Traslado guardado').then((ok) => ok && setEditar(null))}>Guardar</Button></Group>
+        <Group mt="md"><Button onClick={() => void hacer(() => api(`/ventas/remitos/${remito.id}/traslado`, { metodo: 'PUT', body: cuerpoTraslado(editar ?? {}, true) }), 'Traslado guardado').then((ok) => ok && setEditar(null))}>Guardar</Button></Group>
       </Modal>
     </>
   );

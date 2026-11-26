@@ -49,7 +49,8 @@ export async function api<T>(ruta: string, opciones: OpcionesApi = {}): Promise<
 }
 
 /** Descarga un archivo (PDF, Excel) de la API con el token de la sesión. */
-export async function descargar(ruta: string, query: OpcionesApi['query'], nombreArchivo: string): Promise<void> {
+/** Descarga un archivo; sin `nombreArchivo` usa el del servidor (Content-Disposition, E57). */
+export async function descargar(ruta: string, query: OpcionesApi['query'], nombreArchivo?: string): Promise<void> {
   const params = new URLSearchParams();
   for (const [k, v] of Object.entries(query ?? {})) if (v !== undefined && v !== null && v !== '') params.set(k, String(v));
   const token = sesion.leer()?.token;
@@ -61,7 +62,7 @@ export async function descargar(ruta: string, query: OpcionesApi['query'], nombr
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
   a.href = url;
-  a.download = nombreArchivo;
+  a.download = nombreArchivo ?? /filename="?([^";]+)"?/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'archivo';
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

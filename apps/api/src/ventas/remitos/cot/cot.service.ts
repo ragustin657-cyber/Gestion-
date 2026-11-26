@@ -1,4 +1,4 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { descifrar } from '../../../arca/cifrado';
 import { AuditoriaService } from '../../../auditoria/auditoria.service';
 import { bloquear } from '../../../compras/comun';
@@ -51,31 +51,51 @@ export class CotService {
     return { datos, planta: dep.plantaArba, puerta: dep.puertaArba };
   }
 
-  /** Archivo para subir a mano (no cambia el estado). */
+  /** Archivo para subir a mano (no cambia el estado; usa una secuencia nueva: ARBA no acepta dos archivos con el mismo nombre). */
   async archivo(remitoId: string) {
     const { datos, planta, puerta } = await this.datosArchivo(remitoId);
-    const conf = await this.tenant.db.configCot.findFirst();
-    return { nombre: nombreArchivoCot(datos.cuitEmpresa, planta, puerta, new Date(), (conf?.secuencia ?? 0) + 1), contenido: archivoCot(datos) };
+    return { nombre: nombreArchivoCot(datos.cuitEmpresa, planta, puerta, new Date(), await this.siguienteSecuencia()), contenido: archivoCot(datos) };
+  }
+
+  private siguienteSecuencia() {
+    return this.tenant.transaccion(async (tx) => {
+      const c = await tx.configCot.upsert({ where: { empresaId: this.tenant.empresaId }, create: { empresaId: this.tenant.empresaId, secuencia: 1 }, update: { secuencia: { increment: 1 } } });
+      return c.secuencia;
+    });
+  }
+
+  /** Estados desde los que se puede pedir o cargar el COT (spec §4). */
+  private puedePedir(r: { estado: string; cotEstado: string | null }) {
+    if (r.estado === 'ANULADO') throw new BadRequestException('El remito está anulado');
+    if (r.cotEstado === 'OTORGADO') throw new BadRequestException('El remito ya tiene COT otorgado');
+    if (!r.cotEstado || r.cotEstado === 'NO_CORRESPONDE') throw new BadRequestException('Al remito no le corresponde COT');
   }
 
   /** Pide (o reintenta) el COT: OTORGADO, RECHAZADO con los mensajes, o PENDIENTE y 502 sin conexión. */
   async pedir(remitoId: string) {
     const db = this.tenant.db;
     const r = await db.remito.findUniqueOrThrow({ where: { id: remitoId } });
-    if (r.estado === 'ANULADO') throw new BadRequestException('El remito está anulado');
-    if (r.cotEstado === 'OTORGADO') throw new BadRequestException('El remito ya tiene COT otorgado');
-    if (!r.cotEstado || r.cotEstado === 'NO_CORRESPONDE') throw new BadRequestException('Al remito no le corresponde COT');
+    this.puedePedir(r);
     const conf = await db.configCot.findFirst();
     if (!conf?.usuario || !conf.claveCifrada) throw new BadRequestException('Configure el usuario y la clave CIT de ARBA');
     const { datos, planta, puerta } = await this.datosArchivo(remitoId);
-    const secuencia = await this.tenant.transaccion(async (tx) => (await tx.configCot.update({ where: { id: conf.id }, data: { secuencia: { increment: 1 } } })).secuencia);
+    // Revisión E57: se toma el remito antes de enviar; un segundo pedido simultáneo no manda otro archivo a ARBA
+    const tomado = await db.remito.updateMany({
+      where: { id: remitoId, estado: 'CONFIRMADO', cotEstado: { in: ['SIN_PEDIR', 'PENDIENTE', 'RECHAZADO'] }, OR: [{ cotEnviando: null }, { cotEnviando: { lt: new Date(Date.now() - 2 * 60 * 1000) } }] },
+      data: { cotEnviando: new Date() },
+    });
+    if (!tomado.count) throw new ConflictException('Ya hay un pedido del COT en curso para el remito');
+    const secuencia = await this.siguienteSecuencia();
     const nombre = nombreArchivoCot(datos.cuitEmpresa, planta, puerta, new Date(), secuencia);
     const codigo = codigoUnicoCot(r.puntoVenta, r.numero);
     let resp;
     try {
       resp = await this.cliente(conf.ambiente).presentar(this.tenant.empresaId, conf.usuario, descifrar(conf.claveCifrada), nombre, archivoCot(datos));
     } catch (e) {
-      if (!(e instanceof ErrorConexionCot)) throw e;
+      if (!(e instanceof ErrorConexionCot)) {
+        await db.remito.update({ where: { id: remitoId }, data: { cotEnviando: null } });
+        throw e;
+      }
       await this.registrar(remitoId, { cotEstado: 'PENDIENTE', cotMensaje: SIN_CONEXION_COT });
       throw new HttpException(SIN_CONEXION_COT, HttpStatus.BAD_GATEWAY);
     }
@@ -88,7 +108,7 @@ export class CotService {
   /** COT cargado a mano después de subir el archivo en la web de ARBA. */
   async cargarManual(remitoId: string, cot: string) {
     const r = await this.tenant.db.remito.findUniqueOrThrow({ where: { id: remitoId } });
-    if (r.estado === 'ANULADO') throw new BadRequestException('El remito está anulado');
+    this.puedePedir(r);
     await this.registrar(remitoId, { cotEstado: 'OTORGADO', cot, cotMensaje: null });
     return this.tenant.db.remito.findUniqueOrThrow({ where: { id: remitoId } });
   }
@@ -96,7 +116,13 @@ export class CotService {
   private registrar(remitoId: string, data: { cotEstado: 'PENDIENTE' | 'OTORGADO' | 'RECHAZADO'; cot?: string; cotMensaje: string | null }) {
     return this.tenant.transaccion(async (tx) => {
       await bloquear(tx, 'Remito', this.tenant.empresaId, [remitoId]);
-      await tx.remito.update({ where: { id: remitoId }, data: { ...data, cotPedidoEn: new Date() } });
+      // Un COT ya otorgado (p. ej. cargado a mano mientras tanto) o un remito anulado no se pisan
+      const actual = await tx.remito.findUniqueOrThrow({ where: { id: remitoId } });
+      if (actual.cotEstado === 'OTORGADO' || actual.estado === 'ANULADO') {
+        await tx.remito.update({ where: { id: remitoId }, data: { cotEnviando: null } });
+        return;
+      }
+      await tx.remito.update({ where: { id: remitoId }, data: { ...data, cotPedidoEn: new Date(), cotEnviando: null } });
       await this.auditoria.registrar(tx, { entidad: 'Remito', entidadId: remitoId, accion: 'MODIFICAR', datos: { cot: data } });
     });
   }

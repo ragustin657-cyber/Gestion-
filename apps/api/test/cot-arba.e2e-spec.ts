@@ -190,4 +190,36 @@ describe('COT de ARBA (E57)', () => {
       expect(an.body.advertencias).toEqual(['Anule también el COT 1234567890123456 en la web de ARBA']);
     });
   });
+
+  describe('revisión final', () => {
+    afterEach(() => ArbaCotSimulado.limpiar());
+
+    it('un pedido en curso bloquea otro; la carga manual no pisa un COT otorgado', async () => {
+      const x = await escenario();
+      await x.activar();
+      await x.depositoEn('B');
+      await x.entregaEn('B');
+      const { remito } = await x.remitoDePedido({ traslado: { patente: 'AB123CD' } });
+      await prisma.remito.update({ where: { id: remito.id }, data: { cotEnviando: new Date() } });
+      const b = await x.http.post(`/api/ventas/remitos/${remito.id}/cot`, {});
+      expect([b.status, b.body.message]).toEqual([409, 'Ya hay un pedido del COT en curso para el remito']);
+      await prisma.remito.update({ where: { id: remito.id }, data: { cotEnviando: new Date(Date.now() - 5 * 60 * 1000) } });
+      const ok = await x.http.post(`/api/ventas/remitos/${remito.id}/cot`, {});
+      expect([ok.status, ok.body.cotEstado, ok.body.cotEnviando]).toEqual([201, 'OTORGADO', null]);
+      const man = await x.http.put(`/api/ventas/remitos/${remito.id}/cot`, { cot: '1234567890123456' });
+      expect([man.status, man.body.message]).toEqual([400, 'El remito ya tiene COT otorgado']);
+    });
+
+    it('cada descarga del archivo usa una secuencia nueva en el nombre', async () => {
+      const x = await escenario();
+      await x.activar();
+      await x.depositoEn('B');
+      await x.entregaEn('B');
+      const { remito } = await x.remitoDePedido({ traslado: { patente: 'AB123CD' } });
+      const n1 = (await x.http.get(`/api/ventas/remitos/${remito.id}/cot/archivo`)).headers['content-disposition'];
+      const n2 = (await x.http.get(`/api/ventas/remitos/${remito.id}/cot/archivo`)).headers['content-disposition'];
+      expect(n1).toMatch(/TB_\d{11}_000001002_\d{8}_000001\.txt/);
+      expect(n2).toMatch(/_000002\.txt/);
+    });
+  });
 });

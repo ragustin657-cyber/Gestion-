@@ -2148,6 +2148,8 @@ model Remito {
   cotEstado            EstadoCot?
   cotMensaje           String?
   cotPedidoEn          DateTime?
+  /// Pedido a ARBA en curso (evita dos envíos simultáneos; vence a los 2 minutos)
+  cotEnviando          DateTime?
   motivoAnulacion    String?
   asientoId          String?         @db.Uuid
   asientoAnulacionId String?         @db.Uuid
