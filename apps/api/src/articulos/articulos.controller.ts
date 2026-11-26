@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { esquemaEscalas, type DatosEscalas } from '../ventas/precios/escalas';
 import { z } from 'zod';
-import { esAlicuotaIva } from '@gestion/shared';
+import { esAlicuotaIva, esUnidadArba } from '@gestion/shared';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
 import { zTexto } from '../comun/esquemas';
 import { ZodValidationPipe } from '../comun/zod.pipe';
@@ -18,6 +18,9 @@ const esquema = z.object({
   activo: z.boolean().optional(),
   controlaStock: z.boolean().optional(),
   rubroId: z.string().uuid('Valor inválido').nullish(),
+  // E57: COT de ARBA
+  codigoNomencladorArba: z.string().trim().regex(/^\d{6}$/, 'El código del nomenclador de ARBA tiene 6 dígitos').nullish(),
+  unidadMedidaArba: z.string().trim().refine(esUnidadArba, 'Unidad de medida de ARBA inválida').nullish(),
 });
 
 @Controller('articulos')

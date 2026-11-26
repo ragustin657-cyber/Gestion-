@@ -1,3 +1,4 @@
+import { ConfigCot } from '../ventas/cot';
 import { JURISDICCIONES_CM } from '@gestion/shared';
 import { Alert, Button, Group, MultiSelect, NumberInput, Paper, Select, Stack, Switch, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -140,6 +141,7 @@ export function ConfigImpuestosPage() {
         {error && <Alert color="red">{error}</Alert>}
         <Group><Button onClick={() => void guardar()}>Guardar</Button></Group>
       </Stack>
+      <Stack mt="xl" maw={820}><ConfigCot /></Stack>
       <Stack mt="xl"><EscalaSociedades /></Stack>
       <Stack mt="xl" maw={820}>
         <JurisdiccionesCm inicioAnio={q.data?.iibbInicioAnio ?? null} />

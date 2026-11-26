@@ -1,3 +1,4 @@
+import { cuerpoTraslado, SeccionTraslado, useTransportistas, type Traslado } from './cot';
 import { ActionIcon, Alert, Button, Checkbox, Group, NumberInput, Paper, Select, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconPlus, IconTrash } from '@tabler/icons-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,7 +25,10 @@ export function RemitoPage() {
   const [depositoId, setDepositoId] = useState<string | null>(null);
   const [cantidades, setCantidades] = useState<Record<string, string | number>>({});
   const [directos, setDirectos] = useState<Directo[]>([]);
-  const [hecho, setHecho] = useState<{ id: string; numeroTexto: string; advertencias: string[] } | null>(null);
+  const [hecho, setHecho] = useState<{ id: string; numeroTexto: string; advertencias: string[]; cot?: string | null; cotEstado?: string | null; cotMensaje?: string | null } | null>(null);
+  // E57: datos del traslado (COT de ARBA)
+  const transportistas = useTransportistas();
+  const [traslado, setTraslado] = useState<Traslado>({});
   useEffect(() => { if (!puntoVentaId && puntos.length) setPuntoVentaId(puntos[0].id); }, [puntos, puntoVentaId]);
   const pedidos = useQuery({ queryKey: ['/ventas/pedidos', 'entregar', terceroId], queryFn: () => api<(PedidoVenta & { cliente: string })[]>('/ventas/pedidos', { query: { terceroId, pendientes: 'entregar' } }), enabled: !!terceroId }).data ?? [];
   const renglonesPedido = pedidos.flatMap((p) => p.renglones.filter((r) => Number(r.pendienteEntregar) > 0).map((r) => ({ ...r, pedido: p.numero })));
@@ -34,11 +38,11 @@ export function RemitoPage() {
     const r = await op.ejecutar(() => api<{ id: string; numeroTexto: string; advertencias: string[] }>('/ventas/remitos', {
       metodo: 'POST',
       body: {
-        terceroId, puntoVentaId, fecha, depositoId,
+        terceroId, puntoVentaId, fecha, depositoId, traslado: cuerpoTraslado(traslado),
         renglones: [...elegidos.map(([pedidoRenglonId, c]) => ({ pedidoRenglonId, cantidad: Number(c) })), ...directos.filter((d) => d.descripcion && Number(d.cantidad) > 0).map((d) => ({ articuloId: d.articuloId, descripcion: d.descripcion, cantidad: Number(d.cantidad) }))],
       },
     }), (x) => `Remito ${x.numeroTexto} registrado`);
-    if (r) { setHecho(r); setCantidades({}); setDirectos([]); void qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('/ventas') || String(q.queryKey[0]).startsWith('/stock') }); }
+    if (r) { setHecho(r); setCantidades({}); setDirectos([]); setTraslado({}); void qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('/ventas') || String(q.queryKey[0]).startsWith('/stock') }); }
   };
 
   return (
@@ -82,7 +86,9 @@ export function RemitoPage() {
         </Group>
       ))}
       <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={() => setDirectos([...directos, { articuloId: null, descripcion: '', cantidad: 1 }])}>Agregar renglón</Button>
+      <Paper withBorder p="sm" mt="md"><SeccionTraslado valor={traslado} onChange={setTraslado} transportistas={transportistas} /></Paper>
       {op.alerta}
+      {hecho?.cotEstado && <Text size="sm" mt="xs">{`COT: ${hecho.cot ?? hecho.cotEstado}${hecho.cotMensaje ? ` · ${hecho.cotMensaje}` : ''}`}</Text>}
       {hecho && <Group mt="sm"><Text>{`Remito ${hecho.numeroTexto}`}</Text><Button size="xs" variant="light" onClick={() => void descargar(`/ventas/remitos/${hecho.id}/pdf`, {}, `remito.pdf`)}>PDF</Button></Group>}
       {hecho?.advertencias.map((a) => <Alert key={a} color="yellow" mt="xs">{a}</Alert>)}
       <Group mt="md"><Button loading={op.enviando} disabled={!terceroId || !puntoVentaId || (!elegidos.length && !directos.length)} onClick={() => void confirmar()}>Confirmar remito</Button></Group>

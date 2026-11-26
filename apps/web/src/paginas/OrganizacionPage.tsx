@@ -1,3 +1,4 @@
+import { PROVINCIAS } from '../ventas/cot';
 import { Paper, Tabs, Title } from '@mantine/core';
 import { estado, Maestro } from '../abm/Maestro';
 import { CampoAbm } from '../abm/tipos';
@@ -28,7 +29,11 @@ export function OrganizacionPage() {
         <Tabs.Panel value="depositos">
           <Maestro<Registro> sinMarco config={{
             titulo: 'Depósito', ruta: '/depositos', permisoEditar: 'organizacion.editar', valoresNuevos: { activo: true },
-            campos: [...base, { nombre: 'direccion', etiqueta: 'Dirección', tipo: 'texto', ancho: true }, activo],
+            campos: [...base, { nombre: 'direccion', etiqueta: 'Dirección', tipo: 'texto', ancho: true },
+              // E57: domicilio inscripto en ARBA (origen del COT)
+              { nombre: 'calle', etiqueta: 'Calle (ARBA)', tipo: 'texto' }, { nombre: 'numero', etiqueta: 'Número', tipo: 'texto' }, { nombre: 'codigoPostal', etiqueta: 'Código postal', tipo: 'texto' },
+              { nombre: 'localidad', etiqueta: 'Localidad', tipo: 'texto' }, { nombre: 'provincia', etiqueta: 'Provincia', tipo: 'select', opciones: PROVINCIAS },
+              { nombre: 'plantaArba', etiqueta: 'Planta (ARBA)', tipo: 'numero' }, { nombre: 'puertaArba', etiqueta: 'Puerta (ARBA)', tipo: 'numero' }, activo],
             columnas: [
               { campo: 'codigo', titulo: 'Código' }, { campo: 'nombre', titulo: 'Nombre' }, { campo: 'direccion', titulo: 'Dirección' },
               { campo: 'activo', titulo: 'Estado', render: (r) => estado(r.activo) },

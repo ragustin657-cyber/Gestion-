@@ -20,6 +20,8 @@ export interface DatosArticulo {
   activo?: boolean;
   controlaStock?: boolean;
   rubroId?: string | null;
+  codigoNomencladorArba?: string | null;
+  unidadMedidaArba?: string | null;
 }
 
 const DUPLICADO = 'Ya existe un artículo con ese código';

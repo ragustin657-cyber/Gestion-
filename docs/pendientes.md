@@ -36,7 +36,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 15. ~~**Facturación por lotes.**~~ Hecho en la entrega 55 (remitos pendientes de muchos clientes: vista previa, una factura por cliente y moneda, emisión y registro del lote). Queda la facturación recurrente (abonos).
 16. ~~**Descuentos y bonificaciones** en la factura, por renglón y por cantidad.~~ Hecho en la entrega 51: % de bonificación por renglón (pedido y comprobante) y % de descuento general en el comprobante. Los descuentos por cantidad automáticos se hicieron en la entrega 56 (escalas por rubro, con excepción por artículo, que sugieren la bonificación). Quedan el tope por usuario, el descuento en importe fijo y el de pronto pago.
 17. ~~**Listas de precios derivadas y precio calculado desde el costo.**~~ Hecho en la entrega 52 (base otra lista ± % o costo + margen, redondeo, precios fijos, margen por artículo, recálculo con vista previa). Los rubros de artículos con margen por rubro en cada lista desde el costo se hicieron en la entrega 56. Quedan el recálculo automático y el costo de los despachos de importación.
-18. **COT de ARBA** (código de operación de traslado para los remitos).
+18. ~~**COT de ARBA** (código de operación de traslado para los remitos).~~ Hecho en la entrega 57 (datos del traslado, pedido por web service con la clave CIT, archivo de respaldo y carga manual; puntos a validar en §2 ítem 23). Quedan la hoja de ruta (varios remitos por pedido) y la modificación y anulación del COT en ARBA.
 19. ~~**Remitos de devolución** con circuito propio.~~ Hecho en la entrega 54.
 20. ~~**Reservas de stock.**~~ Hecho en la entrega 53 (reservado calculado desde los pedidos pendientes, avisos de disponible, columnas en Existencias y consulta de reservas; solo avisa).
 
@@ -173,6 +173,12 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - qué notas de débito y crédito admite el registro después de la aceptación y cómo suman al importe a aceptar;
     - si se puede emitir FCE voluntariamente a un obligado por debajo del mínimo (hoy se permite);
     - en el ambiente SIMULADO la marca manual del cliente hace de registro (solo para probar).
+23. **COT de ARBA (entrega 57):**
+    - diseño de registro del archivo `TB_…txt` (orden y formato de cada campo de los registros 01 a 04, importe y cantidades con 2 decimales y punto, códigos de tipo de documento 80/96/99, sujeto generador `E`, campos de recorrido vacíos) contra el instructivo vigente;
+    - tabla de unidades de medida (hoy 1 kg, 2 l, 3 m, 4 m², 5 m³, 6 t, 7 unidades, 8 pares, 9 docenas) y del nomenclador de productos;
+    - formato del código único del remito (hoy `R` + punto de venta de 4 + número de 8) y de la respuesta XML del web service (`validacionesRemitos`, `TBError`);
+    - URL de prueba y producción de `presentarRemitos.do` y si la clave CIT del usuario sirve para el web service;
+    - si los remitos de devolución piden COT con la empresa como destinataria.
 
 ---
 

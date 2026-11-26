@@ -1,3 +1,4 @@
+import { esProvinciaArba } from '@gestion/shared';
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -8,7 +9,12 @@ import { ZodValidationPipe } from '../comun/zod.pipe';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 
 const esquemaCentro = z.object({ codigo: zTexto, nombre: zTexto, activo: z.boolean().optional() });
-const esquemaDeposito = esquemaCentro.extend({ direccion: zTextoOpcional });
+const zProvinciaArba = z.string().trim().toUpperCase().refine(esProvinciaArba, 'Provincia inválida (letra de la tabla de ARBA)');
+// E57: domicilio inscripto en ARBA (origen del COT)
+const esquemaDeposito = esquemaCentro.extend({
+  direccion: zTextoOpcional, calle: zTextoOpcional, numero: zTextoOpcional, codigoPostal: zTextoOpcional, localidad: zTextoOpcional,
+  provincia: zProvinciaArba.nullish(), plantaArba: z.number().int().min(0).max(999999).nullish(), puertaArba: z.number().int().min(0).max(999).nullish(),
+});
 const DUP = 'Ya existe un registro con ese código';
 
 @Controller()

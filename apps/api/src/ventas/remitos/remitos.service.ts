@@ -14,6 +14,9 @@ import { MotorStock } from '../../stock/motor';
 import { D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import { pdfDocumento } from '../pedidos/pdf-pedido';
 import { PedidosService } from '../pedidos/pedidos.service';
+import { PreciosService } from '../precios/precios.service';
+import { guardarTraslado, type DatosTraslado } from './cot/traslado';
+import { CotService } from './cot/cot.service';
 import type { DatosDevolucion, DatosRemito } from './dto';
 
 export const ORIGEN_REMITO = 'REMITO';
@@ -32,6 +35,8 @@ export class RemitosService {
     private readonly pedidos: PedidosService,
     private readonly auditoria: AuditoriaService,
     private readonly cls: ClsService,
+    private readonly precios: PreciosService,
+    private readonly cot: CotService,
   ) {}
 
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
@@ -49,7 +54,22 @@ export class RemitosService {
     })).filter((r) => q.pendientes !== 'facturar' || new D(r.pendienteFacturar).gt(0));
   }
 
-  crear(d: DatosRemito) {
+  /** E57: alta y, si está configurado, pedido del COT fuera de la transacción (un error deja el estado del COT). */
+  async crear(d: DatosRemito) {
+    return this.pedirCotAlCrear(await this.crearEnTx(d));
+  }
+
+  private async pedirCotAlCrear<T extends { id: string; cotEstado: string | null }>(r: T): Promise<T> {
+    if (r.cotEstado !== 'SIN_PEDIR' || !(await this.tenant.db.configCot.findFirst())?.pedirAlConfirmar) return r;
+    try {
+      await this.cot.pedir(r.id);
+    } catch {
+      // El estado (PENDIENTE) o el motivo quedaron registrados; una validación que falla deja SIN_PEDIR
+    }
+    return { ...r, ...(await this.obtener(r.id)) };
+  }
+
+  private crearEnTx(d: DatosRemito) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
       const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
@@ -96,6 +116,8 @@ export class RemitosService {
         include: { renglones: true },
       });
       for (const [id, cant] of pedidas) await tx.pedidoVentaRenglon.update({ where: { id }, data: { cantidadEntregada: { increment: cant } } });
+      // E57: datos del traslado y estado del COT
+      await guardarTraslado(tx, this.precios, remito.id, d.traslado, true);
 
       // E53: aviso de lo reservado por otros pedidos (con el stock de antes de la salida; los pedidos de este remito no cuentan)
       const cantRem = new Map<string, Dec>();
@@ -124,7 +146,13 @@ export class RemitosService {
     });
   }
 
-  anular(id: string, motivo: string) {
+  async anular(id: string, motivo: string) {
+    const r = await this.anularEnTx(id, motivo);
+    // E57: el COT se anula en la web de ARBA
+    return r.cot && r.cotEstado === 'OTORGADO' ? { ...r, advertencias: [`Anule también el COT ${r.cot} en la web de ARBA`] } : r;
+  }
+
+  private anularEnTx(id: string, motivo: string) {
     return this.tenant.transaccion(async (tx) => {
       await this.obtener(id, tx);
       await bloquear(tx, 'Remito', this.tenant.empresaId, [id]);
@@ -155,7 +183,11 @@ export class RemitosService {
   }
 
   /** E54: remito de devolución (spec §3): entra el stock al costo de salida del renglón de origen y baja lo pendiente de facturar. */
-  crearDevolucion(d: DatosDevolucion) {
+  async crearDevolucion(d: DatosDevolucion) {
+    return this.pedirCotAlCrear(await this.crearDevolucionEnTx(d));
+  }
+
+  private crearDevolucionEnTx(d: DatosDevolucion) {
     return this.tenant.transaccion(async (tx) => {
       const empresaId = this.tenant.empresaId;
       const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
@@ -210,6 +242,8 @@ export class RemitosService {
         },
         include: { renglones: { orderBy: { orden: 'asc' } } },
       });
+      // E57: datos del traslado (origen = el cliente) y estado del COT
+      await guardarTraslado(tx, this.precios, remito.id, d.traslado, true);
       for (const r of renglones) {
         await tx.remitoRenglon.update({ where: { id: r._origen.id }, data: { cantidadDevuelta: { increment: r.cantidad } } });
         if (r._origen.pedidoRenglonId && r._sinFacturar.gt(0)) await tx.pedidoVentaRenglon.update({ where: { id: r._origen.pedidoRenglonId }, data: { cantidadDevuelta: { increment: r._sinFacturar } } });
@@ -319,11 +353,26 @@ export class RemitosService {
       const nums = [...new Set(origenes.map((o) => numeroRemito(o.remito.puntoVenta, o.remito.numero)))].join(', ');
       observaciones = `Devuelve los remitos ${nums}${r.observaciones ? ` · ${r.observaciones}` : ''}`;
     }
+    // E57: COT de ARBA otorgado
+    if (r.cot && r.cotEstado === 'OTORGADO') observaciones = `COT N° ${r.cot}${observaciones ? ` · ${observaciones}` : ''}`;
     const contenido = await pdfDocumento({
       titulo: r.tipo === 'DEVOLUCION' ? 'Remito de devolución' : 'Remito', numero: r.numeroTexto.slice(2), empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), domicilio: empresa.domicilio },
       cliente: { razonSocial: cliente.razonSocial, cuit: cliente.cuit }, fecha: fAR(r.fecha), moneda: '',
       renglones: r.renglones.map((x) => ({ descripcion: x.descripcion, cantidad: new D(x.cantidad).toString() })), observaciones, copias: ['Original', 'Duplicado'],
     });
     return { nombre: `remito-${r.puntoVenta}-${r.numero}.pdf`, contenido };
+  }
+
+  /** E57: edita los datos del traslado mientras el COT no esté otorgado; recalcula el estado. */
+  actualizarTraslado(id: string, d: DatosTraslado) {
+    return this.tenant.transaccion(async (tx) => {
+      await bloquear(tx, 'Remito', this.tenant.empresaId, [id]);
+      const r = await this.obtener(id, tx);
+      if (r.estado === 'ANULADO') throw new BadRequestException('El remito está anulado');
+      if (r.cotEstado === 'OTORGADO') throw new BadRequestException('El remito ya tiene COT otorgado');
+      await guardarTraslado(tx, this.precios, id, d, false);
+      await this.auditoria.registrar(tx, { entidad: 'Remito', entidadId: id, accion: 'MODIFICAR', datos: { traslado: d } });
+      return this.obtener(id, tx);
+    });
   }
 }

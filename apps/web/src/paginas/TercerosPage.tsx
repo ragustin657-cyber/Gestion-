@@ -1,3 +1,4 @@
+import { PROVINCIAS } from '../ventas/cot';
 import { useVendedores } from '../ventas/ComisionesPages';
 import { ActionIcon, Badge, Button, Group, Modal, NumberInput, Paper, SegmentedControl, Stack, Table, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
@@ -34,6 +35,10 @@ const CAMPOS_GENERALES: CampoAbm[] = [
   { nombre: 'esCliente', etiqueta: 'Es cliente', tipo: 'booleano' },
   { nombre: 'domicilio', etiqueta: 'Domicilio', tipo: 'texto' },
   { nombre: 'localidad', etiqueta: 'Localidad', tipo: 'texto' },
+  // E57: domicilio de entrega (destino del COT de ARBA)
+  { nombre: 'entregaCalle', etiqueta: 'Entrega: calle', tipo: 'texto' }, { nombre: 'entregaNumero', etiqueta: 'Entrega: número', tipo: 'texto' },
+  { nombre: 'entregaCodigoPostal', etiqueta: 'Entrega: código postal', tipo: 'texto' }, { nombre: 'entregaLocalidad', etiqueta: 'Entrega: localidad', tipo: 'texto' },
+  { nombre: 'entregaProvincia', etiqueta: 'Entrega: provincia', tipo: 'select', opciones: PROVINCIAS },
   { nombre: 'provincia', etiqueta: 'Provincia', tipo: 'texto' },
   { nombre: 'email', etiqueta: 'Email', tipo: 'texto' },
   { nombre: 'telefono', etiqueta: 'Teléfono', tipo: 'texto' },

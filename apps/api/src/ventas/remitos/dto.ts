@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zFecha } from '../../compras/comun';
+import { esquemaTraslado } from './cot/traslado';
 
 export const esquemaRemito = z.object({
   terceroId: z.string().uuid('Valor inválido'),
@@ -7,6 +8,7 @@ export const esquemaRemito = z.object({
   fecha: zFecha,
   depositoId: z.string().uuid().nullish(),
   observaciones: z.string().trim().max(1000).nullish(),
+  traslado: esquemaTraslado.nullish(),
   renglones: z.array(z.object({
     pedidoRenglonId: z.string().uuid().nullish(),
     articuloId: z.string().uuid().nullish(),
@@ -25,6 +27,7 @@ export const esquemaDevolucion = z.object({
   puntoVentaId: z.string().uuid('Indique el punto de venta'),
   fecha: zFecha,
   observaciones: z.string().trim().max(1000).nullish(),
+  traslado: esquemaTraslado.nullish(),
   renglones: z.array(z.object({ remitoRenglonOrigenId: z.string().uuid('Valor inválido'), cantidad: z.number().gt(0, 'Debe ser mayor a cero') })).min(1, 'La devolución debe tener al menos un renglón'),
 });
 export type DatosDevolucion = z.infer<typeof esquemaDevolucion>;

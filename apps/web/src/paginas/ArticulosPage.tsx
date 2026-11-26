@@ -1,4 +1,4 @@
-import { ALICUOTAS_IVA } from '@gestion/shared';
+import { ALICUOTAS_IVA, UNIDADES_ARBA } from '@gestion/shared';
 import { Button, Modal, Select } from '@mantine/core';
 import { useState } from 'react';
 import { EditorEscalas } from '../articulos/EditorEscalas';
@@ -27,6 +27,9 @@ export function ArticulosPage() {
     { nombre: 'cuentaVentaId', etiqueta: 'Cuenta contable de venta', tipo: 'select' as const, opciones: cuentas },
     { nombre: 'esServicio', etiqueta: 'Es un servicio', tipo: 'booleano' as const },
     { nombre: 'controlaStock', etiqueta: 'Controla stock', tipo: 'booleano' as const, ayuda: 'Las compras van a Mercaderías y las ventas descuentan stock y registran su costo' },
+    // E57: COT de ARBA
+    { nombre: 'codigoNomencladorArba', etiqueta: 'Código del nomenclador (COT de ARBA)', tipo: 'texto' as const, ayuda: '6 dígitos' },
+    { nombre: 'unidadMedidaArba', etiqueta: 'Unidad de medida (COT de ARBA)', tipo: 'select' as const, opciones: Object.entries(UNIDADES_ARBA).map(([value, label]) => ({ value, label: `${value} - ${label}` })) },
     { nombre: 'activo', etiqueta: 'Activo', tipo: 'booleano' as const },
   ];
   return (

@@ -1,3 +1,4 @@
+import { cuerpoTraslado, SeccionTraslado, useTransportistas, type Traslado } from './cot';
 import { Alert, Button, Group, NumberInput, Paper, Select, Table, Text, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -42,12 +43,14 @@ export function RemitoDevolucionPage() {
   const [observaciones, setObservaciones] = useState('');
   const [cantidades, setCantidades] = useState<Record<string, string | number>>({});
   const [hecho, setHecho] = useState<{ id: string; numeroTexto: string } | null>(null);
+  const transportistas = useTransportistas();
+  const [traslado, setTraslado] = useState<Traslado>({});
   useEffect(() => { if (!puntoVentaId && puntos.length) setPuntoVentaId(puntos[0].id); }, [puntos, puntoVentaId]);
   const devolvibles = useQuery({ queryKey: ['/ventas/remitos/devolvibles', terceroId], queryFn: () => api<Devolvible[]>('/ventas/remitos/devolvibles', { query: { terceroId } }), enabled: !!terceroId }).data ?? [];
   const elegidos = Object.entries(cantidades).filter(([, c]) => Number(c) > 0);
   const confirmar = async () => {
     const r = await op.ejecutar(() => api<{ id: string; numeroTexto: string }>('/ventas/remitos/devoluciones', {
-      metodo: 'POST', body: { terceroId, puntoVentaId, fecha, observaciones: observaciones || null, renglones: elegidos.map(([remitoRenglonOrigenId, c]) => ({ remitoRenglonOrigenId, cantidad: Number(c) })) },
+      metodo: 'POST', body: { terceroId, puntoVentaId, fecha, observaciones: observaciones || null, traslado: cuerpoTraslado(traslado), renglones: elegidos.map(([remitoRenglonOrigenId, c]) => ({ remitoRenglonOrigenId, cantidad: Number(c) })) },
     }), (x) => `Remito de devolución ${x.numeroTexto} registrado`);
     if (r) { setHecho(r); setCantidades({}); void qc.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith('/ventas') || String(q.queryKey[0]).startsWith('/stock') }); }
   };
@@ -61,6 +64,7 @@ export function RemitoDevolucionPage() {
         <TextInput label="Observaciones" w={300} value={observaciones} onChange={(e) => setObservaciones(e.currentTarget.value)} />
       </Group>
       {terceroId && <TablaDevolvibles filas={devolvibles} cantidades={cantidades} onChange={setCantidades} />}
+      {terceroId && <Paper withBorder p="sm" mt="md"><SeccionTraslado valor={traslado} onChange={setTraslado} transportistas={transportistas} etiquetaDomicilio="Origen" /></Paper>}
       {op.alerta}
       {hecho && <Alert color="green" mt="sm">Remito de devolución {hecho.numeroTexto} registrado. <Button size="compact-xs" variant="subtle" onClick={() => void descargar(`/ventas/remitos/${hecho.id}/pdf`, {}, 'remito-devolucion.pdf')}>PDF</Button></Alert>}
       <Group justify="flex-end" mt="md">

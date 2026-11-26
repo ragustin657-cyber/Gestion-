@@ -155,6 +155,12 @@ model Tercero {
   nif                     String?
   paisSire                Int?
   domicilioExterior       String?
+  /// E57: domicilio de entrega (destino del traslado del COT; provincia con la letra de ARBA)
+  entregaCalle            String?
+  entregaNumero           String?
+  entregaCodigoPostal     String?
+  entregaLocalidad        String?
+  entregaProvincia        String?
   tipoPersona             String?
   nacimientoPais          Int?
   nacimientoFecha         DateTime?           @db.Date
@@ -273,6 +279,9 @@ model Articulo {
   costoPromedio  Decimal @default(0) @db.Decimal(18, 6)
   /// E56: rubro (familia) del artículo
   rubroId        String? @db.Uuid
+  /// E57: código del nomenclador del COT de ARBA y unidad de medida de la tabla de ARBA
+  codigoNomencladorArba String?
+  unidadMedidaArba      String?
 
   @@unique([empresaId, codigo])
 }
@@ -310,6 +319,14 @@ model Deposito {
   nombre    String
   direccion String?
   activo    Boolean @default(true)
+  /// E57: domicilio inscripto en ARBA (origen del traslado del COT)
+  calle        String?
+  numero       String?
+  codigoPostal String?
+  localidad    String?
+  provincia    String?
+  plantaArba   Int?
+  puertaArba   Int?
 
   @@unique([empresaId, codigo])
 }
@@ -2115,6 +2132,24 @@ model Remito {
   estado             EstadoRemito    @default(CONFIRMADO)
   /// E54: entrega o devolución (con numeración propia)
   tipo               TipoRemito      @default(ENTREGA)
+  /// E57: traslado (COT de ARBA); en la devolución el domicilio del traslado es el origen
+  trasladoCalle        String?
+  trasladoNumero       String?
+  trasladoCodigoPostal String?
+  trasladoLocalidad    String?
+  trasladoProvincia    String?
+  transportistaId      String?    @db.Uuid
+  patente              String?
+  patenteAcoplado      String?
+  fechaSalida          DateTime?  @db.Date
+  horaSalida           String?
+  importeDeclarado     Decimal?   @db.Decimal(18, 2)
+  cot                  String?
+  cotEstado            EstadoCot?
+  cotMensaje           String?
+  cotPedidoEn          DateTime?
+  /// Pedido a ARBA en curso (evita dos envíos simultáneos; vence a los 2 minutos)
+  cotEnviando          DateTime?
   motivoAnulacion    String?
   asientoId          String?         @db.Uuid
   asientoAnulacionId String?         @db.Uuid
@@ -3380,4 +3415,43 @@ model MargenRubroLista {
   margenPct Decimal @db.Decimal(9, 2)
 
   @@unique([empresaId, listaId, rubroId])
+}
+
+/// E57: COT de ARBA
+enum AmbienteCot {
+  SIMULADO
+  PRUEBA
+  PRODUCCION
+}
+
+enum EstadoCot {
+  SIN_PEDIR
+  PENDIENTE
+  OTORGADO
+  RECHAZADO
+  NO_CORRESPONDE
+}
+
+model ConfigCot {
+  id               String      @id @default(uuid()) @db.Uuid
+  empresaId        String      @unique @db.Uuid
+  activo           Boolean     @default(false)
+  ambiente         AmbienteCot @default(SIMULADO)
+  usuario          String?
+  claveCifrada     String?
+  pedirAlConfirmar Boolean     @default(false)
+  /// Secuencia del nombre del archivo TB_… (se incrementa en cada envío)
+  secuencia        Int         @default(0)
+}
+
+/// E57: transportistas (CUIT del que traslada la mercadería)
+model Transportista {
+  id                String  @id @default(uuid()) @db.Uuid
+  empresaId         String  @db.Uuid
+  cuit              String
+  razonSocial       String
+  patentePorDefecto String?
+  activo            Boolean @default(true)
+
+  @@unique([empresaId, cuit])
 }
