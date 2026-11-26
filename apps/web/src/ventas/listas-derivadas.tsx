@@ -29,7 +29,7 @@ export function CamposRegla({ regla, onChange, listas }: { regla: ReglaForm; onC
   );
 }
 
-export interface FilaRecalculo { articuloId: string; codigo: string; descripcion: string; actual: string | null; nuevo: string | null; variacionPct: string | null; motivo: string | null }
+export interface FilaRecalculo { articuloId: string; codigo: string; descripcion: string; actual: string | null; nuevo: string | null; variacionPct: string | null; motivo: string | null; margen?: string; origenMargen?: 'ARTICULO' | 'RUBRO' | 'LISTA' }
 export const elegidosIniciales = (filas: FilaRecalculo[]) => new Set(filas.filter((f) => !f.motivo && f.nuevo).map((f) => f.articuloId));
 /** Sin `articuloIds` si se eligieron todas las que se recalculan. */
 export const cuerpoRecalculo = (filas: FilaRecalculo[], elegidos: Set<string>) => {
@@ -37,11 +37,37 @@ export const cuerpoRecalculo = (filas: FilaRecalculo[], elegidos: Set<string>) =
   return todos.size === elegidos.size && [...todos].every((x) => elegidos.has(x)) ? {} : { articuloIds: [...elegidos] };
 };
 
+const ORIGEN_MARGEN = { ARTICULO: 'Artículo', RUBRO: 'Rubro', LISTA: 'Lista' } as const;
+
+/** E56: márgenes por rubro de una lista desde el costo (vacío = usa el de la lista). */
+export function ModalMargenesRubro({ listaId, nombre, abierto, onCerrar }: { listaId: string; nombre: string; abierto: boolean; onCerrar: () => void }) {
+  const op = useOperacion();
+  const datos = useQuery({ queryKey: ['/ventas/listas/margenes-rubro', listaId], queryFn: () => api<{ rubroId: string; nombre: string; margenPct: string | null }[]>(`/ventas/listas/${listaId}/margenes-rubro`), enabled: abierto });
+  const [m, setM] = useState<Record<string, string | number>>({});
+  useEffect(() => { if (datos.data) setM(Object.fromEntries(datos.data.map((r) => [r.rubroId, r.margenPct === null ? '' : Number(r.margenPct)]))); }, [datos.data]);
+  const guardar = async () => {
+    const margenes = Object.entries(m).filter(([, v]) => v !== '' && v !== null).map(([rubroId, v]) => ({ rubroId, margenPct: Number(v) }));
+    if (await op.ejecutar(() => api(`/ventas/listas/${listaId}/margenes-rubro`, { metodo: 'PUT', body: { margenes } }), () => 'Márgenes por rubro guardados')) onCerrar();
+  };
+  return (
+    <Modal opened={abierto} onClose={onCerrar} title={`Márgenes por rubro de ${nombre}`}>
+      <Stack gap="xs">
+        {!datos.data?.length && <Text size="sm" c="dimmed">No hay rubros de artículos activos.</Text>}
+        {datos.data?.map((r) => (
+          <NumberInput key={r.rubroId} label={r.nombre} placeholder="Usa el de la lista" min={0} max={1000} decimalScale={2} decimalSeparator="," suffix=" %" value={m[r.rubroId] ?? ''} onChange={(v) => setM({ ...m, [r.rubroId]: v })} />
+        ))}
+        {op.alerta}
+        <Group justify="flex-end"><Button loading={op.enviando} onClick={() => void guardar()}>Guardar</Button></Group>
+      </Stack>
+    </Modal>
+  );
+}
+
 export function TablaRecalculo({ filas, elegidos, onChange, moneda }: { filas: FilaRecalculo[]; elegidos: Set<string>; onChange: (s: Set<string>) => void; moneda: string }) {
   const alternar = (id: string, si: boolean) => { const n = new Set(elegidos); if (si) n.add(id); else n.delete(id); onChange(n); };
   return (
     <Table withTableBorder striped>
-      <Table.Thead><Table.Tr><Table.Th /><Table.Th>Artículo</Table.Th><Table.Th ta="right">Actual</Table.Th><Table.Th ta="right">Nuevo</Table.Th><Table.Th ta="right">Variación</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+      <Table.Thead><Table.Tr><Table.Th /><Table.Th>Artículo</Table.Th><Table.Th ta="right">Actual</Table.Th><Table.Th ta="right">Nuevo</Table.Th><Table.Th ta="right">Variación</Table.Th>{filas.some((f) => f.origenMargen) && <Table.Th>Margen</Table.Th>}<Table.Th /></Table.Tr></Table.Thead>
       <Table.Tbody>
         {filas.map((f) => (
           <Table.Tr key={f.articuloId}>
@@ -50,6 +76,7 @@ export function TablaRecalculo({ filas, elegidos, onChange, moneda }: { filas: F
             <Table.Td ta="right">{f.actual ? formatoMoneda(f.actual, moneda) : '—'}</Table.Td>
             <Table.Td ta="right">{f.nuevo ? formatoMoneda(f.nuevo, moneda) : '—'}</Table.Td>
             <Table.Td ta="right">{f.variacionPct !== null ? `${Number(f.variacionPct).toLocaleString('es-AR', { maximumFractionDigits: 2 })} %` : f.nuevo && !f.actual ? <Badge size="xs">Nuevo</Badge> : ''}</Table.Td>
+            {filas.some((x) => x.origenMargen) && <Table.Td>{f.origenMargen ? `${Number(f.margen).toLocaleString('es-AR')} % (${ORIGEN_MARGEN[f.origenMargen]})` : ''}</Table.Td>}
             <Table.Td>{f.motivo && <Text size="xs" c="dimmed">{f.motivo}</Text>}</Table.Td>
           </Table.Tr>
         ))}

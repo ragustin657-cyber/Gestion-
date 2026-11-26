@@ -1,3 +1,4 @@
+import { bonificacionPorCantidad } from './escalas';
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, UploadedFile, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
@@ -74,6 +75,23 @@ export class PreciosController {
   @Get('listas/:id/historial') @RequiereAlguno('venta.ver', 'pedido.gestionar')
   historial(@Param('id', ParseUUIDPipe) id: string, @Query('articuloId') articuloId?: string) {
     return this.precios.historial(id, articuloId);
+  }
+
+  /** E56: márgenes por rubro de una lista desde el costo. */
+  @Get('listas/:id/margenes-rubro') @RequiereAlguno('venta.ver', 'pedido.gestionar')
+  margenesRubro(@Param('id', ParseUUIDPipe) id: string) {
+    return this.precios.margenesRubro(id);
+  }
+
+  @Put('listas/:id/margenes-rubro') @RequierePermiso('precios.editar')
+  guardarMargenesRubro(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ margenes: z.array(z.object({ rubroId: z.string().uuid('Valor inválido'), margenPct: z.number().min(0, 'Entre 0 y 1000').max(1000, 'Entre 0 y 1000') })) }))) d: { margenes: { rubroId: string; margenPct: number }[] }) {
+    return this.precios.guardarMargenesRubro(id, d);
+  }
+
+  /** E56: bonificación sugerida por la escala de descuento por cantidad. */
+  @Get('bonificacion') @RequiereAlguno('venta.emitir', 'pedido.gestionar')
+  bonificacion(@Query(new ZodValidationPipe(z.object({ articuloId: z.string().uuid('Artículo inválido'), cantidad: z.coerce.number().gt(0) }))) q: { articuloId: string; cantidad: number }) {
+    return bonificacionPorCantidad(this.tenant.db, q.articuloId, q.cantidad);
   }
 
   @Get('precio') @RequierePermiso()

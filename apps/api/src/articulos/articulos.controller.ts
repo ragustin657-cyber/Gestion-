@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { esquemaEscalas, type DatosEscalas } from '../ventas/precios/escalas';
 import { z } from 'zod';
 import { esAlicuotaIva } from '@gestion/shared';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
@@ -16,6 +17,7 @@ const esquema = z.object({
   esServicio: z.boolean().optional(),
   activo: z.boolean().optional(),
   controlaStock: z.boolean().optional(),
+  rubroId: z.string().uuid('Valor inválido').nullish(),
 });
 
 @Controller('articulos')
@@ -24,7 +26,7 @@ export class ArticulosController {
 
   @Get()
   @RequierePermiso('articulo.ver')
-  listar(@Query() q: { q?: string; activo?: string; pagina?: string; porPagina?: string }) {
+  listar(@Query() q: { q?: string; activo?: string; pagina?: string; porPagina?: string; rubroId?: string }) {
     return this.articulos.listar(q);
   }
 
@@ -44,5 +46,17 @@ export class ArticulosController {
   @RequierePermiso('articulo.editar')
   modificar(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquema.partial())) d: Partial<z.infer<typeof esquema>>) {
     return this.articulos.modificar(id, d);
+  }
+
+  @Get(':id/escalas')
+  @RequierePermiso('articulo.ver')
+  escalas(@Param('id', ParseUUIDPipe) id: string) {
+    return this.articulos.escalas(id);
+  }
+
+  @Put(':id/escalas')
+  @RequierePermiso('articulo.editar')
+  guardarEscalas(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(esquemaEscalas)) d: DatosEscalas) {
+    return this.articulos.guardarEscalas(id, d);
   }
 }

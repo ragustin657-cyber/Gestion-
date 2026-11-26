@@ -39,4 +39,7 @@ export interface ConfigMaestro<T> {
   /** Sin modificación: solo alta. */
   soloAlta?: boolean;
   valoresNuevos?: Record<string, unknown>;
+  /** E56: filtros extra de la consulta y controles para elegirlos (encima de la tabla). */
+  filtros?: Record<string, string | undefined>;
+  encabezado?: ReactNode;
 }

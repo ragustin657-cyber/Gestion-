@@ -2,6 +2,7 @@ import { letraVenta } from '@gestion/shared';
 import type { TxEmpresa } from '../../prisma/tenant-prisma.service';
 import { cotizacion, D, Dec } from '../../tesoreria/operaciones/tesoreria-comun';
 import type { PreciosService } from '../precios/precios.service';
+import { bonificacionPorCantidad } from '../precios/escalas';
 import { numeroRemito } from '../remitos/remitos.service';
 
 /** E55: renglón de remito pendiente de facturar, con el precio que llevará la factura del lote. */
@@ -100,6 +101,9 @@ export async function armarLote(tx: TxEmpresa, precios: PreciosService, f: { emp
       if (art) {
         const s = await precios.sugerido(tx, { terceroId: r.remito.terceroId, articuloId: art.id, monedaCodigo: moneda, cotizacion: null }).catch(() => ({ precio: null }));
         if (s.precio !== null) precio = new D(s.precio);
+        // E56: descuento por cantidad de la escala del artículo o su rubro
+        const b = await bonificacionPorCantidad(tx, art.id, cantidad);
+        if (b.bonificacionPct) bonificacion = new D(b.bonificacionPct);
       }
     }
     if (precio === null || precio.lte(0)) g.problemas.push(`Sin precio: ${r.descripcion} (remito ${numero})`);

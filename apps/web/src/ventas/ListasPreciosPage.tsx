@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthContext';
 import { formatoFecha, formatoMoneda } from '../compras/formato';
 import { errorConsulta, useOperacion } from '../tesoreria/comun';
 import { cuerpoAumento, REDONDEOS, vistaPreviaAumento, type Redondeo } from './precios';
-import { CamposRegla, cuerpoRegla, ModalRecalculo, reglaVacia, type BaseLista, type ReglaForm } from './listas-derivadas';
+import { CamposRegla, cuerpoRegla, ModalRecalculo, reglaVacia, type BaseLista, type ReglaForm, ModalMargenesRubro } from './listas-derivadas';
 
 interface Lista { id: string; nombre: string; monedaCodigo: string; activa: boolean; porDefecto: boolean; base?: BaseLista; listaBaseId?: string | null; porcentaje?: string; redondeo?: string }
 interface Precio { articuloId: string; codigo: string; descripcion: string; precio: string; actualizadoEn: string; fijo?: boolean; margenPct?: string | null }
@@ -52,6 +52,7 @@ export function ListasPreciosPage() {
   const [nueva, setNueva] = useState<{ nombre: string; monedaCodigo: string; porDefecto: boolean; regla: ReglaForm } | null>(null);
   const [editarRegla, setEditarRegla] = useState<ReglaForm | null>(null);
   const [recalcular, setRecalcular] = useState(false);
+  const [margenesRubro, setMargenesRubro] = useState(false);
   const base: BaseLista = lista?.base ?? 'MANUAL';
   const [agregar, setAgregar] = useState<{ articuloId: string | null; precio: string | number }>({ articuloId: null, precio: '' });
   const [aumento, setAumento] = useState<{ porcentaje: string | number; redondeo: Redondeo; alcance: 'todos' | 'filtrados' } | null>(null);
@@ -81,6 +82,7 @@ export function ListasPreciosPage() {
           </FileButton>
           <Button variant="default" onClick={() => setEditarRegla({ base, listaBaseId: lista.listaBaseId ?? null, porcentaje: lista.porcentaje !== undefined ? Number(lista.porcentaje) : '', redondeo: lista.redondeo ?? '0.01' })}>Regla</Button>
           {base !== 'MANUAL' && <Button variant="light" onClick={() => setRecalcular(true)}>Recalcular</Button>}
+          {base === 'COSTO' && <Button variant="default" onClick={() => setMargenesRubro(true)}>Márgenes por rubro</Button>}
           {!lista.porDefecto && <Button variant="subtle" onClick={async () => { if (await op.ejecutar(() => api(`/ventas/listas/${lista.id}`, { metodo: 'PATCH', body: { porDefecto: true } }), () => 'Lista por defecto actualizada')) void qc.invalidateQueries({ queryKey: ['/ventas/listas'] }); }}>Usar por defecto</Button>}
         </>}
       </Group>
@@ -116,6 +118,7 @@ export function ListasPreciosPage() {
           <Button onClick={async () => { if (await op.ejecutar(() => api(`/ventas/listas/${listaId}`, { metodo: 'PATCH', body: cuerpoRegla(editarRegla) }), () => 'Regla guardada')) { setEditarRegla(null); void qc.invalidateQueries({ queryKey: ['/ventas/listas'] }); } }}>Guardar</Button>
         </Stack>}
       </Modal>
+      {lista && <ModalMargenesRubro listaId={lista.id} nombre={lista.nombre} abierto={margenesRubro} onCerrar={() => setMargenesRubro(false)} />}
       {lista && <ModalRecalculo listaId={lista.id} nombre={lista.nombre} moneda={moneda} abierto={recalcular} onCerrar={() => setRecalcular(false)} onAplicado={() => { setRecalcular(false); refrescar(); }} />}
       <Modal opened={!!aumento} onClose={() => setAumento(null)} title={`Aumentar precios de ${lista?.nombre ?? ''}`}>
         {aumento && <Stack>

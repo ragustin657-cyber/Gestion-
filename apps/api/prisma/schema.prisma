@@ -271,6 +271,8 @@ model Articulo {
   stockCantidad  Decimal @default(0) @db.Decimal(18, 4)
   stockValor     Decimal @default(0) @db.Decimal(18, 2)
   costoPromedio  Decimal @default(0) @db.Decimal(18, 6)
+  /// E56: rubro (familia) del artículo
+  rubroId        String? @db.Uuid
 
   @@unique([empresaId, codigo])
 }
@@ -3343,4 +3345,39 @@ model LoteFacturacionItem {
   total         Decimal                  @default(0) @db.Decimal(18, 2)
 
   @@index([empresaId, loteId])
+}
+
+/// E56: rubros de artículos (un nivel)
+model RubroArticulo {
+  id        String   @id @default(uuid()) @db.Uuid
+  empresaId String   @db.Uuid
+  nombre    String
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  @@unique([empresaId, nombre])
+}
+
+/// E56: escala de descuento por cantidad de un rubro o de un artículo (exactamente uno de los dos)
+model EscalaDescuento {
+  id         String  @id @default(uuid()) @db.Uuid
+  empresaId  String  @db.Uuid
+  rubroId    String? @db.Uuid
+  articuloId String? @db.Uuid
+  desde      Decimal @db.Decimal(18, 4)
+  porcentaje Decimal @db.Decimal(5, 2)
+
+  @@unique([empresaId, rubroId, desde])
+  @@unique([empresaId, articuloId, desde])
+}
+
+/// E56: margen sobre el costo de un rubro en una lista calculada desde el costo
+model MargenRubroLista {
+  id        String  @id @default(uuid()) @db.Uuid
+  empresaId String  @db.Uuid
+  listaId   String  @db.Uuid
+  rubroId   String  @db.Uuid
+  margenPct Decimal @db.Decimal(9, 2)
+
+  @@unique([empresaId, listaId, rubroId])
 }

@@ -39,7 +39,7 @@ describe('filtrarMenu', () => {
 
   it('con todos los permisos muestra Maestros completo', () => {
     const m = filtrarMenu(MENU, ['tercero.ver', 'articulo.ver', 'plancuentas.ver', 'moneda.editar', 'tesoreria.maestros.editar', 'organizacion.editar']);
-    expect(m.find((n) => n.titulo === 'Maestros')!.hijos).toHaveLength(7);
+    expect(m.find((n) => n.titulo === 'Maestros')!.hijos).toHaveLength(8);
   });
 });
 

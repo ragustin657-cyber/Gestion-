@@ -219,6 +219,7 @@ export const MENU: NodoMenu[] = [
     hijos: [
       { titulo: 'Proveedores y clientes', ruta: '/maestros/terceros', permiso: 'tercero.ver' },
       { titulo: 'Artículos', ruta: '/maestros/articulos', permiso: 'articulo.ver' },
+      { titulo: 'Rubros de artículos', ruta: '/maestros/rubros-articulos', permiso: 'articulo.ver' },
       { titulo: 'Listas de precios', ruta: '/maestros/listas-precios', permiso: 'precios.editar' },
       { titulo: 'Vendedores', ruta: '/maestros/vendedores', permiso: 'venta.maestros' },
       { titulo: 'Rubros de bienes de uso', ruta: '/maestros/rubros-bienes', permiso: 'bienes.gestionar' },
