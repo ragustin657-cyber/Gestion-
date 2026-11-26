@@ -1,3 +1,4 @@
+import { AccionesCot, etiquetaCot, type RemitoCot } from './cot';
 import { Badge, Button, Checkbox, Group, Modal, Paper, Select, Table, TextInput, Title } from '@mantine/core';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -71,7 +72,7 @@ export function PedidosPage() {
   );
 }
 
-interface RemitoFila { id: string; numeroTexto: string; fecha: string; cliente: string; estado: string; pendienteFacturar: string; tipo?: 'ENTREGA' | 'DEVOLUCION' }
+interface RemitoFila extends Omit<RemitoCot, 'cot' | 'cotEstado'> { id: string; numeroTexto: string; fecha: string; cliente: string; estado: string; pendienteFacturar: string; tipo?: 'ENTREGA' | 'DEVOLUCION'; cot: string | null; cotEstado: RemitoCot['cotEstado'] }
 
 export function RemitosPage() {
   const { puede } = useAuth();
@@ -97,7 +98,7 @@ export function RemitosPage() {
       {errorConsulta(q.error)}
       {op.alerta}
       <Table withTableBorder striped>
-        <Table.Thead><Table.Tr><Table.Th>Número</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Fecha</Table.Th><Table.Th>Cliente</Table.Th><Table.Th ta="right">Pend. facturar</Table.Th><Table.Th /></Table.Tr></Table.Thead>
+        <Table.Thead><Table.Tr><Table.Th>Número</Table.Th><Table.Th>Tipo</Table.Th><Table.Th>Fecha</Table.Th><Table.Th>Cliente</Table.Th><Table.Th ta="right">Pend. facturar</Table.Th><Table.Th>COT</Table.Th><Table.Th /></Table.Tr></Table.Thead>
         <Table.Tbody>
           {(q.data ?? []).map((r) => (
             <Table.Tr key={r.id}>
@@ -106,8 +107,10 @@ export function RemitosPage() {
               <Table.Td>{formatoFecha(r.fecha)}</Table.Td>
               <Table.Td>{r.cliente}</Table.Td>
               <Table.Td ta="right">{r.estado === 'ANULADO' ? <Badge color="gray" variant="light">Anulado</Badge> : Number(r.pendienteFacturar).toLocaleString('es-AR')}</Table.Td>
+              <Table.Td>{etiquetaCot(r)}</Table.Td>
               <Table.Td><Group gap={4} wrap="nowrap">
                 <Button size="compact-xs" variant="subtle" onClick={() => void descargar(`/ventas/remitos/${r.id}/pdf`, {}, `remito.pdf`)}>PDF</Button>
+                {puede('pedido.gestionar') && <AccionesCot remito={r} onCambio={() => void qc.invalidateQueries({ queryKey: ['/ventas/remitos'] })} />}
                 {r.estado !== 'ANULADO' && puede('pedido.gestionar') && <Button size="compact-xs" color="red" variant="light" onClick={() => setAnulando(r.id)}>Anular</Button>}
               </Group></Table.Td>
             </Table.Tr>
