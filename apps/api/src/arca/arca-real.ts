@@ -1,13 +1,14 @@
 import { ClienteArca, ComprobanteArca, DatosCae, ErrorConexionArca, ResultadoCae } from './cliente-arca';
 import { ClaveFce, ClienteFce, FceArca, ObligacionFce } from './cliente-fce';
 import { armarTra, firmarTra, leerLoginResponse, xmlLoginCms } from './wsaa';
+import { ClienteFex, DatosFex, leerFexAuthorize, leerFexConsultar, leerFexDummy, leerFexUltimo, leerFexUltimoId, NS_FEX, xmlFexAuthorize, xmlFexConsultar, xmlFexDummy, xmlFexUltimo, xmlFexUltimoId } from './wsfex';
 import { leerComprobantesFce, leerMotivos, leerObligacion, leerSinDatos, xmlAceptar, xmlConsultarComprobantes, xmlMotivos, xmlObligacion, xmlRechazar } from './wsfecred';
 import { AuthWsfe, leerConsultar, leerDummy, leerSolicitarCae, leerUltimoAutorizado, NS_WSFE, xmlConsultar, xmlDummy, xmlSolicitarCae, xmlUltimoAutorizado } from './wsfe';
 
 export const ENDPOINTS = {
   // wsfecred (E50): URLs del manual del registro de FCE, a verificar
-  HOMOLOGACION: { wsaa: 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx', wsfecred: 'https://fwshomo.afip.gov.ar/wsfecred/FECredService' },
-  PRODUCCION: { wsaa: 'https://wsaa.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://servicios1.afip.gov.ar/wsfev1/service.asmx', wsfecred: 'https://serviciosjava.afip.gob.ar/wsfecred/FECredService' },
+  HOMOLOGACION: { wsaa: 'https://wsaahomo.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://wswhomo.afip.gov.ar/wsfev1/service.asmx', wsfecred: 'https://fwshomo.afip.gov.ar/wsfecred/FECredService', wsfex: 'https://wswhomo.afip.gov.ar/wsfexv1/service.asmx' },
+  PRODUCCION: { wsaa: 'https://wsaa.afip.gov.ar/ws/services/LoginCms', wsfe: 'https://servicios1.afip.gov.ar/wsfev1/service.asmx', wsfecred: 'https://serviciosjava.afip.gob.ar/wsfecred/FECredService', wsfex: 'https://servicios1.afip.gov.ar/wsfexv1/service.asmx' },
 } as const;
 
 export interface Token { token: string; sign: string; vence: Date }
@@ -141,5 +142,44 @@ export class ArcaRealFce extends ArcaReal implements ClienteFce {
 
   motivosRechazo(): Promise<{ codigo: string; descripcion: string }[]> {
     return this.fce('consultarTiposMotivosRechazo', (a) => xmlMotivos(a), leerMotivos);
+  }
+}
+
+/** E58: factura de exportación (`wsfex`): mismo certificado, su propio ticket de WSAA. */
+export class ArcaRealFex extends ArcaReal implements ClienteFex {
+  protected servicio = 'wsfex';
+
+  private async fex<T>(op: string, xml: (a: AuthWsfe) => string, leer: (x: string) => T): Promise<T> {
+    for (let intento = 0; ; intento++) {
+      const a = await this.auth();
+      try {
+        return leer(await this.post(ENDPOINTS[this.o.ambiente].wsfex, `${NS_FEX}${op}`, xml(a)));
+      } catch (e) {
+        if (e instanceof ErrorConexionArca && e.tokenInvalido && intento === 0) {
+          await this.o.tokens.borrar();
+          continue;
+        }
+        throw e;
+      }
+    }
+  }
+
+  ultimoAutorizado(ptoVta: number, cbteTipo: number): Promise<number> {
+    return this.fex('FEXGetLast_CMP', (a) => xmlFexUltimo(a, ptoVta, cbteTipo), leerFexUltimo);
+  }
+  ultimoId(): Promise<number> {
+    return this.fex('FEXGetLast_ID', xmlFexUltimoId, leerFexUltimoId);
+  }
+  consultar(ptoVta: number, cbteTipo: number, numero: number): Promise<ComprobanteArca | null> {
+    return this.fex('FEXGetCMP', (a) => xmlFexConsultar(a, ptoVta, cbteTipo, numero), leerFexConsultar);
+  }
+  autorizar(d: DatosFex): Promise<ResultadoCae> {
+    return this.fex('FEXAuthorize', (a) => xmlFexAuthorize(a, d), leerFexAuthorize);
+  }
+  async probar(): Promise<{ ok: boolean; detalle: string }> {
+    const dummy = leerFexDummy(await this.post(ENDPOINTS[this.o.ambiente].wsfex, `${NS_FEX}FEXDummy`, xmlFexDummy()));
+    if (!dummy.ok) return dummy;
+    await this.auth();
+    return { ok: true, detalle: `${dummy.detalle}. Acceso con el certificado: OK` };
   }
 }

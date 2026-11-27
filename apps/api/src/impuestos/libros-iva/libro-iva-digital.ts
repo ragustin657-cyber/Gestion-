@@ -39,7 +39,9 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
   });
   for (const c of ventas) {
     const tipo = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
-    const doc = documentoArca(c.tercero.tipoDocumento);
+    // E58: la exportación (E) va con el CUIT país del cliente y el código de operación de exportación (a verificar)
+    const expo = c.letra === 'E';
+    const doc = expo ? { codigo: 80, numero: () => (c.tercero.cuitPais ?? '').replace(/\D/g, '') } : documentoArca(c.tercero.tipoDocumento);
     const esC = c.letra === 'C';
     const alicuotas = esC ? [] : c.ivas.length ? c.ivas.map((i) => ({ alicuota: alic(i.alicuota), neto: i.base, impuesto: i.importe })) : [{ alicuota: '0003', neto: new D(0), impuesto: new D(0) }];
     const n = vCbte.length + 1;
@@ -51,7 +53,7 @@ export async function libroIvaDigital(tx: TxEmpresa, ctx: ContextoGeneracion): P
       percepcionesNacionales: c.percepcionesDetalle.filter((x) => x.tipo === 'IVA').reduce((t, x) => t.plus(x.importe), new D(0)).toString(),
       percepcionesIibb: c.percepcionesDetalle.filter((x) => x.tipo === 'IIBB').reduce((t, x) => t.plus(x.importe), new D(0)).toString(),
       moneda: monedaArca(c.monedaCodigo as 'ARS' | 'USD'), tipoCambio: c.cotizacion.toString(), cantidadAlicuotas: alicuotas.length,
-      codigoOperacion: esC ? ' ' : codigoOperacion(c.ivas.length > 0, c.exento.gt(0), c.noGravado.gt(0)),
+      codigoOperacion: esC ? ' ' : expo ? 'X' : codigoOperacion(c.ivas.length > 0, c.exento.gt(0), c.noGravado.gt(0)),
       fechaVencimientoPago: c.fechaVencimientoPago ?? c.fechaVencimiento,
     }, n)));
     for (const a of alicuotas)

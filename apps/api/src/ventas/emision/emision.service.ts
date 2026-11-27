@@ -1,3 +1,5 @@
+import { TIPO_EXPO_FEX } from '@gestion/shared';
+import type { ClienteFex, DatosFex } from '../../arca/wsfex';
 import { FceRegistroService } from '../fce/registro.service';
 import { Obligacion, ObligacionFceService } from '../fce/obligacion.service';
 import { verificarMesesAbiertos } from '../../impuestos/posicion-iva/bloqueo';
@@ -58,12 +60,15 @@ export class EmisionService {
    * La cuenta corriente y el asiento se generan recién con la aprobación.
    */
   async emitir(id: string) {
-    const cliente = await this.arca.cliente();
     const { ambiente } = await this.arca.obtener();
-    // E50: la obligación de FCE se consulta fuera de la transacción (llama a ARCA); la regla se aplica con el total definitivo
     const previo = await this.tenant.db.comprobanteVenta.findUnique({ where: { id } });
-    const obligacion = previo && previo.tipo === 'FACTURA' && previo.estado !== 'AUTORIZADO' ? await this.obligacionFce.obligacion(previo.terceroId, previo.fecha.toISOString().slice(0, 10)) : null;
+    // E58: los comprobantes E van por WSFEX (adaptado a la interfaz del WSFEv1 para la reserva, la recuperación y el resultado)
+    const exportacion = previo?.letra === 'E';
+    const fex = exportacion ? await this.arca.clienteFex() : null;
+    // E50: la obligación de FCE se consulta fuera de la transacción (llama a ARCA); la regla se aplica con el total definitivo
+    const obligacion = !exportacion && previo && previo.tipo === 'FACTURA' && previo.estado !== 'AUTORIZADO' ? await this.obligacionFce.obligacion(previo.terceroId, previo.fecha.toISOString().slice(0, 10)) : null;
     const r = await this.reservar(id, ambiente, obligacion);
+    const cliente: ClienteArca = fex ? clienteArcaDesdeFex(fex, r.datosFex!) : await this.arca.cliente();
     let resultado: ResultadoCae;
     let numero: number;
     try {
@@ -121,7 +126,7 @@ export class EmisionService {
       // E39: las percepciones se recalculan al emitir con el padrón vigente (salvo un reintento con número ya reservado: va lo mismo a ARCA)
       // Dos NC de la misma factura se serializan (aunque sean de otro punto de venta): la reversión ve a la otra (revisión E39)
       if (leido.tipo === 'NOTA_CREDITO' && leido.comprobanteAsociadoId) await bloquear(tx, 'ComprobanteVenta', empresaId, [leido.comprobanteAsociadoId]);
-      const c = leido.numeroReservado === null ? await this.recalcularPercepciones(tx, leido) : leido;
+      const c = leido.numeroReservado === null && leido.letra !== 'E' ? await this.recalcularPercepciones(tx, leido) : leido;
       const tipoArca = cbteTipo(c.tipo, c.letra as LetraVenta, c.fce);
       // Revisión E50: con un número ya reservado el reintento repite lo que se mandó (puede estar autorizado en ARCA): no se vuelven a aplicar las reglas de FCE
       const reintento = c.numeroReservado !== null;
@@ -149,9 +154,12 @@ export class EmisionService {
       await this.bajas.validarVenta(tx, { id, tipo: c.tipo, fecha: c.fecha }, renglones);
       await this.stock.prevalidar(tx, { id, tipo: c.tipo, depositoId: c.depositoId, devuelveMercaderia: c.devuelveMercaderia, comprobanteAsociadoId: c.comprobanteAsociadoId, renglones: renglones.filter((x) => !x.remitoRenglonId) });
       const datos = await this.datosCae(tx, c, tipoArca);
+      const datosFex = c.letra === 'E' ? await this.datosFex(tx, c, tipoArca as 19 | 20 | 21) : null;
+      // Con la E, la recuperación compara contra lo que guarda WSFEX: el CUIT país del cliente
+      if (datosFex) datos.docNro = datosFex.cuitPaisCliente;
       const propietario = new Date();
       await tx.comprobanteVenta.update({ where: { id }, data: { emisionEnCurso: propietario, intentos: { increment: 1 }, ambiente } });
-      return { c, datos, propietario };
+      return { c, datos, datosFex, propietario };
     });
   }
 
@@ -193,6 +201,29 @@ export class EmisionService {
         id: p.tipo === 'IVA' ? 6 : 7, desc: p.tipo === 'IVA' ? `Percepción IVA RG ${p.regimenCodigo ?? ''}`.trim() : `Percepción IIBB ${nombreJurisdiccion(p.jurisdiccion!)}`,
         baseImp: p.base.toFixed(2), alic: p.alicuota.toFixed(2), importe: p.importe.toFixed(2),
       })),
+    };
+  }
+
+  /** E58: datos de FEXAuthorize (el número y el Id se completan al pedir). */
+  private async datosFex(tx: TxEmpresa, c: ComprobanteVenta & { tercero: Tercero }, tipoArca: 19 | 20 | 21): Promise<Omit<DatosFex, 'numero' | 'id'>> {
+    const empresa = await tx.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    const renglones = await tx.comprobanteVentaRenglon.findMany({ where: { comprobanteId: c.id }, orderBy: { orden: 'asc' } });
+    const permisos = await tx.comprobanteVentaPermiso.findMany({ where: { comprobanteId: c.id } });
+    const asociados = [];
+    if (c.comprobanteAsociadoId) {
+      const a = await tx.comprobanteVenta.findUniqueOrThrow({ where: { id: c.comprobanteAsociadoId } });
+      asociados.push({ tipo: cbteTipo(a.tipo, a.letra as LetraVenta, a.fce), ptoVta: a.puntoVenta, nro: a.numero!, cuit: normalizarCuit(empresa.cuit) });
+    }
+    return {
+      fecha: yyyymmdd(c.fecha), cbteTipo: tipoArca, ptoVta: c.puntoVenta, tipoExpo: TIPO_EXPO_FEX[c.tipoExportacion ?? 'SERVICIOS'],
+      permisoExistente: c.tipoExportacion === 'BIENES' ? ((c.permisoExistente as 'S' | 'N' | null) ?? 'N') : '', permisos: permisos.map((p) => ({ id: p.numero, dstMerc: p.paisDestino })),
+      dstCmp: c.paisDestino ?? 0, cliente: c.tercero.razonSocial, cuitPaisCliente: c.tercero.cuitPais ?? '', domicilioCliente: c.tercero.domicilioExterior ?? c.tercero.domicilio ?? '',
+      idImpositivo: c.tercero.nif ?? '', monedaId: monedaArca(c.monedaCodigo as 'ARS' | 'USD'), monedaCtz: c.cotizacion.toString(), impTotal: c.total.toFixed(2),
+      formaPago: c.formaPago ?? '', incoterms: c.incoterm ?? '', incotermsDs: c.incotermDescripcion ?? '', idioma: (c.idioma as 1 | 2 | 3) ?? 1, asociados,
+      items: renglones.map((r) => {
+        const bruto = r.cantidad.mul(r.precioUnitario).toDecimalPlaces(2);
+        return { codigo: '', descripcion: r.descripcion, cantidad: r.cantidad.toString(), umed: 7, precio: r.precioUnitario.toString(), bonificacion: bruto.minus(r.neto).toFixed(2), total: r.neto.toFixed(2) };
+      }),
     };
   }
 
@@ -290,3 +321,13 @@ export class EmisionService {
 }
 
 export { AUTORIZADO_NO_SE_ANULA };
+
+/** E58: presenta el WSFEX como el cliente del WSFEv1 para reusar la reserva, la recuperación y el registro del resultado. */
+function clienteArcaDesdeFex(fex: ClienteFex, base: Omit<DatosFex, 'numero' | 'id'>): ClienteArca {
+  return {
+    ultimoAutorizado: (ptoVta, cbteTipo) => fex.ultimoAutorizado(ptoVta, cbteTipo),
+    consultar: (ptoVta, cbteTipo, numero) => fex.consultar(ptoVta, cbteTipo, numero),
+    solicitarCae: async (d) => fex.autorizar({ ...base, numero: d.numero, id: (await fex.ultimoId()) + 1 }),
+    probar: () => fex.probar(),
+  };
+}

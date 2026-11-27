@@ -119,6 +119,8 @@ export async function armarLote(tx: TxEmpresa, precios: PreciosService, f: { emp
   const salida: GrupoLote[] = [];
   for (const { _total, ...g } of grupos.values()) {
     if (!g.renglones.length && !g.avisos.length) continue;
+    // E58: la exportación (letra E) lleva datos propios: se factura de a una
+    if (terceros.get(g.terceroId)?.residenteExterior) g.problemas.unshift('El cliente es del exterior: facture la exportación de a una');
     if (g.monedaCodigo === 'USD' && g.renglones.length) {
       const c = await usd();
       if (c) g.cotizacion = c.toString();

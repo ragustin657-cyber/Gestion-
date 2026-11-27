@@ -24,6 +24,7 @@ const esquemaPuntoVenta = z.object({
   numero: z.number().int().min(1).max(99999),
   descripcion: zTextoOpcional,
   electronico: z.boolean().default(true),
+  exportacion: z.boolean().optional(),
   sucursalId: z.string().uuid('Valor inválido').nullish(),
 });
 
@@ -57,7 +58,7 @@ export class EmpresasController {
 
   @Patch('actual/puntos-venta/:id')
   @RequierePermiso('empresa.administrar')
-  modificarPuntoVenta(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ depositoId: z.string().uuid('Valor inválido').nullable() }))) d: { depositoId: string | null }) {
+  modificarPuntoVenta(@Param('id', ParseUUIDPipe) id: string, @Body(new ZodValidationPipe(z.object({ depositoId: z.string().uuid('Valor inválido').nullable().optional(), exportacion: z.boolean().optional() }))) d: { depositoId?: string | null; exportacion?: boolean }) {
     return this.empresas.modificarPuntoVenta(id, d);
   }
 

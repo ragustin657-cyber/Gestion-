@@ -3,9 +3,9 @@ import type { AlicuotaIva } from '../iva';
 import type { LetraVenta, TipoVenta } from './letra';
 
 const CBTE: Record<TipoVenta, Record<LetraVenta, number>> = {
-  FACTURA: { A: 1, B: 6, C: 11 },
-  NOTA_DEBITO: { A: 2, B: 7, C: 12 },
-  NOTA_CREDITO: { A: 3, B: 8, C: 13 },
+  FACTURA: { A: 1, B: 6, C: 11, E: 19 },
+  NOTA_DEBITO: { A: 2, B: 7, C: 12, E: 20 },
+  NOTA_CREDITO: { A: 3, B: 8, C: 13, E: 21 },
 };
 /** Con `fce` (E50), el código de la factura de crédito electrónica MiPyME: 201…213. */
 export const cbteTipo = (tipo: TipoVenta, letra: LetraVenta, fce = false): number => CBTE[tipo][letra] + (fce ? 200 : 0);

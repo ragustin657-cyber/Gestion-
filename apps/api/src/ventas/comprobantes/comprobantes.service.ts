@@ -5,7 +5,7 @@ import { BajasService } from '../../bienes-uso/bajas.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { ComprobanteVenta } from '@prisma/client';
-import { calcularVenta, cbteTipo, JURISDICCIONES_CM, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta } from '@gestion/shared';
+import { calcularVenta, cbteTipo, JURISDICCIONES_CM, docTipoArca, ETIQUETAS_CONDICION_IVA, formatearCuit, letraVenta, monedaArca, normalizarCuit, urlQrArca, type AlicuotaVenta, type LetraVenta, PAISES_FEX, TIPOS_EXPORTACION } from '@gestion/shared';
 import { fechaAR } from '../../compras/comun';
 import { importeAR, pdfVenta, type DatosPdfVenta } from '../pdf/pdf-venta';
 import { importesConIva } from '../pdf/importes-b';
@@ -26,7 +26,38 @@ export const AUTORIZADO_NO_SE_ANULA = 'Un comprobante autorizado no se anula: em
 export const EMISION_SIN_CONFIRMAR = 'El comprobante tiene una emisión sin confirmar: reintente para resolverla';
 /** Una emisión se considera abandonada pasado este tiempo (más que el peor caso de llamadas a ARCA con sus timeouts). */
 export const EN_CURSO_MS = 5 * 60000;
-export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true, percepcionesDetalle: { orderBy: [{ tipo: 'asc' }, { jurisdiccion: 'asc' }, { tramo: 'asc' }] } } satisfies Prisma.ComprobanteVentaInclude;
+export const INCLUIR_VENTA = { renglones: { orderBy: { orden: 'asc' } }, ivas: true, tercero: true, permisos: true, percepcionesDetalle: { orderBy: [{ tipo: 'asc' }, { jurisdiccion: 'asc' }, { tramo: 'asc' }] } } satisfies Prisma.ComprobanteVentaInclude;
+
+/** E58: datos de exportación para el PDF. */
+function lineasExportacion(c: { tipoExportacion: string | null; paisDestino: number | null; incoterm: string | null; incotermDescripcion: string | null; formaPago: string | null; permisos?: { numero: string; paisDestino: number }[] }): string[] {
+  const pais = (n: number | null) => (n ? `${PAISES_FEX[n] ?? n} (${n})` : '—');
+  return [
+    `Exportación · ${TIPOS_EXPORTACION[(c.tipoExportacion ?? 'SERVICIOS') as keyof typeof TIPOS_EXPORTACION]} · País de destino: ${pais(c.paisDestino)}`,
+    ...(c.incoterm ? [`Incoterm: ${c.incoterm}${c.incotermDescripcion ? ` ${c.incotermDescripcion}` : ''}`] : []),
+    ...(c.permisos?.length ? [`Permisos de embarque: ${c.permisos.map((p) => `${p.numero} (${pais(p.paisDestino)})`).join(', ')}`] : []),
+    ...(c.formaPago ? [`Forma de pago: ${c.formaPago}`] : []),
+  ];
+}
+
+/** E58: reglas de la factura de exportación (spec §1-§2) y de los puntos de venta de exportación. */
+function validarExportacion(d: DatosComprobanteVenta, letra: LetraVenta, pv: { exportacion: boolean }, tercero: { cuitPais: string | null }) {
+  if (letra !== 'E') {
+    if (pv.exportacion) throw new BadRequestException('El punto de venta es de exportación: solo emite comprobantes E');
+    return;
+  }
+  if (d.fce) throw new BadRequestException('La factura de crédito MiPyME no admite la letra E');
+  if (!pv.exportacion) throw new BadRequestException('El punto de venta no es de exportación');
+  if (!d.tipoExportacion) throw new BadRequestException('Indique el tipo de exportación');
+  if (!d.paisDestino) throw new BadRequestException('Indique el país de destino');
+  if (d.tipoExportacion === 'BIENES') {
+    if (!d.incoterm) throw new BadRequestException('Indique el incoterm');
+    if (!d.permisoExistente) throw new BadRequestException('Indique si hay permiso de embarque');
+    if (d.permisoExistente === 'S' && !d.permisos?.length) throw new BadRequestException('Cargue los permisos de embarque');
+    if (d.permisoExistente === 'N' && d.permisos?.length) throw new BadRequestException('Sin permiso de embarque no se cargan permisos');
+  } else if (d.permisos?.length) throw new BadRequestException('Los permisos de embarque son solo para bienes');
+  if (d.renglones.some((r) => r.alicuota !== 'EXENTO')) throw new BadRequestException('La exportación no lleva IVA: use alícuota exento');
+  if (!tercero.cuitPais) throw new BadRequestException('El cliente del exterior no tiene CUIT país');
+}
 
 /** "0001-00000012" */
 export const numeroVenta = (puntoVenta: number, numero: number | null) => `${String(puntoVenta).padStart(4, '0')}-${String(numero ?? 0).padStart(8, '0')}`;
@@ -80,7 +111,21 @@ export class ComprobantesVentaService {
   }
 
   /** Valida y calcula: letra, cuenta de cada renglón, importes y cotización. Lanza 400 con los mensajes de la spec. */
-  async preparar(tx: TxEmpresa, d: DatosComprobanteVenta, id?: string, opciones: OpcionesComprobante = {}) {
+  async preparar(tx: TxEmpresa, entrada: DatosComprobanteVenta, id?: string, opciones: OpcionesComprobante = {}) {
+    // Revisión E58: una nota sigue a su factura asociada: es E solo si la factura es E, y sin datos de exportación toma los de la factura
+    let d = entrada;
+    if (d.tipo !== 'FACTURA' && d.comprobanteAsociadoId) {
+      const asoc = await tx.comprobanteVenta.findUnique({ where: { id: d.comprobanteAsociadoId }, include: { permisos: true } });
+      if (asoc) {
+        const esE = asoc.letra === 'E';
+        d = { ...d, exportacion: esE };
+        if (esE && !d.tipoExportacion)
+          d = {
+            ...d, tipoExportacion: asoc.tipoExportacion ?? undefined, paisDestino: asoc.paisDestino, incoterm: asoc.incoterm as DatosComprobanteVenta['incoterm'], incotermDescripcion: asoc.incotermDescripcion,
+            formaPago: asoc.formaPago, idioma: asoc.idioma as 1 | 2 | 3, permisoExistente: asoc.permisoExistente as 'S' | 'N' | null, permisos: asoc.permisos.map((x) => ({ numero: x.numero, paisDestino: x.paisDestino })),
+          };
+      }
+    }
     const tercero = await tx.tercero.findUnique({ where: { id: d.terceroId } });
     if (!tercero || !tercero.esCliente || !tercero.activo) throw new BadRequestException('Cliente inexistente o inactivo');
     const pv = await tx.puntoVenta.findUnique({ where: { id: d.puntoVentaId } });
@@ -89,9 +134,11 @@ export class ComprobantesVentaService {
     // E36: depósito y artículos de la empresa activa
     await verificarDeEmpresa(tx, [['deposito', d.depositoId], ...d.renglones.map((r) => ['articulo', r.articuloId] as ['articulo', string | null | undefined])]);
     const empresa = await tx.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
+    // E58: exportación (letra E): por defecto si el cliente es del exterior
+    const exportacion = d.exportacion ?? tercero.residenteExterior;
     let letra: LetraVenta;
     try {
-      letra = letraVenta(empresa.condicionIva, tercero.condicionIva);
+      letra = letraVenta(empresa.condicionIva, tercero.condicionIva, exportacion);
     } catch (e) {
       throw new BadRequestException((e as Error).message);
     }
@@ -102,16 +149,18 @@ export class ComprobantesVentaService {
       if (asoc.monedaCodigo !== d.monedaCodigo) throw new BadRequestException('El comprobante asociado está en otra moneda');
       if (asoc.fce !== !!d.fce) throw new BadRequestException('La nota tiene que ser de la misma clase que la factura: factura de crédito MiPyME o común');
       if (d.fce && d.anulacionFce) await this.registroFce.verificarAnulable(tx, asoc.id);
+      if ((asoc.letra === 'E') !== (letra === 'E')) throw new BadRequestException('La nota debe asociarse a una factura E');
       letra = asoc.letra as LetraVenta;
     }
+    validarExportacion(d, letra, pv, tercero);
     // Venta de bienes de uso (spec E14 §5): el neto va al resultado por venta y la baja se registra al autorizar
     await this.bajas.validarVenta(tx, { id, tipo: d.tipo, fecha: d.fecha }, d.renglones);
     if (letra === 'A' && tercero.tipoDocumento !== 'CUIT') throw new BadRequestException('El cliente no tiene CUIT válido para una factura A');
     const calc = calcularVenta(d.renglones.map((r) => ({ cantidad: String(r.cantidad), precioUnitario: String(r.precioUnitario), alicuota: r.alicuota as AlicuotaVenta, bonificacionPct: String(r.bonificacionPct ?? 0) })), letra, String(d.descuentoPct ?? 0));
     if (!new D(calc.total).gt(0)) throw new BadRequestException('El total del comprobante debe ser mayor a cero');
     const cot = d.monedaCodigo === 'ARS' ? new D(1) : d.cotizacion ? new D(d.cotizacion) : await cotizacion(tx, 'USD', d.fecha);
-    // Percepciones practicadas (E39): el total las incluye
-    const perc = await this.percepciones.calcular(tx, {
+    // Percepciones practicadas (E39): el total las incluye (la exportación no lleva)
+    const perc = letra === 'E' ? { total: '0', renglones: [] } : await this.percepciones.calcular(tx, {
       tipo: d.tipo, letra, fecha: d.fecha, terceroId: d.terceroId, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento,
       ivas: calc.ivas.map((x) => ({ alicuota: String(x.alicuota), base: x.base })), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId ?? null, excluirId: id,
     });
@@ -124,6 +173,8 @@ export class ComprobantesVentaService {
     if (d.devuelveMercaderia && origenes.some((o) => o.devolucionRenglonId)) throw new BadRequestException('La mercadería ya entró con el remito de devolución');
     const articulos = await tx.articulo.findMany({ where: { id: { in: [...d.renglones.map((r) => r.articuloId), ...origenes.map((o) => o.articuloId)].filter((x): x is string => !!x) } } });
     const ventas = await this.cuentas.cuenta(tx, 'VENTAS');
+    // E58: la exportación va a la cuenta de ventas al exterior si está configurada
+    const ventasExpo = letra === 'E' ? (await tx.configCuenta.findFirst({ where: { concepto: 'VENTAS_EXPORTACION' } }))?.cuentaContableId ?? null : null;
     const resultadoBienes = d.renglones.some((r) => r.bienUsoId) ? await this.cuentas.cuenta(tx, 'RESULTADO_VENTA_BIENES_USO') : null;
     const renglones = d.renglones.map((r, i) => {
       if (r.articuloId && !articulos.some((a) => a.id === r.articuloId)) throw new BadRequestException('Artículo inexistente');
@@ -131,7 +182,7 @@ export class ComprobantesVentaService {
       return {
         empresaId: this.tenant.empresaId, orden: i, articuloId: o.articuloId, descripcion: o.descripcion, remitoRenglonId: o.remitoRenglonId, pedidoRenglonId: o.pedidoRenglonId, devolucionRenglonId: o.devolucionRenglonId ?? null, cantidad: r.cantidad, precioUnitario: r.precioUnitario, alicuota: String(r.alicuota), bonificacionPct: r.bonificacionPct ?? 0,
         neto: calc.renglones[i].neto, iva: calc.renglones[i].iva, bienUsoId: r.bienUsoId ?? null,
-        cuentaContableId: opciones.cuentaContableId ?? (r.bienUsoId ? resultadoBienes! : (articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas)),
+        cuentaContableId: opciones.cuentaContableId ?? (r.bienUsoId ? resultadoBienes! : (ventasExpo ?? articulos.find((a) => a.id === o.articuloId)?.cuentaVentaId ?? ventas)),
       };
     });
     const vendedor = opciones.sinVendedor ? { vendedorId: null, comisionPct: null } : await this.vendedor(tx, d, tercero.vendedorId, origenes, id);
@@ -155,7 +206,11 @@ export class ComprobantesVentaService {
         monedaCodigo: d.monedaCodigo, cotizacion: cot, netoGravado: calc.netoGravado, noGravado: calc.noGravado, exento: calc.exento, iva: calc.iva, total, percepciones: perc.total,
         totalPesos: new D(total).mul(cot).toDecimalPlaces(2), comprobanteAsociadoId: d.tipo === 'FACTURA' ? null : d.comprobanteAsociadoId, aplicarAAsociado: d.aplicarAAsociado,
         vendedorId: vendedor.vendedorId, comisionPct: vendedor.comisionPct,
+        ...(letra === 'E'
+          ? { exportacion: true, tipoExportacion: d.tipoExportacion!, paisDestino: d.paisDestino!, incoterm: d.incoterm ?? null, incotermDescripcion: d.incotermDescripcion ?? null, formaPago: d.formaPago ?? null, idioma: d.idioma ?? 1, permisoExistente: d.tipoExportacion === 'BIENES' ? d.permisoExistente! : null }
+          : { exportacion: false, tipoExportacion: null, paisDestino: null, incoterm: null, incotermDescripcion: null, formaPago: null, idioma: 1, permisoExistente: null }),
       },
+      permisos: letra === 'E' && d.tipoExportacion === 'BIENES' && d.permisoExistente === 'S' ? (d.permisos ?? []).map((x) => ({ empresaId: this.tenant.empresaId, numero: x.numero, paisDestino: x.paisDestino })) : [],
       renglones,
       ivas: calc.ivas.map((x) => ({ empresaId: this.tenant.empresaId, alicuota: x.alicuota, base: x.base, importe: x.importe })),
       percepciones: perc.renglones.map((r) => ({ empresaId: this.tenant.empresaId, ...r })),
@@ -204,7 +259,7 @@ export class ComprobantesVentaService {
       const numeroInterno = await this.numeracion.siguiente(tx, 'VENTA-INTERNO', 0);
       const usuario = this.cls.get<ContextoRequest>(CLAVE_CONTEXTO).usuarioId;
       const c = await tx.comprobanteVenta.create({
-        data: { ...p.datos, numeroInterno, creadoPor: usuario, renglones: { create: p.renglones }, ivas: { create: p.ivas }, percepcionesDetalle: { create: p.percepciones } } as Prisma.ComprobanteVentaUncheckedCreateInput,
+        data: { ...p.datos, numeroInterno, creadoPor: usuario, renglones: { create: p.renglones }, ivas: { create: p.ivas }, percepcionesDetalle: { create: p.percepciones }, permisos: { create: p.permisos } } as Prisma.ComprobanteVentaUncheckedCreateInput,
       });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: c.id, accion: 'CREAR', datos: { numeroInterno, tipo: c.tipo, letra: c.letra, total: c.total } });
       return { ...(await this.obtener(c.id, tx)), advertencias: p.advertencias };
@@ -231,9 +286,10 @@ export class ComprobantesVentaService {
       await tx.comprobanteVentaRenglon.deleteMany({ where: { comprobanteId: id } });
       await tx.comprobanteVentaIva.deleteMany({ where: { comprobanteId: id } });
       await tx.comprobanteVentaPercepcion.deleteMany({ where: { comprobanteId: id } });
+      await tx.comprobanteVentaPermiso.deleteMany({ where: { comprobanteId: id } });
       await tx.comprobanteVenta.update({
         where: { id },
-        data: { ...p.datos, version: { increment: 1 }, renglones: { create: p.renglones }, ivas: { create: p.ivas }, percepcionesDetalle: { create: p.percepciones } } as Prisma.ComprobanteVentaUncheckedUpdateInput,
+        data: { ...p.datos, version: { increment: 1 }, renglones: { create: p.renglones }, ivas: { create: p.ivas }, percepcionesDetalle: { create: p.percepciones }, permisos: { create: p.permisos } } as Prisma.ComprobanteVentaUncheckedUpdateInput,
       });
       await this.auditoria.registrar(tx, { entidad: 'ComprobanteVenta', entidadId: id, accion: 'MODIFICAR', datos: { total: p.datos.total } });
       return { ...(await this.obtener(id, tx)), advertencias: p.advertencias };
@@ -293,7 +349,8 @@ export class ComprobantesVentaService {
     const datos: DatosPdfVenta = {
       empresa: { razonSocial: empresa.razonSocial, cuit: formatearCuit(empresa.cuit), condicionIva: ETIQUETAS_CONDICION_IVA[empresa.condicionIva], domicilio: empresa.domicilio },
       cliente: { razonSocial: t.razonSocial, documento, condicionIva: ETIQUETAS_CONDICION_IVA[t.condicionIva], domicilio: t.domicilio },
-      titulo: c.fce ? TITULOS_FCE[c.tipo] : titulos[c.tipo], fce, letra, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
+      titulo: c.fce ? TITULOS_FCE[c.tipo] : letra === 'E' ? `${titulos[c.tipo]} E` : titulos[c.tipo], fce, letra,
+      exportacion: letra === 'E' ? lineasExportacion(c) : null, codigo: String(codigo).padStart(2, '0'), numero: numeroVenta(c.puntoVenta, c.numero), fecha: fechaAR(c.fecha), vencimiento: fechaAR(c.fechaVencimiento),
       servicio: c.concepto === 'PRODUCTOS' ? null : { desde: fechaAR(c.fechaServicioDesde!), hasta: fechaAR(c.fechaServicioHasta!), vencePago: fechaAR(c.fechaVencimientoPago ?? c.fechaVencimiento) },
       moneda: c.monedaCodigo === 'ARS' ? 'Pesos' : 'Dólares', cotizacion: c.monedaCodigo === 'ARS' ? null : importeAR(c.cotizacion.toString()),
       asociado: asoc ? `${asoc.letra} ${numeroVenta(asoc.puntoVenta, asoc.numero)}` : null,

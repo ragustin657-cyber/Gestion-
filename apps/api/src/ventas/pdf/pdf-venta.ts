@@ -16,6 +16,8 @@ export interface DatosPdfVenta {
   moneda: string;
   cotizacion: string | null;
   asociado: string | null;
+  /** E58: líneas de los datos de exportación (factura E). */
+  exportacion?: string[] | null;
   discriminaIva: boolean;
   /** E51: `bonificacion` (con la columna solo si algún renglón la tiene). */
   renglones: { descripcion: string; cantidad: string; precio: string; alicuota: string; importe: string; bonificacion?: string }[];
@@ -71,6 +73,7 @@ function dibujar(doc: PDFKit.PDFDocument, d: DatosPdfVenta, qr: Buffer) {
   doc.text(`Vencimiento del pago: ${d.vencimiento}   Moneda: ${d.moneda}${d.cotizacion ? `   Cotización: ${d.cotizacion}` : ''}`);
   if (d.servicio) doc.text(`Período facturado: ${d.servicio.desde} al ${d.servicio.hasta}   Vencimiento: ${d.servicio.vencePago}`);
   if (d.asociado) doc.text(`Comprobante asociado: ${d.asociado}`);
+  for (const l of d.exportacion ?? []) doc.text(l);
   if (d.fce?.cbu) doc.text(`CBU del emisor: ${d.fce.cbu}   Transferencia: ${d.fce.transferencia === 'ADC' ? 'agente de depósito colectivo (ADC)' : 'sistema de circulación abierta (SCA)'}`);
   if (d.fce && d.fce.anulacion !== null) doc.text(`Anulación de la factura de crédito: ${d.fce.anulacion ? 'Sí' : 'No'}`);
   doc.moveDown();

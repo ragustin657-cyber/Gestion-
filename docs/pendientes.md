@@ -32,7 +32,7 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
 ### 1.2 Ventas y facturación
 
 13. ~~**Factura de crédito electrónica MiPyME (FCE).**~~ Hecho en la entrega 50 (emisión, obligación del cliente, estado de las emitidas, aceptación y rechazo de las recibidas, control con «Mis Comprobantes»). Quedan la negociación y cesión, y informar la cancelación al registro.
-14. **Factura de exportación (E).**
+14. ~~**Factura de exportación (E).**~~ Hecho en la entrega 58 (factura, nota de débito y de crédito E de bienes y servicios por WSFEX, con permisos de embarque e incoterm; puntos a validar en §2 ítem 24). Quedan otras monedas además de USD, reintegros y la consulta en línea de los parámetros de ARCA.
 15. ~~**Facturación por lotes.**~~ Hecho en la entrega 55 (remitos pendientes de muchos clientes: vista previa, una factura por cliente y moneda, emisión y registro del lote). Queda la facturación recurrente (abonos).
 16. ~~**Descuentos y bonificaciones** en la factura, por renglón y por cantidad.~~ Hecho en la entrega 51: % de bonificación por renglón (pedido y comprobante) y % de descuento general en el comprobante. Los descuentos por cantidad automáticos se hicieron en la entrega 56 (escalas por rubro, con excepción por artículo, que sugieren la bonificación). Quedan el tope por usuario, el descuento en importe fijo y el de pronto pago.
 17. ~~**Listas de precios derivadas y precio calculado desde el costo.**~~ Hecho en la entrega 52 (base otra lista ± % o costo + margen, redondeo, precios fijos, margen por artículo, recálculo con vista previa). Los rubros de artículos con margen por rubro en cada lista desde el costo se hicieron en la entrega 56. Quedan el recálculo automático y el costo de los despachos de importación.
@@ -179,6 +179,13 @@ Antes de arrancar cada ítem conviene confirmarlo en el código. La clasificaci�
     - formato del código único del remito (hoy `R` + punto de venta de 4 + número de 8) y de la respuesta XML del web service (`validacionesRemitos`, `TBError`);
     - URL de prueba y producción de `presentarRemitos.do` y si la clave CIT del usuario sirve para el web service;
     - si los remitos de devolución piden COT con la empresa como destinataria.
+24. **Factura de exportación E (entrega 58):**
+    - estructura SOAP de `FEXAuthorize`, `FEXGetLast_CMP`, `FEXGetLast_ID` y `FEXGetCMP`, URLs de homologación y producción de `wsfexv1` y códigos de error de token;
+    - tablas de países (`Dst_cmp`), CUIT país, incoterms, idiomas y unidades de medida (hoy fijas en `@gestion/shared`; consultar `FEXGetPARAM_*`);
+    - si `Permiso_existente` va vacío en servicios y formato del número de permiso (16 caracteres);
+    - bonificación de los ítems (hoy importe) y si `Obs_comerciales`/`Obs` pueden ir vacíos;
+    - QR de la factura E y tipo de documento del receptor del exterior;
+    - en el ambiente SIMULADO el `Id` se lleva en memoria (se reinicia con la API).
 
 ---
 

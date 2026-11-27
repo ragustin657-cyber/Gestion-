@@ -53,7 +53,7 @@ export class PedidosService {
     const empresa = await tx.empresa.findUniqueOrThrow({ where: { id: this.tenant.empresaId } });
     let letra: LetraVenta;
     try {
-      letra = letraVenta(empresa.condicionIva, tercero.condicionIva);
+      letra = letraVenta(empresa.condicionIva, tercero.condicionIva, tercero.residenteExterior);
     } catch (e) {
       throw new BadRequestException((e as Error).message);
     }

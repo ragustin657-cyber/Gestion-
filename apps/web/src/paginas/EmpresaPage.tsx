@@ -72,11 +72,14 @@ export function EmpresaPage() {
           { nombre: 'numero', etiqueta: 'Número', tipo: 'numero', requerido: true },
           { nombre: 'descripcion', etiqueta: 'Descripción', tipo: 'texto' },
           { nombre: 'electronico', etiqueta: 'Factura electrónica (web service ARCA)', tipo: 'booleano' },
+          // E58: habilitado en ARCA para el web service de exportación
+          { nombre: 'exportacion', etiqueta: 'Exportación (factura E, WSFEX)', tipo: 'booleano' },
         ],
         columnas: [
           { campo: 'numero', titulo: 'Número', render: (p) => String(p.numero).padStart(4, '0') },
           { campo: 'descripcion', titulo: 'Descripción' },
           { campo: 'electronico', titulo: 'Electrónico', render: (p) => (p.electronico ? 'Sí' : 'No') },
+          { campo: 'exportacion' as keyof PuntoVenta & string, titulo: 'Exportación', render: (p) => ((p as PuntoVenta & { exportacion?: boolean }).exportacion ? 'Sí' : 'No') },
           { campo: 'depositoId', titulo: 'Depósito por defecto', render: (p) => <DepositoPuntoVenta punto={p} depositos={depositos} /> },
         ],
       }} />

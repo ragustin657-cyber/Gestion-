@@ -68,6 +68,8 @@ export const camposImpuestos = (regimenes: { codigo: string; descripcion: string
   { nombre: 'nif', etiqueta: 'Clave tributaria en su país (NIF)', tipo: 'texto' },
   { nombre: 'paisSire', etiqueta: 'País de residencia (código SIRE)', tipo: 'numero' },
   { nombre: 'domicilioExterior', etiqueta: 'Domicilio en el exterior', tipo: 'texto' },
+  // E58: factura de exportación
+  { nombre: 'cuitPais', etiqueta: 'CUIT país (tabla de ARCA, 11 dígitos)', tipo: 'texto' },
   { nombre: 'tipoPersona', etiqueta: 'Tipo de persona', tipo: 'select', opciones: [{ value: 'F', label: 'Física' }, { value: 'J', label: 'Jurídica' }] },
   { nombre: 'nacimientoPais', etiqueta: 'País de nacimiento (código SIRE, persona física)', tipo: 'numero' },
   { nombre: 'nacimientoFecha', etiqueta: 'Fecha de nacimiento (persona física)', tipo: 'fecha' },

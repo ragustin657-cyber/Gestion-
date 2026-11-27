@@ -1,3 +1,5 @@
+import { ArcaSimuladoFex } from './arca-simulado-fex';
+import type { ClienteFex } from './wsfex';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import type { ConfigArca } from '@prisma/client';
 import { AmbienteArca } from '@prisma/client';
@@ -6,7 +8,7 @@ import { AuditoriaService } from '../auditoria/auditoria.service';
 import { fechaAR } from '../compras/comun';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
-import { ArcaReal, ArcaRealFce, OpcionesArcaReal } from './arca-real';
+import { ArcaReal, ArcaRealFce, ArcaRealFex, OpcionesArcaReal } from './arca-real';
 import { ArcaSimulado } from './arca-simulado';
 import { leerCertificado, verificarPar } from './certificado';
 import { cifrar, descifrar } from './cifrado';
@@ -97,11 +99,18 @@ export class ConfigArcaService {
     return new ArcaRealFce(await this.opcionesReal(c, 'wsfecred'));
   }
 
+  /** E58: factura de exportación: mismo certificado, ticket de `wsfex`. */
+  async clienteFex(): Promise<ClienteFex> {
+    const c = await this.config();
+    if (c.ambiente === 'SIMULADO') return new ArcaSimuladoFex(this.tenant.db, this.tenant.empresaId);
+    return new ArcaRealFex(await this.opcionesReal(c, 'wsfex'));
+  }
+
   async ambiente(): Promise<AmbienteArca> {
     return (await this.config()).ambiente;
   }
 
-  private async opcionesReal(c: ConfigArca, servicio: 'wsfe' | 'wsfecred'): Promise<OpcionesArcaReal> {
+  private async opcionesReal(c: ConfigArca, servicio: 'wsfe' | 'wsfecred' | 'wsfex'): Promise<OpcionesArcaReal> {
     const db = this.tenant.db;
     if (!c.certificadoCifrado || !c.claveCifrada) throw new BadRequestException(SIN_CERTIFICADO);
     if (c.certificadoVence && c.certificadoVence.getTime() < Date.now()) throw new BadRequestException(`El certificado de ARCA venció el ${fechaAR(c.certificadoVence)}`);

@@ -37,6 +37,8 @@ const base = z.object({
   nif: zTextoOpcional,
   paisSire: z.number().int().min(0).max(999).nullish(),
   domicilioExterior: zTextoOpcional,
+  // E58: CUIT genérico del país (factura de exportación)
+  cuitPais: z.string().trim().regex(/^\d{11}$/, 'El CUIT país tiene 11 dígitos').nullish(),
   // E57: domicilio de entrega (destino del COT)
   entregaCalle: zTextoOpcional, entregaNumero: zTextoOpcional, entregaCodigoPostal: zTextoOpcional, entregaLocalidad: zTextoOpcional,
   entregaProvincia: z.string().trim().toUpperCase().refine(esProvinciaArba, 'Provincia inválida (letra de la tabla de ARBA)').nullish(),
