@@ -171,4 +171,18 @@ describe('factura de exportación (E58)', () => {
       expect([campo(e, 'codigoDocumento'), campo(e, 'numeroDocumento').replace(/^0+/, ''), campo(e, 'codigoOperacion')]).toEqual(['80', '55000002126', 'X']);
     });
   });
+
+  it('E59: el PDF de la E identifica al cliente del exterior por su NIF o CUIT país', async () => {
+    const x = await escenario();
+    const texto = async (id: string) => {
+      const pdf = await x.http.get(`/api/ventas/comprobantes/${id}/pdf`).buffer(true).parse((res, cb) => { const p: Buffer[] = []; res.on('data', (c: Buffer) => p.push(c)); res.on('end', () => cb(null, Buffer.concat(p))); });
+      const raw = (pdf.body as Buffer).toString('latin1');
+      return raw + [...raw.matchAll(/<([0-9a-f]+)>/g)].map((m) => Buffer.from(m[1], 'hex').toString('latin1')).join('');
+    };
+    const f = await x.http.post('/api/ventas/comprobantes', { ...x.datosE(), emitir: true });
+    expect(await texto(f.body.id)).toContain('NIF US-123456789');
+    await x.http.patch(`/api/terceros/${x.exterior.id}`, { nif: null });
+    const g = await x.http.post('/api/ventas/comprobantes', { ...x.datosE(), emitir: true });
+    expect(await texto(g.body.id)).toContain('CUIT país 55000002126');
+  });
 });

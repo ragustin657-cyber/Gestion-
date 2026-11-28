@@ -366,6 +366,13 @@ Son observaciones menores de las revisiones finales que todavía no resolvió ni
 - En la factura, cualquier duplicado de base de datos se informa como «Este comprobante ya fue cargado».
 - Ventas web: modificar un borrador no devuelve advertencias, y al recargar queda fijo el depósito del punto de venta.
 
+- **Menores de las entregas 54 a 58 que quedaron fuera del pulido de la entrega 59:**
+  - concurrencia: dos guardados simultáneos de escalas o márgenes por rubro (P2002 o filas mezcladas); dos notas de crédito por devoluciones del mismo origen contra la misma factura pueden pasar el tope; el `Id` de WSFEX entre dos emisiones E simultáneas (1520);
+  - acreditación de devoluciones sin comparar con lo pendiente al autorizar; el payload de la devolución se arma quitando claves auxiliares;
+  - la recuperación de una E compara con el CUIT país actual del cliente (guardar el enviado);
+  - un timeout del COT puede haber otorgado el COT en ARBA y el reintento duplicarlo;
+  - el PDF del pedido con letra E muestra los totales con IVA; sin índice en `ComprobanteVentaPermiso.comprobanteId`; consultas repetidas de escalas en el lote; sin CHECK de un dueño por escala.
+
 ### 3.6 Gestión: presupuesto, informes y flujo
 - `actualizadoEn` se actualiza dos veces al guardar una línea y al modificar.
 - La regularización de salidas por remito no entra al costo del informe.

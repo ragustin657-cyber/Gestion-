@@ -314,7 +314,9 @@ export class ComprobantesVentaService {
     const codigo = cbteTipo(c.tipo, letra, c.fce);
     const a = letra === 'A';
     const t = c.tercero;
-    const documento = t.tipoDocumento === 'CUIT' ? `CUIT ${formatearCuit(t.cuit)}` : t.tipoDocumento === 'DNI' ? `DNI ${t.cuit}` : 'Sin identificar';
+    // E59: el cliente del exterior de la E se identifica por su NIF o, si no tiene, su CUIT país
+    const documento = letra === 'E' && (t.nif || t.cuitPais) ? (t.nif ? `NIF ${t.nif}` : `CUIT país ${t.cuitPais}`)
+      : t.tipoDocumento === 'CUIT' ? `CUIT ${formatearCuit(t.cuit)}` : t.tipoDocumento === 'DNI' ? `DNI ${t.cuit}` : 'Sin identificar';
     const TITULOS_FCE = { FACTURA: 'FACTURA DE CRÉDITO ELECTRÓNICA MiPyMEs (FCE)', NOTA_DEBITO: 'NOTA DE DÉBITO ELECTRÓNICA MiPyMEs (FCE)', NOTA_CREDITO: 'NOTA DE CRÉDITO ELECTRÓNICA MiPyMEs (FCE)' } as const;
     const titulos = { FACTURA: 'FACTURA', NOTA_DEBITO: 'NOTA DE DÉBITO', NOTA_CREDITO: 'NOTA DE CRÉDITO' } as const;
     // E50: factura de crédito electrónica MiPyME
