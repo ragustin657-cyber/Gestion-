@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { esquemaEscalas, type DatosEscalas } from '../ventas/precios/escalas';
 import { z } from 'zod';
 import { esAlicuotaIva, esUnidadArba } from '@gestion/shared';
 import { RequierePermiso } from '../auth/requiere-permiso.decorator';
-import { zTexto } from '../comun/esquemas';
+import { esUuid, zTexto } from '../comun/esquemas';
 import { ZodValidationPipe } from '../comun/zod.pipe';
 import { ArticulosService } from './articulos.service';
 
@@ -30,6 +30,7 @@ export class ArticulosController {
   @Get()
   @RequierePermiso('articulo.ver')
   listar(@Query() q: { q?: string; activo?: string; pagina?: string; porPagina?: string; rubroId?: string }) {
+    if (q.rubroId && !esUuid(q.rubroId)) throw new BadRequestException('Rubro inválido');
     return this.articulos.listar(q);
   }
 

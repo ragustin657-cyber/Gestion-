@@ -91,6 +91,7 @@ export async function armarLote(tx: TxEmpresa, precios: PreciosService, f: { emp
     let precio: Dec | null = null;
     let bonificacion = new D(0);
     let alicuota: string;
+    let sinCotizacion = false;
     const art = r.articuloId ? arts.get(r.articuloId) : undefined;
     if (pr) {
       precio = new D(pr.precioUnitario);
@@ -99,14 +100,23 @@ export async function armarLote(tx: TxEmpresa, precios: PreciosService, f: { emp
     } else {
       alicuota = art ? String(Number(art.alicuotaIva)) : '21';
       if (art) {
-        const s = await precios.sugerido(tx, { terceroId: r.remito.terceroId, articuloId: art.id, monedaCodigo: moneda, cotizacion: null }).catch(() => ({ precio: null }));
-        if (s.precio !== null) precio = new D(s.precio);
+        // E59: una lista en otra moneda se convierte con la cotización de la fecha de emisión
+        const t = terceros.get(r.remito.terceroId);
+        const lista = (t?.listaPreciosId ? await tx.listaPrecios.findFirst({ where: { id: t.listaPreciosId, activa: true } }) : null) ?? await tx.listaPrecios.findFirst({ where: { porDefecto: true, activa: true } });
+        const cot = lista && lista.monedaCodigo !== moneda ? await usd() : null;
+        if (lista && lista.monedaCodigo !== moneda && !cot) {
+          if (!g.problemas.includes('No hay cotización de USD para la fecha')) g.problemas.push('No hay cotización de USD para la fecha');
+          sinCotizacion = true;
+        } else {
+          const s = await precios.sugerido(tx, { terceroId: r.remito.terceroId, articuloId: art.id, monedaCodigo: moneda, cotizacion: cot ? Number(cot) : null }).catch(() => ({ precio: null }));
+          if (s.precio !== null) precio = new D(s.precio);
+        }
         // E56: descuento por cantidad de la escala del artículo o su rubro
         const b = await bonificacionPorCantidad(tx, art.id, cantidad);
         if (b.bonificacionPct) bonificacion = new D(b.bonificacionPct);
       }
     }
-    if (precio === null || precio.lte(0)) g.problemas.push(`Sin precio: ${r.descripcion} (remito ${numero})`);
+    if (!sinCotizacion && (precio === null || precio.lte(0))) g.problemas.push(`Sin precio: ${r.descripcion} (remito ${numero})`);
     const importe = precio ? cantidad.times(precio).times(new D(1).minus(bonificacion.div(100))).toDecimalPlaces(2) : null;
     if (importe) g._total = g._total.plus(importe);
     if (!g.remitos.includes(numero)) g.remitos.push(numero);

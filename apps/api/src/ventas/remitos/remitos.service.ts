@@ -42,7 +42,18 @@ export class RemitosService {
   async obtener(id: string, tx: TxEmpresa = this.tenant.db) {
     const r = await tx.remito.findUnique({ where: { id }, include: { renglones: { orderBy: { orden: 'asc' } } } });
     if (!r) throw new NotFoundException('Remito no encontrado');
-    return { ...r, numeroTexto: numeroRemito(r.puntoVenta, r.numero) };
+    // E59: el remito de entrega muestra sus devoluciones
+    const devs = r.tipo === 'ENTREGA'
+      ? await tx.remito.findMany({ where: { tipo: 'DEVOLUCION', renglones: { some: { remitoRenglonOrigenId: { in: r.renglones.map((x) => x.id) } } } }, include: { renglones: true }, orderBy: { numero: 'asc' } })
+      : [];
+    const propios = new Set(r.renglones.map((x) => x.id));
+    return {
+      ...r, numeroTexto: numeroRemito(r.puntoVenta, r.numero),
+      devoluciones: devs.map((d) => ({
+        id: d.id, numeroTexto: numeroRemito(d.puntoVenta, d.numero), fecha: d.fecha, estado: d.estado,
+        renglones: d.renglones.filter((x) => x.remitoRenglonOrigenId && propios.has(x.remitoRenglonOrigenId)).map((x) => ({ remitoRenglonOrigenId: x.remitoRenglonOrigenId!, cantidad: new D(x.cantidad).toString() })),
+      })),
+    };
   }
 
   async listar(q: { terceroId?: string; pendientes?: string; tipo?: string }) {
@@ -317,15 +328,33 @@ export class RemitosService {
       where: { remitoRenglonId: { in: pend.map((r) => r.remitoRenglonOrigenId).filter((x): x is string => !!x) }, comprobante: { tipo: 'FACTURA', estado: 'AUTORIZADO' } },
       include: { comprobante: true }, orderBy: { comprobante: { fecha: 'desc' } },
     });
-    return pend.map((r) => {
-      const f = facturados.find((x) => x.remitoRenglonId === r.remitoRenglonOrigenId);
-      return {
-        devolucionRenglonId: r.id, remitoId: r.remitoId, numero: numeroRemito(r.remito.puntoVenta, r.remito.numero), fecha: r.remito.fecha, articuloId: r.articuloId, descripcion: r.descripcion,
-        pendiente: new D(r.cantidadAAcreditar).minus(r.cantidadAcreditada).toString(),
-        facturaId: f?.comprobanteId ?? null, factura: f ? `${f.comprobante.letra} ${String(f.comprobante.puntoVenta).padStart(4, '0')}-${String(f.comprobante.numero ?? 0).padStart(8, '0')}` : null,
-        precioUnitario: f ? new D(f.precioUnitario).toString() : null, bonificacionPct: f ? new D(f.bonificacionPct).toString() : '0', alicuota: f?.alicuota ?? null, monedaCodigo: f?.comprobante.monedaCodigo ?? null,
-      };
+    // E59: una fila por factura que facturó el renglón de origen, con lo que queda por acreditar contra ella
+    const devsOrigen = await db.remitoRenglon.findMany({ where: { remitoRenglonOrigenId: { in: pend.map((r) => r.remitoRenglonOrigenId).filter((x): x is string => !!x) }, remito: { tipo: 'DEVOLUCION', estado: 'CONFIRMADO' } } });
+    const acreditados = await db.comprobanteVentaRenglon.findMany({
+      where: { devolucionRenglonId: { in: devsOrigen.map((x) => x.id) }, comprobante: { tipo: 'NOTA_CREDITO', OR: [{ estado: 'AUTORIZADO' }, { numeroReservado: { not: null } }] } },
+      include: { comprobante: { select: { comprobanteAsociadoId: true } } },
     });
+    const filas = [];
+    for (const r of pend) {
+      const quedan = new D(r.cantidadAAcreditar).minus(r.cantidadAcreditada);
+      const deOrigen = new Set(devsOrigen.filter((x) => x.remitoRenglonOrigenId === r.remitoRenglonOrigenId).map((x) => x.id));
+      const fs = facturados.filter((x) => x.remitoRenglonId === r.remitoRenglonOrigenId);
+      const base = { devolucionRenglonId: r.id, remitoId: r.remitoId, numero: numeroRemito(r.remito.puntoVenta, r.remito.numero), fecha: r.remito.fecha, articuloId: r.articuloId, descripcion: r.descripcion };
+      if (!fs.length) {
+        filas.push({ ...base, pendiente: quedan.toString(), facturaId: null, factura: null, precioUnitario: null, bonificacionPct: '0', alicuota: null, monedaCodigo: null });
+        continue;
+      }
+      for (const f of fs) {
+        const acreditado = acreditados.filter((a) => a.devolucionRenglonId && deOrigen.has(a.devolucionRenglonId) && a.comprobante.comprobanteAsociadoId === f.comprobanteId).reduce((s, a) => s.plus(a.cantidad), new D(0));
+        const pendiente = D.min(quedan, new D(f.cantidad).minus(acreditado));
+        if (pendiente.lte(0)) continue;
+        filas.push({
+          ...base, pendiente: pendiente.toString(), facturaId: f.comprobanteId, factura: `${f.comprobante.letra} ${String(f.comprobante.puntoVenta).padStart(4, '0')}-${String(f.comprobante.numero ?? 0).padStart(8, '0')}`,
+          precioUnitario: new D(f.precioUnitario).toString(), bonificacionPct: new D(f.bonificacionPct).toString(), alicuota: f.alicuota, monedaCodigo: f.comprobante.monedaCodigo,
+        });
+      }
+    }
+    return filas;
   }
 
   /** Renglones de remitos confirmados con cantidad pendiente de facturar. */

@@ -64,7 +64,10 @@ export class LotesFacturacionService {
     // Los grupos se arman antes del bloqueo (puede llevar tiempo con muchos renglones); cada factura se vuelve a armar en su transacción
     const elegidos = new Set(d.grupos.map((g) => `${g.terceroId}|${g.monedaCodigo}`));
     const terceroIds = [...new Set(d.grupos.map((g) => g.terceroId))];
-    const armados = (await armarLote(this.tenant.db, this.precios, { empresaId, hasta: d.hasta, fecha: d.fecha, terceroIds })).filter((g) => g.renglones.length && elegidos.has(`${g.terceroId}|${g.monedaCodigo}`));
+    const todos = (await armarLote(this.tenant.db, this.precios, { empresaId, hasta: d.hasta, fecha: d.fecha, terceroIds })).filter((g) => elegidos.has(`${g.terceroId}|${g.monedaCodigo}`));
+    const armados = todos.filter((g) => g.renglones.length);
+    // E59: sin pendientes porque están en borradores: el mensaje lo dice
+    if (!armados.length && todos.some((g) => g.avisos.length)) throw new BadRequestException('No hay remitos pendientes de facturar: los renglones están en facturas sin autorizar');
     const { loteId, grupos } = await this.tenant.transaccion(async (tx) => {
       await tx.$queryRawUnsafe('SELECT id FROM "Empresa" WHERE id = $1::uuid FOR UPDATE', empresaId);
       if (await tx.loteFacturacion.count({ where: { estado: 'EN_CURSO' } })) throw new ConflictException('Ya hay un lote de facturación en curso');

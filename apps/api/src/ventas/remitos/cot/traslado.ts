@@ -8,13 +8,15 @@ import type { PreciosService } from '../../precios/precios.service';
 import { esProvinciaArba } from '@gestion/shared';
 
 const zTxt = z.string().trim().max(200).nullish();
+/** E59: patente sin espacios ni guiones (AB 123 CD → AB123CD). */
+export const zPatente = z.string().transform((s) => s.replace(/[\s-]/g, '').toUpperCase()).pipe(z.string().regex(/^[A-Z0-9]{6,7}$/, 'Patente inválida'));
 /** E57: datos del traslado (alta y edición); vacíos = se proponen. */
 export const esquemaTraslado = z.object({
   calle: zTxt, numero: zTxt, codigoPostal: zTxt, localidad: zTxt,
   provincia: z.string().trim().toUpperCase().refine(esProvinciaArba, 'Provincia inválida (letra de la tabla de ARBA)').nullish(),
   transportistaId: z.string().uuid('Valor inválido').nullish(),
-  patente: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,7}$/, 'Patente inválida').nullish(),
-  patenteAcoplado: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,7}$/, 'Patente inválida').nullish(),
+  patente: zPatente.nullish(),
+  patenteAcoplado: zPatente.nullish(),
   fechaSalida: zFecha.nullish(),
   horaSalida: z.string().regex(/^([01]\d|2[0-3])[0-5]\d$/, 'Hora inválida (HHMM)').nullish(),
   importeDeclarado: z.number().min(0).nullish(),
@@ -23,7 +25,7 @@ export type DatosTraslado = z.infer<typeof esquemaTraslado>;
 
 /** Hora actual de Argentina en HHMM. */
 export const horaArgentina = (d = new Date()) =>
-  new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hour12: false }).format(d).replace(':', '');
+  new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d).replace(':', '');
 
 /** Corresponde COT si el origen o el destino están en la provincia de Buenos Aires (B); sin provincia todavía, queda para pedir. */
 export function estadoCot(origen: string | null | undefined, destino: string | null | undefined): EstadoCot {
@@ -65,7 +67,8 @@ export async function guardarTraslado(tx: TxEmpresa, precios: PreciosService, re
   if (e.transportistaId && !(await tx.transportista.findUnique({ where: { id: e.transportistaId } }))) throw new BadRequestException('Transportista inexistente');
   if (alta) {
     const t = await tx.tercero.findUniqueOrThrow({ where: { id: r.terceroId } });
-    if (e.calle === undefined && e.provincia === undefined && t.entregaCalle) {
+    // E59: sin calle ni provincia (vacías o null) cuenta como sin destino: se propone el del cliente
+    if (!e.calle && !e.provincia && t.entregaCalle) {
       Object.assign(data, { trasladoCalle: t.entregaCalle, trasladoNumero: t.entregaNumero, trasladoCodigoPostal: t.entregaCodigoPostal, trasladoLocalidad: t.entregaLocalidad, trasladoProvincia: t.entregaProvincia });
     }
     if (e.patente === undefined && e.transportistaId) data.patente = (await tx.transportista.findUnique({ where: { id: e.transportistaId } }))?.patentePorDefecto ?? null;

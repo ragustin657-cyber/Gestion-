@@ -1,3 +1,4 @@
+import { zPatente } from '../ventas/remitos/cot/traslado';
 import { Body, Controller, Get, Injectable, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { z } from 'zod';
 import { AuditoriaService } from '../auditoria/auditoria.service';
@@ -8,7 +9,7 @@ import { ZodValidationPipe } from '../comun/zod.pipe';
 import { TenantPrisma } from '../prisma/tenant-prisma.service';
 
 const DUP = 'Ya existe un transportista con ese CUIT';
-const zPatente = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6,7}$/, 'Patente inválida');
+
 const esquema = z.object({ cuit: zCuit, razonSocial: zTexto, patentePorDefecto: zPatente.nullish(), activo: z.boolean().optional() });
 type Datos = z.infer<typeof esquema>;
 

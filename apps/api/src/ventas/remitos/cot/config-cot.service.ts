@@ -23,10 +23,11 @@ export class ConfigCotService {
   guardar(d: DatosConfigCot) {
     return this.tenant.transaccion(async (tx) => {
       const { clave, ...resto } = d;
-      const data = { ...resto, ...(clave ? { claveCifrada: cifrar(clave) } : {}) };
+      // E59: clave null la borra; vacía o ausente la conserva
+      const data = { ...resto, ...(clave ? { claveCifrada: cifrar(clave) } : clave === null ? { claveCifrada: null } : {}) };
       await tx.configCot.upsert({ where: { empresaId: this.tenant.empresaId }, create: { empresaId: this.tenant.empresaId, ...data }, update: data });
       // La clave nunca va a la auditoría
-      await this.auditoria.registrar(tx, { entidad: 'ConfigCot', entidadId: this.tenant.empresaId, accion: 'MODIFICAR', datos: { ...resto, clave: clave ? '(cambiada)' : undefined } });
+      await this.auditoria.registrar(tx, { entidad: 'ConfigCot', entidadId: this.tenant.empresaId, accion: 'MODIFICAR', datos: { ...resto, clave: clave ? '(cambiada)' : clave === null ? '(borrada)' : undefined } });
     }).then(() => this.obtener());
   }
 }

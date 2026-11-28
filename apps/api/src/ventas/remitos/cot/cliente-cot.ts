@@ -38,7 +38,15 @@ export class ArbaCotReal implements ClienteCot {
       throw new ErrorConexionCot(e instanceof Error ? e.message : String(e));
     }
     if (r.status >= 500) throw new ErrorConexionCot(`ARBA respondió ${r.status}`);
-    return parsearRespuestaCot(await r.text());
+    const texto = await r.text();
+    // E59: sin permiso o una respuesta que no es la de ARBA se informa con su detalle
+    if (r.status === 401 || r.status === 403) return { remitos: [], errores: ['ARBA rechazó el usuario o la clave CIT'] };
+    const esRespuesta = /<(TBCOMPROBANTE|TBError|validacionesRemitos)\b/i.test(texto);
+    if (r.status >= 300 || !esRespuesta) {
+      const limpio = texto.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+      return { remitos: [], errores: [`ARBA respondió ${r.status}: ${limpio}`] };
+    }
+    return parsearRespuestaCot(texto);
   }
 }
 

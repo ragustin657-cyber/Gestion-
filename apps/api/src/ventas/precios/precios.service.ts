@@ -200,7 +200,7 @@ export class PreciosService {
         return {
           articuloId: id, codigo: a?.codigo ?? '', descripcion: a?.descripcion ?? '', actual: act?.toString() ?? null, nuevo: nuevo?.toString() ?? null,
           variacionPct: act && nuevo && act.gt(0) ? nuevo.div(act).minus(1).times(100).toDecimalPlaces(2).toString() : null, motivo,
-          margen: margen.toString(), origenMargen,
+          ...(lista.base === 'COSTO' ? { margen: margen.toString(), origenMargen } : {}),
         };
       })
       .sort((x, y) => x.codigo.localeCompare(y.codigo));
