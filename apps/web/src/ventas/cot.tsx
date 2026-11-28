@@ -16,9 +16,14 @@ export const etiquetaCot = (r: { cot: string | null; cotEstado: EstadoCot }) => 
 export const puedePedirCot = (e: EstadoCot) => e === 'SIN_PEDIR' || e === 'PENDIENTE' || e === 'RECHAZADO';
 export const PROVINCIAS = Object.entries(PROVINCIAS_ARBA).map(([value, label]) => ({ value, label }));
 
-export interface FormConfigCot { activo: boolean; ambiente: string; usuario: string; clave: string; pedirAlConfirmar: boolean }
-/** La clave solo se manda si se escribió una nueva. */
-export const cuerpoConfigCot = ({ clave, ...resto }: FormConfigCot): Partial<FormConfigCot> => (clave ? { ...resto, clave } : resto);
+export interface FormConfigCot { activo: boolean; ambiente: string; usuario: string; clave: string; pedirAlConfirmar: boolean; borrarClave?: boolean }
+/** La clave solo se manda si se escribió una nueva; E59: `borrarClave` la borra (null). */
+export const cuerpoConfigCot = ({ clave, borrarClave, ...resto }: FormConfigCot): Partial<Omit<FormConfigCot, 'clave'>> & { clave?: string | null } => (borrarClave ? { ...resto, clave: null } : clave ? { ...resto, clave } : resto);
+
+/** E59: resultado del pedido del COT para el aviso (rojo si ARBA lo rechazó). */
+export const etiquetaResultadoCot = (r: { cotEstado: EstadoCot; cotMensaje?: string | null }) =>
+  r.cotEstado === 'RECHAZADO' ? { color: 'red', texto: `ARBA rechazó el COT: ${r.cotMensaje ?? ''}`.trim() }
+  : r.cotEstado === 'OTORGADO' ? { color: 'green', texto: 'COT otorgado' } : { color: 'orange', texto: r.cotMensaje ?? 'COT pendiente' };
 
 /**
  * Cuerpo del traslado para la API. En el alta los vacíos se omiten (el servidor los propone); en la edición un campo vaciado va
@@ -67,7 +72,12 @@ export function AccionesCot({ remito, onCambio }: { remito: RemitoCot; onCambio:
   if (remito.estado === 'ANULADO' || !remito.cotEstado) return null;
   const hacer = async (fn: () => Promise<unknown>, ok: string) => {
     setError('');
-    try { await fn(); notifications.show({ color: 'green', message: ok }); onCambio(); return true; } catch (e) { setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado'); onCambio(); return false; }
+    try {
+      const r = await fn() as { cotEstado?: EstadoCot; cotMensaje?: string | null } | undefined;
+      // E59: un pedido rechazado por ARBA no muestra el aviso verde
+      const e = r && 'cotEstado' in r ? etiquetaResultadoCot({ cotEstado: r.cotEstado ?? null, cotMensaje: r.cotMensaje }) : { color: 'green', texto: ok };
+      notifications.show({ color: e.color, message: e.texto }); onCambio(); return e.color !== 'red';
+    } catch (e) { setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado'); onCambio(); return false; }
   };
   return (
     <>
@@ -112,7 +122,8 @@ export function ConfigCot() {
       <Group align="flex-end">
         <Select label="Ambiente" w={180} allowDeselect={false} data={[{ value: 'SIMULADO', label: 'Simulado' }, { value: 'PRUEBA', label: 'Prueba (ARBA)' }, { value: 'PRODUCCION', label: 'Producción' }]} value={f.ambiente} onChange={(v) => setF({ ...f, ambiente: v ?? 'SIMULADO' })} />
         <TextInput label="Usuario (CUIT)" w={180} value={f.usuario} onChange={(e) => setF({ ...f, usuario: e.currentTarget.value.replace(/\D/g, '') })} />
-        <PasswordInput label="Clave CIT" w={200} placeholder={q.data?.tieneClave ? 'Clave cargada (vacío = no cambia)' : ''} value={f.clave} onChange={(e) => setF({ ...f, clave: e.currentTarget.value })} />
+        <PasswordInput label="Clave CIT" w={200} placeholder={q.data?.tieneClave ? 'Clave cargada (vacío = no cambia)' : ''} value={f.clave} onChange={(e) => setF({ ...f, clave: e.currentTarget.value, borrarClave: false })} />
+        {q.data?.tieneClave && <Button variant="subtle" color="red" onClick={() => setF({ ...f, clave: '', borrarClave: true })}>{f.borrarClave ? 'Se borrará al guardar' : 'Borrar clave'}</Button>}
       </Group>
       <Switch label="Pedir el COT al confirmar el remito" checked={f.pedirAlConfirmar} onChange={(e) => setF({ ...f, pedirAlConfirmar: e.currentTarget.checked })} />
       {error && <Alert color="red">{error}</Alert>}

@@ -31,7 +31,7 @@ export function RubrosArticulosPage() {
           columnas: [
             { campo: 'nombre', titulo: 'Nombre' },
             { campo: 'activo', titulo: 'Estado', render: (r) => estado(r.activo) },
-            { campo: 'id', titulo: 'Descuentos por cantidad', render: (r) => <Button size="compact-xs" variant="subtle" onClick={(e) => { e.stopPropagation(); setEscalas(r); }}>{`Escalas de ${r.nombre}`}</Button> },
+            ...(puede('articulo.editar') ? [{ campo: 'id' as const, titulo: 'Descuentos por cantidad', render: (r: RubroArticulo) => <Button size="compact-xs" variant="subtle" onClick={(e) => { e.stopPropagation(); setEscalas(r); }}>{`Escalas de ${r.nombre}`}</Button> }] : []),
           ],
         }}
       />

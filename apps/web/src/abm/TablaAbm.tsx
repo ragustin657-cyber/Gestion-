@@ -2,7 +2,7 @@ import { Alert, Center, Group, Loader, Pagination, ScrollArea, Table, Text, Text
 import { useDebouncedValue } from '@mantine/hooks';
 import { IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { api, ErrorApi } from '../api/cliente';
 import { ColumnaAbm } from './tipos';
 
@@ -24,6 +24,9 @@ export function TablaAbm<T extends { id?: string }>({
   const [texto, setTexto] = useState('');
   const [q] = useDebouncedValue(texto, 300);
   const [pagina, setPagina] = useState(1);
+  // E59: cambiar un filtro vuelve a la primera página
+  const claveFiltros = JSON.stringify(filtros ?? {});
+  useEffect(() => { setPagina(1); }, [claveFiltros]);
 
   const consulta = useQuery({
     queryKey: [ruta, paginado ? { q, pagina, ...filtros } : filtros],

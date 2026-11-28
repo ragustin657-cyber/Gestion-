@@ -1,7 +1,7 @@
 import { IDIOMAS_FEX, INCOTERMS, PAISES_FEX, TIPOS_EXPORTACION } from '@gestion/shared';
 import { ActionIcon, Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { IconTrash } from '@tabler/icons-react';
-import type { RenglonVentaEditable } from './GrillaVenta';
+import type { ArticuloVenta, RenglonVentaEditable } from './GrillaVenta';
 
 /** E58: datos de la factura de exportación (letra E). */
 export interface DatosExportacion {
@@ -81,3 +81,7 @@ export function exportacionDeAsociado(a: { letra: string; tipoExportacion?: Dato
 
 /** Campos de exportación del cuerpo: solo en la factura E (las notas los toman de la factura asociada en el servidor). */
 export const camposExportacion = (tipo: string, exportacion: boolean, datos: DatosExportacion) => (exportacion && tipo === 'FACTURA' ? cuerpoExportacion(datos) : {});
+
+/** E59: sin exportación, los renglones exentos vuelven a la alícuota del artículo (21 % sin artículo). */
+export const restaurarAlicuotas = (rs: RenglonVentaEditable[], articulos: ArticuloVenta[]): RenglonVentaEditable[] =>
+  rs.map((r) => (r.alicuota !== 'EXENTO' ? r : { ...r, alicuota: r.articuloId ? String(Number(articulos.find((a) => a.value === r.articuloId)?.alicuotaIva ?? 21)) : '21' }));

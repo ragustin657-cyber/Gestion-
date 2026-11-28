@@ -47,8 +47,8 @@ export class ArticulosService {
       this.tenant.db.articulo.findMany({ where, orderBy: { codigo: 'asc' }, ...paginacion(f) }),
       this.tenant.db.articulo.count({ where }),
     ]);
-    const rubros = new Map((await this.tenant.db.rubroArticulo.findMany({ where: { id: { in: items.map((i) => i.rubroId).filter((x): x is string => !!x) } } })).map((r) => [r.id, r.nombre]));
-    return { items: items.map((i) => ({ ...i, rubro: i.rubroId ? (rubros.get(i.rubroId) ?? null) : null })), total };
+    const rubros = new Map((await this.tenant.db.rubroArticulo.findMany({ where: { id: { in: items.map((i) => i.rubroId).filter((x): x is string => !!x) } } })).map((r) => [r.id, r]));
+    return { items: items.map((i) => ({ ...i, rubro: i.rubroId ? (rubros.get(i.rubroId)?.nombre ?? null) : null, rubroActivo: i.rubroId ? (rubros.get(i.rubroId)?.activo ?? false) : null })), total };
   }
 
   obtener(id: string) {

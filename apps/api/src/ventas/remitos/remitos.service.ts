@@ -59,8 +59,11 @@ export class RemitosService {
   async listar(q: { terceroId?: string; pendientes?: string; tipo?: string }) {
     const rs = await this.tenant.db.remito.findMany({ where: { terceroId: q.terceroId || undefined, tipo: q.tipo === 'DEVOLUCION' || q.tipo === 'ENTREGA' ? q.tipo : undefined }, include: { renglones: { orderBy: { orden: 'asc' } } }, orderBy: [{ fecha: 'desc' }, { numero: 'desc' }], take: 300 });
     const terceros = new Map((await this.tenant.db.tercero.findMany({ where: { id: { in: rs.map((r) => r.terceroId) } } })).map((t) => [t.id, t.razonSocial]));
+    // E59: números de las devoluciones de cada entrega
+    const devs = await this.tenant.db.remitoRenglon.findMany({ where: { remitoRenglonOrigenId: { in: rs.flatMap((r) => r.renglones.map((x) => x.id)) }, remito: { tipo: 'DEVOLUCION' } }, include: { remito: true } });
+    const devDe = (r: (typeof rs)[number]) => [...new Set(devs.filter((d) => r.renglones.some((x) => x.id === d.remitoRenglonOrigenId)).map((d) => numeroRemito(d.remito.puntoVenta, d.remito.numero)))];
     return rs.map((r) => ({
-      ...r, numeroTexto: numeroRemito(r.puntoVenta, r.numero), cliente: terceros.get(r.terceroId) ?? '',
+      ...r, numeroTexto: numeroRemito(r.puntoVenta, r.numero), cliente: terceros.get(r.terceroId) ?? '', devoluciones: r.tipo === 'ENTREGA' ? devDe(r) : [],
       pendienteFacturar: r.estado === 'CONFIRMADO' && r.tipo === 'ENTREGA' ? r.renglones.reduce((s, x) => s.plus(D.max(new D(x.cantidad).minus(x.cantidadFacturada).minus(x.cantidadDevuelta), 0)), new D(0)).toString() : '0',
     })).filter((r) => q.pendientes !== 'facturar' || new D(r.pendienteFacturar).gt(0));
   }

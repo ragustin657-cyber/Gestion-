@@ -1,4 +1,4 @@
-import { camposExportacion, exentoParaExportacion, exportacionDeAsociado, exportacionVacia, SeccionExportacion, type DatosExportacion } from './exportacion';
+import { camposExportacion, exentoParaExportacion, exportacionDeAsociado, exportacionVacia, restaurarAlicuotas, SeccionExportacion, type DatosExportacion } from './exportacion';
 import { SelectorVendedor, useVendedores } from './ComisionesPages';
 import { Button, Checkbox, Group, Modal, Paper, Select, Stack, Text, TextInput, Title, Alert } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
@@ -102,6 +102,22 @@ export function ComprobanteVentaPage() {
   // E58: factura de exportación (letra E)
   const [exportacion, setExportacion] = useState(false);
   const [datosExpo, setDatosExpo] = useState<DatosExportacion>(exportacionVacia());
+  /** E59: con exportación todo renglón agregado pasa a exento. */
+  const conExpo = (rs: RenglonVentaEditable[]) => (exportacion ? exentoParaExportacion(rs) : rs);
+  /** E59: marcar o desmarcar la exportación ajusta renglones, moneda y (al elegir el cliente) el punto de venta. */
+  const cambiarExportacion = (si: boolean, porCliente: boolean) => {
+    if (si === exportacion && !porCliente) return;
+    setExportacion(si);
+    if (si) {
+      setMoneda('USD');
+      setRenglones(exentoParaExportacion(renglones));
+      const pvExpo = puntos.find((p) => p.exportacion);
+      if (porCliente && pvExpo) setPuntoVentaId(pvExpo.id);
+    } else if (exportacion) {
+      setMoneda('ARS');
+      setRenglones(restaurarAlicuotas(renglones, articulos));
+    }
+  };
   // E50: factura de crédito MiPyME
   const [fce, setFce] = useState(false);
   const [transferenciaFce, setTransferenciaFce] = useState<string | null>(null);
@@ -145,7 +161,7 @@ export function ComprobanteVentaPage() {
       const ped = pendientesQ?.pedidos.find((x) => x.pedidoRenglonId === id);
       if (ped) nuevos.push(renglonDePedido(ped, cant, moneda, cotizacion));
     }
-    setRenglones([...renglones.filter((r) => r.descripcion), ...nuevos]);
+    setRenglones(conExpo([...renglones.filter((r) => r.descripcion), ...nuevos]));
     setSeleccionPend({});
     setSelectorPendientes(false);
   }
@@ -153,7 +169,7 @@ export function ComprobanteVentaPage() {
   function agregarDevoluciones() {
     const sel = devoluciones.filter((d) => elegidasDev.includes(d.devolucionRenglonId));
     if (!asociadoId && sel[0]?.facturaId) setAsociadoId(sel[0].facturaId);
-    setRenglones([...renglones.filter((r) => r.descripcion), ...sel.map(renglonDeDevolucion)]);
+    setRenglones(conExpo([...renglones.filter((r) => r.descripcion), ...sel.map(renglonDeDevolucion)]));
     setElegidasDev([]);
     setSelectorDevoluciones(false);
   }
@@ -269,7 +285,7 @@ export function ComprobanteVentaPage() {
         <Group align="flex-end" wrap="wrap">
           <Select label="Tipo" w={170} allowDeselect={false} data={TIPOS_VENTA} value={tipo} onChange={(v) => { setTipo((v ?? 'FACTURA') as TipoVenta); setAsociadoId(null); }} disabled={!editable} />
           <Select label="Cliente" w={300} searchable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroId}
-            onChange={(v) => { setTerceroId(v); setAsociadoId(null); setVendedor(undefined); const c = clientes.find((x) => x.id === v); if (c?.diasPago) setFechaVencimiento(sumarDias(fecha, c.diasPago)); const ext = !!c?.residenteExterior; setExportacion(ext); if (ext) { setMoneda('USD'); setRenglones(exentoParaExportacion(renglones)); } }} disabled={!editable} />
+            onChange={(v) => { setTerceroId(v); setAsociadoId(null); setVendedor(undefined); const c = clientes.find((x) => x.id === v); if (c?.diasPago) setFechaVencimiento(sumarDias(fecha, c.diasPago)); const ext = !!c?.residenteExterior; cambiarExportacion(ext, true); }} disabled={!editable} />
           <Select label="Punto de venta" w={170} data={puntos.map((p) => ({ value: p.id, label: `${String(p.numero).padStart(4, '0')}${p.descripcion ? ` ${p.descripcion}` : ''}` }))} value={puntoVentaId} onChange={setPuntoVentaId} disabled={!editable} />
           <TextInput label="Fecha" type="date" value={fecha} onChange={(e) => setFecha(e.currentTarget.value)} disabled={!editable} />
           <TextInput label="Vencimiento" type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.currentTarget.value)} disabled={!editable} />
@@ -303,9 +319,9 @@ export function ComprobanteVentaPage() {
         {editable && tipo !== 'NOTA_CREDITO' && terceroId && <Group>
           {tipo === 'FACTURA' && <Button size="xs" variant="default" onClick={() => setSelectorPendientes(true)}>Agregar desde remitos y pedidos</Button>}
           {(puede('bienes.ver') || puede('venta.emitir')) && <Select size="xs" w={300} placeholder="Agregar bien de uso…" searchable value={null} data={bienesActivos.filter((b) => !renglones.some((r) => r.bienUsoId === b.id)).map((b) => ({ value: b.id, label: `N° ${b.numero} - ${b.descripcion}` }))}
-            onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }]); }} />}
+            onChange={(v) => { const b = bienesActivos.find((x) => x.id === v); if (b) setRenglones(conExpo([...renglones.filter((r) => r.descripcion), { articuloId: null, bienUsoId: b.id, etiqueta: 'Bien de uso', descripcion: b.descripcion, cantidad: '1', precioUnitario: '', alicuota: '21' }])); }} />}
         </Group>}
-        {cliente?.residenteExterior && tipo === 'FACTURA' && <Checkbox label="Exportación (factura E)" checked={exportacion} disabled={!editable} onChange={(e) => { const si = e.currentTarget.checked; setExportacion(si); if (si) setRenglones(exentoParaExportacion(renglones)); }} />}
+        {cliente?.residenteExterior && tipo === 'FACTURA' && <Checkbox label="Exportación (factura E)" checked={exportacion} disabled={!editable} onChange={(e) => cambiarExportacion(e.currentTarget.checked, false)} />}
         {exportacion && <Paper withBorder p="sm"><SeccionExportacion valor={datosExpo} onChange={setDatosExpo} disabled={!editable || tipo !== 'FACTURA'} /></Paper>}
         <GrillaVenta renglones={renglones} onChange={(r) => setRenglones(exportacion ? exentoParaExportacion(r) : r)} letra={letra} moneda={moneda} articulos={articulos} descuentoPct={descuentoPct} onDescuento={setDescuentoPct} disabled={!editable} percepciones={actual?.percepcionesDetalle} percepcionesDesactualizadas={!!actual && renglonesCambiaron(renglones, actual, descuentoPct)}
           sugerirPrecio={(articuloId) => precioSugerido({ terceroId, articuloId, monedaCodigo: moneda, cotizacion: cotizacion ? String(numero(cotizacion)) : '' })}

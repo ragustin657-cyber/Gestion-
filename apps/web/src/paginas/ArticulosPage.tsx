@@ -8,7 +8,7 @@ import { estado, Maestro, siNo } from '../abm/Maestro';
 import { useCuentasImputables } from '../abm/opciones';
 import { formatoMoneda } from '../compras/formato';
 
-interface Articulo { id: string; codigo: string; descripcion: string; unidad: string; alicuotaIva: string; esServicio: boolean; activo: boolean; controlaStock: boolean; stockCantidad: string; costoPromedio: string; rubroId: string | null; rubro: string | null }
+interface Articulo { id: string; codigo: string; descripcion: string; unidad: string; alicuotaIva: string; esServicio: boolean; activo: boolean; controlaStock: boolean; stockCantidad: string; costoPromedio: string; rubroId: string | null; rubro: string | null; rubroActivo?: boolean | null }
 
 export function ArticulosPage() {
   const cuentas = useCuentasImputables();
@@ -59,7 +59,7 @@ export function ArticulosPage() {
       }}
     />
     <Modal opened={!!escalas} onClose={() => setEscalas(null)} title={`Descuentos por cantidad de ${escalas?.codigo ?? ''}`}>
-      {escalas && <EditorEscalas url={`/articulos/${escalas.id}/escalas`} aviso={escalas.rubro ? `Sin escalas propias: usa las del rubro ${escalas.rubro}` : null} />}
+      {escalas && <EditorEscalas url={`/articulos/${escalas.id}/escalas`} aviso={escalas.rubro ? (escalas.rubroActivo === false ? `El rubro ${escalas.rubro} está inactivo: no aporta escalas` : `Sin escalas propias: usa las del rubro ${escalas.rubro}`) : null} />}
     </Modal>
     </>
   );

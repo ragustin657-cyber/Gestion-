@@ -47,6 +47,9 @@ export function aplicarBonificacionSugerida(renglones: RenglonVentaEditable[], i
   return renglones.map((x, j) => (j === i ? { ...x, bonificacionPct: nuevo } : x));
 }
 
+/** E59: renglón sin artículo (texto libre): la bonificación sugerida se borra, la escrita a mano queda. */
+export const quitarArticulo = (r: RenglonVentaEditable): RenglonVentaEditable => ({ ...r, articuloId: null, ...(r.bonificacionManual ? {} : { bonificacionPct: '' }) });
+
 /** Totales del comprobante con el mismo cálculo que el servidor (null si hay renglones incompletos). */
 export function totalesVenta(renglones: RenglonVentaEditable[], letra: LetraVenta, descuentoPct = '0') {
   const validos = renglones.filter((r) => numero(r.cantidad) > 0 && numero(r.precioUnitario) > 0);
@@ -121,7 +124,7 @@ export function GrillaVenta({ renglones, onChange, letra, moneda, articulos, sug
                   <Table.Td>{r.etiqueta ? <Text size="xs" fw={600}>{r.etiqueta}</Text> : <Select size="xs" w={180} aria-label="Artículo" searchable clearable placeholder="Texto libre" data={articulos} value={r.articuloId}
                     onChange={async (v) => {
                       const a = articulos.find((x) => x.value === v);
-                      if (!a) return cambiar(i, { articuloId: null });
+                      if (!a) return onChange(renglones.map((x, j) => (j === i ? quitarArticulo(x) : x)));
                       const base = { articuloId: v, descripcion: a.descripcion, alicuota: String(Number(a.alicuotaIva)), ...(sugerirPrecio ? { precioUnitario: '' } : {}) };
                       cambiar(i, base);
                       ultimos.current = ultimos.current.map((x, j) => (j === i ? { ...x, ...base } : x));
