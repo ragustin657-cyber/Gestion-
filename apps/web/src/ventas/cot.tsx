@@ -20,6 +20,10 @@ export interface FormConfigCot { activo: boolean; ambiente: string; usuario: str
 /** La clave solo se manda si se escribió una nueva; E59: `borrarClave` la borra (null). */
 export const cuerpoConfigCot = ({ clave, borrarClave, ...resto }: FormConfigCot): Partial<Omit<FormConfigCot, 'clave'>> & { clave?: string | null } => (borrarClave ? { ...resto, clave: null } : clave ? { ...resto, clave } : resto);
 
+/** Revisión E59: el aviso usa el estado del COT solo tras pedirlo; las demás acciones muestran su propio mensaje. */
+export const avisoTrasAccionCot = (r: { cotEstado?: EstadoCot; cotMensaje?: string | null } | undefined, esPedido: boolean, ok: string) =>
+  esPedido && r && 'cotEstado' in r ? etiquetaResultadoCot({ cotEstado: r.cotEstado ?? null, cotMensaje: r.cotMensaje }) : { color: 'green', texto: ok };
+
 /** E59: resultado del pedido del COT para el aviso (rojo si ARBA lo rechazó). */
 export const etiquetaResultadoCot = (r: { cotEstado: EstadoCot; cotMensaje?: string | null }) =>
   r.cotEstado === 'RECHAZADO' ? { color: 'red', texto: `ARBA rechazó el COT: ${r.cotMensaje ?? ''}`.trim() }
@@ -70,18 +74,18 @@ export function AccionesCot({ remito, onCambio }: { remito: RemitoCot; onCambio:
   const [editar, setEditar] = useState<Traslado | null>(null);
   const [pidiendo, setPidiendo] = useState(false);
   if (remito.estado === 'ANULADO' || !remito.cotEstado) return null;
-  const hacer = async (fn: () => Promise<unknown>, ok: string) => {
+  const hacer = async (fn: () => Promise<unknown>, ok: string, esPedido = false) => {
     setError('');
     try {
       const r = await fn() as { cotEstado?: EstadoCot; cotMensaje?: string | null } | undefined;
       // E59: un pedido rechazado por ARBA no muestra el aviso verde
-      const e = r && 'cotEstado' in r ? etiquetaResultadoCot({ cotEstado: r.cotEstado ?? null, cotMensaje: r.cotMensaje }) : { color: 'green', texto: ok };
+      const e = avisoTrasAccionCot(r, esPedido, ok);
       notifications.show({ color: e.color, message: e.texto }); onCambio(); return e.color !== 'red';
     } catch (e) { setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado'); onCambio(); return false; }
   };
   return (
     <>
-      {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="light" loading={pidiendo} disabled={pidiendo} onClick={() => { setPidiendo(true); void hacer(() => api(`/ventas/remitos/${remito.id}/cot`, { metodo: 'POST' }), 'Pedido del COT enviado').finally(() => setPidiendo(false)); }}>Pedir COT</Button>}
+      {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="light" loading={pidiendo} disabled={pidiendo} onClick={() => { setPidiendo(true); void hacer(() => api(`/ventas/remitos/${remito.id}/cot`, { metodo: 'POST' }), 'Pedido del COT enviado', true).finally(() => setPidiendo(false)); }}>Pedir COT</Button>}
       {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="subtle" onClick={() => void descargar(`/ventas/remitos/${remito.id}/cot/archivo`, {}).catch((e) => setError(e instanceof ErrorApi ? e.mensaje : 'Error inesperado'))}>Archivo COT</Button>}
       {puedePedirCot(remito.cotEstado) && <Button size="compact-xs" variant="subtle" onClick={() => setCargar(true)}>Cargar COT</Button>}
       {remito.cotEstado !== 'OTORGADO' && <Button size="compact-xs" variant="subtle" onClick={() => setEditar({ calle: remito.trasladoCalle ?? '', numero: remito.trasladoNumero ?? '', codigoPostal: remito.trasladoCodigoPostal ?? '', localidad: remito.trasladoLocalidad ?? '', provincia: remito.trasladoProvincia ?? null, transportistaId: remito.transportistaId ?? null, patente: remito.patente ?? '', patenteAcoplado: remito.patenteAcoplado ?? '', importeDeclarado: remito.importeDeclarado ? Number(remito.importeDeclarado) : '', fechaSalida: remito.fechaSalida?.slice(0, 10) ?? '', horaSalida: remito.horaSalida ?? '' })}>Editar traslado</Button>}

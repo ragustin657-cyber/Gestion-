@@ -77,6 +77,16 @@ export function renglonDeDevolucion(p: PendienteAcreditar): RenglonVentaEditable
   };
 }
 
+/** Revisión E59: una devolución puede tener una fila por factura; se elige por las dos. */
+export const claveDevolucion = (p: PendienteAcreditar) => `${p.devolucionRenglonId}|${p.facturaId ?? ''}`;
+/** Solo se agregan las de una factura (la de la primera elegida): la nota de crédito tiene un solo comprobante asociado. */
+export function elegirDevoluciones(pendientes: PendienteAcreditar[], claves: string[]): { facturaId: string | null; renglones: RenglonVentaEditable[] } {
+  const primera = pendientes.find((p) => claveDevolucion(p) === claves[0]);
+  if (!primera) return { facturaId: null, renglones: [] };
+  const sel = pendientes.filter((p) => claves.includes(claveDevolucion(p)) && p.facturaId === primera.facturaId);
+  return { facturaId: primera.facturaId, renglones: sel.map(renglonDeDevolucion) };
+}
+
 export function ComprobanteVentaPage() {
   const empresa = useEmpresa();
   const clientes = useClientes();
@@ -167,9 +177,9 @@ export function ComprobanteVentaPage() {
   }
   const devoluciones = useQuery({ queryKey: ['/ventas/remitos/pendientes-acreditar', terceroId], queryFn: () => api<PendienteAcreditar[]>('/ventas/remitos/pendientes-acreditar', { query: { terceroId } }), enabled: selectorDevoluciones && !!terceroId }).data ?? [];
   function agregarDevoluciones() {
-    const sel = devoluciones.filter((d) => elegidasDev.includes(d.devolucionRenglonId));
-    if (!asociadoId && sel[0]?.facturaId) setAsociadoId(sel[0].facturaId);
-    setRenglones(conExpo([...renglones.filter((r) => r.descripcion), ...sel.map(renglonDeDevolucion)]));
+    const { facturaId, renglones: nuevos } = elegirDevoluciones(devoluciones, elegidasDev);
+    if (facturaId) setAsociadoId(facturaId);
+    setRenglones(conExpo([...renglones.filter((r) => r.descripcion), ...nuevos]));
     setElegidasDev([]);
     setSelectorDevoluciones(false);
   }
@@ -286,7 +296,7 @@ export function ComprobanteVentaPage() {
           <Select label="Tipo" w={170} allowDeselect={false} data={TIPOS_VENTA} value={tipo} onChange={(v) => { setTipo((v ?? 'FACTURA') as TipoVenta); setAsociadoId(null); }} disabled={!editable} />
           <Select label="Cliente" w={300} searchable data={clientes.map((c) => ({ value: c.id, label: c.razonSocial }))} value={terceroId}
             onChange={(v) => { setTerceroId(v); setAsociadoId(null); setVendedor(undefined); const c = clientes.find((x) => x.id === v); if (c?.diasPago) setFechaVencimiento(sumarDias(fecha, c.diasPago)); const ext = !!c?.residenteExterior; cambiarExportacion(ext, true); }} disabled={!editable} />
-          <Select label="Punto de venta" w={170} data={puntos.map((p) => ({ value: p.id, label: `${String(p.numero).padStart(4, '0')}${p.descripcion ? ` ${p.descripcion}` : ''}` }))} value={puntoVentaId} onChange={setPuntoVentaId} disabled={!editable} />
+          <Select label="Punto de venta" w={170} allowDeselect={false} data={puntos.map((p) => ({ value: p.id, label: `${String(p.numero).padStart(4, '0')}${p.descripcion ? ` ${p.descripcion}` : ''}` }))} value={puntoVentaId} onChange={setPuntoVentaId} disabled={!editable} />
           <TextInput label="Fecha" type="date" value={fecha} onChange={(e) => setFecha(e.currentTarget.value)} disabled={!editable} />
           <TextInput label="Vencimiento" type="date" value={fechaVencimiento} onChange={(e) => setFechaVencimiento(e.currentTarget.value)} disabled={!editable} />
           <Select label="Concepto" w={200} allowDeselect={false} value={concepto} onChange={(v) => setConcepto(v ?? 'PRODUCTOS')} disabled={!editable}
@@ -328,8 +338,8 @@ export function ComprobanteVentaPage() {
           sugerirBonificacion={tipo === 'FACTURA' ? bonificacionSugerida : undefined} />
         <Modal opened={selectorDevoluciones} onClose={() => setSelectorDevoluciones(false)} title="Devoluciones pendientes de acreditar" size="xl">
           {devoluciones.length ? devoluciones.map((d) => (
-            <Checkbox key={d.devolucionRenglonId} mb={6} label={`${d.numero} · ${d.descripcion} · ${Number(d.pendiente).toLocaleString('es-AR')} · factura ${d.factura ?? '—'}`}
-              checked={elegidasDev.includes(d.devolucionRenglonId)} onChange={(e) => setElegidasDev(e.currentTarget.checked ? [...elegidasDev, d.devolucionRenglonId] : elegidasDev.filter((x) => x !== d.devolucionRenglonId))} />
+            <Checkbox key={claveDevolucion(d)} mb={6} label={`${d.numero} · ${d.descripcion} · ${Number(d.pendiente).toLocaleString('es-AR')} · factura ${d.factura ?? '—'}`}
+              checked={elegidasDev.includes(claveDevolucion(d))} onChange={(e) => setElegidasDev(e.currentTarget.checked ? [...elegidasDev, claveDevolucion(d)] : elegidasDev.filter((x) => x !== claveDevolucion(d)))} />
           )) : <Text size="sm" c="dimmed">El cliente no tiene devoluciones pendientes de acreditar.</Text>}
           <Group mt="md"><Button disabled={!elegidasDev.length} onClick={agregarDevoluciones}>Agregar</Button></Group>
         </Modal>

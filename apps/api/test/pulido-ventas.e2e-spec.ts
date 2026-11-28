@@ -89,4 +89,15 @@ describe('pulido de ventas (E59)', () => {
     expect((await x.http.put('/api/ventas/cot/config', { pedirAlConfirmar: true })).body.tieneClave).toBe(true);
     expect((await x.http.put('/api/ventas/cot/config', { clave: null })).body.tieneClave).toBe(false);
   });
+
+  it('revisión: una factura con el renglón partido en dos líneas da una sola fila', async () => {
+    const x = await escenario();
+    const r = await x.entrega();
+    const rr = r.renglones[0].id;
+    const f = await x.http.post('/api/ventas/comprobantes', { ...x.datos({ renglones: [6, 4].map((cantidad) => ({ origen: 'REMITO', remitoRenglonId: rr, descripcion: 'x', cantidad, precioUnitario: 1000, alicuota: 21 })) }), emitir: true });
+    expect(f.body.estado).toBe('AUTORIZADO');
+    await x.devolver(rr, 8);
+    const p = (await x.http.get(`/api/ventas/remitos/pendientes-acreditar?terceroId=${x.clienteRI.id}`)).body as { facturaId: string; pendiente: string }[];
+    expect(p.map((y) => [y.facturaId, y.pendiente])).toEqual([[f.body.id, '8']]);
+  });
 });

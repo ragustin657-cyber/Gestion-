@@ -347,9 +347,15 @@ export class RemitosService {
         filas.push({ ...base, pendiente: quedan.toString(), facturaId: null, factura: null, precioUnitario: null, bonificacionPct: '0', alicuota: null, monedaCodigo: null });
         continue;
       }
+      // Revisión E59: una fila por factura (un renglón de remito puede estar en varias líneas de la misma factura)
+      const porFactura = new Map<string, { f: (typeof fs)[number]; cantidad: Dec }>();
       for (const f of fs) {
+        const x = porFactura.get(f.comprobanteId);
+        porFactura.set(f.comprobanteId, { f: x?.f ?? f, cantidad: (x?.cantidad ?? new D(0)).plus(f.cantidad) });
+      }
+      for (const { f, cantidad } of porFactura.values()) {
         const acreditado = acreditados.filter((a) => a.devolucionRenglonId && deOrigen.has(a.devolucionRenglonId) && a.comprobante.comprobanteAsociadoId === f.comprobanteId).reduce((s, a) => s.plus(a.cantidad), new D(0));
-        const pendiente = D.min(quedan, new D(f.cantidad).minus(acreditado));
+        const pendiente = D.min(quedan, cantidad.minus(acreditado));
         if (pendiente.lte(0)) continue;
         filas.push({
           ...base, pendiente: pendiente.toString(), facturaId: f.comprobanteId, factura: `${f.comprobante.letra} ${String(f.comprobante.puntoVenta).padStart(4, '0')}-${String(f.comprobante.numero ?? 0).padStart(8, '0')}`,

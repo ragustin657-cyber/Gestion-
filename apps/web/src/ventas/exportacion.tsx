@@ -84,4 +84,10 @@ export const camposExportacion = (tipo: string, exportacion: boolean, datos: Dat
 
 /** E59: sin exportación, los renglones exentos vuelven a la alícuota del artículo (21 % sin artículo). */
 export const restaurarAlicuotas = (rs: RenglonVentaEditable[], articulos: ArticuloVenta[]): RenglonVentaEditable[] =>
-  rs.map((r) => (r.alicuota !== 'EXENTO' ? r : { ...r, alicuota: r.articuloId ? String(Number(articulos.find((a) => a.value === r.articuloId)?.alicuotaIva ?? 21)) : '21' }));
+  rs.map((r) => {
+    if (r.alicuota !== 'EXENTO') return r;
+    if (!r.articuloId) return { ...r, alicuota: '21' };
+    // Revisión E59: un artículo que no está en la lista (inactivo o fuera de los primeros) queda exento: no se adivina su alícuota
+    const a = articulos.find((x) => x.value === r.articuloId);
+    return a ? { ...r, alicuota: String(Number(a.alicuotaIva)) } : r;
+  });
